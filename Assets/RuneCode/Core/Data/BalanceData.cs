@@ -131,6 +131,7 @@ namespace RuneCode
         [SerializeField] private int _baseCapacity;
         [SerializeField] private int _maxLibrary;
         [SerializeField] private int _modifierStartStock;
+        [SerializeField] private int _behaviorStartStock;
         [SerializeField] private float _orbAbsorbRadius;
         [SerializeField] private float _pickupAttractSpeed = 480f;
         [SerializeField] private float _terminalHeal;
@@ -142,6 +143,9 @@ namespace RuneCode
 
         /// <summary>새 세이브(또는 소지량 기록이 없는 세이브)에서 Modifier 종류마다 주는 시작 소지량이다.</summary>
         public int ModifierStartStock => _modifierStartStock;
+
+        /// <summary>새 세이브(또는 행동 소지량 기록이 없는 세이브)에서 behavior.launch에 주는 시작 소지량이다.</summary>
+        public int BehaviorStartStock => _behaviorStartStock;
         /// <summary>스크랩과 Modifier의 자석 이동이 시작되는 공통 반경이다.</summary>
         public float OrbAbsorbRadius => _orbAbsorbRadius;
         /// <summary>자석 이동 중 아이템이 플레이어를 향해 이동하는 초당 거리다.</summary>
@@ -277,7 +281,8 @@ namespace RuneCode
                 || data.Adaptation.ElementCap > 1f || data.Adaptation.FormCap > 1f
                 || data.Combat.AegisReduction > 1f || data.Combat.ChillSlow > 1f
                 || data.Economy.DeathRetention > 1f || data.Economy.TerminalHeal > 1f || data.Economy.MaxLibrary <= 0
-                || data.Economy.ModifierStartStock < 0 || data.Economy.SlotCost <= 0 || data.Economy.PickupAttractSpeed <= 0f
+                || data.Economy.ModifierStartStock < 0 || data.Economy.BehaviorStartStock < 0
+                || data.Economy.SlotCost <= 0 || data.Economy.PickupAttractSpeed <= 0f
                 || data.Combat.SeparationAllowance <= 0f || data.Combat.SeparationAllowance > 1f
                 || data.Combat.SeparationStrength <= 0f || data.Combat.SeparationStrength > 1f
                 || data.Combat.SeparationMaxStep <= 0f

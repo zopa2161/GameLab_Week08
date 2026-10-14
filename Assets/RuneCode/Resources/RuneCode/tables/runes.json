@@ -1,4 +1,26 @@
 {
+  "_behaviorGrades": [
+    {
+      "_grade": "C",
+      "_elementSlots": 1,
+      "_modifierSlots": 1
+    },
+    {
+      "_grade": "B",
+      "_elementSlots": 1,
+      "_modifierSlots": 2
+    },
+    {
+      "_grade": "A",
+      "_elementSlots": 1,
+      "_modifierSlots": 3
+    },
+    {
+      "_grade": "S",
+      "_elementSlots": 2,
+      "_modifierSlots": 3
+    }
+  ],
   "_runes": [
     {
       "_id": "core.cast",
@@ -625,6 +647,7 @@
     {
       "_id": "flow.delay",
       "_name": "지연",
+      "_disabled": true,
       "_category": "flow",
       "_ram": 1,
       "_energy": 0,
@@ -669,6 +692,7 @@
     {
       "_id": "flow.repeat",
       "_name": "반복",
+      "_disabled": true,
       "_category": "flow",
       "_ram": 1,
       "_energy": 0,
@@ -729,6 +753,7 @@
     {
       "_id": "flow.if",
       "_name": "조건",
+      "_disabled": true,
       "_category": "flow",
       "_ram": 1,
       "_energy": 0,
@@ -1025,6 +1050,7 @@
     {
       "_id": "spell.call",
       "_name": "마법 메소드",
+      "_disabled": true,
       "_category": "method",
       "_ram": 1,
       "_energy": 0,
@@ -1161,30 +1187,7 @@
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "next",
-          "_kind": "chain",
-          "_direction": "out",
-          "_max": 1
-        },
-        {
-          "_order": 2,
-          "_portId": "element",
-          "_kind": "element",
-          "_direction": "in",
-          "_max": 1
-        }
-      ]
+      }
 
     },
     {
@@ -1210,30 +1213,7 @@
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "next",
-          "_kind": "chain",
-          "_direction": "out",
-          "_max": 1
-        },
-        {
-          "_order": 2,
-          "_portId": "element",
-          "_kind": "element",
-          "_direction": "in",
-          "_max": 1
-        }
-      ]
+      }
 
     },
     {
@@ -1258,30 +1238,7 @@
         "_radiusMultiplier": 2.25,
         "_learningMultiplier": 1,
         "_coneAngle": 60
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "next",
-          "_kind": "chain",
-          "_direction": "out",
-          "_max": 1
-        },
-        {
-          "_order": 2,
-          "_portId": "element",
-          "_kind": "element",
-          "_direction": "in",
-          "_max": 1
-        }
-      ]
+      }
 
     },
     {
@@ -1317,15 +1274,6 @@
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1
       },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "element",
-          "_kind": "element",
-          "_direction": "out",
-          "_max": 1
-        }
-      ],
       "_element": {
         "_id": "fire",
         "_category": "elemental",
@@ -1346,15 +1294,6 @@
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1
       },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "element",
-          "_kind": "element",
-          "_direction": "out",
-          "_max": 1
-        }
-      ],
       "_element": {
         "_id": "lightning",
         "_category": "elemental",
@@ -1375,15 +1314,6 @@
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1
       },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "element",
-          "_kind": "element",
-          "_direction": "out",
-          "_max": 1
-        }
-      ],
       "_element": {
         "_id": "ice",
         "_category": "elemental",
@@ -1394,6 +1324,7 @@
     {
       "_id": "element.healing",
       "_name": "회복",
+      "_disabled": true,
       "_category": "element",
       "_ram": 1,
       "_energy": 0,
@@ -1404,35 +1335,6 @@
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1
       },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "element",
-          "_kind": "element",
-          "_direction": "out",
-          "_max": 1
-        }
-      ],
-      "_params": [
-        {
-          "_order": 0,
-          "_paramId": "power",
-          "_kind": "number",
-          "_min": 1,
-          "_max": 100,
-          "_step": 1,
-          "_defaultNumber": 20
-        },
-        {
-          "_order": 1,
-          "_paramId": "buffDuration",
-          "_kind": "number",
-          "_min": 1,
-          "_max": 30,
-          "_step": 0.5,
-          "_defaultNumber": 5
-        }
-      ],
       "_element": {
         "_id": "healing",
         "_category": "functional",
@@ -1442,6 +1344,7 @@
     {
       "_id": "element.protection",
       "_name": "보호",
+      "_disabled": true,
       "_category": "element",
       "_ram": 1,
       "_energy": 0,
@@ -1452,35 +1355,6 @@
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1
       },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "element",
-          "_kind": "element",
-          "_direction": "out",
-          "_max": 1
-        }
-      ],
-      "_params": [
-        {
-          "_order": 0,
-          "_paramId": "power",
-          "_kind": "number",
-          "_min": 1,
-          "_max": 100,
-          "_step": 1,
-          "_defaultNumber": 20
-        },
-        {
-          "_order": 1,
-          "_paramId": "buffDuration",
-          "_kind": "number",
-          "_min": 1,
-          "_max": 30,
-          "_step": 0.5,
-          "_defaultNumber": 5
-        }
-      ],
       "_element": {
         "_id": "protection",
         "_category": "functional",
@@ -1504,46 +1378,121 @@
       "_ports": [
         {
           "_order": 0,
-          "_portId": "in",
-          "_kind": "chain",
+          "_portId": "exec",
+          "_kind": "exec",
           "_direction": "in",
           "_max": 1
         },
         {
           "_order": 1,
-          "_portId": "mod",
-          "_kind": "mod",
-          "_direction": "in",
-          "_max": 0
-        },
-        {
-          "_order": 2,
           "_portId": "onHit",
           "_kind": "exec",
           "_direction": "out",
           "_max": 0
+        }
+      ],
+      "_params": [
+        {
+          "_order": 0,
+          "_paramId": "grade",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "C",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "C"
+            },
+            {
+              "_order": 1,
+              "_option": "B"
+            },
+            {
+              "_order": 2,
+              "_option": "A"
+            },
+            {
+              "_order": 3,
+              "_option": "S"
+            }
+          ]
+        },
+        {
+          "_order": 1,
+          "_paramId": "shape",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "sphere",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "sphere"
+            },
+            {
+              "_order": 1,
+              "_option": "box"
+            },
+            {
+              "_order": 2,
+              "_option": "cone"
+            }
+          ]
+        },
+        {
+          "_order": 2,
+          "_paramId": "element0",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 3,
-          "_portId": "onExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
+          "_paramId": "element1",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 4,
-          "_portId": "onFirstHitOrExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
+          "_paramId": "mod0",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 5,
-          "_portId": "onComplete",
-          "_kind": "exec",
-          "_direction": "out",
+          "_paramId": "mod1",
+          "_kind": "text",
+          "_min": 0,
           "_max": 0,
-          "_status": "deprecated"
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 6,
+          "_paramId": "mod2",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         }
       ]
 
@@ -1566,48 +1515,121 @@
       "_ports": [
         {
           "_order": 0,
-          "_portId": "in",
-          "_kind": "chain",
+          "_portId": "exec",
+          "_kind": "exec",
           "_direction": "in",
           "_max": 1
         },
         {
           "_order": 1,
-          "_portId": "mod",
-          "_kind": "mod",
-          "_direction": "in",
-          "_max": 0
-        },
-        {
-          "_order": 2,
           "_portId": "onHit",
           "_kind": "exec",
           "_direction": "out",
           "_max": 0
+        }
+      ],
+      "_params": [
+        {
+          "_order": 0,
+          "_paramId": "grade",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "C",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "C"
+            },
+            {
+              "_order": 1,
+              "_option": "B"
+            },
+            {
+              "_order": 2,
+              "_option": "A"
+            },
+            {
+              "_order": 3,
+              "_option": "S"
+            }
+          ]
+        },
+        {
+          "_order": 1,
+          "_paramId": "shape",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "sphere",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "sphere"
+            },
+            {
+              "_order": 1,
+              "_option": "box"
+            },
+            {
+              "_order": 2,
+              "_option": "cone"
+            }
+          ]
+        },
+        {
+          "_order": 2,
+          "_paramId": "element0",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 3,
-          "_portId": "onExpire",
-          "_kind": "exec",
-          "_direction": "out",
+          "_paramId": "element1",
+          "_kind": "text",
+          "_min": 0,
           "_max": 0,
-          "_status": "deprecated"
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 4,
-          "_portId": "onFirstHitOrExpire",
-          "_kind": "exec",
-          "_direction": "out",
+          "_paramId": "mod0",
+          "_kind": "text",
+          "_min": 0,
           "_max": 0,
-          "_status": "deprecated"
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 5,
-          "_portId": "onComplete",
-          "_kind": "exec",
-          "_direction": "out",
+          "_paramId": "mod1",
+          "_kind": "text",
+          "_min": 0,
           "_max": 0,
-          "_status": "deprecated"
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 6,
+          "_paramId": "mod2",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         }
       ]
 
@@ -1630,47 +1652,121 @@
       "_ports": [
         {
           "_order": 0,
-          "_portId": "in",
-          "_kind": "chain",
+          "_portId": "exec",
+          "_kind": "exec",
           "_direction": "in",
           "_max": 1
         },
         {
           "_order": 1,
-          "_portId": "mod",
-          "_kind": "mod",
-          "_direction": "in",
-          "_max": 0
-        },
-        {
-          "_order": 2,
           "_portId": "onHit",
           "_kind": "exec",
           "_direction": "out",
           "_max": 0
+        }
+      ],
+      "_params": [
+        {
+          "_order": 0,
+          "_paramId": "grade",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "C",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "C"
+            },
+            {
+              "_order": 1,
+              "_option": "B"
+            },
+            {
+              "_order": 2,
+              "_option": "A"
+            },
+            {
+              "_order": 3,
+              "_option": "S"
+            }
+          ]
+        },
+        {
+          "_order": 1,
+          "_paramId": "shape",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "sphere",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "sphere"
+            },
+            {
+              "_order": 1,
+              "_option": "box"
+            },
+            {
+              "_order": 2,
+              "_option": "cone"
+            }
+          ]
+        },
+        {
+          "_order": 2,
+          "_paramId": "element0",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 3,
-          "_portId": "onExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
+          "_paramId": "element1",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 4,
-          "_portId": "onFirstHitOrExpire",
-          "_kind": "exec",
-          "_direction": "out",
+          "_paramId": "mod0",
+          "_kind": "text",
+          "_min": 0,
           "_max": 0,
-          "_status": "deprecated"
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 5,
-          "_portId": "onComplete",
-          "_kind": "exec",
-          "_direction": "out",
+          "_paramId": "mod1",
+          "_kind": "text",
+          "_min": 0,
           "_max": 0,
-          "_status": "deprecated"
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 6,
+          "_paramId": "mod2",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         }
       ]
 
@@ -1693,48 +1789,114 @@
       "_ports": [
         {
           "_order": 0,
-          "_portId": "in",
-          "_kind": "chain",
+          "_portId": "exec",
+          "_kind": "exec",
           "_direction": "in",
           "_max": 1
+        }
+      ],
+      "_params": [
+        {
+          "_order": 0,
+          "_paramId": "grade",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "C",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "C"
+            },
+            {
+              "_order": 1,
+              "_option": "B"
+            },
+            {
+              "_order": 2,
+              "_option": "A"
+            },
+            {
+              "_order": 3,
+              "_option": "S"
+            }
+          ]
         },
         {
           "_order": 1,
-          "_portId": "mod",
-          "_kind": "mod",
-          "_direction": "in",
-          "_max": 0
+          "_paramId": "shape",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "sphere",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "sphere"
+            },
+            {
+              "_order": 1,
+              "_option": "box"
+            },
+            {
+              "_order": 2,
+              "_option": "cone"
+            }
+          ]
         },
         {
           "_order": 2,
-          "_portId": "onHit",
-          "_kind": "exec",
-          "_direction": "out",
+          "_paramId": "element0",
+          "_kind": "text",
+          "_min": 0,
           "_max": 0,
-          "_status": "deprecated"
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 3,
-          "_portId": "onExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
+          "_paramId": "element1",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 4,
-          "_portId": "onFirstHitOrExpire",
-          "_kind": "exec",
-          "_direction": "out",
+          "_paramId": "mod0",
+          "_kind": "text",
+          "_min": 0,
           "_max": 0,
-          "_status": "deprecated"
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         },
         {
           "_order": 5,
-          "_portId": "onComplete",
-          "_kind": "exec",
-          "_direction": "out",
+          "_paramId": "mod1",
+          "_kind": "text",
+          "_min": 0,
           "_max": 0,
-          "_status": "deprecated"
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 6,
+          "_paramId": "mod2",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         }
       ]
 
@@ -1742,6 +1904,7 @@
     {
       "_id": "behavior.apply",
       "_name": "적용",
+      "_disabled": true,
       "_category": "behavior",
       "_ram": 2,
       "_energy": 0,

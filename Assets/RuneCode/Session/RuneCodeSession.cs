@@ -380,7 +380,7 @@ namespace RuneCode
 
         /// <summary>
         /// 전투 보상과 처치 기록을 세이브에 반영하고 저장한다. 클리어면 다음 스테이지를 해금하고, 처음 클리어한 스테이지면
-        /// 스테이지 데이터의 Modifier 소지량 보상을 지급한다. 지급한 Modifier 보상 목록을 반환한다.
+        /// 스테이지 데이터의 룬 소지량 보상(모디·속성·행동)을 지급한다. 지급한 보상 목록을 반환한다.
         /// </summary>
         public IReadOnlyList<ModifierRewardDefinition> SettleMission(int stageNumber, int fragments, bool isCleared, IEnumerable<KeyValuePair<string, int>> killCounts)
         {
@@ -389,10 +389,27 @@ namespace RuneCode
             {
                 foreach (ModifierRewardDefinition reward in _stages.Get(stageNumber).ModifierRewards)
                 {
-                    // Modifier가 아닌 ID는 데이터 오류로 보고 지급하지 않는다.
-                    if (!GameData.Runes.TryGet(reward.RuneId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER)
-                    { Debug.LogWarning("[Stage] Modifier가 아닌 보상 ID를 건너뜁니다: " + reward.RuneId); continue; }
-                    GrantModifier(reward.RuneId, string.IsNullOrEmpty(reward.Grade) ? GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId) : reward.Grade, reward.Count);
+                    if (!GameData.Runes.TryGet(reward.RuneId, out RuneDefinition rune))
+                    { Debug.LogWarning("[Stage] 룬이 없는 보상 ID를 건너뜁니다: " + reward.RuneId); continue; }
+                    if (rune.Category == SpellGrammar.CATEGORY_ELEMENT)
+                    {
+                        GrantRune(reward.RuneId, "", reward.Count);
+                    }
+                    else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
+                    {
+                        if (string.IsNullOrEmpty(reward.Grade))
+                        { Debug.LogWarning("[Stage] 등급이 없는 행동 보상을 건너뜁니다: " + reward.RuneId); continue; }
+                        GrantRune(reward.RuneId, reward.Grade, reward.Count);
+                    }
+                    else if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
+                    {
+                        GrantRune(reward.RuneId, string.IsNullOrEmpty(reward.Grade) ? GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId) : reward.Grade, reward.Count);
+                    }
+                    else
+                    {
+                        // 소지 아이템이 아닌 ID는 데이터 오류로 보고 지급하지 않는다.
+                        Debug.LogWarning("[Stage] 소지 아이템이 아닌 보상 ID를 건너뜁니다: " + reward.RuneId); continue;
+                    }
                     modifierRewards.Add(reward);
                 }
             }
@@ -404,12 +421,20 @@ namespace RuneCode
             return modifierRewards;
         }
 
+        /// <summary>주운·선택·보상받은 룬 소지 아이템(모디·속성·행동)을 (종류, 등급) 소지량에 즉시 반영하고 저장한다. 이후 사망·시간 초과·후퇴와 무관하게 유지된다. 받을 수 없는 (룬, 등급)이면 지급하지 않는다.</summary>
+        public void GrantRune(string runeId, string grade, int count)
+        {
+            if (count <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)
+                || (rune.Category != SpellGrammar.CATEGORY_MODIFIER && rune.Category != SpellGrammar.CATEGORY_ELEMENT
+                    && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)) return;
+            _save.AddStock(runeId, grade, count);
+            PersistProgress();
+        }
+
         /// <summary>주운·선택·보상받은 Modifier를 (종류, 등급) 소지량에 즉시 반영하고 저장한다. 이후 사망·시간 초과·후퇴와 무관하게 유지된다. 그 Modifier에 없는 등급이면 지급하지 않는다.</summary>
         public void GrantModifier(string runeId, string grade, int count)
         {
-            if (count <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER) return;
-            _save.AddModifierStock(runeId, grade, count);
-            PersistProgress();
+            GrantRune(runeId, grade, count);
         }
 
         /// <summary>디버그 실행에서만 조각을 지급한다.</summary>

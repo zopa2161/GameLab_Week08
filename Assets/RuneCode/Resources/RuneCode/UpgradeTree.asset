@@ -68,7 +68,7 @@ MonoBehaviour:
     - _nodeId: upgrade.ram
       _requiredLevel: 1
     _levels:
-    - _cost: 30
+    - _cost: 0
       _amount: 0
   - _id: upgrade.maxEnergy
     _requiredStage: 1
@@ -170,7 +170,7 @@ MonoBehaviour:
     - _nodeId: upgrade.gpu
       _requiredLevel: 1
     _levels:
-    - _cost: 50
+    - _cost: 0
       _amount: 0
   - _id: unlock.shape.cone
     _requiredStage: 1
@@ -242,7 +242,7 @@ MonoBehaviour:
     - _nodeId: upgrade.mainboard.secondary
       _requiredLevel: 1
     _levels:
-    - _cost: 100
+    - _cost: 0
       _amount: 0
   - _id: upgrade.scrapGain
     _requiredStage: 1
@@ -314,7 +314,7 @@ MonoBehaviour:
     - _nodeId: upgrade.maxEnergy.final
       _requiredLevel: 1
     _levels:
-    - _cost: 200
+    - _cost: 0
       _amount: 0
   - _id: upgrade.moveSpeed
     _requiredStage: 1
@@ -372,7 +372,7 @@ MonoBehaviour:
     - _nodeId: upgrade.mainboard.final
       _requiredLevel: 1
     _levels:
-    - _cost: 200
+    - _cost: 0
       _amount: 0
   - _id: upgrade.gpu.final
     _requiredStage: 1
@@ -452,7 +452,7 @@ MonoBehaviour:
     - _nodeId: upgrade.mainboard.final
       _requiredLevel: 1
     _levels:
-    - _cost: 250
+    - _cost: 0
       _amount: 0
   - _id: upgrade.maxHp.endgame
     _requiredStage: 1
@@ -2356,7 +2356,7 @@ MonoBehaviour:
     - _nodeId: upgrade.mainboard.secondary
       _requiredLevel: 1
     _levels:
-    - _cost: 100
+    - _cost: 0
       _amount: 0
   _unplacedNodes:
   - _id: unlock.mod.amplify
@@ -2453,7 +2453,7 @@ MonoBehaviour:
     _initialLevel: 0
     _prerequisites: []
     _levels:
-    - _cost: 60
+    - _cost: 0
       _amount: 0
   - _id: unlock.spell.call
     _requiredStage: 1
@@ -2513,7 +2513,7 @@ MonoBehaviour:
     _initialLevel: 0
     _prerequisites: []
     _levels:
-    - _cost: 35
+    - _cost: 0
       _amount: 0
   - _id: upgrade.cpu
     _requiredStage: 1

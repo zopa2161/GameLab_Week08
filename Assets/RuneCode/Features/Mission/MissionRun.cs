@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 
 namespace RuneCode
 {
-    /// <summary>이번 미션에서 획득한 조각 또는 등급별 Modifier의 표시용 원본 정보다.</summary>
+    /// <summary>이번 미션에서 획득한 조각 또는 소지 아이템(모디·속성·행동)의 표시용 원본 정보다.</summary>
     public sealed class MissionReward
     {
         private readonly bool _isModifier;
@@ -13,12 +13,13 @@ namespace RuneCode
         private readonly string _grade;
         private readonly int _count;
 
+        /// <summary>소지 아이템(모디·속성·행동)인지 반환한다. false면 조각 보상이다.</summary>
         public bool IsModifier => _isModifier;
         public string RuneId => _runeId;
         public string Grade => _grade;
         public int Count => _count;
 
-        /// <summary>Modifier ID·등급 또는 조각 유형과 현재 획득 수량을 보관한다.</summary>
+        /// <summary>소지 아이템 ID·등급 또는 조각 유형과 현재 획득 수량을 보관한다.</summary>
         public MissionReward(bool isModifier, string runeId, string grade, int count)
         {
             _isModifier = isModifier;
@@ -146,12 +147,12 @@ namespace RuneCode
             if (_simulation.Completed || _simulation.IsFailed) FinishMission();
         }
 
-        /// <summary>이번 프레임에 새로 주운 Modifier 드롭을 세션에 넘겨 즉시 지급하고 결과 문구용 목록에 쌓는다.</summary>
+        /// <summary>이번 프레임에 새로 주운 소지 아이템 드롭을 세션에 넘겨 즉시 지급하고 결과 문구용 목록에 쌓는다.</summary>
         private void GrantPickedItems()
         {
             foreach (SimulationItemDrop drop in _simulation.TakeNewPickedItems())
             {
-                _session.GrantModifier(drop.RuneId, drop.Grade, drop.Count);
+                _session.GrantRune(drop.RuneId, drop.Grade, drop.Count);
                 _pickedModifiers.Add(drop);
                 AddModifierReward(drop.RuneId, drop.Grade, drop.Count);
             }
@@ -213,9 +214,11 @@ namespace RuneCode
             AddFragmentReward(fragments);
             foreach (ModifierRewardDefinition reward in modifierRewards)
             {
-                string grade = string.IsNullOrEmpty(reward.Grade)
-                    ? GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId)
-                    : reward.Grade;
+                // 속성 보상은 등급이 없으므로 그대로 두고, 모디 보상만 등급이 비면 최저 등급으로 채운다.
+                string grade = reward.Grade;
+                if (string.IsNullOrEmpty(grade) && GameData.Runes.TryGet(reward.RuneId, out RuneDefinition rune)
+                    && rune.Category == SpellGrammar.CATEGORY_MODIFIER)
+                    grade = GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId);
                 AddModifierReward(reward.RuneId, grade, reward.Count);
             }
             var result = cleared ? "clear" : _simulation.IsTimedOut ? "timeout" : "death";
@@ -224,8 +227,10 @@ namespace RuneCode
             if (cleared) _lastResult += "  ·  " + GameData.L("result.clearReward") + " " + _simulation.ClearReward;
             foreach (var reward in modifierRewards)
             {
-                string grade = string.IsNullOrEmpty(reward.Grade)
-                    ? GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId) : reward.Grade;
+                string grade = reward.Grade;
+                if (string.IsNullOrEmpty(grade) && GameData.Runes.TryGet(reward.RuneId, out RuneDefinition rune)
+                    && rune.Category == SpellGrammar.CATEGORY_MODIFIER)
+                    grade = GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId);
                 _lastResult += "\n" + GameData.L("result.modifierReward") + " "
                     + ModifierGradeText.FormatName(GameData.Runes.Get(reward.RuneId).Name, grade) + " +" + reward.Count;
             }

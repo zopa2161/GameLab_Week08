@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using UnityEngine;
 
 namespace RuneCode
 {
-    /// <summary>드롭 추첨 결과 한 항목이다. fragments는 Fragments 수량을, modifier는 RuneId·Grade·Count를 쓴다. eliteModifier 항목의 등급·종류는 시뮬레이션이 등급표로 정한다.</summary>
+    /// <summary>드롭 추첨 결과 한 항목이다. fragments는 Fragments 수량을, modifier는 RuneId·Grade·Count를 쓴다. element는 등급이 빈 문자열이고, behavior는 등급 필수다. eliteModifier 항목의 등급·종류는 시뮬레이션이 등급표로 정한다.</summary>
     public readonly struct DropRoll
     {
         private readonly string _type;
@@ -16,7 +17,7 @@ namespace RuneCode
         public string Type => _type;
         public string RuneId => _runeId;
 
-        /// <summary>지정 Modifier 항목의 등급이다. 비어 있으면 그 Modifier에서 값이 있는 가장 낮은 등급을 쓴다.</summary>
+        /// <summary>지정 항목의 등급이다. Modifier는 비어 있으면 그 Modifier에서 값이 있는 가장 낮은 등급을, element는 항상 빈 문자열을 쓴다.</summary>
         public string Grade => _grade;
         public int Count => _count;
         public int Fragments => _fragments;
@@ -83,13 +84,13 @@ namespace RuneCode
             return last;
         }
 
-        /// <summary>항목 형식에 맞춰 결과를 만든다. fragments는 min 이상 max 이하 수량을 정하고 none은 결과를 만들지 않는다. Modifier 등급은 시뮬레이션이 정한다.</summary>
+        /// <summary>항목 형식에 맞춰 결과를 만든다. fragments는 min 이상 max 이하 수량을 정하고 none은 결과를 만들지 않는다. Modifier 등급은 시뮬레이션이 정하고 element 등급은 빈 문자열로 정규화한다.</summary>
         private static void AddRoll(List<DropRoll> rolls, DropEntry entry, Func<double> random)
         {
             if (entry.Type == DropCatalog.TYPE_NONE) return;
             if (entry.Type == DropCatalog.TYPE_FRAGMENTS)
             { rolls.Add(new DropRoll(DropCatalog.TYPE_FRAGMENTS, null, null, 0, entry.Min + (int)(random() * (entry.Max - entry.Min + 1)))); return; }
-            rolls.Add(new DropRoll(DropCatalog.TYPE_MODIFIER, entry.Id, entry.Grade, entry.Count, 0));
+            rolls.Add(new DropRoll(entry.Type, entry.Id, entry.Type == DropCatalog.TYPE_ELEMENT ? "" : entry.Grade, entry.Count, 0));
         }
     }
 
@@ -98,6 +99,8 @@ namespace RuneCode
     {
         public const string TYPE_FRAGMENTS = "fragments";
         public const string TYPE_MODIFIER = "modifier";
+        public const string TYPE_ELEMENT = "element";
+        public const string TYPE_BEHAVIOR = "behavior";
         public const string TYPE_NONE = "none";
 
         /// <summary>Modifier 항목의 특수 ID다. 특정 룬 대신 쓰면 엘리트 Modifier 등급표로 등급·종족을 정한다.</summary>
@@ -115,7 +118,7 @@ namespace RuneCode
         public DropTableDefinition Get(string id)
         { for (int i = 0; i < _dropTables.Length; i++) if (_dropTables[i].Id == id) return _dropTables[i]; throw new FormatException("등록되지 않은 드롭 테이블: " + id); }
 
-        /// <summary>JSON 드롭 설정을 읽고 모든 테이블의 검증 오류를 모아 한 번에 보고한다. Modifier 룬 존재와 카테고리는 GameData.Runes로 확인한다.</summary>
+        /// <summary>JSON 드롭 설정을 읽고 모든 테이블의 검증 오류를 모아 한 번에 보고한다. Modifier·element·behavior 룬의 존재와 카테고리·비활성 여부는 GameData.Runes로 확인한다.</summary>
         public static DropCatalog FromJson(string json)
         {
             var catalog = JsonUtility.FromJson<DropCatalog>(json);
@@ -144,8 +147,10 @@ namespace RuneCode
             {
                 DropEntry entry = entries[i];
                 string path = "drops.json:" + tableId + ":" + field + "[" + i + "]";
-                if (entry.Type != TYPE_FRAGMENTS && entry.Type != TYPE_MODIFIER && entry.Type != TYPE_NONE)
-                { errors.Add(path + "._type 항목 형식은 " + TYPE_FRAGMENTS + ", " + TYPE_MODIFIER + ", " + TYPE_NONE + " 중 하나여야 합니다: " + entry.Type); continue; }
+                if (entry.Type != TYPE_FRAGMENTS && entry.Type != TYPE_MODIFIER && entry.Type != TYPE_ELEMENT
+                    && entry.Type != TYPE_BEHAVIOR && entry.Type != TYPE_NONE)
+                { errors.Add(path + "._type 항목 형식은 " + TYPE_FRAGMENTS + ", " + TYPE_MODIFIER + ", " + TYPE_ELEMENT + ", "
+                    + TYPE_BEHAVIOR + ", " + TYPE_NONE + " 중 하나여야 합니다: " + entry.Type); continue; }
                 if (checkWeight && (double.IsNaN(entry.Weight) || double.IsInfinity(entry.Weight) || entry.Weight <= 0))
                     errors.Add(path + "._weight 가중치는 0보다 큰 유한값이어야 합니다.");
                 if (entry.Type == TYPE_MODIFIER)
@@ -157,6 +162,21 @@ namespace RuneCode
                     if (entry.Count < 1) errors.Add(path + "._count 수량은 1 이상이어야 합니다.");
                     if (entry.Id != ELITE_MODIFIER_ENTRY_ID && !string.IsNullOrEmpty(entry.Grade) && !GameData.ModifierGrades.IsGradeAvailable(entry.Id, entry.Grade))
                         errors.Add(path + "._grade 이 Modifier에 없는 등급입니다: " + entry.Id + " " + entry.Grade);
+                }
+                else if (entry.Type == TYPE_ELEMENT)
+                {
+                    if (!GameData.Runes.TryGet(entry.Id, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_ELEMENT || rune.IsDisabled)
+                        errors.Add(path + "._id 비활성이 아니고 element 카테고리인 룬이 없습니다: " + entry.Id);
+                    if (!string.IsNullOrEmpty(entry.Grade)) errors.Add(path + "._grade 속성 항목에는 등급을 넣지 않습니다: " + entry.Id + " " + entry.Grade);
+                    if (entry.Count < 1) errors.Add(path + "._count 수량은 1 이상이어야 합니다.");
+                }
+                else if (entry.Type == TYPE_BEHAVIOR)
+                {
+                    if (!GameData.Runes.TryGet(entry.Id, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled)
+                        errors.Add(path + "._id 비활성이 아니고 behavior 카테고리인 룬이 없습니다: " + entry.Id);
+                    if (!GameData.Runes.BehaviorGradeOrder.Contains(entry.Grade))
+                        errors.Add(path + "._grade 행동 등급표에 없는 등급입니다: " + entry.Id + " " + entry.Grade);
+                    if (entry.Count < 1) errors.Add(path + "._count 수량은 1 이상이어야 합니다.");
                 }
                 else if (entry.Type == TYPE_FRAGMENTS)
                 {

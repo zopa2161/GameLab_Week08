@@ -66,7 +66,14 @@ namespace RuneCode
         public const string CONE_DISTANCE_PARAM = "coneDistance";
         public const string CONE_ANGLE_PARAM = "coneAngle";
         public const string BOX_DIRECTION_PARAM = "boxDirection";
+        public const string SHAPE_PARAM = "shape";
         public const string MODIFIER_GRADE_PARAM = "grade";
+        public const string ELEMENT_SLOT_PREFIX = "element";
+        public const string MODIFIER_SLOT_PREFIX = "mod";
+        public const int MAX_ELEMENT_SLOTS = 2;
+        public const int MAX_MODIFIER_SLOTS = 3;
+        public const string DEFAULT_BEHAVIOR_GRADE = "C";
+        public const string DEFAULT_SHAPE = "sphere";
         public const int UNLIMITED_PIERCE_COUNT = int.MaxValue;
         // 관통 수가 이 값 이상이면 사실상 무제한으로 보고 무제한 관통과 같게 다룬다(예: 등급표의 999).
         public const int UNLIMITED_PIERCE_THRESHOLD = 100;
@@ -84,6 +91,9 @@ namespace RuneCode
         private const string SHAPE_PREFIX = "shape.";
         private const string BEHAVIOR_PREFIX = "behavior.";
         private const string ELEMENT_PREFIX = "element.";
+
+        // 행동 노드 형태 선택 순서다. 클릭할 때 이 순서로 다음 값을 고른다.
+        public static readonly string[] SHAPE_OPTIONS = { MAGIC_TYPE_SPHERE, MAGIC_TYPE_BOX, MAGIC_TYPE_CONE };
 
         /// <summary>Inline Magic의 magicType 값(sphere 등)에 해당하는 Shape 룬 ID(shape.sphere 등)를 반환한다.</summary>
         public static string ShapeRune(string magicType) => SHAPE_PREFIX + magicType;
@@ -128,6 +138,62 @@ namespace RuneCode
         public static string ModifierStockKey(string runeId, string grade)
         {
             return runeId + "#" + grade;
+        }
+
+        /// <summary>행동 노드의 속성 슬롯 키를 반환한다. 예: ElementSlotKey(0)은 "element0".</summary>
+        public static string ElementSlotKey(int index) => ELEMENT_SLOT_PREFIX + index;
+
+        /// <summary>행동 노드의 모디파이어 슬롯 키를 반환한다. 예: ModifierSlotKey(0)은 "mod0".</summary>
+        public static string ModifierSlotKey(int index) => MODIFIER_SLOT_PREFIX + index;
+
+        /// <summary>
+        /// 슬롯 키(element0·mod0 등)를 종류와 순번으로 나눈다. isElement는 속성 슬롯 여부다.
+        /// 최대 슬롯 수 밖이거나 슬롯 키가 아니면 false를 반환한다.
+        /// </summary>
+        public static bool TryParseSlotKey(string slotKey, out bool isElement, out int index)
+        {
+            isElement = false;
+            index = -1;
+            if (string.IsNullOrEmpty(slotKey)) return false;
+            for (int i = 0; i < MAX_ELEMENT_SLOTS; i++)
+            {
+                if (slotKey != ElementSlotKey(i)) continue;
+                isElement = true;
+                index = i;
+                return true;
+            }
+            for (int i = 0; i < MAX_MODIFIER_SLOTS; i++)
+            {
+                if (slotKey != ModifierSlotKey(i)) continue;
+                index = i;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 행동 룬에 형태 값을 쓸 수 있는지 반환한다. 부채꼴은 발사·폭발·잔류에만 정의되어 있으며
+        /// GraphCompiler.ValidateMagicNode의 부채꼴 규칙(E14)과 같은 기준이다.
+        /// </summary>
+        public static bool IsShapeAllowed(string behaviorRuneId, string shape)
+        {
+            if (shape != MAGIC_TYPE_CONE) return true;
+            return behaviorRuneId == "behavior.launch" || behaviorRuneId == "behavior.burst" || behaviorRuneId == "behavior.persist";
+        }
+
+        /// <summary>
+        /// Modifier 소지량 키를 runeId와 등급으로 나눈다. ModifierStockKey의 역연산이며 마지막 '#'을 기준으로 나눈다.
+        /// 키에 '#'이 없거나 룬 ID가 비어 있으면 false를 반환한다. 등급은 빈 문자열일 수 있다.
+        /// </summary>
+        public static bool TryParseStockKey(string key, out string runeId, out string grade)
+        {
+            runeId = null;
+            grade = null;
+            int separator = string.IsNullOrEmpty(key) ? -1 : key.LastIndexOf('#');
+            if (separator < 1) return false;
+            runeId = key.Substring(0, separator);
+            grade = key.Substring(separator + 1);
+            return true;
         }
 
         /// <summary>노드의 문자열 등급을 읽고 없으면 원본 표에서 해당 Modifier의 최저 등급을 반환한다.</summary>

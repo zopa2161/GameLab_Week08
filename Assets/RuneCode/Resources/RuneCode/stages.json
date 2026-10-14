@@ -159,7 +159,13 @@
           ]
         }
       ],
-      "_modifierRewards": []
+      "_modifierRewards": [
+        {
+          "_runeId": "element.fire",
+          "_grade": "",
+          "_count": 1
+        }
+      ]
     },
     {
       "_fromStage": 2,
@@ -283,6 +289,18 @@
           "_radiusMultiplier": 1.5,
           "_dropTable": "drop.elite.basic"
         }
+      ],
+      "_modifierRewards": [
+        {
+          "_runeId": "behavior.burst",
+          "_grade": "C",
+          "_count": 1
+        },
+        {
+          "_runeId": "element.ice",
+          "_grade": "",
+          "_count": 1
+        }
       ]
     },
     {
@@ -370,6 +388,18 @@
           "_speedMultiplier": 1.2,
           "_radiusMultiplier": 1.5,
           "_dropTable": "drop.elite.basic"
+        }
+      ],
+      "_modifierRewards": [
+        {
+          "_runeId": "behavior.orbit",
+          "_grade": "C",
+          "_count": 1
+        },
+        {
+          "_runeId": "element.lightning",
+          "_grade": "",
+          "_count": 1
         }
       ]
     },
@@ -465,7 +495,13 @@
           "_dropTable": "drop.elite.basic"
         }
       ],
-      "_modifierRewards": []
+      "_modifierRewards": [
+        {
+          "_runeId": "behavior.persist",
+          "_grade": "C",
+          "_count": 1
+        }
+      ]
     },
     {
       "_fromStage": 5,
@@ -567,7 +603,13 @@
         }
       ],
       "_eliteTypes": [],
-      "_modifierRewards": []
+      "_modifierRewards": [
+        {
+          "_runeId": "behavior.launch",
+          "_grade": "B",
+          "_count": 1
+        }
+      ]
     },
     {
       "_fromStage": 6,

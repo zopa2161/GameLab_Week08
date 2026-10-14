@@ -11,7 +11,7 @@ using UnityEngine.UI;
 namespace RuneCode
 {
     /// <summary>
-    /// 마법 그래프 편집 View다. 포인터 입력(연결·노드 드래그·화면 이동·영역 선택·확대·연결선 삭제)을 해석해 편집 세션에 전달하고,
+    /// 마법 그래프 편집 View다. 포인터 입력(연결·노드 드래그·화면 이동·영역 선택·확대·연결선 삭제·슬롯 장착과 해제)을 해석해 편집 세션에 전달하고,
     /// 그리기는 GraphMeshPainter, 라벨은 GraphNodeLabels, 좌표는 GraphViewport·GraphNodeLayout, 배치는 GraphPlacement에 맡긴다.
     /// </summary>
     [RequireComponent(typeof(CanvasRenderer))]
@@ -32,6 +32,7 @@ namespace RuneCode
         private Action<GraphNode> _selectionChanged;
         private Action<GraphNode> _hoverChanged;
         private Action<Vector2> _quickPlacement;
+        private Action<string, string> _slotPicker;
         private GraphViewport _viewport;
         private GraphNodeLayout _layout;
         private GraphMeshPainter _painter;
@@ -44,16 +45,34 @@ namespace RuneCode
         /// <summary>선택된 노드 ID 집합이다.</summary>
         public IReadOnlyCollection<string> SelectedNodes => _state.Selected;
 
+        /// <summary>행동 노드 하나만 선택되어 있으면 그 노드 ID를, 아니면 null을 반환한다. 팔레트 클릭 장착 대상이다.</summary>
+        public string SelectedBehaviorNodeId
+        {
+            get
+            {
+                if (!HasGraph || _state.Selected.Count != 1) return null;
+                foreach (string id in _state.Selected)
+                {
+                    GraphNode node = _layout.FindNode(id);
+                    if (node != null && GraphNodeLayout.HasSlots(GameData.Runes.Get(node.RuneId))) return id;
+                }
+                return null;
+            }
+        }
+
         private bool HasGraph => _editor != null && _editor.Graph != null;
 
-        /// <summary>편집 세션, 글꼴과 선택·포인터 진입·빠른 배치 콜백을 연결하고 그래프를 표시한다.</summary>
+        /// <summary>
+        /// 편집 세션, 글꼴과 선택·포인터 진입·빠른 배치·슬롯 선택(노드 ID, 슬롯 키) 콜백을 연결하고 그래프를 표시한다.
+        /// </summary>
         public void Initialize(ISpellEditor editor, TMP_FontAsset font, Action<GraphNode> selectionChanged,
-            Action<GraphNode> hoverChanged, Action<Vector2> quickPlacement)
+            Action<GraphNode> hoverChanged, Action<Vector2> quickPlacement, Action<string, string> slotPicker)
         {
             _editor = editor;
             _selectionChanged = selectionChanged;
             _hoverChanged = hoverChanged;
             _quickPlacement = quickPlacement;
+            _slotPicker = slotPicker;
             _viewport = new GraphViewport(rectTransform);
             _layout = new GraphNodeLayout(_viewport, () => _editor.Graph);
             _painter = new GraphMeshPainter(_viewport, _layout, _state,
@@ -122,8 +141,32 @@ namespace RuneCode
         /// <summary>현재 보이는 캔버스 안에서 새 룬을 놓을 그래프 좌표를 반환한다.</summary>
         public Vector2 SuggestPlacement(string runeId) => _placement.Suggest(runeId);
 
-        /// <summary>그래프 좌표에 룬을 배치하고 문법에 맞는 가까운 노드에 자동 연결한다.</summary>
+        /// <summary>그래프 좌표에 행동 노드를 지정 등급으로 배치한다.</summary>
         public void PlaceRune(string runeId, Vector2 position, string grade = null) => _placement.Place(runeId, position, grade);
+
+        /// <summary>
+        /// 화면 좌표에 속성·모디를 놓는다. 같은 종류의 잠기지 않은 슬롯 위면 그 슬롯에(교체 포함), 행동 노드 본문 위면 첫 빈 슬롯에 장착한다.
+        /// 장착하지 못하면 false를 반환한다.
+        /// </summary>
+        public bool DropSlotItem(string runeId, string grade, Vector2 screen)
+        {
+            if (!HasGraph || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return false;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, screen, null, out Vector2 point);
+            if (!rectTransform.rect.Contains(point)) return false;
+            bool isElement = rune.Category == SpellGrammar.CATEGORY_ELEMENT;
+            if (_layout.FindSlot(point, out GraphNode slotNode, out string slotKey)
+                && SpellGrammar.TryParseSlotKey(slotKey, out bool isElementSlot, out _) && isElementSlot == isElement
+                && !GraphNodeLayout.IsSlotLocked(slotNode, slotKey))
+                return _editor.Equip(slotNode.Id, slotKey, runeId, grade);
+            GraphNode node = _layout.FindNodeAt(point);
+            if (node == null || !GraphNodeLayout.HasSlots(GameData.Runes.Get(node.RuneId))) return false;
+            if (!_editor.TryFindEquipSlot(node.Id, runeId, grade, out string emptySlot))
+            {
+                _editor.ReportStatus("editor.slotBlocked");
+                return false;
+            }
+            return _editor.Equip(node.Id, emptySlot, runeId, grade);
+        }
 
         void Update()
         {
@@ -163,6 +206,7 @@ namespace RuneCode
             }
             if (eventData.button == PointerEventData.InputButton.Right)
             {
+                if (_layout.FindSlot(_state.Pointer, out GraphNode clearNode, out string clearKey) && _editor.ClearSlot(clearNode.Id, clearKey)) return;
                 if (TryRemoveEdgeAt(_state.Pointer)) RefreshGraph();
                 else _state.IsPanning = true;
                 return;
@@ -173,6 +217,8 @@ namespace RuneCode
                 RefreshMeshes();
                 return;
             }
+
+            if (TryHandleSlotClick(_state.Pointer)) return;
 
             GraphNode clicked = _layout.FindNodeAt(_state.Pointer);
             if (clicked != null) BeginNodeDrag(clicked, IsShiftPressed());
@@ -205,6 +251,23 @@ namespace RuneCode
             _labels.SetFrontNode(null);
             _state.ResetPointer();
             RefreshGraph();
+        }
+
+        /// <summary>
+        /// 슬롯 셀 좌클릭을 처리한다. 형태 셀은 다음 형태로 바꾸고, 잠기지 않은 빈 속성·모디 셀은 슬롯 선택을 연다.
+        /// 처리했으면 true, 장착된 셀·잠긴 셀·슬롯 밖이면 노드 선택으로 넘기도록 false를 반환한다.
+        /// </summary>
+        private bool TryHandleSlotClick(Vector2 point)
+        {
+            if (!_layout.FindSlot(point, out GraphNode node, out string slotKey)) return false;
+            if (slotKey == SpellGrammar.SHAPE_PARAM)
+            {
+                _editor.CycleShape(node.Id);
+                return true;
+            }
+            if (GraphNodeLayout.IsSlotLocked(node, slotKey) || !string.IsNullOrEmpty(node.GetText(slotKey, null))) return false;
+            _slotPicker(node.Id, slotKey);
+            return true;
         }
 
         /// <summary>그래프 드래그를 수신하도록 Unity 이벤트 시스템에 알린다.</summary>

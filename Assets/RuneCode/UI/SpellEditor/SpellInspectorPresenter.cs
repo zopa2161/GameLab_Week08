@@ -58,7 +58,12 @@ namespace RuneCode
                 string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
                 title = ModifierGradeText.FormatName(title, grade);
             }
+            else if (GraphNodeLayout.HasSlots(rune))
+            {
+                title = ModifierGradeText.FormatName(title, node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE));
+            }
             _view.AddTitle(title + " / " + GameData.Runes.NodeRam(node) + " RAM");
+            if (GraphNodeLayout.HasSlots(rune)) ShowSlots(node);
             foreach (ParameterDefinition parameter in rune.Params)
             {
                 if (IsParameterVisible(node, parameter)) ShowParameter(node, rune, parameter);
@@ -79,6 +84,35 @@ namespace RuneCode
                 else ShowCompiledStats(node, rune);
             }
             if (rune.Category != SpellGrammar.CATEGORY_CORE) _view.AddButton(GameData.L("ui.delete"), "InspectorDeleteButton", () => _editor.RemoveNode(node.Id));
+        }
+
+        /// <summary>행동 노드의 형태와 속성·모디 슬롯 내용(장착 이름, 빈 칸, 등급으로 잠긴 칸)을 한 줄씩 표시한다.</summary>
+        private void ShowSlots(GraphNode node)
+        {
+            var lines = new List<string>();
+            string shape = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
+            lines.Add(GameData.Runes.TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune) ? shapeRune.Name : shape);
+            for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
+                lines.Add(SlotLine(node, SpellGrammar.ElementSlotKey(index)));
+            for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
+                lines.Add(SlotLine(node, SpellGrammar.ModifierSlotKey(index)));
+            _view.AddNote(string.Join("\n", lines), 34, 6);
+        }
+
+        /// <summary>슬롯 한 칸의 표시 문구를 반환한다. 잠긴 칸은 잠김, 빈 칸은 비어 있음, 장착 칸은 룬 이름(모디는 등급 포함)이다.</summary>
+        private static string SlotLine(GraphNode node, string slotKey)
+        {
+            if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return GameData.L("ui.slotLocked");
+            string value = node.GetText(slotKey, null);
+            if (string.IsNullOrEmpty(value)) return GameData.L("ui.empty");
+            if (SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _) && isElement)
+            {
+                return GameData.Runes.TryGetElement(value, out ElementDefinition element)
+                    && GameData.Runes.TryGet(element.RuneId, out RuneDefinition elementRune) ? elementRune.Name : value;
+            }
+            return SpellGrammar.TryParseStockKey(value, out string modifierId, out string grade)
+                && GameData.Runes.TryGet(modifierId, out RuneDefinition modifierRune)
+                ? ModifierGradeText.FormatName(modifierRune.Name, grade) : value;
         }
 
         /// <summary>형태 노드별 역할을 한 줄 설명으로 표시한다.</summary>
@@ -598,9 +632,13 @@ namespace RuneCode
 
         /// <summary>
         /// 인스펙터에 파라미터를 표시할지 반환한다. 효과량·보호막 지속시간은 Functional(회복·보호) 속성 노드와 그 속성의 Apply에서만 표시한다.
+        /// 행동 노드의 등급·형태·슬롯 값은 노드 슬롯과 슬롯 목록으로 다루므로 파라미터 행으로 표시하지 않는다.
         /// </summary>
         private static bool IsParameterVisible(GraphNode node, ParameterDefinition parameter)
         {
+            if (GraphNodeLayout.HasSlots(GameData.Runes.Get(node.RuneId))
+                && (parameter.Id == SpellGrammar.MODIFIER_GRADE_PARAM || parameter.Id == SpellGrammar.SHAPE_PARAM
+                    || SpellGrammar.TryParseSlotKey(parameter.Id, out _, out _))) return false;
             if (parameter.Id != SpellGrammar.POWER_PARAM && parameter.Id != SpellGrammar.BUFF_DURATION_PARAM) return true;
             if (GameData.Runes.TryGetRuneElement(node.RuneId, out ElementDefinition own)) return own.IsFunctional;
             return GameData.Runes.TryGetNodeElement(node, out ElementDefinition element) && element.IsFunctional;

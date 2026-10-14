@@ -15,22 +15,21 @@ namespace RuneCode
         /// <summary>마법 그래프를 저장 또는 공유 코드에 사용할 JSON 문자열로 직렬화한다. 형식은 SpellGraphData를 따른다.</summary>
         public static string Serialize(SpellGraph graph, bool pretty = false) => JsonUtility.ToJson(SpellGraphData.From(graph), pretty);
 
-        /// <summary>크기·필수 필드·ID·숫자를 검증하고 이전 룬을 문법 블록으로 변환한 JSON 그래프를 반환한다.</summary>
+        /// <summary>크기·필수 필드·ID·숫자·스키마 버전을 검증한 JSON 그래프를 반환한다.</summary>
         public static SpellGraph Deserialize(string json)
         {
             return Deserialize(json, GameData.IsLoaded ? GameData.ModifierGrades : null);
         }
 
-        /// <summary>JSON 그래프를 검사하고 룬 등급 표의 최저 등급으로 이전 Modifier를 보완한다.</summary>
+        /// <summary>JSON 그래프를 검사하고 현재 스키마 버전이 아니면 실패한다.</summary>
         public static SpellGraph Deserialize(string json, ModifierGradeTable modifierGrades)
         {
             string trimmed = json?.TrimStart();
             if (string.IsNullOrEmpty(trimmed) || json.Length > MAX_JSON_LENGTH || trimmed[0] != '{')
                 throw new FormatException(GameData.L("share.invalid"));
             SpellGraph graph = JsonUtility.FromJson<SpellGraphData>(json)?.ToGraph();
-            if (!SpellGraphValidator.IsValid(graph))
+            if (!SpellGraphValidator.IsValid(graph) || graph.Version != SpellGraph.CURRENT_VERSION)
                 throw new FormatException(GameData.L("share.invalid"));
-            SpellGraphMigration.Migrate(graph, modifierGrades);
             return graph;
         }
 

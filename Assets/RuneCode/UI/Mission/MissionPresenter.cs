@@ -283,7 +283,9 @@ namespace RuneCode
                     continue;
                 }
                 RuneDefinition rune = GameData.Runes.Get(reward.RuneId);
-                string description = ModifierGradeText.Colorize(reward.Grade + "급\n" + FormatClearModifierDescription(rune, reward.Grade), reward.Grade);
+                // 속성 보상은 등급이 없으므로 등급 줄을 생략하고, 모디·행동 보상은 등급을 표시한다.
+                string gradeLabel = string.IsNullOrEmpty(reward.Grade) ? "" : reward.Grade + "급\n";
+                string description = ModifierGradeText.Colorize(gradeLabel + FormatClearModifierDescription(rune, reward.Grade), reward.Grade);
                 rewards.Add(new ResultRewardContent(true, reward.Count, ModifierGradeText.FormatName(rune.Name, reward.Grade), description));
             }
             _result.SetRewards(rewards);

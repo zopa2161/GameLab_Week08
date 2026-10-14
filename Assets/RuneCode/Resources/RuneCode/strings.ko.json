@@ -1488,11 +1488,39 @@
     },
     {
       "_key": "issue.E21",
-      "_value": "Modifier 소지량을 넘었습니다(보관함 전체 배치 수/소지량). 다른 마법에서 빼거나 소지량을 늘리세요:"
+      "_value": "소지량을 넘었습니다(보관함 전체 사용 수/소지량). 다른 마법에서 빼거나 소지량을 늘리세요:"
     },
     {
       "_key": "issue.E22",
       "_value": "이 Modifier는 현재 Behavior에 효과가 없습니다"
+    },
+    {
+      "_key": "issue.E23",
+      "_value": "행동 등급의 슬롯 수를 넘었습니다"
+    },
+    {
+      "_key": "issue.E24",
+      "_value": "사용할 수 없는 속성입니다"
+    },
+    {
+      "_key": "issue.E25",
+      "_value": "사용할 수 없는 룬입니다"
+    },
+    {
+      "_key": "editor.stockBlocked",
+      "_value": "소지량이 부족합니다"
+    },
+    {
+      "_key": "editor.slotBlocked",
+      "_value": "이 슬롯에 장착할 수 없습니다"
+    },
+    {
+      "_key": "editor.selectBehavior",
+      "_value": "장착할 행동 노드를 하나 선택하세요"
+    },
+    {
+      "_key": "ui.slotLocked",
+      "_value": "잠김"
     },
     {
       "_key": "editor.modifierStockBlocked",
