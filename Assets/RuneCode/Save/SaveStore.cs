@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 
 using UnityEngine;
 
@@ -17,6 +19,9 @@ namespace RuneCode
         private const string ACTIVE_SLOT_KEY = "runecode.save.active-slot";
         private const string AUTO_SAVE_KEY = "runecode.save.auto-save";
         private const string LEGACY_MIGRATED_KEY = "runecode.save.legacy-migrated";
+        private const string ENCRYPTED_SAVE_PREFIX = "RC-AES-CBC-1:";
+        private const string SAVE_KEY_BASE64 = "Fn18bSp50G37Q6RkCeWQIoCjDt1zqeoAbviQE4oXn00=";
+        private const int AES_IV_BYTES = 16;
 
         private static string _lastWarning;
 
@@ -73,7 +78,7 @@ namespace RuneCode
 
             try
             {
-                string raw = File.ReadAllText(sourcePath);
+                string raw = DecryptSave(File.ReadAllText(sourcePath));
                 PlayerSave loaded = Migrate(JsonUtility.FromJson<PlayerSave>(raw));
                 if (loaded != null && loaded.Validate(out _))
                 {
@@ -85,10 +90,10 @@ namespace RuneCode
                 _lastWarning = GameData.L("save.recovered");
                 File.Copy(sourcePath, sourcePath + ".invalid-backup", true);
             }
-            catch (Exception exception) when (exception is IOException || exception is ArgumentException || exception is UnauthorizedAccessException || exception is FormatException)
+            catch (Exception exception) when (exception is IOException || exception is ArgumentException || exception is UnauthorizedAccessException || exception is FormatException || exception is CryptographicException)
             {
                 _lastWarning = GameData.L("save.unavailable");
-                if (exception is FormatException || exception is ArgumentException)
+                if (exception is FormatException || exception is ArgumentException || exception is CryptographicException)
                 {
                     try { File.Copy(sourcePath, sourcePath + ".invalid-backup", true); }
                     catch (Exception copyException) when (copyException is IOException || copyException is UnauthorizedAccessException) { }
@@ -125,13 +130,13 @@ namespace RuneCode
                 Directory.CreateDirectory(Application.persistentDataPath);
                 string path = GetSlotPath(slot);
                 string temporary = path + ".tmp";
-                File.WriteAllText(temporary, JsonUtility.ToJson(save, true));
+                File.WriteAllText(temporary, EncryptSave(JsonUtility.ToJson(save, true)));
                 if (File.Exists(path)) File.Replace(temporary, path, path + ".backup");
                 else File.Move(temporary, path);
                 _lastWarning = null;
                 return true;
             }
-            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is CryptographicException)
             {
                 _lastWarning = GameData.L("save.unavailable");
                 return false;
@@ -162,6 +167,51 @@ namespace RuneCode
             {
                 _lastWarning = GameData.L("save.unavailable");
                 return false;
+            }
+        }
+
+        /// <summary>JSON을 AES-256-CBC와 PKCS7 패딩으로 암호화하고 매 저장마다 생성한 IV와 암호문을 버전 표식 뒤에 반환한다.</summary>
+        private static string EncryptSave(string json)
+        {
+            using (Aes aes = Aes.Create())
+            {
+                aes.Key = Convert.FromBase64String(SAVE_KEY_BASE64);
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+                aes.GenerateIV();
+                byte[] plain = Encoding.UTF8.GetBytes(json);
+                using (ICryptoTransform encryptor = aes.CreateEncryptor())
+                {
+                    byte[] encrypted = encryptor.TransformFinalBlock(plain, 0, plain.Length);
+                    byte[] payload = new byte[AES_IV_BYTES + encrypted.Length];
+                    Buffer.BlockCopy(aes.IV, 0, payload, 0, AES_IV_BYTES);
+                    Buffer.BlockCopy(encrypted, 0, payload, AES_IV_BYTES, encrypted.Length);
+                    return ENCRYPTED_SAVE_PREFIX + Convert.ToBase64String(payload);
+                }
+            }
+        }
+
+        /// <summary>표식이 있는 저장의 IV와 암호문을 검증해 JSON으로 복호화한다. 기존 평문은 그대로 반환하고 손상된 암호문은 예외로 알린다.</summary>
+        private static string DecryptSave(string raw)
+        {
+            if (!raw.StartsWith(ENCRYPTED_SAVE_PREFIX, StringComparison.Ordinal)) return raw;
+            byte[] payload = Convert.FromBase64String(raw.Substring(ENCRYPTED_SAVE_PREFIX.Length));
+            int encryptedLength = payload.Length - AES_IV_BYTES;
+            if (encryptedLength <= 0 || encryptedLength % AES_IV_BYTES != 0)
+                throw new FormatException("암호화 저장 파일의 길이가 올바르지 않습니다.");
+            using (Aes aes = Aes.Create())
+            {
+                aes.Key = Convert.FromBase64String(SAVE_KEY_BASE64);
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+                byte[] iv = new byte[AES_IV_BYTES];
+                Buffer.BlockCopy(payload, 0, iv, 0, AES_IV_BYTES);
+                aes.IV = iv;
+                using (ICryptoTransform decryptor = aes.CreateDecryptor())
+                {
+                    byte[] plain = decryptor.TransformFinalBlock(payload, AES_IV_BYTES, encryptedLength);
+                    return new UTF8Encoding(false, true).GetString(plain);
+                }
             }
         }
 
