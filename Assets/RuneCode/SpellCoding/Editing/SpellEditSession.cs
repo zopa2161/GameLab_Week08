@@ -80,7 +80,7 @@ namespace RuneCode
             return _policy.IsRuneUnlocked(runeId);
         }
 
-        /// <summary>편집 중인 마법을 포함한 보관함 전체에서 지정 등급 Modifier 배치 수와 소지량을 구한다.</summary>
+        /// <summary>편집 중인 마법을 포함한 보관함 전체에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다.</summary>
         public bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned)
         {
             return _policy.TryGetModifierUsage(runeId, grade, _editingGraph, out used, out owned);
@@ -129,13 +129,13 @@ namespace RuneCode
             RaiseSpellSwitched();
         }
 
-        /// <summary>현재 그래프를 고유 ID와 표시 이름을 가진 독립 마법으로 복제한다. 복제로 Modifier 소지량을 넘으면 거부한다.</summary>
+        /// <summary>현재 그래프를 고유 ID와 표시 이름을 가진 독립 마법으로 복제한다. 복제로 행동·속성·모디 소지량을 넘으면 거부한다.</summary>
         public void DuplicateSpell()
         {
             if (!_isEditable || _storage.Library.Count >= _policy.MaxLibrary) return;
             SpellGraph duplicate = _editingGraph.Clone();
             duplicate.SetIdentity(NewId("spell"));
-            if (!_policy.IsWithinModifierStock(null, duplicate)) { _policy.ReportStatus("editor.modifierStockBlocked"); return; }
+            if (!_policy.IsWithinModifierStock(null, duplicate)) { _policy.ReportStatus("editor.stockBlocked"); return; }
             duplicate.Rename(_editingGraph.Name + GameData.L("editor.copySuffix"));
             _storage.Store(duplicate);
             SelectSpell(duplicate.Id);
@@ -510,7 +510,10 @@ namespace RuneCode
             _copiedEdges.AddRange(snapshot.Edges.Where(edge => _copiedNodes.Any(node => node.Id == edge.FromNode) && _copiedNodes.Any(node => node.Id == edge.ToNode)));
         }
 
-        /// <summary>복사 노드에 새 ID와 좌표 오프셋을 부여하고 내부 연결이 있으면 장착 RAM, Modifier 소지량을 검증해 붙여넣는다.</summary>
+        /// <summary>
+        /// 복사 노드에 새 ID와 좌표 오프셋을 부여하고 내부 연결이 있으면 장착 RAM, 행동·속성·모디 소지량을 검증해 붙여넣는다.
+        /// 내부 연결의 실행 순서(Order)는 복사 원본 값을 유지한다.
+        /// </summary>
         public void PasteNodes()
         {
             if (_copiedNodes.Count == 0 || !_isEditable) return;
@@ -523,9 +526,10 @@ namespace RuneCode
             {
                 var clone = node.Clone(NewId("node")); clone.Move(node.X + 30, node.Y + 30); map[node.Id] = clone.Id; candidate.AddNode(clone);
             }
-            foreach (var edge in _copiedEdges) candidate.AddEdge(new GraphEdge(NewId("edge"), map[edge.FromNode], edge.FromPort, map[edge.ToNode], edge.ToPort));
+            foreach (var edge in _copiedEdges)
+                candidate.AddEdge(new GraphEdge(NewId("edge"), map[edge.FromNode], edge.FromPort, map[edge.ToNode], edge.ToPort, edge.Order));
             if (_copiedEdges.Count > 0 && !_policy.IsWithinRam(candidate)) { _policy.ReportStatus("editor.ramBlocked"); return; }
-            if (!_policy.IsWithinModifierStock(_editingGraph, candidate)) { _policy.ReportStatus("editor.modifierStockBlocked"); return; }
+            if (!_policy.IsWithinModifierStock(_editingGraph, candidate)) { _policy.ReportStatus("editor.stockBlocked"); return; }
             _editingGraph = candidate; MarkChanged(); RaiseGraphChanged();
         }
 
@@ -538,11 +542,14 @@ namespace RuneCode
             MarkChanged(); RaiseGraphChanged();
         }
 
-        /// <summary>RC1·RC2 구조와 라이브러리 참조를 검증해 현재 ID로 가져오고 실패 이유를 반환한다.</summary>
+        /// <summary>RC1·RC2 구조와 라이브러리 참조, 소지량을 검증해 현재 ID로 가져오고 실패 이유를 반환한다.</summary>
         private string ImportGraph(string code)
         {
             if (!_isEditable) return GameData.L("editor.combatLocked");
             if (!ShareCodec.TryDecode(code, out var graph, out var error, _storage.Library)) return error;
+            // 가져온 마법도 배치와 같이 행동·속성·모디 소지량 안에서만 받는다. 현재 마법을 대체하므로 현재 사용량은 빼고 센다.
+            SpellGraph candidate = graph.Clone(_editingGraph.Id);
+            if (!_policy.IsWithinModifierStock(_editingGraph, candidate)) return GameData.L("editor.stockBlocked");
             ApplyGraph(graph);
             Recompile(); Save();
             return null;

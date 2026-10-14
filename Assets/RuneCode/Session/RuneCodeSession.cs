@@ -518,7 +518,10 @@ namespace RuneCode
             return false;
         }
 
-        /// <summary>새 디버그 진행에 SO의 모든 룬 해금을 적용하고 유효한 Modifier 등급별 소지량을 9개로 채운다.</summary>
+        /// <summary>
+        /// 새 디버그 진행에 SO의 모든 룬 해금을 적용하고, 유효한 Modifier 등급별·비활성 아닌 행동 등급별·전투 속성별
+        /// 소지량을 9개로 채운다.
+        /// </summary>
         private void UnlockDebugRunes()
         {
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
@@ -529,9 +532,21 @@ namespace RuneCode
                     _save.Unlock(node.RuneId);
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
-                if (rune.Category != SpellGrammar.CATEGORY_MODIFIER) continue;
-                foreach (string grade in GameData.ModifierGrades.GetAvailableGrades(rune.Id))
-                    _save.AddModifierStock(rune.Id, grade, DEBUG_MODIFIER_STOCK - _save.GetModifierStock(rune.Id, grade));
+                if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
+                {
+                    foreach (string grade in GameData.ModifierGrades.GetAvailableGrades(rune.Id))
+                        _save.AddModifierStock(rune.Id, grade, DEBUG_MODIFIER_STOCK - _save.GetModifierStock(rune.Id, grade));
+                }
+                else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR && !rune.IsDisabled)
+                {
+                    foreach (string grade in GameData.Runes.BehaviorGradeOrder)
+                        _save.AddStock(rune.Id, grade, DEBUG_MODIFIER_STOCK - _save.GetStock(rune.Id, grade));
+                }
+                else if (rune.Category == SpellGrammar.CATEGORY_ELEMENT && !rune.IsDisabled)
+                {
+                    // AddStock이 전투 속성만 받으므로 무속성·기능 속성은 지급되지 않는다.
+                    _save.AddStock(rune.Id, "", DEBUG_MODIFIER_STOCK - _save.GetStock(rune.Id, ""));
+                }
             }
         }
 

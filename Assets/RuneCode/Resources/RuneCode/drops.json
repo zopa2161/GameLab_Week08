@@ -18,8 +18,47 @@
           "_weight": 30
         },
         {
+          "_type": "element",
+          "_id": "element.fire",
+          "_count": 1,
+          "_weight": 4
+        },
+        {
+          "_type": "element",
+          "_id": "element.ice",
+          "_count": 1,
+          "_weight": 4
+        },
+        {
+          "_type": "element",
+          "_id": "element.lightning",
+          "_count": 1,
+          "_weight": 4
+        },
+        {
+          "_type": "behavior",
+          "_id": "behavior.burst",
+          "_grade": "C",
+          "_count": 1,
+          "_weight": 3
+        },
+        {
+          "_type": "behavior",
+          "_id": "behavior.orbit",
+          "_grade": "C",
+          "_count": 1,
+          "_weight": 3
+        },
+        {
+          "_type": "behavior",
+          "_id": "behavior.persist",
+          "_grade": "C",
+          "_count": 1,
+          "_weight": 3
+        },
+        {
           "_type": "none",
-          "_weight": 70
+          "_weight": 49
         }
       ]
     }

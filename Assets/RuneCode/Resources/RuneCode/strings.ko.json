@@ -1528,11 +1528,11 @@
     },
     {
       "_key": "result.modifierReward",
-      "_value": "Modifier 획득"
+      "_value": "룬 획득"
     },
     {
       "_key": "result.modifierPickup",
-      "_value": "주운 Modifier"
+      "_value": "주운 룬"
     },
     {
       "_key": "result.clearModifierChoice",
