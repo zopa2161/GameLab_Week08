@@ -1896,13 +1896,15 @@ namespace RuneCode
             return result;
         }
 
-        /// <summary>드롭 테이블을 결정적 난수로 추첨해 스크랩은 배율이 적용된 오브로, modifier는 바닥 드롭 개체로 처치 위치에 떨군다.</summary>
+        /// <summary>드롭 테이블을 결정적 난수로 추첨해 스크랩은 배율이 적용된 오브로, 모디·속성·행동은 바닥 드롭 개체로 처치 위치에 떨군다.</summary>
         private void RollDropTable(DropTableDefinition table, SimVector position)
         {
             foreach (DropRoll roll in table.Roll(NextRandom))
             {
                 if (roll.Type == DropCatalog.TYPE_FRAGMENTS) _orbs.Add(new FragmentOrb(position, ScaleKillScrap(roll.Fragments)));
                 else if (roll.Type == DropCatalog.TYPE_MODIFIER) DropModifier(roll, position);
+                else if (roll.Type == DropCatalog.TYPE_ELEMENT) _itemDrops.Add(new SimulationItemDrop(roll.RuneId, "", roll.Count, position));
+                else if (roll.Type == DropCatalog.TYPE_BEHAVIOR) _itemDrops.Add(new SimulationItemDrop(roll.RuneId, roll.Grade, roll.Count, position));
             }
         }
 

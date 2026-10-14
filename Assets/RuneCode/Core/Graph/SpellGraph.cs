@@ -149,7 +149,7 @@ namespace RuneCode
     {
         private string _id;
         private string _name;
-        public const int CURRENT_VERSION = 3;
+        public const int CURRENT_VERSION = 4;
 
         private int _version = CURRENT_VERSION;
         private readonly List<GraphNode> _nodes = new List<GraphNode>();
@@ -293,7 +293,7 @@ namespace RuneCode
 
         /// <summary>
         /// 노드와 파라미터 목록이 독립된 깊은 복사본을 만들고 선택적으로 새 ID를 지정한다.
-        /// 파라미터와 엣지는 변경 불가 값이라 공유하며, 이전 룬이 남아 있으면 문법 블록으로 변환한다.
+        /// 파라미터와 엣지는 변경 불가 값이라 공유한다.
         /// </summary>
         public SpellGraph Clone(string id = null)
         {
@@ -302,9 +302,7 @@ namespace RuneCode
             {
                 nodes.Add(new GraphNode(node.Id, node.RuneId, node.X, node.Y, node.Params));
             }
-            SpellGraph clone = new SpellGraph(id ?? _id, _name, _version, nodes, _edges);
-            SpellGraphMigration.Migrate(clone);
-            return clone;
+            return new SpellGraph(id ?? _id, _name, _version, nodes, _edges);
         }
     }
 }

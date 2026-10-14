@@ -1,274 +1,168 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace RuneCode
 {
     /// <summary>
-    /// 문법 블록 [Shape ← 속성 노드] → [Behavior]와 [Apply(Element)]를 컴파일 내부 표현인 Inline Magic 노드 하나로 합친다.
-    /// Shape의 속성은 element 포트에 붙은 속성 노드(없으면 무속성)이고, 회복·보호 효과량은 그 속성 노드의 값을 쓴다.
-    /// Behavior·Apply 노드의 ID를 그대로 쓰므로 거기에 연결된 효과와 이벤트 분기는 그대로 유지된다.
-    /// Inline Magic의 magicType·element·form 값은 이전 문법의 내부 값을 그대로 사용해 컴파일·실행 결과가 바뀌지 않는다.
+    /// behavior 노드의 등급·형태·속성 슬롯·모디 슬롯 파라미터를 검사하고 실행 가능한 형태로 바꾼다.
+    /// 각 behavior 노드는 컴파일 내부 표현인 Inline Magic 노드(같은 ID·좌표)로 교체되고, 장착된 모디파이어는
+    /// 노드별 합성 Modifier 노드 목록으로 돌려진다(그래프에는 넣지 않는다). behavior 외 노드와 엣지는 그대로 둔다.
     /// </summary>
     public static class SpellChainNormalizer
     {
         /// <summary>
-        /// 문법 블록을 Inline Magic으로 합친 컴파일용 그래프를 반환한다. 문법 블록이 없으면 원본을 그대로 반환한다.
-        /// 연결된 Shape·속성·Behavior·Apply의 RAM 합계를 chainRam으로, 해금·연결·속성 값 오류와 미사용 경고를 각 목록에 추가한다.
+        /// behavior 노드를 Inline Magic으로 교체한 컴파일용 그래프를 반환한다. 교체 대상이 없으면 원본을 그대로 반환한다.
+        /// 연결된 behavior 노드의 행동·형태·장착 룬 RAM 합계를 chainRam으로, 등급·슬롯·형태·속성·모디 오류와 해금 오류를
+        /// errors에 추가하고, behavior 노드 ID가 키인 합성 Modifier 노드 목록을 slotModifiers로 돌려준다.
         /// </summary>
         public static SpellGraph Normalize(SpellGraph graph, RuneCatalog runes, HashSet<string> unlocked,
-            List<CompileIssue> errors, List<CompileIssue> warnings, out int chainRam)
+            List<CompileIssue> errors, List<CompileIssue> warnings, out int chainRam,
+            out Dictionary<string, List<GraphNode>> slotModifiers)
         {
+            slotModifiers = new Dictionary<string, List<GraphNode>>(StringComparer.Ordinal);
             chainRam = 0;
             if (graph?.Nodes == null || graph.Edges == null) return graph;
-            var definitions = new Dictionary<string, RuneDefinition>(StringComparer.Ordinal);
-            var elements = new Dictionary<string, ElementDefinition>(StringComparer.Ordinal);
-            var elementSources = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
-            bool hasGrammar = false;
+            var replacements = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
             int errorCount = errors.Count;
             foreach (GraphNode node in graph.Nodes)
             {
-                if (node == null || string.IsNullOrEmpty(node.Id) || definitions.ContainsKey(node.Id)) continue;
-                if (!runes.TryGet(node.RuneId, out RuneDefinition rune)) continue;
-                definitions[node.Id] = rune;
-                if (!IsGrammarBlock(rune)) continue;
-                hasGrammar = true;
-                bool isConnected = graph.IsNodeConnected(node.Id);
-                if (isConnected) chainRam += rune.Ram;
-                if (!unlocked.Contains(rune.Id)) errors.Add(new CompileIssue("E10", node.Id));
-                if (rune.Category == SpellGrammar.CATEGORY_SHAPE)
-                {
-                    // 속성 노드의 RAM·해금은 그 노드 자신이 문법 블록으로 따로 센다.
-                    if (TryResolveAttachedElement(node, graph, runes, errors, out ElementDefinition attached, out GraphNode source))
-                    {
-                        elements[node.Id] = attached;
-                        if (source != null) elementSources[node.Id] = source;
-                    }
-                }
-                else if (rune.Id == SpellGrammar.APPLY_RUNE && TryResolveElement(node, rune, runes, errors, out ElementDefinition element, out RuneDefinition elementRune))
-                {
-                    elements[node.Id] = element;
-                    if (isConnected) chainRam += elementRune.Ram;
-                    if (!unlocked.Contains(elementRune.Id)) errors.Add(new CompileIssue("E10", node.Id));
-                }
+                if (node == null || string.IsNullOrEmpty(node.Id) || !runes.TryGet(node.RuneId, out RuneDefinition rune)) continue;
+                if (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled) continue;
+                if (graph.IsNodeConnected(node.Id)) chainRam += runes.NodeRam(node);
+                if (!NormalizeBehaviorNode(node, runes, unlocked, errors, slotModifiers, out GraphNode inline)) continue;
+                replacements[node.Id] = inline;
             }
-            if (!hasGrammar) return graph;
-
-            var chainEdges = new List<GraphEdge>();
-            foreach (GraphEdge edge in graph.Edges)
-            {
-                if (edge != null && IsChainEdge(edge, definitions)) chainEdges.Add(edge);
-            }
-
-            var consumed = new HashSet<string>(StringComparer.Ordinal);
-            var shapeToBehavior = new Dictionary<string, string>(StringComparer.Ordinal);
-            var synthetic = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
+            // 해금 오류(E10)만 있으면 RAM·수치 표시를 위해 정규화 결과로 계속 컴파일한다.
+            bool hasBlockingError = false;
+            for (int index = errorCount; index < errors.Count; index++)
+                if (errors[index].Code != "E10") hasBlockingError = true;
+            if (replacements.Count == 0 || hasBlockingError) return graph;
+            var nodes = new List<GraphNode>(graph.Nodes.Count);
             foreach (GraphNode node in graph.Nodes)
             {
-                if (node == null || !definitions.TryGetValue(node.Id, out RuneDefinition rune)) continue;
-                if (rune.Id == SpellGrammar.APPLY_RUNE)
+                if (node == null || !replacements.TryGetValue(node.Id, out GraphNode inline))
                 {
-                    if (elements.TryGetValue(node.Id, out ElementDefinition applied)) synthetic[node.Id] = CreateApplyNode(node, applied);
+                    nodes.Add(node);
                     continue;
                 }
-                if (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || IsIsolated(node.Id, graph.Edges, definitions)) continue;
-
-                GraphNode shape = SingleSource(node.Id, chainEdges, graph);
-                if (shape == null || !definitions.TryGetValue(shape.Id, out RuneDefinition shapeRune) || shapeRune.Category != SpellGrammar.CATEGORY_SHAPE)
-                {
-                    errors.Add(new CompileIssue("E18", node.Id));
-                    continue;
-                }
-                if (CountOutgoing(shape.Id, chainEdges) != 1)
-                {
-                    errors.Add(new CompileIssue("E18", shape.Id));
-                    continue;
-                }
-                consumed.Add(shape.Id);
-                if (elementSources.TryGetValue(shape.Id, out GraphNode elementNode)) consumed.Add(elementNode.Id);
-                shapeToBehavior[shape.Id] = node.Id;
-                if (elements.TryGetValue(shape.Id, out ElementDefinition element))
-                    synthetic[node.Id] = CreateInlineNode(node, shape, element, elementSources.TryGetValue(shape.Id, out GraphNode source) ? source : null);
+                nodes.Add(inline);
             }
-
-            var removed = new HashSet<string>(consumed, StringComparer.Ordinal);
-            foreach (GraphNode node in graph.Nodes)
-            {
-                if (node == null || !definitions.TryGetValue(node.Id, out RuneDefinition rune) || !IsGrammarBlock(rune)) continue;
-                if (consumed.Contains(node.Id) || synthetic.ContainsKey(node.Id)) continue;
-                if (IsIsolated(node.Id, graph.Edges, definitions))
-                {
-                    // 속성만 붙은 Shape는 그 속성 노드와 함께 사용되지 않는 블록으로 본다.
-                    warnings.Add(new CompileIssue("W1", node.Id));
-                    removed.Add(node.Id);
-                    if (elementSources.TryGetValue(node.Id, out GraphNode unusedElement)) removed.Add(unusedElement.Id);
-                }
-                else if (rune.Category == SpellGrammar.CATEGORY_ELEMENT) continue;
-                else if (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR) errors.Add(new CompileIssue("E18", node.Id));
-            }
-            if (errors.Count > errorCount) return graph;
-            // 속성 노드는 Shape에 합쳐지거나(소비) 사용되지 않아 빠지며 컴파일용 그래프에 남지 않는다.
-            foreach (GraphNode node in graph.Nodes)
-            {
-                if (node != null && definitions.TryGetValue(node.Id, out RuneDefinition rune) && rune.Category == SpellGrammar.CATEGORY_ELEMENT) removed.Add(node.Id);
-            }
-
-            var nodes = new List<GraphNode>();
-            foreach (GraphNode node in graph.Nodes)
-            {
-                if (node != null && removed.Contains(node.Id)) continue;
-                nodes.Add(node != null && synthetic.TryGetValue(node.Id, out GraphNode inline) ? inline : node);
-            }
-            var edges = new List<GraphEdge>();
-            foreach (GraphEdge edge in graph.Edges)
-            {
-                if (edge != null && (chainEdges.Contains(edge) || removed.Contains(edge.FromNode))) continue;
-                if (edge != null && shapeToBehavior.TryGetValue(edge.ToNode, out string behaviorId))
-                {
-                    // Shape로 들어오던 실행 연결은 합쳐진 Inline Magic(Behavior 노드 ID)의 실행 입력으로 옮긴다.
-                    edges.Add(new GraphEdge(edge.Id, edge.FromNode, edge.FromPort, behaviorId, SpellGrammar.EXEC_PORT, edge.Order));
-                    continue;
-                }
-                if (edge != null && removed.Contains(edge.ToNode)) continue;
-                edges.Add(edge);
-            }
-            return graph.CopyWith(nodes, edges);
-        }
-
-        /// <summary>Shape·Behavior·속성 블록인지 반환한다. 속성 블록은 배치 대상이 아니며 남아 있으면 오류·경고 대상이다.</summary>
-        public static bool IsGrammarBlock(RuneDefinition rune)
-        {
-            return rune.Category == SpellGrammar.CATEGORY_SHAPE || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
-                || rune.Category == SpellGrammar.CATEGORY_ELEMENT;
+            return graph.CopyWith(nodes, graph.Edges);
         }
 
         /// <summary>
-        /// Shape의 element 포트에 붙은 속성 노드에서 속성을 찾는다. 연결이 없으면 무속성(source는 null)이다.
-        /// 속성 노드가 둘 이상이면 E6, 속성 룬이 아닌 노드가 붙었으면 E3을 추가하고 false를 반환한다.
+        /// behavior 노드 하나의 등급·형태·속성·모디 슬롯을 검사하고 Inline Magic 노드로 만든다.
+        /// 장착 모디는 합성 Modifier 노드 목록으로 slotModifiers에 추가한다. 등급·형태 오류로 진행이 불가하면 false를 반환한다.
         /// </summary>
-        private static bool TryResolveAttachedElement(GraphNode shape, SpellGraph graph, RuneCatalog runes, List<CompileIssue> errors,
-            out ElementDefinition element, out GraphNode source)
+        private static bool NormalizeBehaviorNode(GraphNode node, RuneCatalog runes, HashSet<string> unlocked,
+            List<CompileIssue> errors, Dictionary<string, List<GraphNode>> slotModifiers, out GraphNode inline)
         {
-            element = null;
-            source = null;
-            foreach (GraphEdge edge in graph.Edges)
+            inline = null;
+            string grade = node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
+            if (!runes.TryGetBehaviorSlots(grade, out int elementSlots, out int modifierSlots))
             {
-                if (edge == null || edge.ToNode != shape.Id || edge.ToPort != SpellGrammar.ELEMENT_PORT) continue;
-                if (source != null)
-                {
-                    errors.Add(new CompileIssue("E6", shape.Id));
-                    return false;
-                }
-                source = graph.FindNode(edge.FromNode);
-            }
-            if (source == null) return runes.TryGetElement(SpellGrammar.ELEMENT_NEUTRAL, out element);
-            if (!runes.TryGetRuneElement(source.RuneId, out element))
-            {
-                errors.Add(new CompileIssue("E3", shape.Id));
+                errors.Add(new CompileIssue("E9", node.Id, SpellGrammar.MODIFIER_GRADE_PARAM));
                 return false;
             }
+            CheckSlotLimit(node, SpellGrammar.ELEMENT_SLOT_PREFIX, SpellGrammar.MAX_ELEMENT_SLOTS, elementSlots, errors);
+            CheckSlotLimit(node, SpellGrammar.MODIFIER_SLOT_PREFIX, SpellGrammar.MAX_MODIFIER_SLOTS, modifierSlots, errors);
+
+            string shape = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
+            if (!runes.TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune) || shapeRune.IsDisabled)
+            {
+                errors.Add(new CompileIssue("E9", node.Id, SpellGrammar.SHAPE_PARAM));
+                return false;
+            }
+            if (!unlocked.Contains(shapeRune.Id)) errors.Add(new CompileIssue("E10", node.Id));
+
+            ElementDefinition element = ResolveElement(node, elementSlots, runes, errors);
+            CollectModifiers(node, modifierSlots, runes, slotModifiers, errors);
+
+            inline = new GraphNode(node.Id, SpellGrammar.INLINE_RUNE, node.X, node.Y);
+            inline.SetText("magicType", shape);
+            inline.SetText(SpellGrammar.ELEMENT_PARAM, element != null ? element.InternalValue : null);
+            inline.SetText("form", SpellGrammar.FormOf(node.RuneId));
             return true;
+        }
+
+        /// <summary>등급 한도를 넘는 슬롯 키에 비어 있지 않은 값이 있으면 E23을 추가한다.</summary>
+        private static void CheckSlotLimit(GraphNode node, string prefix, int maxSlots, int limit, List<CompileIssue> errors)
+        {
+            for (int index = 0; index < maxSlots; index++)
+            {
+                if (index < limit) continue;
+                string value = node.GetText(prefix + index, null);
+                if (string.IsNullOrEmpty(value)) continue;
+                errors.Add(new CompileIssue("E23", node.Id));
+                return;
+            }
         }
 
         /// <summary>
-        /// 노드의 element 파라미터(없으면 룬 기본값)를 속성 정의와 속성 룬으로 찾는다.
-        /// 룬이 허용하지 않는 값이면 E9를 추가하고 false를 반환한다.
+        /// 한도 안의 속성 슬롯을 인덱스 순서로 검사하고 첫 유효 속성을 반환한다(확정 R1: 나머지 슬롯은 장착만 처리).
+        /// 존재하지 않거나 비활성이거나 전투 속성이 아닌 값은 E24를 낸다. 장착된 속성이 없으면 무속성이다.
         /// </summary>
-        private static bool TryResolveElement(GraphNode node, RuneDefinition rune, RuneCatalog runes, List<CompileIssue> errors,
-            out ElementDefinition element, out RuneDefinition elementRune)
+        private static ElementDefinition ResolveElement(GraphNode node, int elementSlots, RuneCatalog runes, List<CompileIssue> errors)
         {
-            element = null;
-            elementRune = null;
-            ParameterDefinition parameter = null;
-            foreach (ParameterDefinition candidate in rune.Params)
+            ElementDefinition element = null;
+            for (int index = 0; index < elementSlots; index++)
             {
-                if (candidate.Id == SpellGrammar.ELEMENT_PARAM) parameter = candidate;
+                string value = node.GetText(SpellGrammar.ElementSlotKey(index), null);
+                if (string.IsNullOrEmpty(value)) continue;
+                if (!runes.TryGetElement(value, out ElementDefinition candidate)
+                    || candidate.Category != SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL
+                    || !runes.TryGet(candidate.RuneId, out RuneDefinition elementRune)
+                    || elementRune.IsDisabled)
+                {
+                    errors.Add(new CompileIssue("E24", node.Id, value));
+                    continue;
+                }
+                if (element == null) element = candidate;
             }
-            string value = node.GetText(SpellGrammar.ELEMENT_PARAM, parameter?.DefaultText ?? SpellGrammar.ELEMENT_NEUTRAL);
-            bool isAllowed = parameter == null || parameter.Options.Contains(value);
-            if (!isAllowed || !runes.TryGetElement(value, out element) || !runes.TryGet(element.RuneId, out elementRune))
+            if (element == null) runes.TryGetElement(SpellGrammar.ELEMENT_NEUTRAL, out element);
+            return element;
+        }
+
+        /// <summary>
+        /// 한도 안의 모디 슬롯 값을 검사해 통과한 항목을 합성 Modifier 노드(모디 룬 + 등급 파라미터) 목록으로 모은다.
+        /// 룬 없음·카테고리 불일치·등급 미존재·중복은 E9, 행동과 호환되지 않으면 E22를 낸다.
+        /// </summary>
+        private static void CollectModifiers(GraphNode node, int modifierSlots, RuneCatalog runes,
+            Dictionary<string, List<GraphNode>> slotModifiers, List<CompileIssue> errors)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < modifierSlots; index++)
             {
-                errors.Add(new CompileIssue("E9", node.Id));
-                return false;
+                string slotKey = SpellGrammar.ModifierSlotKey(index);
+                string value = node.GetText(slotKey, null);
+                if (string.IsNullOrEmpty(value)) continue;
+                if (!SpellGrammar.TryParseStockKey(value, out string modifierId, out string modifierGrade)
+                    || !runes.TryGet(modifierId, out RuneDefinition modifierRune)
+                    || modifierRune.Category != SpellGrammar.CATEGORY_MODIFIER
+                    || !runes.ModifierGrades.IsGradeAvailable(modifierId, modifierGrade))
+                {
+                    errors.Add(new CompileIssue("E9", node.Id, slotKey));
+                    continue;
+                }
+                if (!seen.Add(modifierId))
+                {
+                    errors.Add(new CompileIssue("E9", node.Id, slotKey));
+                    continue;
+                }
+                if (!runes.IsModifierCompatible(modifierId, node.RuneId))
+                {
+                    errors.Add(new CompileIssue("E22", node.Id));
+                    continue;
+                }
+                if (!slotModifiers.TryGetValue(node.Id, out List<GraphNode> list))
+                {
+                    list = new List<GraphNode>();
+                    slotModifiers.Add(node.Id, list);
+                }
+                GraphNode modifierNode = new GraphNode(node.Id + "#" + slotKey, modifierId, 0f, 0f);
+                modifierNode.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, modifierGrade);
+                list.Add(modifierNode);
             }
-            return true;
-        }
-
-        /// <summary>Behavior 노드 ID를 유지하고 Shape·속성·Behavior 값과 속성 노드(없으면 생략)의 효과량 파라미터를 담은 Inline Magic 노드를 만든다.</summary>
-        private static GraphNode CreateInlineNode(GraphNode behavior, GraphNode shape, ElementDefinition element, GraphNode elementNode)
-        {
-            var inline = new GraphNode(behavior.Id, SpellGrammar.INLINE_RUNE, behavior.X, behavior.Y);
-            inline.SetText("magicType", SpellGrammar.MagicTypeOf(shape.RuneId));
-            inline.SetText("element", element.InternalValue);
-            inline.SetText("form", SpellGrammar.FormOf(behavior.RuneId));
-            if (elementNode != null) CopyEffectParameters(elementNode, inline);
-            return inline;
-        }
-
-        /// <summary>Apply 노드 ID를 유지하고 자기 적용(버프)·속성 값과 효과량 파라미터를 담은 Inline Magic 노드를 만든다.</summary>
-        private static GraphNode CreateApplyNode(GraphNode apply, ElementDefinition element)
-        {
-            var inline = new GraphNode(apply.Id, SpellGrammar.INLINE_RUNE, apply.X, apply.Y);
-            inline.SetText("magicType", SpellGrammar.MAGIC_TYPE_BUFF);
-            inline.SetText("element", element.InternalValue);
-            inline.SetText("form", SpellGrammar.FormOf(apply.RuneId));
-            CopyEffectParameters(apply, inline);
-            return inline;
-        }
-
-        /// <summary>기능 속성의 효과량 파라미터를 정규화 노드에 복사한다. Shape 크기는 형상 정의 데이터의 고정값을 쓰므로 복사하지 않는다.</summary>
-        private static void CopyEffectParameters(GraphNode source, GraphNode target)
-        {
-            foreach (NodeParameter param in source.Params)
-            {
-                if (param.Key == SpellGrammar.POWER_PARAM || param.Key == SpellGrammar.BUFF_DURATION_PARAM)
-                    target.SetNumber(param.Key, param.Number);
-            }
-        }
-
-        /// <summary>출력 또는 입력 포트 중 하나가 체인 종류인 엣지인지 반환한다.</summary>
-        private static bool IsChainEdge(GraphEdge edge, Dictionary<string, RuneDefinition> definitions)
-        {
-            if (definitions.TryGetValue(edge.FromNode, out RuneDefinition from)
-                && from.FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT)?.Kind == SpellGrammar.CHAIN_KIND) return true;
-            return definitions.TryGetValue(edge.ToNode, out RuneDefinition to)
-                && to.FindPort(edge.ToPort, SpellGrammar.DIRECTION_IN)?.Kind == SpellGrammar.CHAIN_KIND;
-        }
-
-        /// <summary>노드의 체인 입력이 정확히 하나일 때 그 출발 노드를, 아니면 null을 반환한다.</summary>
-        private static GraphNode SingleSource(string nodeId, List<GraphEdge> chainEdges, SpellGraph graph)
-        {
-            GraphEdge found = null;
-            foreach (GraphEdge edge in chainEdges)
-            {
-                if (edge.ToNode != nodeId) continue;
-                if (found != null) return null;
-                found = edge;
-            }
-            return found == null ? null : graph.FindNode(found.FromNode);
-        }
-
-        /// <summary>노드에서 나가는 체인 엣지 수를 반환한다.</summary>
-        private static int CountOutgoing(string nodeId, List<GraphEdge> chainEdges)
-        {
-            int count = 0;
-            foreach (GraphEdge edge in chainEdges)
-            {
-                if (edge.FromNode == nodeId) count++;
-            }
-            return count;
-        }
-
-        /// <summary>노드에 속성 부착 외의 엣지가 하나도 없는지 반환한다. 속성 노드는 속성 부착 엣지도 연결로 센다.</summary>
-        private static bool IsIsolated(string nodeId, IReadOnlyList<GraphEdge> edges, Dictionary<string, RuneDefinition> definitions)
-        {
-            bool isElement = definitions.TryGetValue(nodeId, out RuneDefinition rune) && rune.Category == SpellGrammar.CATEGORY_ELEMENT;
-            foreach (GraphEdge edge in edges)
-            {
-                if (edge == null || (edge.FromNode != nodeId && edge.ToNode != nodeId)) continue;
-                if (isElement || edge.ToPort != SpellGrammar.ELEMENT_PORT) return false;
-            }
-            return true;
         }
     }
 }

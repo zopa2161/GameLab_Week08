@@ -9,7 +9,7 @@ namespace RuneCode
     [Serializable]
     public sealed class PlayerSave : ISerializationCallbackReceiver
     {
-        private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "behavior.launch", "element.neutral" };
+        private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
         // 기본 마법 메소드 템플릿 ID다. 매직 미사일은 시작 마법 에너지 볼트와 같아 통합했으므로 지금은 비어 있다.
         private static readonly string[] DEFAULT_METHOD_IDS = Array.Empty<string>();
 
@@ -29,6 +29,8 @@ namespace RuneCode
         [SerializeField] private List<KillRecord> _killCounts = new List<KillRecord>();
         [SerializeField] private List<UpgradeNodeProgress> _upgradeNodeProgress = new List<UpgradeNodeProgress>();
         [SerializeField] private List<ModifierStock> _modifierStock = new List<ModifierStock>();
+        [SerializeField] private List<ModifierStock> _elementStock = new List<ModifierStock>();
+        [SerializeField] private List<ModifierStock> _behaviorStock = new List<ModifierStock>();
 
         [Header("피드백 설정")]
         [SerializeField] private bool _screenShake = true;
@@ -90,32 +92,133 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 등급이 없는 이전 기록을 Modifier의 최저 등급으로 옮기고, 그 등급에만 시작 소지량을 넣는다.
-        /// 새 세이브와 이전 세이브 로드에서 호출하며 여러 번 호출해도 결과가 같다.
+        /// 소지량 목록(모디·속성·행동)의 null과 잘못된 기록을 정리하고, 행동 소지량이 비어 있으면 behavior.launch 시작 소지량을 넣는다.
+        /// 새 세이브와 이전 세이브 로드에서 호출하며 여러 번 호출해도 결과가 같다. 속성 시작 소지량은 없다.
         /// </summary>
-        private void EnsureModifierStock()
+        private void EnsureStock()
         {
             if (_modifierStock == null) _modifierStock = new List<ModifierStock>();
             _modifierStock.RemoveAll(stock => stock == null || !GameData.Runes.TryGet(stock.RuneId, out RuneDefinition rune)
                 || rune.Category != SpellGrammar.CATEGORY_MODIFIER || (stock.HasGrade && !GameData.ModifierGrades.IsGradeAvailable(stock.RuneId, stock.Grade)));
             foreach (ModifierStock stock in _modifierStock)
                 if (!stock.HasGrade) stock.SetGrade(GameData.ModifierGrades.GetLowestAvailableGrade(stock.RuneId));
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            for (int index = 0; index < _modifierStock.Count; index++)
-            {
-                ModifierStock stock = _modifierStock[index];
-                string key = SpellGrammar.ModifierStockKey(stock.RuneId, stock.Grade);
-                if (seen.Add(key)) continue;
-                ModifierStock first = _modifierStock.Find(candidate => candidate != stock && candidate.RuneId == stock.RuneId && candidate.Grade == stock.Grade);
-                first.Add(stock.Count);
-                _modifierStock.RemoveAt(index--);
-            }
+            MergeDuplicateStock(_modifierStock);
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
                 string grade = GameData.ModifierGrades.GetLowestAvailableGrade(rune.Id);
                 if (rune.Category != SpellGrammar.CATEGORY_MODIFIER
                     || _modifierStock.Exists(stock => stock.RuneId == rune.Id && stock.Grade == grade)) continue;
                 _modifierStock.Add(new ModifierStock(rune.Id, grade, GameData.Balance.Economy.ModifierStartStock));
+            }
+
+            if (_elementStock == null) _elementStock = new List<ModifierStock>();
+            _elementStock.RemoveAll(stock => stock == null || !GameData.Runes.TryGet(stock.RuneId, out RuneDefinition rune)
+                || rune.Category != SpellGrammar.CATEGORY_ELEMENT || rune.IsDisabled
+                || !GameData.Runes.TryGetRuneElement(stock.RuneId, out ElementDefinition element)
+                || element.Category != SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL || stock.HasGrade);
+            MergeDuplicateStock(_elementStock);
+
+            if (_behaviorStock == null) _behaviorStock = new List<ModifierStock>();
+            _behaviorStock.RemoveAll(stock => stock == null || !GameData.Runes.TryGet(stock.RuneId, out RuneDefinition rune)
+                || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled
+                || !stock.HasGrade || !GameData.Runes.BehaviorGradeOrder.Contains(stock.Grade));
+            MergeDuplicateStock(_behaviorStock);
+            if (_behaviorStock.Count == 0)
+                _behaviorStock.Add(new ModifierStock("behavior.launch", SpellGrammar.DEFAULT_BEHAVIOR_GRADE,
+                    GameData.Balance.Economy.BehaviorStartStock));
+        }
+
+        /// <summary>같은 (룬 ID, 등급)의 중복 기록을 첫 기록으로 합친다.</summary>
+        private static void MergeDuplicateStock(List<ModifierStock> stocks)
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            for (int index = 0; index < stocks.Count; index++)
+            {
+                ModifierStock stock = stocks[index];
+                string key = SpellGrammar.ModifierStockKey(stock.RuneId, stock.Grade);
+                if (seen.Add(key)) continue;
+                ModifierStock first = stocks.Find(candidate => candidate != stock && candidate.RuneId == stock.RuneId && candidate.Grade == stock.Grade);
+                first.Add(stock.Count);
+                stocks.RemoveAt(index--);
+            }
+        }
+
+        /// <summary>모디·속성·행동의 지정 (룬 ID, 등급) 소지량을 반환하고 기록이 없으면 0을 반환한다.</summary>
+        public int GetStock(string runeId, string grade)
+        {
+            return GetModifierStock(runeId, grade)
+                + CountStockList(_elementStock, runeId, grade)
+                + CountStockList(_behaviorStock, runeId, grade);
+        }
+
+        /// <summary>
+        /// 룬 카테고리에 맞는 소지량을 늘린다. 모디는 Modifier 지급 검사를, 속성은 비활성이 아니고 전투 속성이며 등급이 빈
+        /// 문자열일 때만, 행동은 비활성이 아니고 등급이 등급표에 있을 때만 받는다. 그 외는 무시한다.
+        /// </summary>
+        public void AddStock(string runeId, string grade, int amount)
+        {
+            if (amount <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return;
+            if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
+            {
+                AddModifierStock(runeId, grade, amount);
+                return;
+            }
+            if (rune.IsDisabled) return;
+            if (rune.Category == SpellGrammar.CATEGORY_ELEMENT)
+            {
+                if (!string.IsNullOrEmpty(grade) || !GameData.Runes.TryGetRuneElement(runeId, out ElementDefinition element)
+                    || element.Category != SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL) return;
+                AddToStockList(_elementStock, runeId, grade, amount);
+                return;
+            }
+            if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
+            {
+                if (string.IsNullOrEmpty(grade) || !GameData.Runes.BehaviorGradeOrder.Contains(grade)) return;
+                AddToStockList(_behaviorStock, runeId, grade, amount);
+            }
+        }
+
+        /// <summary>모디·속성·행동 소지량을 (룬 ID, 등급) 키 하나로 합친 맵을 반환한다. 컴파일·배치 검사에 쓴다.</summary>
+        public Dictionary<string, int> CreateStockMap()
+        {
+            Dictionary<string, int> map = CreateModifierStockMap();
+            AppendStockMap(map, _elementStock);
+            AppendStockMap(map, _behaviorStock);
+            return map;
+        }
+
+        /// <summary>지정 (룬 ID, 등급) 기록의 소지량 합을 반환한다.</summary>
+        private static int CountStockList(List<ModifierStock> stocks, string runeId, string grade)
+        {
+            if (stocks == null) return 0;
+            var count = 0;
+            foreach (ModifierStock stock in stocks)
+                if (stock != null && stock.RuneId == runeId && stock.Grade == grade) count += stock.Count;
+            return count;
+        }
+
+        /// <summary>같은 (룬 ID, 등급) 기록이 있으면 더하고 없으면 새 기록을 추가한다.</summary>
+        private void AddToStockList(List<ModifierStock> stocks, string runeId, string grade, int amount)
+        {
+            foreach (ModifierStock stock in stocks)
+            {
+                if (stock == null || stock.RuneId != runeId || stock.Grade != grade) continue;
+                stock.Add(amount);
+                return;
+            }
+            stocks.Add(new ModifierStock(runeId, grade, amount));
+        }
+
+        /// <summary>소지량 목록의 (룬 ID, 등급) 키별 수를 맵에 합친다.</summary>
+        private static void AppendStockMap(Dictionary<string, int> map, List<ModifierStock> stocks)
+        {
+            if (stocks == null) return;
+            foreach (ModifierStock stock in stocks)
+            {
+                if (stock == null || string.IsNullOrEmpty(stock.RuneId)) continue;
+                string key = SpellGrammar.ModifierStockKey(stock.RuneId, stock.Grade ?? "");
+                map.TryGetValue(key, out int count);
+                map[key] = count + stock.Count;
             }
         }
 
@@ -164,7 +267,7 @@ namespace RuneCode
             save._loadout.Add(null);
             save._loadout.Add(null);
             save.AddDefaultMethods();
-            save.EnsureModifierStock();
+            save.EnsureStock();
             return save;
         }
 
@@ -179,13 +282,16 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 이전 룬으로 만든 보관함 그래프를 문법 블록으로 변환하고, 해금 룬 ID를 새 블록으로 바꾸며
-        /// 카탈로그에 없는 ID만 정리한다. 기본 마법 메소드가 없으면 보관함 한도 안에서 추가한다. 여러 번 호출해도 결과가 같다.
+        /// 스키마 버전 4가 아닌 보관함 그래프를 제거하고(호환 없음), 해금 룬 ID를 현재 ID로 바꾸며
+        /// 카탈로그에 없는 ID만 정리한다. 보관함이 비면 시작 마법으로 채우고, 활성 마법과 장착 슬롯 참조가
+        /// 제거된 마법을 가리키면 유효한 값으로 정리한다. 기본 마법 메소드가 없으면 보관함 한도 안에서 추가한다.
+        /// 여러 번 호출해도 결과가 같다.
         /// </summary>
         public void MigrateSpellGrammar()
         {
             if (_graphs == null || _unlockedRunes == null) return;
-            foreach (var graph in _graphs) SpellGraphMigration.Migrate(graph, GameData.ModifierGrades);
+            _graphs.RemoveAll(graph => graph == null || graph.Version != SpellGraph.CURRENT_VERSION);
+            if (_graphs.Count == 0) _graphs.Add(GameData.Spells[0].Clone());
             var unlocked = new List<string>();
             foreach (var runeId in _unlockedRunes)
             {
@@ -196,8 +302,16 @@ namespace RuneCode
                 if (GameData.Runes.TryGet(runeId, out RuneDefinition rune)
                     && rune.Category != SpellGrammar.CATEGORY_INTERNAL && !unlocked.Contains(runeId)) unlocked.Add(runeId);
             _unlockedRunes = unlocked;
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var graph in _graphs) ids.Add(graph.Id);
+            if (string.IsNullOrEmpty(_activeSpellId) || !ids.Contains(_activeSpellId)) _activeSpellId = _graphs[0].Id;
+            if (_loadout == null) _loadout = new List<string>();
+            while (_loadout.Count < 3) _loadout.Add(null);
+            _loadout[0] = _activeSpellId;
+            for (var slot = 1; slot < _loadout.Count; slot++)
+                if (!string.IsNullOrEmpty(_loadout[slot]) && !ids.Contains(_loadout[slot])) _loadout[slot] = null;
             AddDefaultMethods();
-            EnsureModifierStock();
+            EnsureStock();
         }
 
         /// <summary>기본 마법 메소드 템플릿 중 보관함에 없는 것을 한도 안에서 추가한다.</summary>

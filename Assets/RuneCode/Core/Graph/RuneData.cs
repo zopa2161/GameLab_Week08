@@ -220,6 +220,7 @@ namespace RuneCode
         private readonly string _id;
         private readonly string _name;
         private readonly string _category;
+        private readonly bool _isDisabled;
         private readonly int _ram;
         private readonly float _energy;
         private readonly float _energyMult;
@@ -238,6 +239,10 @@ namespace RuneCode
         public string Id => _id;
         public string Name => _name;
         public string Category => _category;
+
+        /// <summary>팔레트·획득·컴파일에서 제외되는 비활성 룬인지 반환한다.</summary>
+        public bool IsDisabled => _isDisabled;
+
         public int Ram => _ram;
         public float Energy => _energy;
         public float EnergyMult => _energyMult;
@@ -260,6 +265,7 @@ namespace RuneCode
             _id = row._id;
             _name = row._name ?? "";
             _category = row._category ?? "";
+            _isDisabled = row._disabled;
             _ram = row._ram;
             _costs = costs;
             _energy = (float)costs.GetAmount("mana");
@@ -351,20 +357,29 @@ namespace RuneCode
         private readonly IReadOnlyList<ElementDefinition> _elements;
         private readonly Dictionary<string, ElementDefinition> _elementsById = new Dictionary<string, ElementDefinition>(StringComparer.Ordinal);
         private readonly Dictionary<string, HashSet<string>> _modifierTargets;
+        private readonly List<string> _behaviorGradeOrder;
+        private readonly Dictionary<string, (int ElementSlots, int ModifierSlots)> _behaviorSlots;
         private ModifierGradeTable _modifierGrades;
 
         public IReadOnlyList<RuneDefinition> All => _runes;
         public IReadOnlyList<string> StartRunes => _startRunes;
         public IReadOnlyList<ElementDefinition> Elements => _elements;
+
+        /// <summary>행동 등급 표의 등급을 C→B→A→S 순서로 반환한다.</summary>
+        public IReadOnlyList<string> BehaviorGradeOrder => _behaviorGradeOrder;
+
         public ModifierGradeTable ModifierGrades => _modifierGrades;
 
-        /// <summary>검증된 룬·속성 목록과 효과 대상 조회표(효과 ID가 키, 대상 ID 집합이 값)로 ID 조회표와 시작 해금 목록을 만든다.</summary>
+        /// <summary>검증된 룬·속성 목록과 효과 대상·행동 등급 조회표로 ID 조회표와 시작 해금 목록을 만든다.</summary>
         private RuneCatalog(IReadOnlyList<RuneDefinition> runes, IReadOnlyList<ElementDefinition> elements,
-            Dictionary<string, HashSet<string>> modifierTargets)
+            Dictionary<string, HashSet<string>> modifierTargets, List<string> behaviorGradeOrder,
+            Dictionary<string, (int ElementSlots, int ModifierSlots)> behaviorSlots)
         {
             _runes = runes;
             _elements = elements;
             _modifierTargets = modifierTargets;
+            _behaviorGradeOrder = behaviorGradeOrder;
+            _behaviorSlots = behaviorSlots;
             foreach (ElementDefinition element in elements)
             {
                 _elementsById.Add(element.Id, element);
@@ -394,6 +409,9 @@ namespace RuneCode
             var elementIds = new HashSet<string>(StringComparer.Ordinal);
             var runeIds = new HashSet<string>(StringComparer.Ordinal);
             var modifiers = new List<(RuneDefinition rune, List<string> targets)>();
+            var behaviorGradeOrder = new List<string>();
+            var behaviorSlots = new Dictionary<string, (int ElementSlots, int ModifierSlots)>(StringComparer.Ordinal);
+            BuildBehaviorGrades(table._behaviorGrades, behaviorGradeOrder, behaviorSlots, log);
             foreach (RuneRowData row in table._runes)
             {
                 if (row == null || string.IsNullOrEmpty(row._id) || !runeIds.Add(row._id))
@@ -423,7 +441,44 @@ namespace RuneCode
 
             ValidateModifierTargets(modifiers, definitions, log);
             log.ThrowIfAny();
-            return new RuneCatalog(definitions, elements, BuildModifierTargets(modifiers));
+            return new RuneCatalog(definitions, elements, BuildModifierTargets(modifiers), behaviorGradeOrder, behaviorSlots);
+        }
+
+        /// <summary>행동 등급의 속성·모디 슬롯 수를 반환한다. 없는 등급이면 false를 반환한다.</summary>
+        public bool TryGetBehaviorSlots(string grade, out int elementSlots, out int modifierSlots)
+        {
+            if (!string.IsNullOrEmpty(grade) && _behaviorSlots.TryGetValue(grade, out (int ElementSlots, int ModifierSlots) slots))
+            {
+                elementSlots = slots.ElementSlots;
+                modifierSlots = slots.ModifierSlots;
+                return true;
+            }
+            elementSlots = 0;
+            modifierSlots = 0;
+            return false;
+        }
+
+        /// <summary>행동 등급 표를 만들고 등급 빈 값·중복과 슬롯 수 범위(속성 0~2, 모디 0~3)를 검증한다.</summary>
+        private static void BuildBehaviorGrades(List<BehaviorGradeData> rows, List<string> order,
+            Dictionary<string, (int ElementSlots, int ModifierSlots)> slots, TableErrorLog log)
+        {
+            if (rows == null) return;
+            foreach (BehaviorGradeData row in rows)
+            {
+                if (row == null || string.IsNullOrEmpty(row._grade) || slots.ContainsKey(row._grade))
+                {
+                    log.Add(null, "behaviorGrades", "등급이 비어 있거나 중복입니다.");
+                    continue;
+                }
+                if (row._elementSlots < 0 || row._elementSlots > SpellGrammar.MAX_ELEMENT_SLOTS
+                    || row._modifierSlots < 0 || row._modifierSlots > SpellGrammar.MAX_MODIFIER_SLOTS)
+                {
+                    log.Add(null, "behaviorGrades:" + row._grade, "슬롯 수가 범위를 벗어났습니다 (속성 0~2, 모디 0~3).");
+                    continue;
+                }
+                order.Add(row._grade);
+                slots.Add(row._grade, (row._elementSlots, row._modifierSlots));
+            }
         }
 
         /// <summary>룬 ID로 정의를 반환하며 알 수 없는 ID이면 예외를 발생시킨다.</summary>
@@ -437,14 +492,34 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 그래프 노드 하나가 차지하는 RAM을 반환한다. 룬 자체 RAM에, 속성 드롭다운을 가진 노드(Shape·Apply)는 선택한 속성 룬의 RAM을 더한다.
-        /// 알 수 없는 룬이면 0을 반환한다.
+        /// 그래프 노드 하나가 차지하는 RAM을 반환한다. behavior 노드는 행동·형태·장착 속성·장착 모디 룬 RAM의 합이며
+        /// 슬롯 값이 잘못됐으면 해당 항목만 0으로 뺀다. 다른 노드는 룬 자체 RAM에 속성 드롭다운을 가진 노드(Shape·Apply)는
+        /// 선택한 속성 룬의 RAM을 더한다. 알 수 없는 룬이면 0을 반환한다.
         /// </summary>
         public int NodeRam(GraphNode node)
         {
             if (!TryGet(node.RuneId, out RuneDefinition rune)) return 0;
+            if (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)
+            {
+                int baseRam = rune.Ram;
+                if (TryGetNodeElement(node, out ElementDefinition element) && TryGet(element.RuneId, out RuneDefinition elementRune)) baseRam += elementRune.Ram;
+                return baseRam;
+            }
             int ram = rune.Ram;
-            if (TryGetNodeElement(node, out ElementDefinition element) && TryGet(element.RuneId, out RuneDefinition elementRune)) ram += elementRune.Ram;
+            string shape = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
+            if (TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune)) ram += shapeRune.Ram;
+            for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
+            {
+                string value = node.GetText(SpellGrammar.ElementSlotKey(index), null);
+                if (!string.IsNullOrEmpty(value) && TryGetElement(value, out ElementDefinition attached)
+                    && TryGet(attached.RuneId, out RuneDefinition attachedRune)) ram += attachedRune.Ram;
+            }
+            for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
+            {
+                string value = node.GetText(SpellGrammar.ModifierSlotKey(index), null);
+                if (!string.IsNullOrEmpty(value) && SpellGrammar.TryParseStockKey(value, out string modifierId, out _)
+                    && TryGet(modifierId, out RuneDefinition modifierRune)) ram += modifierRune.Ram;
+            }
             return ram;
         }
 

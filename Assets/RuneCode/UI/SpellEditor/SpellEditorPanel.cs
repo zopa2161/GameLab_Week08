@@ -17,6 +17,12 @@ namespace RuneCode
     {
         public static readonly string[] CATEGORY_IDS = { "all", SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_ELEMENT, SpellGrammar.CATEGORY_BEHAVIOR, SpellGrammar.CATEGORY_MODIFIER, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD };
 
+        // 탭 버튼은 프리팹에서 CATEGORY_IDS 순번으로 연결되어 있다. 슬롯 방식에서 노드로 배치하지 않는 분류의 탭은 숨긴다.
+        private static readonly HashSet<string> HIDDEN_CATEGORY_IDS = new HashSet<string>
+        {
+            SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD
+        };
+
         [Header("마법 제목 줄")]
         [SerializeField] private TextMeshProUGUI _spellTitle;
         [SerializeField] private Button _libraryButton;
@@ -181,6 +187,7 @@ namespace RuneCode
             {
                 string category = CATEGORY_IDS[i];
                 _categoryButtons[i].onClick.AddListener(() => CategoryClicked?.Invoke(category));
+                if (HIDDEN_CATEGORY_IDS.Contains(category)) _categoryButtons[i].gameObject.SetActive(false);
             }
         }
     }

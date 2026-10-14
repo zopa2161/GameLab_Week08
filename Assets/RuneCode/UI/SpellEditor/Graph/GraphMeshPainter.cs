@@ -42,9 +42,12 @@ namespace RuneCode
         private const float EDGE_ARROW_SIZE = 4.5f;
         private const float EDGE_ARROW_POSITION = 0.68f;
         private const float SELECTION_LINE_WIDTH = 1f;
+        private const float SLOT_EQUIPPED_TINT = 0.45f;
 
         private static readonly Color LOCKED_NODE_COLOR = new Color(1f, 0.25f, 0.25f);
         private static readonly Color LOCKED_NODE_FILL_COLOR = new Color(0.24f, 0.07f, 0.08f);
+        private static readonly Color SLOT_EMPTY_COLOR = new Color(0.12f, 0.13f, 0.17f);
+        private static readonly Color SLOT_LOCKED_COLOR = new Color(0.05f, 0.05f, 0.06f);
 
         private readonly GraphVisualStyle _style;
         private readonly GraphViewport _viewport;
@@ -135,6 +138,28 @@ namespace RuneCode
             Vector2 iconCenter = new Vector2(rect.x + ICON_OFFSET_X * zoom, rect.yMax - ICON_OFFSET_Y * zoom);
             RuneMesh.Polygon(mesh, iconCenter, ICON_RADIUS * zoom, accent, CategoryIconSides(rune.Category));
             DrawPorts(mesh, node, rune, rect);
+            DrawSlots(mesh, node, rune, fill);
+        }
+
+        /// <summary>행동 노드의 형태·속성·모디 슬롯 셀을 빈 칸, 장착(장착 룬 카테고리 색), 잠금(등급 한도 밖) 상태로 그린다.</summary>
+        private void DrawSlots(VertexHelper mesh, GraphNode node, RuneDefinition rune, Color fill)
+        {
+            if (!GraphNodeLayout.HasSlots(rune)) return;
+            foreach (string slotKey in GraphNodeLayout.SlotKeys)
+            {
+                if (!_layout.TryGetSlotRect(node, rune, slotKey, out Rect cell)) continue;
+                Color color;
+                if (GraphNodeLayout.IsSlotLocked(node, slotKey)) color = SLOT_LOCKED_COLOR;
+                else if (slotKey == SpellGrammar.SHAPE_PARAM)
+                    color = Color.Lerp(fill, RuneMesh.CategoryColor(SpellGrammar.CATEGORY_SHAPE), SLOT_EQUIPPED_TINT);
+                else
+                {
+                    bool isElement = SpellGrammar.TryParseSlotKey(slotKey, out bool elementSlot, out _) && elementSlot;
+                    color = string.IsNullOrEmpty(node.GetText(slotKey, null)) ? SLOT_EMPTY_COLOR
+                        : Color.Lerp(fill, RuneMesh.CategoryColor(isElement ? SpellGrammar.CATEGORY_ELEMENT : SpellGrammar.CATEGORY_MODIFIER), SLOT_EQUIPPED_TINT);
+                }
+                RuneMesh.Rect(mesh, cell, color);
+            }
         }
 
         /// <summary>노드의 표시 포트를 종류별 모양으로 그리며 연결 드래그 중에는 연결 가능 여부 색으로 표시한다. 지원 중단 포트는 회색이다.</summary>

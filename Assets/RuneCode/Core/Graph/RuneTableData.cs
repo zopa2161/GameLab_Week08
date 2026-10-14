@@ -12,6 +12,16 @@ namespace RuneCode
     public sealed class RuneTableData
     {
         public List<RuneRowData> _runes = new List<RuneRowData>();
+        public List<BehaviorGradeData> _behaviorGrades;
+    }
+
+    /// <summary>행동 등급 하나의 슬롯 수다. 모든 행동 룬이 같은 표를 쓴다.</summary>
+    [Serializable]
+    public sealed class BehaviorGradeData
+    {
+        public string _grade;
+        public int _elementSlots;
+        public int _modifierSlots;
     }
 
     /// <summary>룬 한 개의 데이터다. 기본 정보와 수치·포트·파라미터·태그, 속성·효과 대상을 함께 가진다.</summary>
@@ -21,6 +31,7 @@ namespace RuneCode
         public string _id;
         public string _name;
         public string _category;
+        public bool _disabled;
         public int _ram;
         public float _energy;
         public float _energyMult = 1f;

@@ -16,10 +16,10 @@ namespace RuneCode
         /// <summary>후보 그래프가 장착 RAM 규칙을 지키는지 반환한다.</summary>
         bool IsWithinRam(SpellGraph candidate);
 
-        /// <summary>현재 그래프(새 마법이면 null)를 후보로 바꿨을 때 늘어나는 Modifier가 보관함 전체 소지량 안에 드는지 반환한다.</summary>
+        /// <summary>현재 그래프(새 마법이면 null)를 후보로 바꿨을 때 늘어나는 소지 아이템(모디·속성·행동)이 보관함 전체 소지량 안에 드는지 반환한다.</summary>
         bool IsWithinModifierStock(SpellGraph current, SpellGraph candidate);
 
-        /// <summary>편집 그래프를 포함한 보관함 전체에서 지정 등급 Modifier 배치 수(used)와 소지량(owned)을 구한다.</summary>
+        /// <summary>편집 그래프를 포함한 보관함 전체에서 지정 (룬 ID, 등급)의 배치 수(used)와 소지량(owned)을 구한다.</summary>
         bool TryGetModifierUsage(string runeId, string grade, SpellGraph editing, out int used, out int owned);
 
         /// <summary>룬 배치 후 튜토리얼 등 진행 반응을 처리한다.</summary>

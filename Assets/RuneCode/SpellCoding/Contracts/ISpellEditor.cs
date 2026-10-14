@@ -32,8 +32,26 @@ namespace RuneCode
         /// <summary>편집 중인 마법을 포함한 보관함 전체에서 지정 등급 Modifier의 배치 수와 소지량을 구한다.</summary>
         bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned);
 
-        /// <summary>지정 좌표에 룬 노드를 배치하고 Modifier이면 지정 문자열 등급을 저장한다.</summary>
+        /// <summary>지정 좌표에 행동 노드를 지정 등급(비면 기본 등급)으로 배치한다. 행동 외 룬은 배치하지 않는다.</summary>
         void AddRune(string runeId, float x, float y, string grade = null);
+
+        /// <summary>행동 노드의 형태를 해금되고 허용되는 다음 값으로 바꾸며 바뀌면 true를 반환한다.</summary>
+        bool CycleShape(string nodeId);
+
+        /// <summary>행동 노드에서 지정 속성·모디를 장착할 수 있는 첫 빈 슬롯 키를 찾는다. 없으면 false를 반환한다.</summary>
+        bool TryFindEquipSlot(string nodeId, string runeId, string grade, out string slotKey);
+
+        /// <summary>행동 노드의 슬롯에 지정 속성·모디를 장착(교체 포함)하고 성공하면 true를 반환한다. 실패하면 상태 문구를 표시한다.</summary>
+        bool Equip(string nodeId, string slotKey, string runeId, string grade);
+
+        /// <summary>행동 노드의 지정 슬롯을 비우고 비웠으면 true를 반환한다.</summary>
+        bool ClearSlot(string nodeId, string slotKey);
+
+        /// <summary>지정 슬롯이 행동 노드 등급의 슬롯 한도 밖이라 잠겨 있는지 반환한다.</summary>
+        bool IsSlotLocked(string nodeId, string slotKey);
+
+        /// <summary>문자열 키에 해당하는 상태 문구를 표시한다.</summary>
+        void ReportStatus(string key);
 
         /// <summary>포트 연결을 검증하고 성공하면 엣지를 추가한다. replaceExisting이면 단일 포트의 기존 연결을 교체한다.</summary>
         bool Connect(string fromNode, string fromPort, string toNode, string toPort, bool replaceExisting = false);
@@ -68,7 +86,7 @@ namespace RuneCode
         /// <summary>복사 버퍼를 새 ID와 좌표 오프셋으로 붙여넣는다.</summary>
         void PasteNodes();
 
-        /// <summary>실행 노드와 속성·수식 노드를 역할별 행으로 정렬한다.</summary>
+        /// <summary>그래프 노드를 실행 행으로 정렬한다.</summary>
         void AutoArrange();
 
         void Rename(string name);

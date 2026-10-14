@@ -36,7 +36,7 @@ namespace RuneCode
             _palette = new SpellPalettePresenter(editor, ui, view);
             _inspector = new SpellInspectorPresenter(editor, view.Inspector, view.GraphCanvas, OpenSpellPicker);
             BindView();
-            _view.GraphCanvas.Initialize(_editor, _view.Font, _inspector.Select, ShowTooltip, _palette.OpenQuickPalette);
+            _view.GraphCanvas.Initialize(_editor, _view.Font, _inspector.Select, ShowTooltip, _palette.OpenQuickPalette, _palette.OpenSlotPicker);
             _editor.GraphChanged += OnGraphChanged;
             _editor.SpellSwitched += OnSpellSwitched;
             RefreshAll();

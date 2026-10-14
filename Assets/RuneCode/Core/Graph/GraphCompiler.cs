@@ -10,7 +10,7 @@ namespace RuneCode
     {
         /// <summary>
         /// 그래프와 해금·RAM·에너지 조건을 검증하고 최악 비용의 실행 트리를 컴파일한다.
-        /// modifierStock이 있으면 Modifier 소지량(보관함 전체 공유)을 넘는 배치를 E21 오류로 낸다. null이면 검사하지 않는다.
+        /// modifierStock이 있으면 모디파이어·속성·행동의 통합 소지량(보관함 전체 공유)을 넘는 배치를 E21 오류로 낸다. null이면 검사하지 않는다.
         /// </summary>
         public static CompileResult Compile(SpellGraph graph, RuneCatalog runes, GrammarLimits limits,
             IEnumerable<string> unlocked, int capacity = -1, float maxEnergy = -1f, IEnumerable<SpellGraph> library = null,
@@ -28,36 +28,74 @@ namespace RuneCode
             return new CompileResult(result.Errors.Concat(stockErrors).ToList(), result.Warnings, result.Spell);
         }
 
-        /// <summary>그래프에 배치된 Modifier 노드 수를 룬 ID와 등급별로 세어 반환한다.</summary>
-        public static Dictionary<string, int> CountModifiers(SpellGraph graph, RuneCatalog runes)
+        /// <summary>
+        /// 그래프에서 소지량 키별 사용 수를 세어 반환한다. behavior 노드는 (행동, 등급) 키 하나에, 비어 있지 않은 속성 슬롯은
+        /// 속성 룬 키(등급 빈 문자열), 모디 슬롯은 슬롯 값 그대로의 키를 센다. 존재하지 않는 룬이나 등급은 세지 않는다.
+        /// </summary>
+        public static Dictionary<string, int> CountStockUsage(SpellGraph graph, RuneCatalog runes)
         {
             var counts = new Dictionary<string, int>(StringComparer.Ordinal);
             if (graph?.Nodes == null) return counts;
             foreach (GraphNode node in graph.Nodes)
             {
-                if (node == null || !runes.TryGet(node.RuneId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER) continue;
-                string grade = SpellGrammar.GetModifierGrade(rune, node, runes.ModifierGrades);
-                string key = SpellGrammar.ModifierStockKey(node.RuneId, grade);
-                counts.TryGetValue(key, out int count);
-                counts[key] = count + 1;
+                if (node == null || !runes.TryGet(node.RuneId, out RuneDefinition rune)
+                    || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR) continue;
+                string grade = node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
+                if (runes.TryGetBehaviorSlots(grade, out _, out _)) AddStockCount(counts, SpellGrammar.ModifierStockKey(node.RuneId, grade));
+                for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
+                {
+                    string value = node.GetText(SpellGrammar.ElementSlotKey(index), null);
+                    if (!string.IsNullOrEmpty(value) && runes.TryGetElement(value, out ElementDefinition element))
+                        AddStockCount(counts, SpellGrammar.ModifierStockKey(element.RuneId, ""));
+                }
+                for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
+                {
+                    string value = node.GetText(SpellGrammar.ModifierSlotKey(index), null);
+                    if (string.IsNullOrEmpty(value) || !SpellGrammar.TryParseStockKey(value, out string modifierId, out string modifierGrade)
+                        || !runes.TryGet(modifierId, out RuneDefinition modifierRune)
+                        || modifierRune.Category != SpellGrammar.CATEGORY_MODIFIER
+                        || !runes.ModifierGrades.IsGradeAvailable(modifierId, modifierGrade)) continue;
+                    AddStockCount(counts, value);
+                }
+            }
+            return counts;
+        }
+
+        /// <summary>소지량 사용 수 맵에 키 하나를 더한다.</summary>
+        private static void AddStockCount(Dictionary<string, int> counts, string key)
+        {
+            counts.TryGetValue(key, out int count);
+            counts[key] = count + 1;
+        }
+
+        /// <summary>소지량 사용 수 중 Modifier 카테고리 키만 골라 반환한다.</summary>
+        public static Dictionary<string, int> CountModifiers(SpellGraph graph, RuneCatalog runes)
+        {
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (KeyValuePair<string, int> pair in CountStockUsage(graph, runes))
+            {
+                if (!SpellGrammar.TryParseStockKey(pair.Key, out string runeId, out _)
+                    || !runes.TryGet(runeId, out RuneDefinition rune)
+                    || rune.Category != SpellGrammar.CATEGORY_MODIFIER) continue;
+                counts[pair.Key] = pair.Value;
             }
             return counts;
         }
 
         /// <summary>
-        /// 보관함 전체에서 Modifier 종류·등급별 배치 수를 세어 소지량을 넘는 등급마다 이 그래프의 첫 초과 노드에 E21 오류를 만든다.
-        /// 보관함의 같은 ID 그래프는 이 그래프로 대체해 센다. 소지량에 없는 Modifier의 소지량은 0이다.
+        /// 보관함 전체에서 소지량 키(모디·속성·행동)별 사용 수를 세어 소지량을 넘는 키마다 이 그래프의 첫 사용 노드에 E21 오류를 만든다.
+        /// 보관함의 같은 ID 그래프는 이 그래프로 대체해 센다. 소지량에 없는 키의 소지량은 0이다.
         /// </summary>
         private static List<CompileIssue> FindModifierStockIssues(SpellGraph graph, RuneCatalog runes, IEnumerable<SpellGraph> library,
             IReadOnlyDictionary<string, int> modifierStock)
         {
-            Dictionary<string, int> used = CountModifiers(graph, runes);
+            Dictionary<string, int> used = CountStockUsage(graph, runes);
             if (library != null)
             {
                 foreach (SpellGraph other in library)
                 {
                     if (other == null || (!string.IsNullOrEmpty(graph.Id) && other.Id == graph.Id)) continue;
-                    foreach (KeyValuePair<string, int> pair in CountModifiers(other, runes))
+                    foreach (KeyValuePair<string, int> pair in CountStockUsage(other, runes))
                     {
                         used.TryGetValue(pair.Key, out int count);
                         used[pair.Key] = count + pair.Value;
@@ -69,15 +107,52 @@ namespace RuneCode
             {
                 modifierStock.TryGetValue(pair.Key, out int stock);
                 if (pair.Value <= stock) continue;
+                GraphNode node = FindStockUsageNode(graph, runes, pair.Key);
+                if (node == null) continue;
+                string runeId = pair.Key;
+                string grade = "";
                 int separator = pair.Key.LastIndexOf('#');
-                string runeId = pair.Key.Substring(0, separator);
-                string grade = pair.Key.Substring(separator + 1);
-                GraphNode node = graph.Nodes.FirstOrDefault(item => item != null && item.RuneId == runeId
-                    && runes.TryGet(item.RuneId, out RuneDefinition rune)
-                    && SpellGrammar.GetModifierGrade(rune, item, runes.ModifierGrades) == grade);
-                if (node != null) issues.Add(new CompileIssue("E21", node.Id, runes.Get(runeId).Name + " " + grade + " " + pair.Value + "/" + stock));
+                if (separator >= 0)
+                {
+                    runeId = pair.Key.Substring(0, separator);
+                    grade = pair.Key.Substring(separator + 1);
+                }
+                string detail = runes.TryGet(runeId, out RuneDefinition rune) ? rune.Name : runeId;
+                if (!string.IsNullOrEmpty(grade)) detail += " [" + grade + "]";
+                issues.Add(new CompileIssue("E21", node.Id, detail + " " + pair.Value + "/" + stock));
             }
             return issues;
+        }
+
+        /// <summary>지정 소지량 키를 사용하는(행동 자신·속성·모디 슬롯) 그래프의 첫 behavior 노드를 반환한다.</summary>
+        private static GraphNode FindStockUsageNode(SpellGraph graph, RuneCatalog runes, string key)
+        {
+            foreach (GraphNode node in graph.Nodes)
+            {
+                if (node == null || !runes.TryGet(node.RuneId, out RuneDefinition rune)
+                    || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR) continue;
+                if (UsesStockKey(node, runes, key)) return node;
+            }
+            return null;
+        }
+
+        /// <summary>behavior 노드가 지정 소지량 키(행동 자신·속성 슬롯·모디 슬롯)를 쓰는지 반환한다.</summary>
+        private static bool UsesStockKey(GraphNode node, RuneCatalog runes, string key)
+        {
+            string grade = node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
+            if (runes.TryGetBehaviorSlots(grade, out _, out _)
+                && SpellGrammar.ModifierStockKey(node.RuneId, grade) == key) return true;
+            for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
+            {
+                string value = node.GetText(SpellGrammar.ElementSlotKey(index), null);
+                if (!string.IsNullOrEmpty(value) && runes.TryGetElement(value, out ElementDefinition element)
+                    && SpellGrammar.ModifierStockKey(element.RuneId, "") == key) return true;
+            }
+            for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
+            {
+                if (node.GetText(SpellGrammar.ModifierSlotKey(index), null) == key) return true;
+            }
+            return false;
         }
 
         /// <summary>유효한 종속성을 가진 그래프를 순환 검사 스택에 넣고 한 번 컴파일한다.</summary>
@@ -94,76 +169,26 @@ namespace RuneCode
             if (!string.IsNullOrEmpty(graph.Id)) context.ActiveSpellIds.Add(graph.Id);
             List<CompileIssue> chainErrors = new List<CompileIssue>();
             List<CompileIssue> chainWarnings = new List<CompileIssue>();
-            SpellGraph active = RemoveDeprecatedEdges(graph, runes, chainWarnings);
-            SpellGraph normalized = SpellChainNormalizer.Normalize(active, runes, context.UnlockedIds, chainErrors, chainWarnings, out int chainRam);
+            SpellGraph normalized = SpellChainNormalizer.Normalize(graph, runes, context.UnlockedIds, chainErrors, chainWarnings,
+                out int chainRam, out Dictionary<string, List<GraphNode>> slotModifiers);
             CompileResult result = chainErrors.Any(issue => issue.Code != "E10")
                 ? new CompileResult(chainErrors, chainWarnings, null)
-                : CompileGraphBody(normalized, runes, limits, context, chainErrors, chainWarnings, chainRam);
+                : CompileGraphBody(normalized, runes, limits, context, chainErrors, chainWarnings, chainRam, slotModifiers);
             if (!string.IsNullOrEmpty(graph.Id)) context.ActiveSpellIds.Remove(graph.Id);
             if (result.Ok && !string.IsNullOrEmpty(graph.Id)) context.Compiled[graph.Id] = result.Spell;
             return result;
         }
 
         /// <summary>
-        /// 지원 중단 포트에서 나가는 연결을 W5 경고와 함께 뺀 컴파일용 그래프를 반환한다. 원본 그래프의 연결은 그대로 보존된다.
-        /// 연결 수 상한이 있는 효과 출력(효과 룬은 대상 하나)은 순서상 앞선 연결만 남기고 나머지는 W9 경고와 함께 뺀다.
-        /// 남는 연결 중 이전 이벤트 의미로 만든 연결(IsLegacyEvent)에는 W6 경고를 추가한다. 뺄 연결이 없으면 원본을 반환한다.
-        /// </summary>
-        private static SpellGraph RemoveDeprecatedEdges(SpellGraph graph, RuneCatalog runes, List<CompileIssue> warnings)
-        {
-            if (graph.Nodes == null || graph.Edges == null) return graph;
-            HashSet<GraphEdge> extraModifierEdges = FindExtraModifierEdges(graph, runes);
-            var kept = new List<GraphEdge>(graph.Edges.Count);
-            foreach (GraphEdge edge in graph.Edges)
-            {
-                GraphNode from = edge == null ? null : graph.FindNode(edge.FromNode);
-                PortDefinition port = from != null && runes.TryGet(from.RuneId, out RuneDefinition rune)
-                    ? rune.FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT) : null;
-                if (port != null && port.IsDeprecated)
-                {
-                    warnings.Add(new CompileIssue("W5", edge.FromNode, edge.FromPort));
-                    continue;
-                }
-                if (edge != null && extraModifierEdges.Contains(edge))
-                {
-                    warnings.Add(new CompileIssue("W9", edge.FromNode));
-                    continue;
-                }
-                if (port != null && edge.IsLegacyEvent) warnings.Add(new CompileIssue("W6", edge.FromNode, edge.FromPort));
-                kept.Add(edge);
-            }
-            return kept.Count == graph.Edges.Count ? graph : graph.CopyWith(graph.Nodes, kept);
-        }
-
-        /// <summary>
-        /// 연결 수 상한이 있는 효과 출력마다 순서(Order, 같으면 저장 순)상 상한을 넘는 연결을 찾아 반환한다.
-        /// 효과 룬은 대상 하나에만 적용하므로(백서 v3) 기존 그래프의 추가 연결은 보존하되 컴파일에서 뺀다.
-        /// </summary>
-        private static HashSet<GraphEdge> FindExtraModifierEdges(SpellGraph graph, RuneCatalog runes)
-        {
-            var extra = new HashSet<GraphEdge>();
-            var uses = new Dictionary<(string node, string port), int>();
-            foreach (GraphEdge edge in graph.Edges.Where(edge => edge != null).OrderBy(edge => edge.Order))
-            {
-                GraphNode from = graph.FindNode(edge.FromNode);
-                PortDefinition port = from != null && runes.TryGet(from.RuneId, out RuneDefinition rune)
-                    ? rune.FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT) : null;
-                if (port == null || port.Kind != "mod" || port.Max <= 0) continue;
-                uses.TryGetValue((edge.FromNode, edge.FromPort), out int count);
-                uses[(edge.FromNode, edge.FromPort)] = count + 1;
-                if (count >= port.Max) extra.Add(edge);
-            }
-            return extra;
-        }
-
-        /// <summary>
-        /// 체인 정규화를 마친 그래프의 해금·RAM·에너지 조건을 검사하고 실행 트리 및 비용 상한을 계산한다.
-        /// 정규화 단계의 오류·경고 목록에 이어서 기록하며 chainRam은 합쳐진 문법 블록의 RAM이다.
+        /// 슬롯 정규화를 마친 그래프의 해금·RAM·에너지 조건을 검사하고 실행 트리 및 비용 상한을 계산한다.
+        /// 정규화 단계의 오류·경고 목록에 이어서 기록하며 chainRam은 정규화가 합산한 behavior 노드의 RAM이고,
+        /// slotModifiers는 behavior 노드별 합성 Modifier 노드 목록이다.
         /// </summary>
         private static CompileResult CompileGraphBody(SpellGraph graph, RuneCatalog runes, GrammarLimits limits, CompileContext context,
-            List<CompileIssue> errors, List<CompileIssue> warnings, int chainRam)
+            List<CompileIssue> errors, List<CompileIssue> warnings, int chainRam,
+            Dictionary<string, List<GraphNode>> slotModifiers)
         {
-            if (graph.Version < 1 || graph.Version > SpellGraph.CURRENT_VERSION || graph.Nodes == null || graph.Edges == null
+            if (graph.Version != SpellGraph.CURRENT_VERSION || graph.Nodes == null || graph.Edges == null
                 || graph.Nodes.Count > limits.MaxGraphNodes || graph.Edges.Count > limits.MaxGraphEdges)
             {
                 errors.Add(new CompileIssue("E9"));
@@ -184,12 +209,15 @@ namespace RuneCode
                 definitions[node.Id] = rune;
                 if (graph.IsNodeConnected(node.Id)) ramUsed += rune.Ram;
                 if (rune.Category == "core") cores.Add(node);
+                bool isAllowedRune = !rune.IsDisabled && (rune.Category == SpellGrammar.CATEGORY_CORE
+                    || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR || rune.Category == SpellGrammar.CATEGORY_INTERNAL);
+                if (!isAllowedRune) errors.Add(new CompileIssue("E25", node.Id));
                 if (!context.UnlockedIds.Contains(rune.Id)) errors.Add(new CompileIssue("E10", node.Id));
                 ValidateParameters(node, rune, runes.ModifierGrades, errors);
                 ValidateMagicNode(node, rune, graph.Edges, errors);
             }
             if (cores.Count != 1) errors.Add(new CompileIssue("E1"));
-            ValidateEdges(graph, definitions, runes, errors, warnings);
+            ValidateEdges(graph, definitions, errors);
             if (!errors.Any(issue => issue.Code == "E3") && HasCycle(graph, nodes)) errors.Add(new CompileIssue("E4"));
             int limit = context.Capacity < 0 ? limits.BaseCapacity : context.Capacity;
             if (ramUsed > limit) errors.Add(new CompileIssue("E7"));
@@ -207,10 +235,8 @@ namespace RuneCode
                     if (rune.Id == "flow.if" && node.GetText("type", "targetHpBelow") != "selfHpBelow")
                         warnings.Add(new CompileIssue("W3", node.Id));
                 }
-                if ((rune.Category == "element" || rune.Category == "modifier")
-                    && !graph.Edges.Any(edge => edge.FromNode == node.Id)) warnings.Add(new CompileIssue("W4", node.Id));
             }
-            List<SpellAction> root = BuildBranch(graph, cores[0].Id, "exec", nodes, definitions, warnings, errors, runes, limits, context);
+            List<SpellAction> root = BuildBranch(graph, cores[0].Id, "exec", nodes, definitions, warnings, errors, runes, limits, context, slotModifiers);
             if (errors.Any(issue => issue.Code == "E11" || issue.Code == "E12" || issue.Code == "E14" || issue.Code == "E15"))
                 return new CompileResult(errors, warnings, null);
             ResourceCostSet resourceCosts = Cost(root);
@@ -242,7 +268,7 @@ namespace RuneCode
             return new CompileResult(errors, warnings, compiled);
         }
 
-        /// <summary>연결 후보가 입력 수·포트 종류·지원 중단 포트·순환·수식 슬롯 규칙을 지키는지 반환한다.</summary>
+        /// <summary>연결 후보가 포트 존재·exec 종류·비활성 룬·중복·입력 수·순환 규칙을 지키는지 반환한다.</summary>
         public static bool CanConnect(SpellGraph graph, GraphEdge edge, RuneCatalog runes, out CompileIssue issue)
         {
             issue = null;
@@ -256,46 +282,20 @@ namespace RuneCode
             }
             PortDefinition output = fromRune.FindPort(edge.FromPort, "out");
             PortDefinition input = toRune.FindPort(edge.ToPort, "in");
-            if (output == null || input == null || output.Kind != input.Kind)
+            if (output == null || input == null || output.Kind != SpellGrammar.EXEC_KIND || input.Kind != SpellGrammar.EXEC_KIND)
                 issue = new CompileIssue("E3", edge.ToNode);
-            else if (output.IsDeprecated)
-                issue = new CompileIssue("E19", edge.FromNode, edge.FromPort);
-            else if (output.Kind == SpellGrammar.CHAIN_KIND && (!SpellGrammar.IsValidChainLink(fromRune, toRune)
-                || graph.Edges.Any(current => current.FromNode == edge.FromNode && current.FromPort == edge.FromPort)
-                || graph.Edges.Any(current => current.ToNode == edge.ToNode && current.ToPort == edge.ToPort)))
-                issue = new CompileIssue("E18", edge.ToNode);
-            else if (input.Kind == SpellGrammar.ELEMENT_KIND && (fromRune.Category != SpellGrammar.CATEGORY_ELEMENT
-                || toRune.Category != SpellGrammar.CATEGORY_SHAPE))
-                issue = new CompileIssue("E3", edge.ToNode);
-            else if (input.Kind == SpellGrammar.ELEMENT_KIND && graph.Edges.Any(current => current.ToNode == edge.ToNode && current.ToPort == edge.ToPort))
-                issue = new CompileIssue("E6", edge.ToNode);
-            else if (output.Kind == SpellGrammar.ELEMENT_KIND && graph.Edges.Any(current => current.FromNode == edge.FromNode && current.FromPort == edge.FromPort))
-                issue = new CompileIssue("E20", edge.FromNode);
-            else if (input.Kind == "mod" && !CanAttachModifier(fromRune, toRune))
-                issue = new CompileIssue("E13", edge.ToNode);
-            else if (input.Kind == "mod" && !IsModifierEffective(fromRune, to, toRune, runes))
-                issue = new CompileIssue("E22", edge.ToNode);
-            else if (fromRune.Id == "magic.inline" && from.GetText("magicType", "sphere") == "buff"
-                && (edge.FromPort == SpellGrammar.ON_HIT_PORT || edge.FromPort == SpellGrammar.ON_EXPIRE_PORT))
-                issue = new CompileIssue("E16", edge.FromNode);
-            else if (graph.Version >= 2 && output.Kind == "exec" && graph.Edges.Any(current => current.FromNode == edge.FromNode
-                && current.FromPort == edge.FromPort && current.Order == edge.Order))
+            else if (fromRune.IsDisabled)
+                issue = new CompileIssue("E25", edge.FromNode);
+            else if (toRune.IsDisabled)
+                issue = new CompileIssue("E25", edge.ToNode);
+            else if (graph.Edges.Any(current => current.FromNode == edge.FromNode && current.FromPort == edge.FromPort
+                && current.Order == edge.Order))
                 issue = new CompileIssue("E9", edge.ToNode);
             else if (graph.Edges.Any(current => current.FromNode == edge.FromNode && current.FromPort == edge.FromPort
                 && current.ToNode == edge.ToNode && current.ToPort == edge.ToPort))
                 issue = new CompileIssue("E9", edge.ToNode);
-            else if (input.Kind == "exec" && graph.Edges.Any(current => current.ToNode == edge.ToNode && current.ToPort == edge.ToPort))
+            else if (graph.Edges.Any(current => current.ToNode == edge.ToNode && current.ToPort == edge.ToPort))
                 issue = new CompileIssue("E2", edge.ToNode);
-            else if (input.Kind == "mod" && input.Max > 0 && graph.Edges.Count(current => current.ToNode == edge.ToNode && current.ToPort == edge.ToPort) >= input.Max)
-                issue = new CompileIssue("E5", edge.ToNode);
-            else if (output.Kind == "mod" && output.Max > 0 && graph.Edges.Count(current => current.FromNode == edge.FromNode && current.FromPort == edge.FromPort) >= output.Max)
-                issue = new CompileIssue("E20", edge.FromNode);
-            else if (input.Kind == "mod" && graph.Edges.Any(current => current.ToNode == edge.ToNode && current.ToPort == edge.ToPort
-                && graph.FindNode(current.FromNode)?.RuneId == from.RuneId))
-                issue = new CompileIssue("E9", edge.ToNode);
-            else if (input.Kind == "mod" && fromRune.Category == "element" && graph.Edges.Any(current => current.ToNode == edge.ToNode
-                && runes.Get(graph.FindNode(current.FromNode).RuneId).Category == "element"))
-                issue = new CompileIssue("E6", edge.ToNode);
             else if (HasPath(graph, edge.ToNode, edge.FromNode, new HashSet<string>()))
                 issue = new CompileIssue("E4", edge.ToNode);
             return issue == null;
@@ -336,37 +336,6 @@ namespace RuneCode
             if (magicType == "buff" && edges.Any(edge => edge.FromNode == node.Id
                 && (edge.FromPort == SpellGrammar.ON_HIT_PORT || edge.FromPort == SpellGrammar.ON_EXPIRE_PORT)))
                 errors.Add(new CompileIssue("E16", node.Id));
-        }
-
-        /// <summary>
-        /// 효과 룬이 대상 노드에 효과를 내는지 modifier_compat 테이블로 판정한다. 효과 룬이 아니거나 대상이 이전 형태 룬이면 true다.
-        /// 연결 검사(CanConnect)에서는 효과가 없는 조합의 연결을 E22로 막고, 컴파일 검사에서는
-        /// 기존 그래프 호환을 위해 부착을 유지하되 실행 수치·비용 배율에서 제외한다(W2).
-        /// </summary>
-        private static bool IsModifierEffective(RuneDefinition modifier, GraphNode target, RuneDefinition targetRune, RuneCatalog runes)
-        {
-            if (modifier.Category != SpellGrammar.CATEGORY_MODIFIER) return true;
-            string targetId = ModifierTargetId(target, targetRune);
-            return targetId == null || runes.IsModifierCompatible(modifier.Id, targetId);
-        }
-
-        /// <summary>
-        /// 효과 호환성 판정에 쓸 대상 룬 ID를 반환한다. Inline Magic은 합쳐지기 전 Behavior ID(버프는 Apply)로 되돌린다.
-        /// 판정 대상이 아니면 null을 반환한다.
-        /// </summary>
-        private static string ModifierTargetId(GraphNode node, RuneDefinition rune)
-        {
-            if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR || rune.Id == SpellGrammar.CALL_RUNE) return rune.Id;
-            if (rune.Id != SpellGrammar.INLINE_RUNE) return null;
-            if (node.GetText("magicType", SpellGrammar.MAGIC_TYPE_SPHERE) == SpellGrammar.MAGIC_TYPE_BUFF) return SpellGrammar.APPLY_RUNE;
-            switch (node.GetText("form", "launch"))
-            {
-                case "launch": return "behavior.launch";
-                case "explosion": return "behavior.burst";
-                case "orbit": return "behavior.orbit";
-                case "remain": return "behavior.persist";
-                default: return null;
-            }
         }
 
         /// <summary>Inline Magic의 기존 런타임 Form 룬 ID를 반환한다.</summary>
@@ -464,15 +433,13 @@ namespace RuneCode
             }
         }
 
-        /// <summary>연결의 포트 종류·입력 수·실행 순번·속성 수·수식 중복 오류와, 대상에 효과가 없는 수식 경고(W2)를 추가한다.</summary>
-        private static void ValidateEdges(SpellGraph graph, Dictionary<string, RuneDefinition> definitions, RuneCatalog runes,
-            List<CompileIssue> errors, List<CompileIssue> warnings)
+        /// <summary>연결의 포트 종류·입력 수·실행 순번 오류를 추가한다.</summary>
+        private static void ValidateEdges(SpellGraph graph, Dictionary<string, RuneDefinition> definitions,
+            List<CompileIssue> errors)
         {
             HashSet<string> ids = new HashSet<string>();
             Dictionary<string, int> incoming = new Dictionary<string, int>();
-            Dictionary<string, int> elements = new Dictionary<string, int>();
             Dictionary<string, Dictionary<string, HashSet<int>>> execOrders = new Dictionary<string, Dictionary<string, HashSet<int>>>(StringComparer.Ordinal);
-            HashSet<string> mods = new HashSet<string>();
             foreach (GraphEdge edge in graph.Edges)
             {
                 if (edge == null || string.IsNullOrEmpty(edge.Id) || string.IsNullOrEmpty(edge.FromNode) || string.IsNullOrEmpty(edge.ToNode)
@@ -489,19 +456,7 @@ namespace RuneCode
                     errors.Add(new CompileIssue("E3", edge.ToNode));
                     continue;
                 }
-                GraphNode fromNode = graph.FindNode(edge.FromNode);
-                if (from.Id == "magic.inline" && fromNode.GetText("magicType", "sphere") == "buff"
-                    && (edge.FromPort == SpellGrammar.ON_HIT_PORT || edge.FromPort == SpellGrammar.ON_EXPIRE_PORT))
-                {
-                    errors.Add(new CompileIssue("E16", edge.FromNode));
-                    continue;
-                }
-                if (input.Kind == "mod" && !CanAttachModifier(from, to))
-                {
-                    errors.Add(new CompileIssue("E13", edge.ToNode));
-                    continue;
-                }
-                if (graph.Version >= 2 && output.Kind == "exec")
+                if (output.Kind == "exec")
                 {
                     if (!execOrders.TryGetValue(edge.FromNode, out Dictionary<string, HashSet<int>> ports))
                     {
@@ -519,15 +474,6 @@ namespace RuneCode
                 int count = incoming.TryGetValue(portKey, out int previous) ? previous + 1 : 1;
                 incoming[portKey] = count;
                 if (input.Kind == "exec" && count > 1) errors.Add(new CompileIssue("E2", edge.ToNode));
-                if (input.Kind != "mod") continue;
-                if (input.Max > 0 && count > input.Max) errors.Add(new CompileIssue("E5", edge.ToNode));
-                if (!mods.Add(edge.ToNode + ":" + from.Id)) errors.Add(new CompileIssue("E9", edge.ToNode));
-                if (!IsModifierEffective(from, graph.FindNode(edge.ToNode), to, runes))
-                    warnings.Add(new CompileIssue("W2", edge.FromNode));
-                if (from.Category != "element") continue;
-                int elementCount = elements.TryGetValue(edge.ToNode, out int priorElements) ? priorElements + 1 : 1;
-                elements[edge.ToNode] = elementCount;
-                if (elementCount > 1) errors.Add(new CompileIssue("E6", edge.ToNode));
             }
         }
 
@@ -582,14 +528,13 @@ namespace RuneCode
         /// <summary>출력 포트에 연결된 노드를 안정된 순서의 실행 명령으로 변환한다.</summary>
         private static List<SpellAction> BuildBranch(SpellGraph graph, string nodeId, string port,
             Dictionary<string, GraphNode> nodes, Dictionary<string, RuneDefinition> definitions, List<CompileIssue> warnings,
-            List<CompileIssue> errors, RuneCatalog runes, GrammarLimits limits, CompileContext context)
+            List<CompileIssue> errors, RuneCatalog runes, GrammarLimits limits, CompileContext context,
+            Dictionary<string, List<GraphNode>> slotModifiers)
         {
             List<SpellAction> actions = new List<SpellAction>();
-            IEnumerable<GraphEdge> branchEdges = graph.Edges.Where(edge => edge.FromNode == nodeId && edge.FromPort == port);
-            if (graph.Version == 1) branchEdges = branchEdges.OrderBy(edge => edge.ToNode, StringComparer.Ordinal);
-            else branchEdges = graph.Edges.Select((edge, index) => new { edge, index })
+            List<GraphEdge> branchEdges = graph.Edges.Select((edge, index) => new { edge, index })
                 .Where(item => item.edge.FromNode == nodeId && item.edge.FromPort == port)
-                .OrderBy(item => item.edge.Order).ThenBy(item => item.index).Select(item => item.edge);
+                .OrderBy(item => item.edge.Order).ThenBy(item => item.index).Select(item => item.edge).ToList();
             foreach (GraphEdge edge in branchEdges)
             {
                 GraphNode node = nodes[edge.ToNode];
@@ -600,15 +545,14 @@ namespace RuneCode
                 List<RuneDefinition> mods = new List<RuneDefinition>();
                 List<GraphNode> modifierNodes = new List<GraphNode>();
                 List<string> attachedNodeIds = new List<string>();
-                foreach (GraphEdge attachment in graph.Edges.Where(item => item.ToNode == node.Id && item.ToPort == "mod")
-                    .OrderBy(item => item.FromNode, StringComparer.Ordinal))
+                if (slotModifiers != null && slotModifiers.TryGetValue(node.Id, out List<GraphNode> slotNodes))
                 {
-                    RuneDefinition attached = definitions[attachment.FromNode];
-                    // 효과가 없는 효과 룬은 실행 수치와 비용에서 빼고 편집기 안내(W2)만 남긴다.
-                    if (!IsModifierEffective(attached, node, rune, runes)) continue;
-                    attachedNodeIds.Add(attachment.FromNode);
-                    if (attached.Category == "element") element = attached;
-                    else { mods.Add(attached); modifierNodes.Add(nodes[attachment.FromNode]); }
+                    foreach (GraphNode modifierNode in slotNodes)
+                    {
+                        if (modifierNode == null || !runes.TryGet(modifierNode.RuneId, out RuneDefinition attached)) continue;
+                        mods.Add(attached);
+                        modifierNodes.Add(modifierNode);
+                    }
                 }
                 if (rune.Id == "magic.inline")
                 {
@@ -646,7 +590,7 @@ namespace RuneCode
                 foreach (PortDefinition output in rune.Ports)
                 {
                     if (output.Direction == "out" && output.Kind == "exec")
-                        action.SetBranch(output.Id, BuildBranch(graph, node.Id, output.Id, nodes, definitions, warnings, errors, runes, limits, context));
+                        action.SetBranch(output.Id, BuildBranch(graph, node.Id, output.Id, nodes, definitions, warnings, errors, runes, limits, context, slotModifiers));
                 }
                 actions.Add(action);
             }

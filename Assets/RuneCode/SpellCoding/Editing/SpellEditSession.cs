@@ -194,28 +194,152 @@ namespace RuneCode
             RaiseSpellSwitched();
         }
 
-        /// <summary>Core 중복과 Modifier 소지량 초과를 막고 기본 속성을 가진 룬을 지정 좌표에 배치한다. RAM은 연결될 때 검사한다.</summary>
+        /// <summary>
+        /// 행동 노드를 지정 등급(비면 기본 등급)과 기본 형태로 지정 좌표에 배치한다. 행동 외 룬, 등급표에 없는 등급,
+        /// 행동 소지량 초과는 배치하지 않는다. RAM은 연결될 때 검사한다.
+        /// </summary>
         public void AddRune(string runeId, float x, float y, string grade = null)
         {
             if (!_isEditable || !_policy.IsRuneUnlocked(runeId)) return;
-            var rune = GameData.Runes.Get(runeId);
-            if (rune == null || runeId == "core.cast") return;
-            bool isModifier = rune.Category == SpellGrammar.CATEGORY_MODIFIER;
-            if (isModifier)
-            {
-                grade = string.IsNullOrEmpty(grade) ? GameData.ModifierGrades.GetLowestAvailableGrade(runeId) : grade;
-                if (!GameData.ModifierGrades.IsGradeAvailable(runeId, grade)) return;
-            }
+            if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.IsDisabled
+                || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR) return;
+            grade = string.IsNullOrEmpty(grade) ? SpellGrammar.DEFAULT_BEHAVIOR_GRADE : grade;
+            if (!GameData.Runes.BehaviorGradeOrder.Contains(grade)) return;
             if (_editingGraph.Nodes.Count >= GameData.Balance.Limits.MaxGraphNodes)
             { _policy.ReportStatus("editor.graphLimit"); return; }
             var candidate = _editingGraph.Clone();
             var node = new GraphNode(NewId("node"), runeId, x, y);
-            if (isModifier) node.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, grade);
+            node.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, grade);
+            node.SetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
             candidate.AddNode(node);
-            if (!_policy.IsWithinModifierStock(_editingGraph, candidate)) { _policy.ReportStatus("editor.modifierStockBlocked"); return; }
+            if (!_policy.IsWithinModifierStock(_editingGraph, candidate)) { _policy.ReportStatus("editor.stockBlocked"); return; }
             _editingGraph = candidate;
             _policy.OnRunePlaced(runeId);
             MarkChanged(); RaiseGraphChanged();
+        }
+
+        /// <summary>
+        /// 행동 노드의 형태를 SHAPE_OPTIONS 순서의 다음 값으로 바꾼다. 해금되지 않았거나 그 행동에 허용되지 않는 형태는 건너뛴다.
+        /// 바꿀 값이 없으면 false를 반환한다.
+        /// </summary>
+        public bool CycleShape(string nodeId)
+        {
+            if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)) return false;
+            string current = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
+            int start = Array.IndexOf(SpellGrammar.SHAPE_OPTIONS, current);
+            for (int step = 1; step < SpellGrammar.SHAPE_OPTIONS.Length; step++)
+            {
+                string next = SpellGrammar.SHAPE_OPTIONS[(Math.Max(start, 0) + step) % SpellGrammar.SHAPE_OPTIONS.Length];
+                if (!_policy.IsRuneUnlocked(SpellGrammar.ShapeRune(next)) || !SpellGrammar.IsShapeAllowed(node.RuneId, next)) continue;
+                SpellGraph candidate = _editingGraph.Clone();
+                candidate.FindNode(nodeId).SetText(SpellGrammar.SHAPE_PARAM, next);
+                if (!CommitSlotCandidate(candidate, nodeId)) return false;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>행동 노드 등급의 한도 안에서 지정 속성·모디를 장착할 수 있는 첫 빈 슬롯 키를 찾는다.</summary>
+        public bool TryFindEquipSlot(string nodeId, string runeId, string grade, out string slotKey)
+        {
+            slotKey = null;
+            if (!TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
+                || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return false;
+            bool isElement = rune.Category == SpellGrammar.CATEGORY_ELEMENT;
+            int max = isElement ? SpellGrammar.MAX_ELEMENT_SLOTS : SpellGrammar.MAX_MODIFIER_SLOTS;
+            for (int index = 0; index < max; index++)
+            {
+                string key = isElement ? SpellGrammar.ElementSlotKey(index) : SpellGrammar.ModifierSlotKey(index);
+                if (IsSlotLocked(nodeId, key) || !string.IsNullOrEmpty(node.GetText(key, null))) continue;
+                if (!CanEquip(node, key, rune, grade)) return false;
+                slotKey = key;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 행동 노드의 슬롯에 속성(속성 ID로 저장)·모디(룬ID#등급으로 저장)를 장착한다. 이미 장착된 슬롯이면 교체한다.
+        /// 슬롯 종류·등급 한도·속성 종류·모디 호환과 중복·소지량·RAM을 검사하고 실패하면 상태 문구를 표시한다.
+        /// </summary>
+        public bool Equip(string nodeId, string slotKey, string runeId, string grade)
+        {
+            if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
+                || !GameData.Runes.TryGet(runeId, out RuneDefinition rune) || IsSlotLocked(nodeId, slotKey)
+                || !CanEquip(node, slotKey, rune, grade))
+            { _policy.ReportStatus("editor.slotBlocked"); return false; }
+            string value = rune.Category == SpellGrammar.CATEGORY_ELEMENT
+                ? (GameData.Runes.TryGetRuneElement(runeId, out ElementDefinition element) ? element.Id : null)
+                : SpellGrammar.ModifierStockKey(runeId, grade);
+            if (string.IsNullOrEmpty(value) || node.GetText(slotKey, null) == value) return false;
+            SpellGraph candidate = _editingGraph.Clone();
+            candidate.FindNode(nodeId).SetText(slotKey, value);
+            if (!_policy.IsWithinModifierStock(_editingGraph, candidate)) { _policy.ReportStatus("editor.stockBlocked"); return false; }
+            return CommitSlotCandidate(candidate, nodeId);
+        }
+
+        /// <summary>행동 노드의 지정 슬롯 값을 비운다. 비어 있거나 슬롯 키가 아니면 false를 반환한다.</summary>
+        public bool ClearSlot(string nodeId, string slotKey)
+        {
+            if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
+                || !SpellGrammar.TryParseSlotKey(slotKey, out _, out _) || string.IsNullOrEmpty(node.GetText(slotKey, null))) return false;
+            node.SetText(slotKey, "");
+            MarkChanged(); RaiseGraphChanged();
+            return true;
+        }
+
+        /// <summary>슬롯 순번이 행동 노드 등급의 속성·모디 슬롯 수 이상이면 잠긴 슬롯으로 보고 true를 반환한다. 슬롯 키가 아니어도 true다.</summary>
+        public bool IsSlotLocked(string nodeId, string slotKey)
+        {
+            if (!TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
+                || !SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out int index)) return true;
+            string grade = node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
+            if (!GameData.Runes.TryGetBehaviorSlots(grade, out int elementSlots, out int modifierSlots)) return true;
+            return index >= (isElement ? elementSlots : modifierSlots);
+        }
+
+        /// <summary>문자열 키에 해당하는 상태 문구를 편집 규칙에 전달한다.</summary>
+        public void ReportStatus(string key) => _policy.ReportStatus(key);
+
+        /// <summary>
+        /// 슬롯 종류와 룬이 맞는지 검사한다. 속성 슬롯은 비활성 아닌 전투 속성만, 모디 슬롯은 등급이 있고 행동과 호환되며
+        /// 같은 노드의 다른 모디 슬롯에 같은 모디가 없을 때만 true다. 같은 속성 2개는 허용한다.
+        /// </summary>
+        private static bool CanEquip(GraphNode node, string slotKey, RuneDefinition rune, string grade)
+        {
+            if (rune.IsDisabled || !SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return false;
+            if (isElement)
+            {
+                return rune.Category == SpellGrammar.CATEGORY_ELEMENT && GameData.Runes.TryGetRuneElement(rune.Id, out ElementDefinition element)
+                    && element.Category == SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL;
+            }
+            if (rune.Category != SpellGrammar.CATEGORY_MODIFIER || !GameData.ModifierGrades.IsGradeAvailable(rune.Id, grade)
+                || !GameData.Runes.IsModifierCompatible(rune.Id, node.RuneId)) return false;
+            for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
+            {
+                string key = SpellGrammar.ModifierSlotKey(index);
+                if (key == slotKey) continue;
+                if (SpellGrammar.TryParseStockKey(node.GetText(key, null), out string equipped, out _) && equipped == rune.Id) return false;
+            }
+            return true;
+        }
+
+        /// <summary>그래프에서 비활성이 아닌 행동 노드를 찾는다. 없으면 false를 반환한다.</summary>
+        private static bool TryGetBehaviorNode(SpellGraph graph, string nodeId, out GraphNode node, out RuneDefinition rune)
+        {
+            rune = null;
+            node = graph.FindNode(nodeId);
+            return node != null && GameData.Runes.TryGet(node.RuneId, out rune) && !rune.IsDisabled
+                && rune.Category == SpellGrammar.CATEGORY_BEHAVIOR;
+        }
+
+        /// <summary>슬롯·형태를 바꾼 후보가 연결된 노드라면 장착 RAM을 검사하고 통과하면 편집 그래프로 확정한다.</summary>
+        private bool CommitSlotCandidate(SpellGraph candidate, string nodeId)
+        {
+            if (candidate.IsNodeConnected(nodeId) && !_policy.IsWithinRam(candidate)) { _policy.ReportStatus("editor.ramBlocked"); return false; }
+            _editingGraph = candidate;
+            MarkChanged(); RaiseGraphChanged();
+            return true;
         }
 
         /// <summary>필요하면 단일 포트의 기존 연결을 교체한 후보의 RAM·문법을 검사하고 성공할 때만 저장한다.</summary>
@@ -311,12 +435,17 @@ namespace RuneCode
             MarkChanged();
         }
 
-        /// <summary>문자열 파라미터를 선택 노드에 저장하고 Modifier 등급 소지량을 검증한다.</summary>
+        /// <summary>
+        /// 문자열 파라미터를 선택 노드에 저장하고 Modifier 등급 소지량을 검증한다.
+        /// 행동 노드의 등급·형태·슬롯 값은 소지량 검사를 거치는 전용 명령(CycleShape, Equip, ClearSlot)으로만 바꾼다.
+        /// </summary>
         public void SetNodeText(string nodeId, string key, string value)
         {
             if (!_isEditable) return;
             var node = _editingGraph.Nodes.FirstOrDefault(item => item.Id == nodeId);
             if (node == null) return;
+            if (TryGetBehaviorNode(_editingGraph, nodeId, out _, out _) && (key == SpellGrammar.MODIFIER_GRADE_PARAM
+                || key == SpellGrammar.SHAPE_PARAM || SpellGrammar.TryParseSlotKey(key, out _, out _))) return;
             if (key == SpellGrammar.MODIFIER_GRADE_PARAM && GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune)
                 && rune.Category == SpellGrammar.CATEGORY_MODIFIER)
             {
@@ -400,14 +529,12 @@ namespace RuneCode
             _editingGraph = candidate; MarkChanged(); RaiseGraphChanged();
         }
 
-        /// <summary>실행 노드와 속성·수식 노드를 역할별 행에 정렬한다.</summary>
+        /// <summary>모든 노드를 한 줄에 네 개씩 실행 행으로 정렬한다. 속성·모디는 행동 노드 슬롯에 있어 따로 정렬하지 않는다.</summary>
         public void AutoArrange()
         {
             if (!_isEditable) return;
-            var execution = _editingGraph.Nodes.Where(node => { var category = GameData.Runes.Get(node.RuneId).Category; return category != SpellGrammar.CATEGORY_ELEMENT && category != SpellGrammar.CATEGORY_MODIFIER; }).ToList();
-            var modifiers = _editingGraph.Nodes.Except(execution).ToList();
-            for (var i = 0; i < execution.Count; i++) execution[i].Move(35 + (i % 4) * 170, 55 + (i / 4) * 130);
-            for (var i = 0; i < modifiers.Count; i++) modifiers[i].Move(80 + (i % 4) * 170, 250 + (i / 4) * 100);
+            IReadOnlyList<GraphNode> nodes = _editingGraph.Nodes;
+            for (var i = 0; i < nodes.Count; i++) nodes[i].Move(35 + (i % 4) * 170, 55 + (i / 4) * 200);
             MarkChanged(); RaiseGraphChanged();
         }
 

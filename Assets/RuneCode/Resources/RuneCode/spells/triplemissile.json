@@ -1,7 +1,7 @@
 {
   "_id": "triplemissile",
   "_name": "삼연 미사일",
-  "_version": 3,
+  "_version": 4,
   "_nodes": [
     {
       "_id": "core",
@@ -17,29 +17,25 @@
       ]
     },
     {
-      "_id": "type",
-      "_runeId": "shape.sphere",
-      "_x": 200,
-      "_y": 150,
-      "_params": []
-    },
-    {
       "_id": "form",
       "_runeId": "behavior.launch",
-      "_x": 380,
+      "_x": 200,
       "_y": 150,
-      "_params": []
-    },
-    {
-      "_id": "mod0",
-      "_runeId": "mod.multi",
-      "_x": 380,
-      "_y": 330,
       "_params": [
         {
           "_key": "grade",
           "_number": 0.0,
-          "_text": "B"
+          "_text": "C"
+        },
+        {
+          "_key": "shape",
+          "_number": 0.0,
+          "_text": "sphere"
+        },
+        {
+          "_key": "mod0",
+          "_number": 0.0,
+          "_text": "mod.multi#B"
         }
       ]
     }
@@ -49,24 +45,8 @@
       "_id": "exec",
       "_fromNode": "core",
       "_fromPort": "exec",
-      "_toNode": "type",
+      "_toNode": "form",
       "_toPort": "exec",
-      "_order": 0
-    },
-    {
-      "_id": "chain",
-      "_fromNode": "type",
-      "_fromPort": "next",
-      "_toNode": "form",
-      "_toPort": "in",
-      "_order": 0
-    },
-    {
-      "_id": "attach0",
-      "_fromNode": "mod0",
-      "_fromPort": "mod",
-      "_toNode": "form",
-      "_toPort": "mod",
       "_order": 0
     }
   ]
