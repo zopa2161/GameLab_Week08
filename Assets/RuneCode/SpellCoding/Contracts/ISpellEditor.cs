@@ -41,6 +41,9 @@ namespace RuneCode
         /// <summary>행동 노드에서 지정 속성·모디를 장착할 수 있는 첫 빈 슬롯 키를 찾는다. 없으면 false를 반환한다.</summary>
         bool TryFindEquipSlot(string nodeId, string runeId, string grade, out string slotKey);
 
+        /// <summary>행동 노드의 지정 슬롯에 속성·모디를 장착할 수 있는지 반환한다.</summary>
+        bool CanEquipToSlot(string nodeId, string slotKey, string runeId, string grade);
+
         /// <summary>행동 노드의 슬롯에 지정 속성·모디를 장착(교체 포함)하고 성공하면 true를 반환한다. 실패하면 상태 문구를 표시한다.</summary>
         bool Equip(string nodeId, string slotKey, string runeId, string grade);
 

@@ -258,6 +258,14 @@ namespace RuneCode
             return false;
         }
 
+        /// <summary>행동 노드의 지정 속성·모디 슬롯에 룬을 장착할 수 있는지 반환한다.</summary>
+        public bool CanEquipToSlot(string nodeId, string slotKey, string runeId, string grade)
+        {
+            if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
+                || !GameData.Runes.TryGet(runeId, out RuneDefinition rune) || IsSlotLocked(nodeId, slotKey)) return false;
+            return CanEquip(node, slotKey, rune, grade);
+        }
+
         /// <summary>
         /// 행동 노드의 슬롯에 속성(속성 ID로 저장)·모디(룬ID#등급으로 저장)를 장착한다. 이미 장착된 슬롯이면 교체한다.
         /// 슬롯 종류·등급 한도·속성 종류·모디 호환과 중복·소지량·RAM을 검사하고 실패하면 상태 문구를 표시한다.

@@ -42,11 +42,10 @@ namespace RuneCode
         private const float EDGE_ARROW_SIZE = 4.5f;
         private const float EDGE_ARROW_POSITION = 0.68f;
         private const float SELECTION_LINE_WIDTH = 1f;
-        private const float SLOT_EQUIPPED_TINT = 0.45f;
+        private const float SLOT_CATEGORY_TINT = 0.45f;
 
         private static readonly Color LOCKED_NODE_COLOR = new Color(1f, 0.25f, 0.25f);
         private static readonly Color LOCKED_NODE_FILL_COLOR = new Color(0.24f, 0.07f, 0.08f);
-        private static readonly Color SLOT_EMPTY_COLOR = new Color(0.12f, 0.13f, 0.17f);
         private static readonly Color SLOT_LOCKED_COLOR = new Color(0.05f, 0.05f, 0.06f);
 
         private readonly GraphVisualStyle _style;
@@ -141,7 +140,7 @@ namespace RuneCode
             DrawSlots(mesh, node, rune, fill);
         }
 
-        /// <summary>행동 노드의 형태·속성·모디 슬롯 셀을 빈 칸, 장착(장착 룬 카테고리 색), 잠금(등급 한도 밖) 상태로 그린다.</summary>
+        /// <summary>행동 노드의 형태·속성·모디 슬롯 셀을 카테고리 강조색과 잠금색으로 그린다.</summary>
         private void DrawSlots(VertexHelper mesh, GraphNode node, RuneDefinition rune, Color fill)
         {
             if (!GraphNodeLayout.HasSlots(rune)) return;
@@ -151,12 +150,12 @@ namespace RuneCode
                 Color color;
                 if (GraphNodeLayout.IsSlotLocked(node, slotKey)) color = SLOT_LOCKED_COLOR;
                 else if (slotKey == SpellGrammar.SHAPE_PARAM)
-                    color = Color.Lerp(fill, RuneMesh.CategoryColor(SpellGrammar.CATEGORY_SHAPE), SLOT_EQUIPPED_TINT);
+                    color = Color.Lerp(fill, RuneMesh.CategoryColor(SpellGrammar.CATEGORY_SHAPE), SLOT_CATEGORY_TINT);
                 else
                 {
                     bool isElement = SpellGrammar.TryParseSlotKey(slotKey, out bool elementSlot, out _) && elementSlot;
-                    color = string.IsNullOrEmpty(node.GetText(slotKey, null)) ? SLOT_EMPTY_COLOR
-                        : Color.Lerp(fill, RuneMesh.CategoryColor(isElement ? SpellGrammar.CATEGORY_ELEMENT : SpellGrammar.CATEGORY_MODIFIER), SLOT_EQUIPPED_TINT);
+                    Color categoryColor = RuneMesh.CategoryColor(isElement ? SpellGrammar.CATEGORY_ELEMENT : SpellGrammar.CATEGORY_MODIFIER);
+                    color = Color.Lerp(fill, categoryColor, SLOT_CATEGORY_TINT);
                 }
                 RuneMesh.Rect(mesh, cell, color);
             }
