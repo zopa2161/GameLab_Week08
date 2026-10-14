@@ -2,6 +2,8 @@ using System;
 
 using UnityEngine;
 
+using UnityEngine.InputSystem;
+
 namespace RuneCode
 {
     /// <summary>
@@ -12,6 +14,7 @@ namespace RuneCode
     {
         private const int HIGHLIGHT_TICKS = 12;
         private const string ENCYCLOPEDIA_RESOURCE = "RuneCode/encyclopedia";
+        private const float STATUS_TOAST_DURATION = 4f;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -25,6 +28,9 @@ namespace RuneCode
         private string _returnTab = WorkshopScreen.TAB_EDITOR;
         private RuneSimulation _observedDock;
         private int _lastDockEventCount;
+        private long _observedStatusRevision;
+        private float _statusExpiresAt;
+        private Vector2 _lastMouseScreenPosition;
 
         private EncyclopediaData _encyclopedia;
         private bool _hasLoadedEncyclopedia;
@@ -33,6 +39,7 @@ namespace RuneCode
         public WorkshopPresenter(RuneCodeSession session, UIManager ui, WorkshopScreen view)
         {
             _session = session;
+            _observedStatusRevision = session.StatusRevision;
             _ui = ui;
             _view = view;
             _dockRun = new DockRun(session);
@@ -62,11 +69,23 @@ namespace RuneCode
             _dock.Suspend();
         }
 
-        /// <summary>프레임마다 편집 세션 시간 처리, 상태줄 표시, 에디터 탭의 도크 진행과 실행 하이라이트를 한다.</summary>
+        /// <summary>프레임마다 편집 세션 시간 처리, 상태 토스트 만료, 에디터 탭의 도크 진행과 실행 하이라이트를 한다.</summary>
         public void Tick()
         {
             _session.Spells.Tick(Time.unscaledTime);
-            _view.SetStatus(_session.StatusMessage);
+            Mouse mouse = Mouse.current;
+            if (mouse != null) _lastMouseScreenPosition = mouse.position.ReadValue();
+            bool hasNewStatus = _observedStatusRevision != _session.StatusRevision;
+            if (hasNewStatus)
+            {
+                _observedStatusRevision = _session.StatusRevision;
+                _statusExpiresAt = string.IsNullOrEmpty(_session.StatusMessage)
+                    ? 0f
+                    : Time.unscaledTime + STATUS_TOAST_DURATION;
+            }
+            string status = Time.unscaledTime < _statusExpiresAt ? _session.StatusMessage : string.Empty;
+            _view.SetStatus(status);
+            if (hasNewStatus && !string.IsNullOrEmpty(status)) _view.SetStatusPosition(_lastMouseScreenPosition);
             if (_selectedTab != WorkshopScreen.TAB_EDITOR) return;
             _dock.Tick();
             ForwardDockHighlights();
