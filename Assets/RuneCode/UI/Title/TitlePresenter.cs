@@ -15,6 +15,7 @@ namespace RuneCode
             _ui = ui;
             view.StartClicked += StartNormal;
             view.DebugStartClicked += StartDebug;
+            view.TestStartClicked += StartTest;
             view.SaveManagementClicked += OpenSaveManagement;
             view.QuitClicked += QuitGame;
         }
@@ -29,6 +30,12 @@ namespace RuneCode
         private void StartDebug()
         {
             _session.StartGame(true);
+        }
+
+        /// <summary>저장하지 않는 테스트 프로필 진행을 열고 작업실로 전환한다.</summary>
+        private void StartTest()
+        {
+            _session.StartTestGame();
         }
 
         /// <summary>타이틀 위에 저장 슬롯 관리 팝업을 연다.</summary>

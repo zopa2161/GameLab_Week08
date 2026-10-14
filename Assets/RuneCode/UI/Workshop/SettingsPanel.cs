@@ -57,20 +57,30 @@ namespace RuneCode
         /// <summary>게임 종료를 눌렀을 때 알린다.</summary>
         public event Action QuitClicked;
 
-        /// <summary>버튼 입력을 이벤트로 연결하고 디버그 도구와 종료 버튼을 구성한다. Presenter가 한 번만 호출한다.</summary>
-        public void Bind(bool isDebugVisible)
+        /// <summary>버튼 입력을 이벤트로 연결하고 저장·종료 버튼을 만든다. Presenter가 한 번만 호출한다.</summary>
+        public void Bind()
         {
-            _resetSaveButton.GetComponentInChildren<TextMeshProUGUI>().text =
-                GameData.L(isDebugVisible ? "ui.resetDebugSession" : "ui.resetSave");
             _screenShakeButton.onClick.AddListener(() => ScreenShakeClicked?.Invoke());
             _hitStopButton.onClick.AddListener(() => HitStopClicked?.Invoke());
             _resetSaveButton.onClick.AddListener(() => ResetSaveClicked?.Invoke());
             _debugGrantButton.onClick.AddListener(() => DebugGrantClicked?.Invoke());
             _debugUnlockButton.onClick.AddListener(() => DebugUnlockClicked?.Invoke());
             if (_debugResetTreeButton != null) _debugResetTreeButton.onClick.AddListener(() => DebugTreeResetClicked?.Invoke());
-            _debugGroup.SetActive(isDebugVisible);
-            CreateSaveButtons(isDebugVisible);
+            CreateSaveButtons();
             CreateQuitButton();
+        }
+
+        /// <summary>
+        /// 진행 종류에 맞춰 디버그 도구·저장 버튼 표시와 초기화 버튼 문구(resetLabelKey)를 갱신한다.
+        /// 같은 팝업 인스턴스를 일반·디버그·테스트 진행이 함께 쓰므로 열 때마다 호출한다.
+        /// </summary>
+        public void SetSessionMode(bool isDebugVisible, bool isSaveVisible, string resetLabelKey)
+        {
+            _resetSaveButton.GetComponentInChildren<TextMeshProUGUI>().text = GameData.L(resetLabelKey);
+            _debugGroup.SetActive(isDebugVisible);
+            _autoSaveButton.gameObject.SetActive(isSaveVisible);
+            _manualSaveButton.gameObject.SetActive(isSaveVisible);
+            _manualLoadButton.gameObject.SetActive(isSaveVisible);
         }
 
         /// <summary>화면 흔들림·히트스톱 설정의 켜짐 여부를 버튼 문구에 표시한다.</summary>
@@ -91,7 +101,7 @@ namespace RuneCode
         }
 
         /// <summary>기존 설정 버튼을 복제해 자동 저장·수동 저장·불러오기 버튼을 한 줄에 만들고 이벤트를 연결한다.</summary>
-        private void CreateSaveButtons(bool isDebugVisible)
+        private void CreateSaveButtons()
         {
             if (_autoSaveButton != null) return;
             Transform parent = _screenShakeButton.transform.parent;
@@ -101,9 +111,6 @@ namespace RuneCode
             _autoSaveButton.onClick.AddListener(() => AutoSaveClicked?.Invoke());
             _manualSaveButton.onClick.AddListener(() => ManualSaveClicked?.Invoke());
             _manualLoadButton.onClick.AddListener(() => ManualLoadClicked?.Invoke());
-            _autoSaveButton.gameObject.SetActive(!isDebugVisible);
-            _manualSaveButton.gameObject.SetActive(!isDebugVisible);
-            _manualLoadButton.gameObject.SetActive(!isDebugVisible);
         }
 
         /// <summary>저장 초기화 버튼을 반으로 줄이고 같은 줄에 게임 종료 버튼을 만든다.</summary>

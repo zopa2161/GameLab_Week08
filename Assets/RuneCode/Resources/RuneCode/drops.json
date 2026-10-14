@@ -1,4 +1,8 @@
 {
+  "_normalEnemyDrop": {
+    "_dropTable": "drop.elite.basic",
+    "_chancePercent": 1
+  },
   "_dropTables": [
     {
       "_id": "drop.elite.basic",
@@ -38,21 +42,18 @@
         {
           "_type": "behavior",
           "_id": "behavior.burst",
-          "_grade": "C",
           "_count": 1,
           "_weight": 3
         },
         {
           "_type": "behavior",
           "_id": "behavior.orbit",
-          "_grade": "C",
           "_count": 1,
           "_weight": 3
         },
         {
           "_type": "behavior",
           "_id": "behavior.persist",
-          "_grade": "C",
           "_count": 1,
           "_weight": 3
         },

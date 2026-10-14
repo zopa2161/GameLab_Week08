@@ -1880,11 +1880,16 @@ namespace RuneCode
             _itemDrops.Clear();
         }
 
-        /// <summary>처치된 적의 드롭 테이블 ID를 반환하고 없으면 null을 반환한다. 적·보스 드롭 연결 시 이 메서드에 분기를 모은다.</summary>
+        /// <summary>
+        /// 처치된 적의 드롭 테이블 ID를 반환하고 없으면 null을 반환한다. 엘리트는 엘리트 정의의 테이블을 쓴다.
+        /// 엘리트·보스가 아닌 일반 적은 보스 스테이지가 아닐 때 일반 적 드롭 확률로 1회 판정해 당첨되면 설정된 테이블을 쓴다.
+        /// </summary>
         private string GetDropTableId(SimulationEnemy enemy)
         {
-            string dropTable = enemy.Elite?.DropTable;
-            return string.IsNullOrEmpty(dropTable) ? null : dropTable;
+            if (enemy.Elite != null) return string.IsNullOrEmpty(enemy.Elite.DropTable) ? null : enemy.Elite.DropTable;
+            NormalEnemyDropDefinition normalDrop = _drops.NormalEnemyDrop;
+            if (enemy.Boss != null || _stageDefinition.IsBoss || normalDrop == null || !normalDrop.IsEnabled) return null;
+            return NextRandom() * 100 < normalDrop.ChancePercent ? normalDrop.DropTable : null;
         }
 
         /// <summary>적 처치 스크랩에 획득 배율을 적용하고 소수 보너스를 다음 드롭으로 이월해 정수 스크랩량을 반환한다.</summary>
@@ -1904,8 +1909,22 @@ namespace RuneCode
                 if (roll.Type == DropCatalog.TYPE_FRAGMENTS) _orbs.Add(new FragmentOrb(position, ScaleKillScrap(roll.Fragments)));
                 else if (roll.Type == DropCatalog.TYPE_MODIFIER) DropModifier(roll, position);
                 else if (roll.Type == DropCatalog.TYPE_ELEMENT) _itemDrops.Add(new SimulationItemDrop(roll.RuneId, "", roll.Count, position));
-                else if (roll.Type == DropCatalog.TYPE_BEHAVIOR) _itemDrops.Add(new SimulationItemDrop(roll.RuneId, roll.Grade, roll.Count, position));
+                else if (roll.Type == DropCatalog.TYPE_BEHAVIOR) DropBehavior(roll, position);
             }
+        }
+
+        /// <summary>행동 추첨 결과를 바닥 드롭 개체로 만든다. 항목 등급이 비어 있으면 현재 스테이지의 행동 등급 확률로 굴리고, 확률이 없는 스테이지(보스)면 드롭하지 않는다.</summary>
+        private void DropBehavior(DropRoll roll, SimVector position)
+        {
+            string grade = roll.Grade;
+            if (string.IsNullOrEmpty(grade))
+            {
+                IReadOnlyList<EliteModifierGradeChance> chances = _eliteDrops.GetBehaviorGradeChances(_stageNumber);
+                if (chances == null) return;
+                grade = RollSlotGrade(chances);
+                if (grade == null) return;
+            }
+            _itemDrops.Add(new SimulationItemDrop(roll.RuneId, grade, roll.Count, position));
         }
 
         /// <summary>Modifier 추첨 결과를 바닥 드롭 개체로 만든다. eliteModifier 항목은 등급과 종류를 등급표로 정하고, 지정 Modifier 항목은 항목 등급(없으면 최저 등급)을 쓴다.</summary>

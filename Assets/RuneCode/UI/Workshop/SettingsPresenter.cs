@@ -23,7 +23,7 @@ namespace RuneCode
             _view = view;
             _onReset = onReset;
             _onProgressionChanged = onProgressionChanged;
-            _view.Bind(session.IsDebugEnabled);
+            _view.Bind();
             _view.ScreenShakeClicked += ToggleScreenShake;
             _view.HitStopClicked += ToggleHitStop;
             _view.ResetSaveClicked += ConfirmReset;
@@ -36,12 +36,13 @@ namespace RuneCode
             _view.QuitClicked += QuitGame;
         }
 
-        /// <summary>화면 흔들림과 히트스톱 설정의 현재 값을 표시한다.</summary>
+        /// <summary>진행 종류에 따른 디버그 도구·저장 버튼·초기화 문구와 화면 흔들림·히트스톱·저장 설정의 현재 값을 표시한다.</summary>
         public void Refresh()
         {
+            _view.SetSessionMode(_session.IsDebugEnabled, !_session.IsMemorySession, GetResetTitleKey());
             _view.SetFeedback(_session.Save.ScreenShake, _session.Save.HitStop);
             _view.SetSaveOptions(SaveStore.AutoSaveEnabled, _session.IsSaveDirty,
-                !_session.IsDebugEnabled, !_session.IsDebugEnabled);
+                !_session.IsMemorySession, !_session.IsMemorySession);
         }
 
         /// <summary>화면 흔들림 설정을 반전시켜 저장하고 문구를 갱신한다.</summary>
@@ -61,13 +62,21 @@ namespace RuneCode
         /// <summary>공용 확인 팝업으로 저장 초기화를 묻고, 확인하면 진행을 초기화한 뒤 초기화 후 동작을 실행한다.</summary>
         private void ConfirmReset()
         {
-            string titleKey = _session.IsDebugEnabled ? "ui.resetDebugSession" : "ui.resetSave";
-            string messageKey = _session.IsDebugEnabled ? "ui.resetDebugSessionMessage" : "ui.resetSaveMessage";
+            string titleKey = GetResetTitleKey();
+            string messageKey = _session.IsTestMode ? "ui.resetTestSessionMessage"
+                : _session.IsDebugEnabled ? "ui.resetDebugSessionMessage" : "ui.resetSaveMessage";
             _ui.Confirm(GameData.L(titleKey), GameData.L(messageKey), GameData.L(titleKey), () =>
             {
                 _session.ResetSave();
                 _onReset();
             });
+        }
+
+        /// <summary>진행 종류(테스트·디버그·일반)에 맞는 초기화 버튼·확인 팝업 제목 문자열 키를 반환한다.</summary>
+        private string GetResetTitleKey()
+        {
+            return _session.IsTestMode ? "ui.resetTestSession"
+                : _session.IsDebugEnabled ? "ui.resetDebugSession" : "ui.resetSave";
         }
 
         /// <summary>디버그 실행에서만 조각을 지급하고 진행 표시를 갱신한다.</summary>

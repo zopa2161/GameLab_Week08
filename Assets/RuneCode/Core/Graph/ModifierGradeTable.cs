@@ -11,6 +11,8 @@ namespace RuneCode
         private const string LAUNCH_COUNT_KEY = "_launchGradeValues";
         private const string LAUNCH_SPREAD_KEY = "_launchSpreadAngles";
         private const string SLOT_GRADE_CHANCES_KEY = "_slotGradeChancesPercent";
+        private const string ELITE_GRADE_CHANCES_KEY = "_eliteModifierGradeChancesPercent";
+        private const string BEHAVIOR_GRADE_CHANCES_KEY = "_behaviorGradeChancesPercent";
         private const double MAX_LAUNCH_SPREAD_ANGLE = 90d;
         private static readonly IReadOnlyDictionary<string, int> EMPTY_CHANCES = new Dictionary<string, int>(StringComparer.Ordinal);
 
@@ -60,7 +62,8 @@ namespace RuneCode
             var modifierOrder = new List<string>();
             var effects = ReadEffects(root, gradeOrder, runes, modifierOrder, log);
             ValidateModifierCoverage(runes, effects, log);
-            var stages = ReadStageDropTables(root, gradeOrder, log);
+            IReadOnlyList<string> behaviorGradeOrder = runes != null ? runes.BehaviorGradeOrder : gradeOrder;
+            var stages = ReadStageDropTables(root, gradeOrder, behaviorGradeOrder, log);
             List<string> notes = ReadDataNotes(root, log);
             log.ThrowIfAny();
             return new ModifierGradeTable(gradeOrder, modifierOrder, effects, stages, notes);
@@ -374,9 +377,9 @@ namespace RuneCode
             }
         }
 
-        /// <summary>스테이지 등급 확률과 보스 선택 보상을 같은 파일에서 읽고 검증한다.</summary>
+        /// <summary>스테이지별 Modifier·행동 드롭 등급 확률과 보스 선택 보상을 같은 파일에서 읽고 검증한다. 행동 확률 키는 behaviorGradeOrder를 따른다.</summary>
         private static Dictionary<int, ModifierStageDropTable> ReadStageDropTables(Dictionary<string, object> root,
-            IReadOnlyList<string> gradeOrder, TableErrorLog log)
+            IReadOnlyList<string> gradeOrder, IReadOnlyList<string> behaviorGradeOrder, TableErrorLog log)
         {
             var result = new Dictionary<int, ModifierStageDropTable>();
             if (!TryArray(Get(root, "_stageDropTables"), out List<object> rows))
@@ -404,8 +407,10 @@ namespace RuneCode
                     log.Add(stageField, "_stage", "스테이지가 중복되었습니다.");
                     continue;
                 }
-                IReadOnlyDictionary<string, int> chances = ReadGradeChances(Get(row, "_eliteModifierGradeChancesPercent"),
-                    stageType, gradeOrder, stageField, log);
+                IReadOnlyDictionary<string, int> chances = ReadGradeChances(Get(row, ELITE_GRADE_CHANCES_KEY),
+                    stageType, gradeOrder, stageField, log, ELITE_GRADE_CHANCES_KEY);
+                IReadOnlyDictionary<string, int> behaviorChances = ReadGradeChances(Get(row, BEHAVIOR_GRADE_CHANCES_KEY),
+                    stageType, behaviorGradeOrder, stageField, log, BEHAVIOR_GRADE_CHANCES_KEY);
                 bool hasReward = row.ContainsKey("_stageClearModifierRewardChoice") && row["_stageClearModifierRewardChoice"] != null;
                 string rewardGrade = string.Empty;
                 int choiceCount = 0;
@@ -433,7 +438,7 @@ namespace RuneCode
                 if (stageType == "boss" && !hasReward) log.Add(stageField, "_stageClearModifierRewardChoice", "보스 스테이지에는 선택 보상이 필요합니다.");
                 if (stageType == "normal" && hasReward) log.Add(stageField, "_stageClearModifierRewardChoice", "일반 스테이지에는 보스 선택 보상을 둘 수 없습니다.");
                 result.Add(stage, new ModifierStageDropTable(stage, stageType, chances, hasReward,
-                    rewardGrade, choiceCount, selectCount, drawMethod, candidateRule, slotChances));
+                    rewardGrade, choiceCount, selectCount, drawMethod, candidateRule, slotChances, behaviorChances));
             }
             return result;
         }
@@ -469,18 +474,18 @@ namespace RuneCode
             return result;
         }
 
-        /// <summary>일반 스테이지 확률 객체를 읽고 등급 키와 정수 백분율 합계를 확인한다.</summary>
+        /// <summary>일반 스테이지 확률 객체(key 필드)를 읽고 등급 키와 정수 백분율 합계를 확인한다. 일반 스테이지는 필수이고 보스 스테이지는 null이어야 한다.</summary>
         private static IReadOnlyDictionary<string, int> ReadGradeChances(object value, string stageType,
-            IReadOnlyList<string> gradeOrder, string stageField, TableErrorLog log)
+            IReadOnlyList<string> gradeOrder, string stageField, TableErrorLog log, string key)
         {
             if (value == null)
             {
-                if (stageType == "normal") log.Add(stageField, "_eliteModifierGradeChancesPercent", "일반 스테이지에는 확률 객체가 필요합니다.");
+                if (stageType == "normal") log.Add(stageField, key, "일반 스테이지에는 확률 객체가 필요합니다.");
                 return EMPTY_CHANCES;
             }
             if (!TryObject(value, out Dictionary<string, object> rows))
             {
-                log.Add(stageField, "_eliteModifierGradeChancesPercent", "확률은 등급별 객체 또는 null이어야 합니다.");
+                log.Add(stageField, key, "확률은 등급별 객체 또는 null이어야 합니다.");
                 return EMPTY_CHANCES;
             }
             var result = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -489,21 +494,21 @@ namespace RuneCode
             {
                 if (!rows.TryGetValue(grade, out object chanceValue))
                 {
-                    log.Add(stageField, "_eliteModifierGradeChancesPercent." + grade, "등급 확률 키가 없습니다.");
+                    log.Add(stageField, key + "." + grade, "등급 확률 키가 없습니다.");
                     continue;
                 }
                 if (!TryInteger(chanceValue, out int chance) || chance < 0 || chance > 100)
                 {
-                    log.Add(stageField, "_eliteModifierGradeChancesPercent." + grade, "0에서 100 사이의 정수여야 합니다.");
+                    log.Add(stageField, key + "." + grade, "0에서 100 사이의 정수여야 합니다.");
                     continue;
                 }
                 result[grade] = chance;
                 total += chance;
             }
             foreach (string grade in rows.Keys)
-                if (!gradeOrder.Contains(grade)) log.Add(stageField, "_eliteModifierGradeChancesPercent." + grade, "_gradeOrder에 없는 등급 키입니다.");
-            if (stageType == "normal" && total != 100) log.Add(stageField, "_eliteModifierGradeChancesPercent", "확률 합계는 100이어야 합니다.");
-            if (stageType == "boss") log.Add(stageField, "_eliteModifierGradeChancesPercent", "보스 스테이지 확률은 null이어야 합니다.");
+                if (!gradeOrder.Contains(grade)) log.Add(stageField, key + "." + grade, "_gradeOrder에 없는 등급 키입니다.");
+            if (stageType == "normal" && total != 100) log.Add(stageField, key, "확률 합계는 100이어야 합니다.");
+            if (stageType == "boss") log.Add(stageField, key, "보스 스테이지 확률은 null이어야 합니다.");
             return result;
         }
 
@@ -595,12 +600,17 @@ namespace RuneCode
         }
     }
 
-    /// <summary>한 스테이지의 엘리트 드롭 확률과 보스 선택 보상 규칙을 보관한다.</summary>
+    /// <summary>한 스테이지의 엘리트 Modifier·행동 드롭 등급 확률과 보스 선택 보상 규칙을 보관한다.</summary>
     public sealed class ModifierStageDropTable
     {
+        private static readonly IReadOnlyDictionary<string, int> EMPTY_BEHAVIOR_CHANCES = new Dictionary<string, int>(StringComparer.Ordinal);
+
         public int Stage { get; }
         public string StageType { get; }
         public IReadOnlyDictionary<string, int> EliteModifierGradeChancesPercent { get; }
+
+        /// <summary>드롭 테이블의 등급 미지정 행동 항목에 쓰는 등급 확률이다. 보스 스테이지는 빈 사전이다.</summary>
+        public IReadOnlyDictionary<string, int> BehaviorGradeChancesPercent { get; }
         public bool HasStageClearModifierReward { get; }
         public string RewardGrade { get; }
         public int ChoiceCount { get; }
@@ -614,9 +624,10 @@ namespace RuneCode
         /// <summary>검증이 끝난 스테이지 드롭 및 선택 보상 값을 보관한다.</summary>
         internal ModifierStageDropTable(int stage, string stageType, IReadOnlyDictionary<string, int> chances,
             bool hasReward, string rewardGrade, int choiceCount, int selectCount, string drawMethod, string candidateRule,
-            IReadOnlyDictionary<string, int> slotGradeChances = null)
+            IReadOnlyDictionary<string, int> slotGradeChances = null, IReadOnlyDictionary<string, int> behaviorGradeChances = null)
         {
             RewardSlotGradeChancesPercent = slotGradeChances;
+            BehaviorGradeChancesPercent = behaviorGradeChances ?? EMPTY_BEHAVIOR_CHANCES;
             Stage = stage;
             StageType = stageType;
             EliteModifierGradeChancesPercent = chances;

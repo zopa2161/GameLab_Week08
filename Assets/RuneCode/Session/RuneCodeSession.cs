@@ -13,12 +13,19 @@ namespace RuneCode
     public sealed class RuneCodeSession
     {
         private const int DEBUG_MODIFIER_STOCK = 9;
+        private const int TEST_CLEARED_STAGE = 10;
+        private const string TEST_STOCK_GRADE = "B";
+        private const int TEST_STOCK_COUNT = 2;
+
+        // 이 레벨 상한을 가진 노드는 반복 성장용 endgame 노드로 보고 테스트 프로필에서 구매하지 않는다.
+        private const int TEST_ENDGAME_NODE_LEVEL = 99;
 
         private PlayerSave _save;
         private PlayerSave _normalSave;
         private readonly StageCatalog _stages;
         private readonly UpgradeTreeDefinition _upgradeTree;
         private bool _isDebugEnabled;
+        private bool _isTestMode;
         private readonly SpellEditSession _spells;
         private string _statusMessage;
         private bool _isSaveDirty;
@@ -32,6 +39,12 @@ namespace RuneCode
         public PlayerSave Save => _save;
         public ISpellEditor Spells => _spells;
         public bool IsDebugEnabled => _isDebugEnabled;
+
+        /// <summary>타이틀의 테스트 모드로 시작한 메모리 진행인지 반환한다. 디버그 권한은 주지 않는다.</summary>
+        public bool IsTestMode => _isTestMode;
+
+        /// <summary>디버그·테스트처럼 저장 슬롯에 쓰지 않는 메모리 진행인지 반환한다.</summary>
+        public bool IsMemorySession => _isDebugEnabled || _isTestMode;
         public bool IsSaveDirty => _isSaveDirty;
         public string StatusMessage => _statusMessage;
 
@@ -88,6 +101,7 @@ namespace RuneCode
             if (isDebug) _hasPendingFirstRunHelp = false;
             else _hasPendingFirstRunHelp |= isFirstGameStart;
             _isDebugEnabled = isDebug;
+            _isTestMode = false;
             _save = isDebug ? PlayerSave.CreateNew() : _normalSave;
             bool restoredRuneUnlocks = !isDebug && RestorePurchasedRuneUnlocks(_save);
             if (isFirstGameStart)
@@ -97,6 +111,17 @@ namespace RuneCode
             }
             if (isDebug) UnlockDebugRunes();
             else PersistRestoredRuneUnlocks(restoredRuneUnlocks);
+            _spells.Reload();
+            RequestScreen(AppScreen.Workshop);
+        }
+
+        /// <summary>저장하지 않는 테스트 프로필 진행을 새로 열고 작업실로 전환한다. 일반 저장은 그대로 유지한다.</summary>
+        public void StartTestGame()
+        {
+            _hasPendingFirstRunHelp = false;
+            _isDebugEnabled = false;
+            _isTestMode = true;
+            _save = CreateTestSave();
             _spells.Reload();
             RequestScreen(AppScreen.Workshop);
         }
@@ -116,7 +141,7 @@ namespace RuneCode
             _hasPendingFirstRunHelp = false;
             SaveStore.SetActiveSlot(slot);
             _normalSave = loaded;
-            if (!_isDebugEnabled)
+            if (!IsMemorySession)
             {
                 _save = loaded;
                 _isSaveDirty = false;
@@ -133,7 +158,7 @@ namespace RuneCode
             if (!SaveStore.CreateSlot(slot, out PlayerSave created)) return false;
             _hasPendingFirstRunHelp = true;
             _normalSave = created;
-            if (!_isDebugEnabled)
+            if (!IsMemorySession)
             {
                 _save = created;
                 _isSaveDirty = false;
@@ -149,7 +174,7 @@ namespace RuneCode
             if (SaveStore.ActiveSlot == slot)
             {
                 _normalSave = PlayerSave.CreateNew();
-                if (!_isDebugEnabled)
+                if (!IsMemorySession)
                 {
                     _save = _normalSave;
                     _isSaveDirty = false;
@@ -162,7 +187,7 @@ namespace RuneCode
         /// <summary>현재 진행과 편집 중인 마법을 즉시 저장하고 성공 여부를 반환한다.</summary>
         public bool SaveManually()
         {
-            if (_isDebugEnabled) return false;
+            if (IsMemorySession) return false;
             _spells.Save();
             if (!_isSaveDirty) return true;
             _isSaveDirty = true;
@@ -172,7 +197,7 @@ namespace RuneCode
         /// <summary>현재 슬롯의 저장 데이터를 다시 읽어 미저장 진행과 편집 사본을 교체한다.</summary>
         public bool LoadActiveSave()
         {
-            if (_isDebugEnabled || !SaveStore.TryLoadSlot(SaveStore.ActiveSlot, out PlayerSave loaded)) return false;
+            if (IsMemorySession || !SaveStore.TryLoadSlot(SaveStore.ActiveSlot, out PlayerSave loaded)) return false;
             _save = loaded;
             _normalSave = loaded;
             _isSaveDirty = false;
@@ -186,7 +211,7 @@ namespace RuneCode
         public bool SetAutoSaveEnabled(bool isEnabled)
         {
             SaveStore.SetAutoSaveEnabled(isEnabled);
-            if (!isEnabled || _isDebugEnabled) return true;
+            if (!isEnabled || IsMemorySession) return true;
             _spells.Save();
             return !_isSaveDirty;
         }
@@ -333,12 +358,12 @@ namespace RuneCode
             PersistProgress();
         }
 
-        /// <summary>진행을 초기화하고 새 시작 마법으로 편집 세션을 다시 연다.</summary>
+        /// <summary>진행을 초기화하고 새 시작 마법으로 편집 세션을 다시 연다. 테스트 모드는 테스트 프로필로 다시 만든다.</summary>
         public void ResetSave()
         {
-            _save = PlayerSave.CreateNew();
+            _save = _isTestMode ? CreateTestSave() : PlayerSave.CreateNew();
             if (_isDebugEnabled) UnlockDebugRunes();
-            else _normalSave = _save;
+            else if (!_isTestMode) _normalSave = _save;
             _spells.Reload();
             PersistProgress();
         }
@@ -463,7 +488,7 @@ namespace RuneCode
         /// <summary>마법 보관함 변경을 일반 세션의 저장·자동 저장 정책에 맞춰 반영한다.</summary>
         private bool PersistSpellStorage(PlayerSave save)
         {
-            if (_isDebugEnabled) return true;
+            if (IsMemorySession) return true;
             _isSaveDirty = true;
             if (!SaveStore.AutoSaveEnabled) return true;
             return WriteCurrentSave(save);
@@ -472,7 +497,7 @@ namespace RuneCode
         /// <summary>진행 변경을 미저장으로 표시하고 자동 저장이 켜졌을 때 현재 슬롯에 기록한다.</summary>
         private void PersistProgress()
         {
-            if (_isDebugEnabled) return;
+            if (IsMemorySession) return;
             _isSaveDirty = true;
             if (SaveStore.AutoSaveEnabled && !WriteCurrentSave(_save)) SetStatusText(SaveStore.LastWarning);
         }
@@ -501,7 +526,7 @@ namespace RuneCode
         /// <summary>복구한 룬 해금을 미저장으로 표시하고 자동 저장 설정에 맞춰 현재 슬롯에 반영한다.</summary>
         private void PersistRestoredRuneUnlocks(bool hasRestoredRune)
         {
-            if (!hasRestoredRune || _isDebugEnabled) return;
+            if (!hasRestoredRune || IsMemorySession) return;
             _isSaveDirty = true;
             if (SaveStore.AutoSaveEnabled && !WriteCurrentSave(_save)) SetStatusText(SaveStore.LastWarning);
         }
@@ -547,6 +572,49 @@ namespace RuneCode
                     // AddStock이 전투 속성만 받으므로 무속성·기능 속성은 지급되지 않는다.
                     _save.AddStock(rune.Id, "", DEBUG_MODIFIER_STOCK - _save.GetStock(rune.Id, ""));
                 }
+            }
+        }
+
+        /// <summary>
+        /// 테스트 프로필 세이브를 만든다. 1~10스테이지 클리어, endgame 노드를 제외한 강화 트리 최대 레벨과 룬 해금, 시작 소지량에 더해
+        /// B등급 모디·행동 각 2개와 무속성을 제외한 전투 속성 각 2개를 지급하고, 행동은 C등급을 시작 수량만큼 채운다.
+        /// </summary>
+        private PlayerSave CreateTestSave()
+        {
+            PlayerSave save = PlayerSave.CreateNew();
+            for (int stage = 1; stage <= TEST_CLEARED_STAGE; stage++) save.RecordStageClear(stage);
+            MaxUpgradeNodes(save, _upgradeTree.Nodes);
+            MaxUpgradeNodes(save, _upgradeTree.UnplacedNodes);
+            foreach (RuneDefinition rune in GameData.Runes.All)
+            {
+                if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
+                {
+                    // B등급 값이 없는 모디는 AddModifierStock이 거른다.
+                    save.AddModifierStock(rune.Id, TEST_STOCK_GRADE, TEST_STOCK_COUNT);
+                }
+                else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR && !rune.IsDisabled)
+                {
+                    int startStock = GameData.Balance.Economy.BehaviorStartStock;
+                    save.AddStock(rune.Id, SpellGrammar.DEFAULT_BEHAVIOR_GRADE, startStock - save.GetStock(rune.Id, SpellGrammar.DEFAULT_BEHAVIOR_GRADE));
+                    save.AddStock(rune.Id, TEST_STOCK_GRADE, TEST_STOCK_COUNT);
+                }
+                else if (rune.Category == SpellGrammar.CATEGORY_ELEMENT && !rune.IsDisabled
+                    && GameData.Runes.TryGetRuneElement(rune.Id, out ElementDefinition element) && element.Id != SpellGrammar.ELEMENT_NEUTRAL)
+                {
+                    save.AddStock(rune.Id, "", TEST_STOCK_COUNT);
+                }
+            }
+            return save;
+        }
+
+        /// <summary>노드 목록의 강화 노드를 최대 레벨로 기록하고 룬 해금 노드의 룬을 해금한다. 반복 성장용 endgame 노드는 0레벨로 둔다.</summary>
+        private static void MaxUpgradeNodes(PlayerSave save, IReadOnlyList<UpgradeTreeNodeDefinition> nodes)
+        {
+            foreach (UpgradeTreeNodeDefinition node in nodes)
+            {
+                if (node == null || node.MaxLevel >= TEST_ENDGAME_NODE_LEVEL) continue;
+                save.SetUpgradeNodeLevel(node.Id, node.MaxLevel);
+                if (node.EffectType == UpgradeEffectType.RuneUnlock) save.Unlock(node.RuneId);
             }
         }
 

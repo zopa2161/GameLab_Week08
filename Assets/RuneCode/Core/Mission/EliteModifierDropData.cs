@@ -46,6 +46,9 @@ namespace RuneCode
         /// <summary>지정 등급의 값이 null이 아닌 Modifier 룬 ID 목록을 파일 순서대로 반환한다.</summary>
         IReadOnlyList<string> GetModifiersWithGrade(string grade);
 
+        /// <summary>스테이지의 행동 드롭 등급 확률(C→S 순서)을 반환한다. 보스 스테이지면 null을 반환하고, 표에 없는 스테이지는 마지막 일반 스테이지의 확률을 반환한다.</summary>
+        IReadOnlyList<EliteModifierGradeChance> GetBehaviorGradeChances(int stage);
+
         /// <summary>스테이지 클리어 Modifier 선택 보상 설정을 반환하고 없는 스테이지면 null을 반환한다.</summary>
         EliteModifierClearChoice GetClearChoice(int stage);
     }
@@ -58,22 +61,32 @@ namespace RuneCode
     {
         private readonly ModifierGradeTable _table;
         private readonly IReadOnlyList<EliteModifierGradeChance> _fallbackChances;
+        private readonly IReadOnlyList<EliteModifierGradeChance> _fallbackBehaviorChances;
 
-        /// <summary>등급표를 받아 조회 창구를 만들고 마지막 일반 스테이지 확률을 대체값으로 잡는다.</summary>
+        /// <summary>등급표를 받아 조회 창구를 만들고 마지막 일반 스테이지의 Modifier·행동 확률을 대체값으로 잡는다.</summary>
         public ModifierGradeDropSource(ModifierGradeTable table)
         {
             _table = table;
             int fallbackStage = 0;
             foreach (ModifierStageDropTable stage in table.StageDropTables)
                 if (stage.StageType == "normal" && stage.Stage > fallbackStage) fallbackStage = stage.Stage;
-            _fallbackChances = fallbackStage > 0 ? ToChances(table.GetStageDropTable(fallbackStage)) : null;
+            ModifierStageDropTable fallback = fallbackStage > 0 ? table.GetStageDropTable(fallbackStage) : null;
+            _fallbackChances = fallback != null ? ToChances(fallback.EliteModifierGradeChancesPercent, _table.GradeOrder) : null;
+            _fallbackBehaviorChances = fallback != null ? ToChances(fallback.BehaviorGradeChancesPercent, GameData.Runes.BehaviorGradeOrder) : null;
         }
 
         /// <summary>스테이지의 등급 확률을 등급 순서대로 반환한다. 보스 스테이지는 null, 표에 없는 스테이지는 마지막 일반 스테이지 확률이다.</summary>
         public IReadOnlyList<EliteModifierGradeChance> GetGradeChances(int stage)
         {
             ModifierStageDropTable table = _table.GetStageDropTable(stage);
-            return table == null ? _fallbackChances : ToChances(table);
+            return table == null ? _fallbackChances : ToChances(table.EliteModifierGradeChancesPercent, _table.GradeOrder);
+        }
+
+        /// <summary>스테이지의 행동 드롭 등급 확률을 행동 등급 순서대로 반환한다. 보스 스테이지는 null, 표에 없는 스테이지는 마지막 일반 스테이지 확률이다.</summary>
+        public IReadOnlyList<EliteModifierGradeChance> GetBehaviorGradeChances(int stage)
+        {
+            ModifierStageDropTable table = _table.GetStageDropTable(stage);
+            return table == null ? _fallbackBehaviorChances : ToChances(table.BehaviorGradeChancesPercent, GameData.Runes.BehaviorGradeOrder);
         }
 
         /// <summary>지정 등급 값이 null이 아닌 Modifier 룬 ID를 데이터 파일 순서대로 반환한다.</summary>
@@ -94,13 +107,13 @@ namespace RuneCode
             return new EliteModifierClearChoice(table.RewardGrade, table.ChoiceCount, table.SelectCount, slotChances);
         }
 
-        /// <summary>스테이지 표의 등급 확률을 등급 순서의 목록으로 바꾸고, 확률이 없는(보스) 스테이지면 null을 반환한다.</summary>
-        private IReadOnlyList<EliteModifierGradeChance> ToChances(ModifierStageDropTable table)
+        /// <summary>등급별 확률 사전을 gradeOrder 순서의 목록으로 바꾸고, 확률이 없는(보스) 스테이지면 null을 반환한다.</summary>
+        private static IReadOnlyList<EliteModifierGradeChance> ToChances(IReadOnlyDictionary<string, int> percents, IReadOnlyList<string> gradeOrder)
         {
-            if (table.EliteModifierGradeChancesPercent == null || table.EliteModifierGradeChancesPercent.Count == 0) return null;
+            if (percents == null || percents.Count == 0) return null;
             var chances = new List<EliteModifierGradeChance>();
-            foreach (string grade in _table.GradeOrder)
-                if (table.EliteModifierGradeChancesPercent.TryGetValue(grade, out int percent)) chances.Add(new EliteModifierGradeChance(grade, percent));
+            foreach (string grade in gradeOrder)
+                if (percents.TryGetValue(grade, out int percent)) chances.Add(new EliteModifierGradeChance(grade, percent));
             return chances;
         }
     }

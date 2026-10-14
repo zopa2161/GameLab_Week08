@@ -39,6 +39,18 @@
       "_value": "이번 디버그 실행의 스크랩, 강화, 마법 보관함을 초기화합니다. 일반 저장은 유지됩니다."
     },
     {
+      "_key": "ui.startTest",
+      "_value": "테스트 모드 시작"
+    },
+    {
+      "_key": "ui.resetTestSession",
+      "_value": "테스트 진행 초기화"
+    },
+    {
+      "_key": "ui.resetTestSessionMessage",
+      "_value": "이번 테스트 실행의 진행과 마법 보관함을 테스트 프로필로 되돌립니다. 일반 저장은 유지됩니다."
+    },
+    {
       "_key": "ui.editor",
       "_value": "룬 설계"
     },

@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace RuneCode
 {
-    /// <summary>드롭 추첨 결과 한 항목이다. fragments는 Fragments 수량을, modifier는 RuneId·Grade·Count를 쓴다. element는 등급이 빈 문자열이고, behavior는 등급 필수다. eliteModifier 항목의 등급·종류는 시뮬레이션이 등급표로 정한다.</summary>
+    /// <summary>드롭 추첨 결과 한 항목이다. fragments는 Fragments 수량을, modifier는 RuneId·Grade·Count를 쓴다. element는 등급이 빈 문자열이다. eliteModifier 항목의 등급·종류와 등급이 빈 behavior 항목의 등급은 시뮬레이션이 스테이지 등급표로 정한다.</summary>
     public readonly struct DropRoll
     {
         private readonly string _type;
@@ -17,7 +17,7 @@ namespace RuneCode
         public string Type => _type;
         public string RuneId => _runeId;
 
-        /// <summary>지정 항목의 등급이다. Modifier는 비어 있으면 그 Modifier에서 값이 있는 가장 낮은 등급을, element는 항상 빈 문자열을 쓴다.</summary>
+        /// <summary>지정 항목의 등급이다. Modifier는 비어 있으면 그 Modifier에서 값이 있는 가장 낮은 등급을, behavior는 비어 있으면 스테이지 행동 등급 확률을, element는 항상 빈 문자열을 쓴다.</summary>
         public string Grade => _grade;
         public int Count => _count;
         public int Fragments => _fragments;
@@ -95,6 +95,19 @@ namespace RuneCode
     }
 
     [Serializable]
+    public sealed class NormalEnemyDropDefinition
+    {
+        [Header("일반 적 드롭")]
+        [SerializeField] private string _dropTable;
+        [SerializeField] private double _chancePercent;
+        public string DropTable => _dropTable;
+        public double ChancePercent => _chancePercent;
+
+        /// <summary>일반 적 드롭이 설정되어 있는지 반환한다. 테이블 ID가 비어 있거나 확률이 0 이하면 false다.</summary>
+        public bool IsEnabled => !string.IsNullOrEmpty(_dropTable) && _chancePercent > 0;
+    }
+
+    [Serializable]
     public sealed class DropCatalog
     {
         public const string TYPE_FRAGMENTS = "fragments";
@@ -109,6 +122,12 @@ namespace RuneCode
         [Header("드롭 테이블 목록")]
         [SerializeField] private DropTableDefinition[] _dropTables;
         public IReadOnlyList<DropTableDefinition> Tables => _dropTables;
+
+        [Header("일반 적 드롭")]
+        [SerializeField] private NormalEnemyDropDefinition _normalEnemyDrop;
+
+        /// <summary>엘리트·보스가 아닌 적이 처치될 때 굴리는 드롭 설정이다. 필드가 없으면 null이다.</summary>
+        public NormalEnemyDropDefinition NormalEnemyDrop => _normalEnemyDrop;
 
         /// <summary>드롭 테이블 ID의 존재 여부를 반환한다.</summary>
         public bool Has(string id)
@@ -136,8 +155,19 @@ namespace RuneCode
                 ValidateEntries(table.Guaranteed, tableId, "_guaranteed", errors, false);
                 ValidateEntries(table.Entries, tableId, "_entries", errors, true);
             }
+            ValidateNormalEnemyDrop(catalog, ids, errors);
             if (errors.Count > 0) throw new FormatException("drops.json 검증 오류:\n" + string.Join("\n", errors));
             return catalog;
+        }
+
+        /// <summary>일반 적 드롭 설정의 테이블 ID가 등록된 ID인지, 확률이 0 이상 100 이하인지 검사하고 오류를 목록에 모은다. 테이블 ID가 비어 있으면 일반 적 드롭이 없다.</summary>
+        private static void ValidateNormalEnemyDrop(DropCatalog catalog, HashSet<string> tableIds, List<string> errors)
+        {
+            NormalEnemyDropDefinition drop = catalog._normalEnemyDrop;
+            if (drop == null || string.IsNullOrEmpty(drop.DropTable)) return;
+            if (!tableIds.Contains(drop.DropTable)) errors.Add("drops.json:_normalEnemyDrop._dropTable 등록되지 않은 드롭 테이블입니다: " + drop.DropTable);
+            if (double.IsNaN(drop.ChancePercent) || drop.ChancePercent < 0 || drop.ChancePercent > 100)
+                errors.Add("drops.json:_normalEnemyDrop._chancePercent 확률은 0 이상 100 이하여야 합니다.");
         }
 
         /// <summary>테이블의 항목 배열을 검사하고 오류를 목록에 모은다. 가중치는 추첨 항목에서만 요구한다.</summary>
@@ -174,7 +204,8 @@ namespace RuneCode
                 {
                     if (!GameData.Runes.TryGet(entry.Id, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled)
                         errors.Add(path + "._id 비활성이 아니고 behavior 카테고리인 룬이 없습니다: " + entry.Id);
-                    if (!GameData.Runes.BehaviorGradeOrder.Contains(entry.Grade))
+                    // 등급이 비어 있으면 시뮬레이션이 스테이지 행동 등급 확률로 정한다.
+                    if (!string.IsNullOrEmpty(entry.Grade) && !GameData.Runes.BehaviorGradeOrder.Contains(entry.Grade))
                         errors.Add(path + "._grade 행동 등급표에 없는 등급입니다: " + entry.Id + " " + entry.Grade);
                     if (entry.Count < 1) errors.Add(path + "._count 수량은 1 이상이어야 합니다.");
                 }
