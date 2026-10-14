@@ -539,6 +539,10 @@
       "_value": "보관함 마법을 선택한 뒤 빈 슬롯에 장착하세요"
     },
     {
+      "_key": "editor.slotEmpty",
+      "_value": "비어있음"
+    },
+    {
       "_key": "editor.libraryFull",
       "_value": "보관함은 최대 30개까지 저장할 수 있습니다"
     },

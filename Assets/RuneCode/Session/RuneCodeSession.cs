@@ -28,6 +28,7 @@ namespace RuneCode
         private bool _isTestMode;
         private readonly SpellEditSession _spells;
         private string _statusMessage;
+        private long _statusRevision;
         private bool _isSaveDirty;
         private bool _hasPendingFirstRunHelp;
 
@@ -47,6 +48,8 @@ namespace RuneCode
         public bool IsMemorySession => _isDebugEnabled || _isTestMode;
         public bool IsSaveDirty => _isSaveDirty;
         public string StatusMessage => _statusMessage;
+        /// <summary>SetStatus 또는 SetStatusText가 호출될 때마다 증가하는 상태 메시지 revision이다.</summary>
+        public long StatusRevision => _statusRevision;
 
         public string DockScenario => _dockScenario;
         public bool DockAutoFire => _dockAutoFire;
@@ -217,10 +220,18 @@ namespace RuneCode
         }
 
         /// <summary>문자열 키를 번역해 상태 문구로 저장한다.</summary>
-        public void SetStatus(string key) { _statusMessage = GameData.L(key); }
+        public void SetStatus(string key)
+        {
+            _statusMessage = GameData.L(key);
+            _statusRevision++;
+        }
 
         /// <summary>이미 번역된 문구를 상태 문구로 저장한다.</summary>
-        public void SetStatusText(string text) { _statusMessage = text; }
+        public void SetStatusText(string text)
+        {
+            _statusMessage = text;
+            _statusRevision++;
+        }
 
         /// <summary>시험 도크의 시나리오와 자동 시전·적응·배속을 세션에 저장해 작업실 재진입 후에도 유지한다.</summary>
         public void SetDockOptions(string scenario, bool autoFire, bool adaptation, float speed)

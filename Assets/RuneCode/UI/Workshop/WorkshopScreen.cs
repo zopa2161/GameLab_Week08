@@ -17,6 +17,7 @@ namespace RuneCode
         public const string TAB_TREE = "tree";
         public const string TAB_DEPLOY = "deploy";
         private static readonly string[] TABS = { TAB_EDITOR, TAB_TREE };
+        private const float STATUS_TOAST_EDGE_PADDING = 12f;
 
         [Header("탭 구성")]
         [SerializeField] private RectTransform _editorRoot;
@@ -41,6 +42,7 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _status;
 
         private WorkshopPresenter _presenter;
+        private readonly Vector3[] _graphCanvasCorners = new Vector3[4];
         private bool _showStageSelectionOnNextEntry;
 
         public SpellEditorPanel SpellEditor => _spellEditor;
@@ -112,8 +114,44 @@ namespace RuneCode
         /// <summary>헤더 수치 문구를 표시한다.</summary>
         public void SetHeader(string text) => _headerStats.text = text;
 
-        /// <summary>하단 상태 문구를 표시한다.</summary>
+        /// <summary>상태 토스트 문구를 표시한다.</summary>
         public void SetStatus(string text) => _status.text = text;
+
+        /// <summary>Screen Space Overlay 좌표의 토스트를 그래프 편집 영역 경계 안에 배치한다.</summary>
+        public void SetStatusPosition(Vector2 screenPosition)
+        {
+            RectTransform screenRect = (RectTransform)transform;
+            RectTransform statusRect = _status.rectTransform;
+            if (statusRect.parent != screenRect)
+            {
+                Vector2 statusSize = statusRect.rect.size;
+                statusRect.SetParent(screenRect, false);
+                statusRect.anchorMin = statusRect.anchorMax = new Vector2(0.5f, 0.5f);
+                statusRect.sizeDelta = statusSize;
+                statusRect.pivot = new Vector2(0.5f, 0.5f);
+            }
+
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(screenRect, screenPosition, null, out Vector2 localPosition)) return;
+            RectTransform graphRect = _spellEditor.GraphCanvas.rectTransform;
+            graphRect.GetWorldCorners(_graphCanvasCorners);
+            Vector2 graphMinimum = screenRect.InverseTransformPoint(_graphCanvasCorners[0]);
+            Vector2 graphMaximum = graphMinimum;
+            for (int index = 1; index < _graphCanvasCorners.Length; index++)
+            {
+                Vector2 corner = screenRect.InverseTransformPoint(_graphCanvasCorners[index]);
+                graphMinimum = Vector2.Min(graphMinimum, corner);
+                graphMaximum = Vector2.Max(graphMaximum, corner);
+            }
+            Rect statusBounds = statusRect.rect;
+            float minX = graphMinimum.x + statusBounds.width * statusRect.pivot.x + STATUS_TOAST_EDGE_PADDING;
+            float maxX = graphMaximum.x - statusBounds.width * (1f - statusRect.pivot.x) - STATUS_TOAST_EDGE_PADDING;
+            float minY = graphMinimum.y + statusBounds.height * statusRect.pivot.y + STATUS_TOAST_EDGE_PADDING;
+            float maxY = graphMaximum.y - statusBounds.height * (1f - statusRect.pivot.y) - STATUS_TOAST_EDGE_PADDING;
+            float x = Mathf.Clamp(localPosition.x, minX, maxX);
+            float y = Mathf.Clamp(localPosition.y, minY, maxY);
+            statusRect.position = screenRect.TransformPoint(new Vector3(x, y, 0f));
+            statusRect.SetAsLastSibling();
+        }
 
         /// <summary>작업실 진입을 알리고 요청된 경우 스테이지 선택 UI를 연다.</summary>
         protected override void OnShown()

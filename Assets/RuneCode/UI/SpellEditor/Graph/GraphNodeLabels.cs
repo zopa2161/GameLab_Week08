@@ -188,7 +188,7 @@ namespace RuneCode
             for (int index = rows * 2; index < labels.Count; index++) labels[index].gameObject.SetActive(false);
         }
 
-        /// <summary>행동 노드의 슬롯 셀마다 라벨을 재사용해 형태·속성·모디 이름을 지정한다. 행동 노드가 아니면 슬롯 라벨을 숨긴다.</summary>
+        /// <summary>행동 노드의 슬롯 셀마다 라벨을 재사용해 형태·속성·모디 이름 또는 빈 상태 문구를 지정한다. 행동 노드가 아니면 숨긴다.</summary>
         private void RefreshSlotLabels(GraphNode node)
         {
             RuneDefinition rune = GameData.Runes.Get(node.RuneId);
@@ -208,7 +208,7 @@ namespace RuneCode
             for (int index = count; index < labels.Count; index++) labels[index].gameObject.SetActive(false);
         }
 
-        /// <summary>슬롯 라벨을 각 셀 사각형 중앙에 배율에 맞춰 배치한다. 빈 칸·잠긴 칸은 숨긴다.</summary>
+        /// <summary>슬롯 라벨을 각 셀 사각형 중앙에 배율에 맞춰 배치한다. 잠긴 칸은 숨긴다.</summary>
         private void LayoutSlotLabels(GraphNode node, RuneDefinition rune, Vector3 scale)
         {
             List<TextMeshProUGUI> labels = _slotLabels[node.Id];
@@ -229,7 +229,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>슬롯 셀 문구를 반환한다. 형태는 형태 룬 이름, 속성은 속성 룬 이름, 모디는 등급을 붙인 이름이며 빈 칸·잠긴 칸은 빈 문자열이다.</summary>
+        /// <summary>슬롯 셀 문구를 반환한다. 빈 속성·모디 슬롯은 비어 있음 문구, 잠긴 칸은 빈 문자열을 반환한다.</summary>
         private static string SlotText(GraphNode node, string slotKey)
         {
             if (slotKey == SpellGrammar.SHAPE_PARAM)
@@ -238,8 +238,9 @@ namespace RuneCode
                 return GameData.Runes.TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune) ? shapeRune.Name : shape;
             }
             if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return string.Empty;
+            if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return string.Empty;
             string value = node.GetText(slotKey, null);
-            if (string.IsNullOrEmpty(value) || !SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return string.Empty;
+            if (string.IsNullOrEmpty(value)) return GameData.L("editor.slotEmpty");
             if (isElement)
             {
                 return GameData.Runes.TryGetElement(value, out ElementDefinition element)

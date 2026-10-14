@@ -66,8 +66,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 빈 슬롯 선택 팝업을 연다. 슬롯 종류(속성·모디)의 남은 수가 1 이상이고 그 노드에 장착할 수 있는 항목만 표시하며,
-        /// 고르면 지정 슬롯에 장착한다.
+        /// 지정 속성·모디 슬롯의 선택 팝업을 연다. 장착 가능한 보유 룬과 비어 있음 선택지를 표시한다.
         /// </summary>
         public void OpenSlotPicker(string nodeId, string slotKey)
         {
@@ -102,17 +101,22 @@ namespace RuneCode
             }
         }
 
-        /// <summary>지정 분류에서 남은 수가 있고 그 슬롯에 장착 가능한 항목으로 슬롯 선택 결과를 채운다.</summary>
+        /// <summary>지정 분류의 장착 가능한 룬과 슬롯 비우기 선택지로 선택 결과를 채운다.</summary>
         private void FillSlotPicker(QuickPalettePopup popup, string query, string nodeId, string slotKey, string category)
         {
             popup.ClearResults();
+            popup.AddResult(GameData.L("editor.slotEmpty"), () =>
+            {
+                popup.Close();
+                _editor.ClearSlot(nodeId, slotKey);
+            }, category);
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
                 if (!IsPaletteRune(rune) || rune.Category != category || !MatchesSearch(rune, query)) continue;
                 foreach (string grade in StockGrades(rune))
                 {
                     if (!TryGetStock(rune.Id, grade, out int remaining, out int owned) || remaining <= 0
-                        || !_editor.TryFindEquipSlot(nodeId, rune.Id, grade, out _)) continue;
+                        || !_editor.CanEquipToSlot(nodeId, slotKey, rune.Id, grade)) continue;
                     string runeId = rune.Id;
                     popup.AddResult(StockLabel(rune, grade, remaining, owned), () =>
                     {
