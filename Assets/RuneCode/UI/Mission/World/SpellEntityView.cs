@@ -73,8 +73,10 @@ namespace RuneCode
             Color tint = RuneMesh.ElementColor(spell.Element);
             float radius = (float)spell.Radius;
             float angle = MissionWorldSpace.ToWorldAngle(spell.Direction);
-            bool isArea = spell.Kind == SpellGrammar.FORM_ZONE || spell.Kind == SpellGrammar.FORM_BURST;
-            bool isCone = spell.IsCone && (isArea || spell.Kind == SpellGrammar.FORM_BOLT);
+            // 행동 규칙이 없는 종류(공전)는 발사체로 그리고 부채꼴로 그리지 않는다.
+            bool hasRules = SpellBehaviorRuleRegistry.TryGetByKind(spell.Kind, out SpellBehaviorRules rules);
+            bool isArea = hasRules && rules.DisplayType != SpellDisplayType.Projectile;
+            bool isCone = spell.IsCone && hasRules && (isArea || rules.IsTravelling);
             MissionWorldSpace.SetVisible(_trail, !isArea);
             MissionWorldSpace.SetVisible(_shape, !isArea && !isCone);
             MissionWorldSpace.SetVisible(_fill, isArea && !isCone);
@@ -95,7 +97,8 @@ namespace RuneCode
         {
             bool isWarning = spell.IsWarning;
             Color fill = isWarning ? WarningColor : tint;
-            fill.a = isWarning ? WARNING_FILL_ALPHA : spell.Kind == SpellGrammar.FORM_ZONE ? ZONE_FILL_ALPHA : BURST_FILL_ALPHA;
+            fill.a = isWarning ? WARNING_FILL_ALPHA
+                : SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.LastingArea ? ZONE_FILL_ALPHA : BURST_FILL_ALPHA;
             _fill.sprite = spell.IsBox ? _squareShape : spell.Element == "ice" && !isWarning ? _iceShape : _defaultShape;
             _outline.sprite = _inner.sprite = spell.IsBox ? _squareOutlineShape : _ringShape;
             Quaternion rotation = Quaternion.Euler(0, 0, spell.IsBox ? angle : 0);
@@ -147,8 +150,9 @@ namespace RuneCode
             bool isWarning = spell.IsWarning;
             if (isWarning) tint = WarningColor;
             Color fill = tint;
-            fill.a = isWarning ? WARNING_FILL_ALPHA : spell.Kind == SpellGrammar.FORM_ZONE ? ZONE_FILL_ALPHA
-                : spell.Kind == SpellGrammar.FORM_BURST ? BURST_FILL_ALPHA : LAUNCH_CONE_FILL_ALPHA;
+            SpellDisplayType displayType = SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind);
+            fill.a = isWarning ? WARNING_FILL_ALPHA : displayType == SpellDisplayType.LastingArea ? ZONE_FILL_ALPHA
+                : displayType == SpellDisplayType.InstantArea ? BURST_FILL_ALPHA : LAUNCH_CONE_FILL_ALPHA;
             Vector2 apex = MissionWorldSpace.ToWorld(spell.ConeApex, origin) - MissionWorldSpace.ToWorld(spell.Position, origin);
             float reach = MissionWorldSpace.ToWorldLength(spell.ConeReach);
             float fillReach = reach * (float)spell.WarnProgress;

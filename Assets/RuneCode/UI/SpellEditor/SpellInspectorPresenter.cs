@@ -174,12 +174,13 @@ namespace RuneCode
             if (rune.Category != SpellGrammar.CATEGORY_CORE) _view.AddButton(GameData.L("ui.delete"), "InspectorDeleteButton", () => _editor.RemoveNode(node.Id));
         }
 
-        /// <summary>행동 노드의 형태와 속성·모디 슬롯 내용(장착 이름, 빈 칸, 등급으로 잠긴 칸)을 한 줄씩 표시한다.</summary>
+        /// <summary>행동 노드의 고정 형태와 속성·모디 슬롯 내용(장착 이름, 빈 칸, 등급으로 잠긴 칸)을 한 줄씩 표시한다.</summary>
         private void ShowSlots(GraphNode node)
         {
             var lines = new List<string>();
-            string shape = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
-            lines.Add(GameData.Runes.TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune) ? shapeRune.Name : shape);
+            string shape = GameData.Runes.Get(node.RuneId).FixedShape;
+            string shapeName = GameData.Runes.TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune) ? shapeRune.Name : shape;
+            lines.Add(GameData.L("ui.fixedShape") + " " + shapeName);
             for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
                 lines.Add(SlotLine(node, SpellGrammar.ElementSlotKey(index)));
             for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
@@ -448,11 +449,12 @@ namespace RuneCode
                     lines.Add(GameData.L("ui.spellRadius") + " " + stats.Radius.ToString("0.#") + "px");
 
                 var movement = new List<string>();
-                if (action.Form == "bolt")
+                bool isTravelling = action.Rules != null && action.Rules.IsTravelling;
+                if (isTravelling)
                 {
                     if (stats.Speed > 0f) movement.Add(GameData.L("ui.spellSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
                     if (stats.Lifetime > 0f)
-                        movement.Add(GameData.L("ui.runeRange") + " " + (stats.Speed * stats.Lifetime).ToString("0.#") + "px"
+                        movement.Add(GameData.L("ui.runeRange") + " " + action.Rules.GetReach(stats).ToString("0.#") + "px"
                             + " · " + GameData.L("ui.runeLifetime") + " " + stats.Lifetime.ToString("0.##") + "s");
                 }
                 else if (action.Form == "orbit" && stats.AngularSpeed > 0f)
@@ -460,7 +462,7 @@ namespace RuneCode
 
                 if (stats.Offset > 0f) movement.Add(GameData.L("ui.runeOffset") + " " + stats.Offset.ToString("0.#") + "px");
                 if (stats.OrbitRadius > 0f) movement.Add(GameData.L("ui.runeOrbitRadius") + " " + stats.OrbitRadius.ToString("0.#") + "px");
-                if (action.Form != "bolt" && stats.Lifetime > 0f)
+                if (!isTravelling && stats.Lifetime > 0f)
                     movement.Add(GameData.L("ui.runeLifetime") + " " + stats.Lifetime.ToString("0.##") + "s");
                 if (movement.Count > 0) lines.Add(string.Join(" · ", movement));
 
@@ -650,14 +652,14 @@ namespace RuneCode
             SpellStats stats = action.Stats;
             bool isAnchored = action.MagicType == SpellGrammar.MAGIC_TYPE_CONE || action.MagicType == SpellGrammar.MAGIC_TYPE_BOX
                 || action.SourceElement == "heal" || action.SourceElement == "protection";
-            bool isArea = action.Form == SpellGrammar.FORM_BURST || action.Form == SpellGrammar.FORM_ZONE || isAnchored;
+            bool isArea = SpellBehaviorRuleRegistry.GetDisplayType(action.Form) != SpellDisplayType.Projectile || isAnchored;
             var lines = new List<string>();
             if (isArea && spell.IsEventAction(action.NodeId)) lines.Add(GameData.L("ui.spellSpawnAtHit"));
             else if (isArea && isAnchored) lines.Add(GameData.L("ui.spellSpawnAtCaster"));
             else
             {
-                float reach = action.Form == SpellGrammar.FORM_BOLT ? stats.Speed * stats.Lifetime
-                    : action.Form == SpellGrammar.FORM_ORBIT ? stats.OrbitRadius : stats.Offset;
+                float reach = action.Form == SpellGrammar.FORM_ORBIT ? stats.OrbitRadius
+                    : action.Rules != null ? action.Rules.GetReach(stats) : stats.Offset;
                 if (reach > 0f) lines.Add(GameData.L("ui.spellRange") + " " + reach.ToString("0.#") + "px");
             }
 
@@ -675,8 +677,8 @@ namespace RuneCode
                 if (stats.HomingRange > 0f && action.SourceElement != "protection")
                     lines.Add(GameData.L("ui.spellTrackSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
             }
-            else if (action.Form == SpellGrammar.FORM_BOLT) lines.Add(GameData.L("ui.spellSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
-            else if (action.Form == SpellGrammar.FORM_ZONE && stats.HomingRange > 0f)
+            else if (action.Rules != null && action.Rules.IsTravelling) lines.Add(GameData.L("ui.spellSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
+            else if (action.Rules != null && action.Rules.UsesHoming && stats.HomingRange > 0f)
                 lines.Add(GameData.L("ui.spellTrackSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
 
             if (lines.Count > 0) _view.AddNote(string.Join("\n", lines), 18 * lines.Count + 16, 6);
@@ -720,12 +722,12 @@ namespace RuneCode
 
         /// <summary>
         /// 인스펙터에 파라미터를 표시할지 반환한다. 효과량·보호막 지속시간은 Functional(회복·보호) 속성 노드와 그 속성의 Apply에서만 표시한다.
-        /// 행동 노드의 등급·형태·슬롯 값은 노드 슬롯과 슬롯 목록으로 다루므로 파라미터 행으로 표시하지 않는다.
+        /// 행동 노드의 등급·슬롯 값은 노드 슬롯과 슬롯 목록으로 다루므로 파라미터 행으로 표시하지 않는다.
         /// </summary>
         private static bool IsParameterVisible(GraphNode node, ParameterDefinition parameter)
         {
             if (GraphNodeLayout.HasSlots(GameData.Runes.Get(node.RuneId))
-                && (parameter.Id == SpellGrammar.MODIFIER_GRADE_PARAM || parameter.Id == SpellGrammar.SHAPE_PARAM
+                && (parameter.Id == SpellGrammar.MODIFIER_GRADE_PARAM
                     || SpellGrammar.TryParseSlotKey(parameter.Id, out _, out _))) return false;
             if (parameter.Id != SpellGrammar.POWER_PARAM && parameter.Id != SpellGrammar.BUFF_DURATION_PARAM) return true;
             if (GameData.Runes.TryGetRuneElement(node.RuneId, out ElementDefinition own)) return own.IsFunctional;

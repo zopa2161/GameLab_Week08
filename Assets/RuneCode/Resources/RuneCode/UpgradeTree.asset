@@ -184,7 +184,7 @@ MonoBehaviour:
     - _nodeId: upgrade.gpu
       _requiredLevel: 1
     _levels:
-    - _cost: 50
+    - _cost: 0
       _amount: 0
   - _id: upgrade.killEnergy
     _requiredStage: 1
@@ -300,7 +300,7 @@ MonoBehaviour:
     - _nodeId: upgrade.maxEnergy.final
       _requiredLevel: 1
     _levels:
-    - _cost: 150
+    - _cost: 0
       _amount: 0
   - _id: unlock.flow.repeat
     _requiredStage: 1

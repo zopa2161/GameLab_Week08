@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace RuneCode
 {
     /// <summary>
-    /// behavior 노드의 등급·형태·속성 슬롯·모디 슬롯 파라미터를 검사하고 실행 가능한 형태로 바꾼다.
+    /// behavior 노드의 등급·속성 슬롯·모디 슬롯 파라미터를 검사하고 실행 가능한 형태로 바꾼다. 형태는 행동 정의의 고정 형태를 쓴다.
     /// 각 behavior 노드는 컴파일 내부 표현인 Inline Magic 노드(같은 ID·좌표)로 교체되고, 장착된 모디파이어는
     /// 노드별 합성 Modifier 노드 목록으로 돌려진다(그래프에는 넣지 않는다). behavior 외 노드와 엣지는 그대로 둔다.
     /// </summary>
@@ -12,10 +12,10 @@ namespace RuneCode
     {
         /// <summary>
         /// behavior 노드를 Inline Magic으로 교체한 컴파일용 그래프를 반환한다. 교체 대상이 없으면 원본을 그대로 반환한다.
-        /// 연결된 behavior 노드의 행동·형태·장착 룬 RAM 합계를 chainRam으로, 등급·슬롯·형태·속성·모디 오류와 해금 오류를
+        /// 연결된 behavior 노드의 행동·장착 룬 RAM 합계를 chainRam으로, 등급·슬롯·속성·모디 오류를
         /// errors에 추가하고, behavior 노드 ID가 키인 합성 Modifier 노드 목록을 slotModifiers로 돌려준다.
         /// </summary>
-        public static SpellGraph Normalize(SpellGraph graph, RuneCatalog runes, HashSet<string> unlocked,
+        public static SpellGraph Normalize(SpellGraph graph, RuneCatalog runes,
             List<CompileIssue> errors, List<CompileIssue> warnings, out int chainRam,
             out Dictionary<string, List<GraphNode>> slotModifiers)
         {
@@ -29,14 +29,10 @@ namespace RuneCode
                 if (node == null || string.IsNullOrEmpty(node.Id) || !runes.TryGet(node.RuneId, out RuneDefinition rune)) continue;
                 if (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled) continue;
                 if (graph.IsNodeConnected(node.Id)) chainRam += runes.NodeRam(node);
-                if (!NormalizeBehaviorNode(node, runes, unlocked, errors, slotModifiers, out GraphNode inline)) continue;
+                if (!NormalizeBehaviorNode(node, rune, runes, errors, slotModifiers, out GraphNode inline)) continue;
                 replacements[node.Id] = inline;
             }
-            // 해금 오류(E10)만 있으면 RAM·수치 표시를 위해 정규화 결과로 계속 컴파일한다.
-            bool hasBlockingError = false;
-            for (int index = errorCount; index < errors.Count; index++)
-                if (errors[index].Code != "E10") hasBlockingError = true;
-            if (replacements.Count == 0 || hasBlockingError) return graph;
+            if (replacements.Count == 0 || errors.Count > errorCount) return graph;
             var nodes = new List<GraphNode>(graph.Nodes.Count);
             foreach (GraphNode node in graph.Nodes)
             {
@@ -51,10 +47,10 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// behavior 노드 하나의 등급·형태·속성·모디 슬롯을 검사하고 Inline Magic 노드로 만든다.
-        /// 장착 모디는 합성 Modifier 노드 목록으로 slotModifiers에 추가한다. 등급·형태 오류로 진행이 불가하면 false를 반환한다.
+        /// behavior 노드 하나의 등급·속성·모디 슬롯을 검사하고 행동의 고정 형태를 쓴 Inline Magic 노드로 만든다.
+        /// 장착 모디는 합성 Modifier 노드 목록으로 slotModifiers에 추가한다. 등급 오류로 진행이 불가하면 false를 반환한다.
         /// </summary>
-        private static bool NormalizeBehaviorNode(GraphNode node, RuneCatalog runes, HashSet<string> unlocked,
+        private static bool NormalizeBehaviorNode(GraphNode node, RuneDefinition rune, RuneCatalog runes,
             List<CompileIssue> errors, Dictionary<string, List<GraphNode>> slotModifiers, out GraphNode inline)
         {
             inline = null;
@@ -67,19 +63,11 @@ namespace RuneCode
             CheckSlotLimit(node, SpellGrammar.ELEMENT_SLOT_PREFIX, SpellGrammar.MAX_ELEMENT_SLOTS, elementSlots, errors);
             CheckSlotLimit(node, SpellGrammar.MODIFIER_SLOT_PREFIX, SpellGrammar.MAX_MODIFIER_SLOTS, modifierSlots, errors);
 
-            string shape = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
-            if (!runes.TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune) || shapeRune.IsDisabled)
-            {
-                errors.Add(new CompileIssue("E9", node.Id, SpellGrammar.SHAPE_PARAM));
-                return false;
-            }
-            if (!unlocked.Contains(shapeRune.Id)) errors.Add(new CompileIssue("E10", node.Id));
-
             ElementDefinition element = ResolveElement(node, elementSlots, runes, errors);
             CollectModifiers(node, modifierSlots, runes, slotModifiers, errors);
 
             inline = new GraphNode(node.Id, SpellGrammar.INLINE_RUNE, node.X, node.Y);
-            inline.SetText("magicType", shape);
+            inline.SetText("magicType", rune.FixedShape);
             inline.SetText(SpellGrammar.ELEMENT_PARAM, element != null ? element.InternalValue : null);
             inline.SetText("form", SpellGrammar.FormOf(node.RuneId));
             return true;

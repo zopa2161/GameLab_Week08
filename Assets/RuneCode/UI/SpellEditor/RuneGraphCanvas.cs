@@ -276,17 +276,12 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 슬롯 셀 좌클릭을 처리한다. 형태 셀은 다음 형태로 바꾸고, 잠기지 않은 속성·모디 셀은 슬롯 선택을 연다.
+        /// 슬롯 셀 좌클릭을 처리한다. 잠기지 않은 속성·모디 셀은 슬롯 선택을 연다.
         /// 처리했으면 true, 잠긴 셀·슬롯 밖이면 노드 선택으로 넘기도록 false를 반환한다.
         /// </summary>
         private bool TryHandleSlotClick(Vector2 point)
         {
             if (!_layout.FindSlot(point, out GraphNode node, out string slotKey)) return false;
-            if (slotKey == SpellGrammar.SHAPE_PARAM)
-            {
-                _editor.CycleShape(node.Id);
-                return true;
-            }
             if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return false;
             _slotPicker(node.Id, slotKey);
             return true;

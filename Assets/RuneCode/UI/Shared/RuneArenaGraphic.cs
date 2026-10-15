@@ -234,7 +234,7 @@ namespace RuneCode
             float radius = (float)spell.Radius * _scale;
             Vector2 direction = ScreenDirection(spell.Direction);
             float angle = Mathf.Atan2(direction.y, direction.x);
-            if (spell.Kind == SpellGrammar.FORM_ZONE || spell.Kind == SpellGrammar.FORM_BURST)
+            if (SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) != SpellDisplayType.Projectile)
                 DrawAreaSpell(mesh, spell, point, radius, angle, tint);
             else
                 DrawMovingSpell(mesh, spell, point, radius, direction, angle, tint);
@@ -253,7 +253,7 @@ namespace RuneCode
                 return;
             }
             Color fill = tint;
-            fill.a = spell.Kind == SpellGrammar.FORM_ZONE ? 0.12f : 0.22f;
+            fill.a = SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.LastingArea ? 0.12f : 0.22f;
             if (spell.IsBox)
             {
                 float halfWidth = (float)spell.BoxWidth * 0.5f * _scale;

@@ -112,8 +112,8 @@ namespace RuneCode
                 if (action.Kind == "spawn")
                 {
                     var stats = action.Stats;
-                    candidate = action.Form == "bolt" ? stats.Speed * stats.Lifetime + stats.Radius :
-                        action.Form == "orbit" ? stats.OrbitRadius + stats.Radius : stats.Offset + stats.Radius;
+                    candidate = action.Form == "orbit" ? stats.OrbitRadius + stats.Radius
+                        : (action.Rules != null ? action.Rules.GetReach(stats) : stats.Offset) + stats.Radius;
                 }
                 else if (action.Kind == "blink") candidate = action.Distance + GetActionRange(action.Next);
                 else if (action.Kind == "repeat") candidate = Math.Max(GetActionRange(action.Body), GetActionRange(action.OnComplete));

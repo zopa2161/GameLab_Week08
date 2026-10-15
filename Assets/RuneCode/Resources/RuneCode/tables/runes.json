@@ -1365,6 +1365,7 @@
       "_id": "behavior.launch",
       "_name": "발사",
       "_category": "behavior",
+      "_shape": "sphere",
       "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
@@ -1422,30 +1423,6 @@
         },
         {
           "_order": 1,
-          "_paramId": "shape",
-          "_kind": "enum",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": "sphere",
-          "_options": [
-            {
-              "_order": 0,
-              "_option": "sphere"
-            },
-            {
-              "_order": 1,
-              "_option": "box"
-            },
-            {
-              "_order": 2,
-              "_option": "cone"
-            }
-          ]
-        },
-        {
-          "_order": 2,
           "_paramId": "element0",
           "_kind": "text",
           "_min": 0,
@@ -1455,7 +1432,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 3,
+          "_order": 2,
           "_paramId": "element1",
           "_kind": "text",
           "_min": 0,
@@ -1465,7 +1442,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 4,
+          "_order": 3,
           "_paramId": "mod0",
           "_kind": "text",
           "_min": 0,
@@ -1475,7 +1452,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 5,
+          "_order": 4,
           "_paramId": "mod1",
           "_kind": "text",
           "_min": 0,
@@ -1485,7 +1462,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 6,
+          "_order": 5,
           "_paramId": "mod2",
           "_kind": "text",
           "_min": 0,
@@ -1501,6 +1478,7 @@
       "_id": "behavior.burst",
       "_name": "폭발",
       "_category": "behavior",
+      "_shape": "sphere",
       "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
@@ -1559,30 +1537,6 @@
         },
         {
           "_order": 1,
-          "_paramId": "shape",
-          "_kind": "enum",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": "sphere",
-          "_options": [
-            {
-              "_order": 0,
-              "_option": "sphere"
-            },
-            {
-              "_order": 1,
-              "_option": "box"
-            },
-            {
-              "_order": 2,
-              "_option": "cone"
-            }
-          ]
-        },
-        {
-          "_order": 2,
           "_paramId": "element0",
           "_kind": "text",
           "_min": 0,
@@ -1592,7 +1546,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 3,
+          "_order": 2,
           "_paramId": "element1",
           "_kind": "text",
           "_min": 0,
@@ -1602,7 +1556,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 4,
+          "_order": 3,
           "_paramId": "mod0",
           "_kind": "text",
           "_min": 0,
@@ -1612,7 +1566,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 5,
+          "_order": 4,
           "_paramId": "mod1",
           "_kind": "text",
           "_min": 0,
@@ -1622,7 +1576,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 6,
+          "_order": 5,
           "_paramId": "mod2",
           "_kind": "text",
           "_min": 0,
@@ -1638,6 +1592,7 @@
       "_id": "behavior.orbit",
       "_name": "공전",
       "_category": "behavior",
+      "_shape": "sphere",
       "_ram": 2,
       "_energy": 0,
       "_energyMult": 1,
@@ -1696,30 +1651,6 @@
         },
         {
           "_order": 1,
-          "_paramId": "shape",
-          "_kind": "enum",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": "sphere",
-          "_options": [
-            {
-              "_order": 0,
-              "_option": "sphere"
-            },
-            {
-              "_order": 1,
-              "_option": "box"
-            },
-            {
-              "_order": 2,
-              "_option": "cone"
-            }
-          ]
-        },
-        {
-          "_order": 2,
           "_paramId": "element0",
           "_kind": "text",
           "_min": 0,
@@ -1729,7 +1660,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 3,
+          "_order": 2,
           "_paramId": "element1",
           "_kind": "text",
           "_min": 0,
@@ -1739,7 +1670,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 4,
+          "_order": 3,
           "_paramId": "mod0",
           "_kind": "text",
           "_min": 0,
@@ -1749,7 +1680,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 5,
+          "_order": 4,
           "_paramId": "mod1",
           "_kind": "text",
           "_min": 0,
@@ -1759,7 +1690,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 6,
+          "_order": 5,
           "_paramId": "mod2",
           "_kind": "text",
           "_min": 0,
@@ -1775,6 +1706,7 @@
       "_id": "behavior.persist",
       "_name": "잔류",
       "_category": "behavior",
+      "_shape": "sphere",
       "_ram": 2,
       "_energy": 0,
       "_energyMult": 1,
@@ -1826,30 +1758,6 @@
         },
         {
           "_order": 1,
-          "_paramId": "shape",
-          "_kind": "enum",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": "sphere",
-          "_options": [
-            {
-              "_order": 0,
-              "_option": "sphere"
-            },
-            {
-              "_order": 1,
-              "_option": "box"
-            },
-            {
-              "_order": 2,
-              "_option": "cone"
-            }
-          ]
-        },
-        {
-          "_order": 2,
           "_paramId": "element0",
           "_kind": "text",
           "_min": 0,
@@ -1859,7 +1767,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 3,
+          "_order": 2,
           "_paramId": "element1",
           "_kind": "text",
           "_min": 0,
@@ -1869,7 +1777,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 4,
+          "_order": 3,
           "_paramId": "mod0",
           "_kind": "text",
           "_min": 0,
@@ -1879,7 +1787,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 5,
+          "_order": 4,
           "_paramId": "mod1",
           "_kind": "text",
           "_min": 0,
@@ -1889,7 +1797,7 @@
           "_defaultText": ""
         },
         {
-          "_order": 6,
+          "_order": 5,
           "_paramId": "mod2",
           "_kind": "text",
           "_min": 0,
