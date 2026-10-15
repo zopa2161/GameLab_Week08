@@ -69,7 +69,19 @@ namespace RuneCode
         /// <summary>마법을 저장·검증해 준비가 되면 미션 화면 전환을 요청한다.</summary>
         private void Launch()
         {
+            LocalTelemetry.RecordUsabilityEvent("simulation_request", "workshop", new Dictionary<string, object>
+            {
+                ["input_method"] = "deploy_button",
+                ["stage"] = _session.SelectedStage,
+            });
             if (_session.TryPrepareMission(out _)) _session.RequestScreen(AppScreen.Mission);
+            else
+                LocalTelemetry.RecordUsabilityEvent("simulation_cast_result", "workshop", new Dictionary<string, object>
+                {
+                    ["result"] = "rejected",
+                    ["reason"] = "spell_not_ready",
+                    ["stage"] = _session.SelectedStage,
+                });
         }
     }
 }

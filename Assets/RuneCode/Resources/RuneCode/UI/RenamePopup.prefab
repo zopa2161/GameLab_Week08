@@ -91,6 +91,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RuneCode.RenamePopup
   _closeButton: {fileID: 2459266004412329753}
   _isEscapeClosable: 1
+  _titleLabel: {fileID: 2708898376633217881}
   _nameField: {fileID: 339522768744695093}
   _saveButton: {fileID: 3216805098680852407}
 --- !u!1 &5296000422430161456

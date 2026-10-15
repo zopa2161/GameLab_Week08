@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -63,12 +64,44 @@ namespace RuneCode
         /// <summary>유효한 세션 마법을 도크에 한 번 시전하고 튜토리얼 시험 단계를 저장한다.</summary>
         public void FireDock()
         {
+            if (LocalTelemetry.IsUsabilityTestActive)
+                LocalTelemetry.RecordUsabilityEvent("simulation_request", "test_dock", new Dictionary<string, object>
+                {
+                    ["input_method"] = "test_button",
+                    ["scenario"] = Scenario,
+                });
             _session.Spells.Recompile();
             CompileResult result = _session.Spells.CompileResult;
-            if (!result.Ok) { _session.SetStatus("editor.invalidCast"); return; }
-            if (_dock == null || !_dock.TryCast(result.Spell)) return;
+            if (!result.Ok)
+            {
+                _session.SetStatus("editor.invalidCast");
+                if (LocalTelemetry.IsUsabilityTestActive)
+                    LocalTelemetry.RecordUsabilityEvent("simulation_cast_result", "test_dock", new Dictionary<string, object>
+                    {
+                        ["result"] = "rejected",
+                        ["reason"] = "compile_failed",
+                    });
+                return;
+            }
+            if (_dock == null || !_dock.TryCast(result.Spell))
+            {
+                if (LocalTelemetry.IsUsabilityTestActive)
+                    LocalTelemetry.RecordUsabilityEvent("simulation_cast_result", "test_dock", new Dictionary<string, object>
+                    {
+                        ["result"] = "rejected",
+                        ["reason"] = "dock_unavailable_or_cooldown",
+                        ["signature"] = result.Spell.Signature,
+                    });
+                return;
+            }
             _session.AdvanceTutorial(3);
             LocalTelemetry.Record(_dock.Tick, "bench.cast", result.Spell.Signature);
+            if (LocalTelemetry.IsUsabilityTestActive)
+                LocalTelemetry.RecordUsabilityEvent("simulation_cast_result", "test_dock", new Dictionary<string, object>
+                {
+                    ["result"] = "success",
+                    ["signature"] = result.Spell.Signature,
+                });
         }
 
         /// <summary>도크의 적응 활성 상태를 세션과 시뮬레이션에 저장한다.</summary>
@@ -128,6 +161,14 @@ namespace RuneCode
             {
                 NodeExecutionEvent entry = _dock.NodeEvents[index];
                 LocalTelemetry.Record(entry.Tick, "dock.node", entry.NodeId);
+                GraphNode node = _session.Spells.Graph.FindNode(entry.NodeId);
+                if (LocalTelemetry.IsUsabilityTestActive && node != null && node.RuneId == SpellGrammar.CORE_RUNE)
+                    LocalTelemetry.RecordUsabilityEvent("simulation_cast_result", "test_dock", new Dictionary<string, object>
+                    {
+                        ["result"] = "success",
+                        ["source"] = "continuous_input",
+                        ["node_id"] = entry.NodeId,
+                    });
             }
             _telemetryCount = _dock.NodeExecutionCount;
         }

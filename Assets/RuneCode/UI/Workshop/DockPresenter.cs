@@ -16,6 +16,7 @@ namespace RuneCode
         private readonly DockRun _run;
         private readonly DockPanel _view;
         private readonly Func<bool> _isInputBlocked;
+        private bool _wasClicking;
 
         /// <summary>세션·도크 구동·도크 View와 클릭 입력 차단 조건을 받아 View를 연결하고 보존된 시나리오로 도크를 시작한다.</summary>
         public DockPresenter(RuneCodeSession session, DockRun run, DockPanel view, Func<bool> isInputBlocked)
@@ -77,6 +78,13 @@ namespace RuneCode
                 : isInputBlocked ? _run.Dock.Player.AimDirection : new SimVector(1, 0);
             Mouse mouse = Mouse.current;
             bool isClicking = !isTyping && isPointerInside && mouse != null && mouse.leftButton.isPressed;
+            if (LocalTelemetry.IsUsabilityTestActive && isClicking && !_wasClicking)
+                LocalTelemetry.RecordUsabilityEvent("simulation_request", "test_dock", new System.Collections.Generic.Dictionary<string, object>
+                {
+                    ["input_method"] = "pointer_hold",
+                    ["scenario"] = _run.Scenario,
+                });
+            _wasClicking = isClicking;
             if (canReadInput && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) _run.ResetDock();
             _run.Step(aim, _run.AutoFire || isClicking);
         }

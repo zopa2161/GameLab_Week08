@@ -198,6 +198,16 @@ namespace RuneCode
             _state.Pointer = Local(eventData);
             _state.DragStart = _state.Pointer;
             _state.PanStart = _viewport.Pan;
+            if (LocalTelemetry.IsUsabilityTestActive)
+            {
+                LocalTelemetry.RecordUsabilityEvent("editor_click", "editor", new Dictionary<string, object>
+                {
+                    ["input_id"] = Guid.NewGuid().ToString("N"),
+                    ["button"] = eventData.button.ToString(),
+                    ["screen_position"] = new[] { eventData.position.x, eventData.position.y },
+                    ["canvas_position"] = new[] { _state.Pointer.x, _state.Pointer.y },
+                });
+            }
 
             if (eventData.button == PointerEventData.InputButton.Middle)
             {
@@ -247,7 +257,18 @@ namespace RuneCode
             _state.Pointer = Local(eventData);
             TryCompleteConnection();
             if (_state.IsBoxSelecting) SelectNodesInBox();
-            if (_state.IsNodeDragging && Vector2.Distance(_state.Pointer, _state.DragStart) > NODE_DRAG_THRESHOLD) _editor.MarkChanged();
+            if (_state.IsNodeDragging && Vector2.Distance(_state.Pointer, _state.DragStart) > NODE_DRAG_THRESHOLD)
+            {
+                _editor.MarkChanged();
+                if (LocalTelemetry.IsUsabilityTestActive)
+                    LocalTelemetry.RecordUsabilityEvent("editor_action_result", "editor", new Dictionary<string, object>
+                    {
+                        ["action"] = "move_nodes",
+                        ["input_method"] = "drag",
+                        ["result"] = "success",
+                        ["node_ids"] = new List<string>(_state.Selected),
+                    });
+            }
             _labels.SetFrontNode(null);
             _state.ResetPointer();
             RefreshGraph();

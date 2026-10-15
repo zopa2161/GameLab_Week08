@@ -63,6 +63,7 @@ namespace RuneCode
 
         void OnApplicationQuit()
         {
+            LocalTelemetry.EndUsabilityTest("application_quit", _session?.Spells.Graph);
             if (_session != null) _session.SaveAll();
         }
 
