@@ -35,9 +35,6 @@ namespace RuneCode
         /// <summary>지정 좌표에 행동 노드를 지정 등급(비면 기본 등급)으로 배치한다. 행동 외 룬은 배치하지 않는다.</summary>
         void AddRune(string runeId, float x, float y, string grade = null);
 
-        /// <summary>행동 노드의 형태를 해금되고 허용되는 다음 값으로 바꾸며 바뀌면 true를 반환한다.</summary>
-        bool CycleShape(string nodeId);
-
         /// <summary>행동 노드에서 지정 속성·모디를 장착할 수 있는 첫 빈 슬롯 키를 찾는다. 없으면 false를 반환한다.</summary>
         bool TryFindEquipSlot(string nodeId, string runeId, string grade, out string slotKey);
 

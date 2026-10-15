@@ -54,6 +54,9 @@ namespace RuneCode
         public const string CALL_RUNE = "spell.call";
         public const string CORE_RUNE = "core.cast";
         public const string APPLY_RUNE = "behavior.apply";
+        public const string ORBIT_RUNE = "behavior.orbit";
+        public const string FORM_VALUE_ORBIT = "orbit";
+        public const string FORM_VALUE_REMAIN = "remain";
 
         public const string ELEMENT_PARAM = "element";
         public const string TRIGGER_PARAM = "trigger";
@@ -66,14 +69,14 @@ namespace RuneCode
         public const string CONE_DISTANCE_PARAM = "coneDistance";
         public const string CONE_ANGLE_PARAM = "coneAngle";
         public const string BOX_DIRECTION_PARAM = "boxDirection";
-        public const string SHAPE_PARAM = "shape";
+        // 형태를 행동 노드에서 고르던 이전 파라미터 키다. 형태는 행동 정의의 고정값을 쓰며 저장 데이터를 읽을 때 이 키를 지운다.
+        public const string LEGACY_SHAPE_PARAM = "shape";
         public const string MODIFIER_GRADE_PARAM = "grade";
         public const string ELEMENT_SLOT_PREFIX = "element";
         public const string MODIFIER_SLOT_PREFIX = "mod";
         public const int MAX_ELEMENT_SLOTS = 2;
         public const int MAX_MODIFIER_SLOTS = 3;
         public const string DEFAULT_BEHAVIOR_GRADE = "C";
-        public const string DEFAULT_SHAPE = "sphere";
         public const int UNLIMITED_PIERCE_COUNT = int.MaxValue;
         // 관통 수가 이 값 이상이면 사실상 무제한으로 보고 무제한 관통과 같게 다룬다(예: 등급표의 999).
         public const int UNLIMITED_PIERCE_THRESHOLD = 100;
@@ -89,26 +92,17 @@ namespace RuneCode
         public const string ELEMENT_CATEGORY_FUNCTIONAL = "functional";
 
         private const string SHAPE_PREFIX = "shape.";
-        private const string BEHAVIOR_PREFIX = "behavior.";
         private const string ELEMENT_PREFIX = "element.";
-
-        // 행동 노드 형태 선택 순서다. 클릭할 때 이 순서로 다음 값을 고른다.
-        public static readonly string[] SHAPE_OPTIONS = { MAGIC_TYPE_SPHERE, MAGIC_TYPE_BOX, MAGIC_TYPE_CONE };
 
         /// <summary>Inline Magic의 magicType 값(sphere 등)에 해당하는 Shape 룬 ID(shape.sphere 등)를 반환한다.</summary>
         public static string ShapeRune(string magicType) => SHAPE_PREFIX + magicType;
 
-        /// <summary>Inline Magic의 form 값에 해당하는 Behavior 룬 ID를 반환한다.</summary>
+        /// <summary>Inline Magic의 form 값에 해당하는 Behavior 룬 ID를 행동 규칙 등록 목록에서 찾아 반환한다. 없으면 빈 문자열이다.</summary>
         public static string BehaviorRune(string form)
         {
-            switch (form)
-            {
-                case "launch": return "behavior.launch";
-                case "explosion": return "behavior.burst";
-                case "orbit": return "behavior.orbit";
-                case "remain": return "behavior.persist";
-                default: return "";
-            }
+            if (SpellBehaviorRuleRegistry.TryGetByFormValue(form, out SpellBehaviorRules rules)) return rules.RuneId;
+            // 공전은 수식으로 바뀔 예정이라 행동 규칙으로 옮기지 않았다.
+            return form == FORM_VALUE_ORBIT ? ORBIT_RUNE : "";
         }
 
         /// <summary>Shape 블록(shape.sphere 등)이면 Inline Magic의 magicType 값(sphere 등)을, 아니면 null을 반환한다.</summary>
@@ -120,15 +114,18 @@ namespace RuneCode
         /// </summary>
         public static string FormOf(string runeId)
         {
-            switch (ValueOf(runeId, BEHAVIOR_PREFIX))
-            {
-                case "launch": return "launch";
-                case "burst": return "explosion";
-                case "orbit": return "orbit";
-                case "persist": return "remain";
-                case "apply": return "remain";
-                default: return null;
-            }
+            if (SpellBehaviorRuleRegistry.TryGetByRuneId(runeId, out SpellBehaviorRules rules)) return rules.FormValue;
+            // 공전은 수식으로 바뀔 예정이라 행동 규칙으로 옮기지 않았다. Apply는 비활성 룬이며 버프로 처리한다.
+            if (runeId == ORBIT_RUNE) return FORM_VALUE_ORBIT;
+            if (runeId == APPLY_RUNE) return FORM_VALUE_REMAIN;
+            return null;
+        }
+
+        /// <summary>Inline Magic의 form 값에 해당하는 런타임 종류(bolt 등)를 반환한다. 알 수 없는 값은 빈 문자열이다.</summary>
+        public static string KindOf(string form)
+        {
+            if (SpellBehaviorRuleRegistry.TryGetByFormValue(form, out SpellBehaviorRules rules)) return rules.Kind;
+            return form == FORM_VALUE_ORBIT ? FORM_ORBIT : "";
         }
 
         /// <summary>속성 식별자(neutral, fire 등)에 해당하는 속성 정의 룬 ID(element.neutral 등)를 반환한다.</summary>
@@ -169,16 +166,6 @@ namespace RuneCode
                 return true;
             }
             return false;
-        }
-
-        /// <summary>
-        /// 행동 룬에 형태 값을 쓸 수 있는지 반환한다. 부채꼴은 발사·폭발·잔류에만 정의되어 있으며
-        /// GraphCompiler.ValidateMagicNode의 부채꼴 규칙(E14)과 같은 기준이다.
-        /// </summary>
-        public static bool IsShapeAllowed(string behaviorRuneId, string shape)
-        {
-            if (shape != MAGIC_TYPE_CONE) return true;
-            return behaviorRuneId == "behavior.launch" || behaviorRuneId == "behavior.burst" || behaviorRuneId == "behavior.persist";
         }
 
         /// <summary>

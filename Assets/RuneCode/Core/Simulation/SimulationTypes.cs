@@ -386,6 +386,8 @@ namespace RuneCode
         private readonly SpellModifierValues _modifiers;
         private readonly double _costMultiplier;
         private readonly SimulationPlayer _caster;
+        private readonly SpellBehaviorRuntime _behavior;
+        private readonly object _behaviorState;
         private readonly Dictionary<int, double> _hitTimes = new Dictionary<int, double>();
         private HashSet<int> _contacts = new HashSet<int>();
         private HashSet<int> _nextContacts = new HashSet<int>();
@@ -404,29 +406,26 @@ namespace RuneCode
         public string Element => _element;
         public SimVector Position => _position;
         public SimVector Direction => _direction;
-        /// <summary>현재 판정 반경이다. Burst는 확장 시간 동안 0에서 최종 반경까지 커지고, 그 외는 최종 반경이다.</summary>
-        public double Radius => _action.Form == SpellGrammar.FORM_BURST && _warmupSeconds > 0
-            ? _stats.Radius * Math.Min(1, _age / _warmupSeconds) : _stats.Radius;
+        /// <summary>현재 판정 반경이다. 행동 실행 동작이 정한다(Burst는 확장 시간 동안 0에서 최종 반경까지 커진다).</summary>
+        public double Radius => _behavior.GetRadius(this);
         /// <summary>Beam 범위의 폭이다. Burst도 확장 중 폭은 그대로다.</summary>
         public double BoxWidth => _stats.BoxWidth;
 
-        /// <summary>Beam 범위의 현재 길이다. Burst는 확장 시간 동안 0에서 최종 길이까지 진행 방향으로 늘어난다.</summary>
-        public double BoxLength => _stats.BoxLength * ExpansionProgress;
+        /// <summary>Beam 범위의 현재 길이다. 행동의 확장 진행률을 곱한다(Burst는 확장 시간 동안 0에서 최종 길이까지 늘어난다).</summary>
+        public double BoxLength => _stats.BoxLength * _behavior.GetExpansionProgress(this);
 
-        /// <summary>Beam 범위의 중심이다. Burst·Persist는 뒤쪽 면을 개체 위치에 두므로 진행 방향으로 현재 길이의 절반 앞이고, 그 외는 개체 위치다.</summary>
-        public SimVector BoxCenter => _action.Form == SpellGrammar.FORM_BURST || _action.Form == SpellGrammar.FORM_ZONE
+        /// <summary>Beam 범위의 중심이다. 뒤쪽 면을 개체 위치에 두는 행동(Burst·Persist)은 진행 방향으로 현재 길이의 절반 앞이고, 그 외는 개체 위치다.</summary>
+        public SimVector BoxCenter => _behavior.PlacesBoxBackAtPosition
             ? _position + _direction.Normalized() * (BoxLength * 0.5) : _position;
 
-        /// <summary>Persist가 활성화 전 예고 중인지 나타낸다. 예고 중에는 효과·적중 판정을 하지 않는다.</summary>
-        public bool IsWarning => _action.Form == SpellGrammar.FORM_ZONE && _age + 0.000001 < _warmupSeconds;
+        /// <summary>활성화 전 예고 중인지 나타낸다(Persist). 예고 중에는 효과·적중 판정을 하지 않는다.</summary>
+        public bool IsWarning => _behavior.IsWarning(this);
 
-        /// <summary>Persist 예고 진행률(0~1)이다. 예고가 없거나 끝났으면 1이다.</summary>
-        public double WarnProgress => _action.Form == SpellGrammar.FORM_ZONE && _warmupSeconds > 0 ? Math.Min(1, _age / _warmupSeconds) : 1;
+        /// <summary>예고 진행률(0~1)이다. 예고가 없거나 끝났으면 1이다.</summary>
+        public double WarnProgress => _behavior.GetWarnProgress(this);
 
-        /// <summary>Burst가 아직 확장 중이라 새 대상을 판정하는지 나타낸다.</summary>
-        internal bool IsExpanding => _action.Form == SpellGrammar.FORM_BURST && _age <= _warmupSeconds + 0.000001;
-        private double ExpansionProgress => _action.Form == SpellGrammar.FORM_BURST && _warmupSeconds > 0
-            ? Math.Min(1, _age / _warmupSeconds) : 1;
+        /// <summary>범위가 아직 확장 중이라 새 대상을 판정하는지 나타낸다(Burst).</summary>
+        internal bool IsExpanding => _behavior.IsExpanding(this);
         public bool IsBox => _action.MagicType == SpellGrammar.MAGIC_TYPE_BOX;
 
         /// <summary>부채꼴인지 나타낸다. 판정·그리기는 꼭짓점(ConeApex)에서 진행 방향으로 펼친 부채꼴이다.</summary>
@@ -436,19 +435,30 @@ namespace RuneCode
         public double ConeAngle => _action.ConeAngle;
 
         /// <summary>부채꼴의 꼭짓점이다. 발사체는 중심에서 진행 반대쪽으로 반경만큼 뒤, 범위는 개체 위치다.</summary>
-        public SimVector ConeApex => _action.Form == SpellGrammar.FORM_BOLT ? GetConeApex(_position, _direction, _stats.Radius) : _position;
+        public SimVector ConeApex => _behavior.GetConeApex(this);
 
         /// <summary>부채꼴의 반경이다. 발사체는 지름(중심 앞뒤로 반경씩), 범위는 개체 반경이다.</summary>
-        public double ConeReach => _action.Form == SpellGrammar.FORM_BOLT ? _stats.Radius * 2 : _stats.Radius;
+        public double ConeReach => _behavior.GetConeReach(this);
         public double Age => _age;
         /// <summary>
-        /// 개체 수명이다. Burst는 확장 시간 + 잔상 시간, Persist는 예고 시간 + 유지 시간, 그 외는 유지 시간이다.
+        /// 개체 수명이다. 행동 실행 동작이 정한다(Burst는 확장 시간 + 잔상 시간, Persist는 예고 시간 + 유지 시간, 그 외는 유지 시간).
         /// </summary>
-        public double Lifetime => _action.Form == SpellGrammar.FORM_BURST ? _warmupSeconds + _visualSeconds
-            : _action.Form == SpellGrammar.FORM_ZONE ? _warmupSeconds + _stats.Lifetime : _stats.Lifetime;
+        public double Lifetime => _behavior.GetLifetime(this);
         public string NodeId => _action.NodeId;
         internal SpellAction Action => _action;
         internal SpellStats Stats => _stats;
+
+        /// <summary>이 개체의 행동 실행 동작이다. 등록되지 않은 종류(공전)는 기본 동작이다.</summary>
+        internal SpellBehaviorRuntime Behavior => _behavior;
+
+        /// <summary>행동 실행 동작이 생성 시 만든 행동 전용 상태다. 없으면 null이다.</summary>
+        internal object BehaviorState => _behaviorState;
+
+        /// <summary>판정 전 대기 시간이다. Burst의 확장 시간 또는 Persist의 예고 시간이며 그 외 행동은 0이다.</summary>
+        internal double WarmupSeconds => _warmupSeconds;
+
+        /// <summary>판정이 끝난 뒤 남는 잔상 표시 시간이다.</summary>
+        internal double VisualSeconds => _visualSeconds;
         internal bool FromEvent => _fromEvent;
         internal string CastNoiseElement => _castNoiseElement;
         internal SpellEventScope CallEvents => _callEvents;
@@ -501,6 +511,8 @@ namespace RuneCode
             _angle = angle;
             _callEvents = callEvents;
             _modifiers = modifiers ?? SpellModifierValues.None;
+            _behavior = SpellBehaviorRuntimeRegistry.Get(action.Form);
+            _behaviorState = _behavior.CreateState(this);
         }
 
         /// <summary>스펠 개체의 위치와 진행 방향을 갱신한다.</summary>
@@ -554,6 +566,7 @@ namespace RuneCode
             foreach (int id in ids) state.Append(FormattableString.Invariant($"|{id}:{_hitTimes[id]:R}"));
             var contacts = new List<int>(_contacts); contacts.Sort();
             foreach (int id in contacts) state.Append('|').Append('c').Append(id);
+            _behavior.WriteState(this, state);
         }
     }
 

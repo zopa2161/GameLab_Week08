@@ -31,6 +31,7 @@ namespace RuneCode
         public string _id;
         public string _name;
         public string _category;
+        public string _shape;
         public bool _disabled;
         public int _ram;
         public float _energy;

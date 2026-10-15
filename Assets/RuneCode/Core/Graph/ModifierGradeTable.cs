@@ -132,13 +132,14 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// Form에 맞는 다중 개수 등급 값을 읽는다. 발사(bolt)이고 발사 전용 값이 있으면 그 값을, 아니면 공용 등급 값을 쓴다.
+        /// Form에 맞는 다중 개수 등급 값을 읽는다. 행동 규칙이 발사 전용 값을 쓰고 그 값이 있으면 그 값을, 아니면 공용 등급 값을 쓴다.
         /// 숫자가 아니거나 null이면 false를 반환한다.
         /// </summary>
         public bool TryGetCountValue(string modifierId, string grade, string form, out int value)
         {
             value = 0;
-            if (form == SpellGrammar.FORM_BOLT && TryGetLaunchGradeValues(modifierId, out IReadOnlyDictionary<string, object> launchValues))
+            if (SpellBehaviorRuleRegistry.TryGetByKind(form, out SpellBehaviorRules rules) && rules.UsesLaunchGradeValues
+                && TryGetLaunchGradeValues(modifierId, out IReadOnlyDictionary<string, object> launchValues))
             {
                 if (string.IsNullOrEmpty(grade) || !launchValues.TryGetValue(grade, out object launchValue) || !(launchValue is double launchNumber)) return false;
                 value = (int)launchNumber;

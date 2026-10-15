@@ -140,7 +140,7 @@ namespace RuneCode
             DrawSlots(mesh, node, rune, fill);
         }
 
-        /// <summary>행동 노드의 형태·속성·모디 슬롯 셀을 카테고리 강조색과 잠금색으로 그린다.</summary>
+        /// <summary>행동 노드의 속성·모디 슬롯 셀을 카테고리 강조색과 잠금색으로 그린다.</summary>
         private void DrawSlots(VertexHelper mesh, GraphNode node, RuneDefinition rune, Color fill)
         {
             if (!GraphNodeLayout.HasSlots(rune)) return;
@@ -149,8 +149,6 @@ namespace RuneCode
                 if (!_layout.TryGetSlotRect(node, rune, slotKey, out Rect cell)) continue;
                 Color color;
                 if (GraphNodeLayout.IsSlotLocked(node, slotKey)) color = SLOT_LOCKED_COLOR;
-                else if (slotKey == SpellGrammar.SHAPE_PARAM)
-                    color = Color.Lerp(fill, RuneMesh.CategoryColor(SpellGrammar.CATEGORY_SHAPE), SLOT_CATEGORY_TINT);
                 else
                 {
                     bool isElement = SpellGrammar.TryParseSlotKey(slotKey, out bool elementSlot, out _) && elementSlot;

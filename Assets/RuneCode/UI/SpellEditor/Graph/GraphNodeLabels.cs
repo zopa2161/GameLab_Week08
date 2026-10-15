@@ -232,11 +232,6 @@ namespace RuneCode
         /// <summary>슬롯 셀 문구를 반환한다. 빈 속성·모디 슬롯은 비어 있음 문구, 잠긴 칸은 빈 문자열을 반환한다.</summary>
         private static string SlotText(GraphNode node, string slotKey)
         {
-            if (slotKey == SpellGrammar.SHAPE_PARAM)
-            {
-                string shape = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
-                return GameData.Runes.TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune) ? shapeRune.Name : shape;
-            }
             if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return string.Empty;
             if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return string.Empty;
             string value = node.GetText(slotKey, null);
