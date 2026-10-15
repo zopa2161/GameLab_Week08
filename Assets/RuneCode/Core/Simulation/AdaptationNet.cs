@@ -6,12 +6,12 @@ namespace RuneCode
 {
     public sealed class AdaptationNet
     {
-        private static readonly string[] _tagNames = { "fire", "ice", "arc", "raw", "bolt", "burst", "orbit", "zone" };
+        private static readonly string[] _tagNames = { "fire", "ice", "arc", "raw", "bolt", "burst", "orbit", "zone", "beam" };
         private readonly BalanceData _balance;
-        private readonly double[] _values = new double[8];
-        private readonly double[] _lastUsed = new double[8];
-        private readonly double[] _damage = new double[8];
-        private readonly bool[] _locked = new bool[8];
+        private readonly double[] _values = new double[_tagNames.Length];
+        private readonly double[] _lastUsed = new double[_tagNames.Length];
+        private readonly double[] _damage = new double[_tagNames.Length];
+        private readonly bool[] _locked = new bool[_tagNames.Length];
         private bool _isEnabled = true;
         public IReadOnlyList<string> Tags => _tagNames;
         public bool Enabled => _isEnabled;
@@ -62,7 +62,7 @@ namespace RuneCode
         public string[] LockTopDamageTags()
         {
             int elementIndex = HighestDamage(0, 4);
-            int formIndex = HighestDamage(4, 8);
+            int formIndex = HighestDamage(4, _tagNames.Length);
             _values[elementIndex] = _balance.Adaptation.ElementCap;
             _values[formIndex] = _balance.Adaptation.FormCap;
             _locked[elementIndex] = true;

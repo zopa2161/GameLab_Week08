@@ -71,6 +71,17 @@ namespace RuneCode
         {
             transform.localPosition = MissionWorldSpace.ToWorld(spell.Position, origin);
             Color tint = RuneMesh.ElementColor(spell.Element);
+            if (SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
+            {
+                MissionWorldSpace.SetVisible(_trail, false);
+                MissionWorldSpace.SetVisible(_shape, false);
+                MissionWorldSpace.SetVisible(_fill, false);
+                MissionWorldSpace.SetVisible(_outline, false);
+                MissionWorldSpace.SetVisible(_inner, false);
+                MissionWorldSpace.SetVisible(_coneRenderer, true);
+                ApplyBeam(spell, tint, origin);
+                return;
+            }
             float radius = (float)spell.Radius;
             float angle = MissionWorldSpace.ToWorldAngle(spell.Direction);
             // 행동 규칙이 없는 종류(공전)는 발사체로 그리고 부채꼴로 그리지 않는다.
@@ -127,6 +138,32 @@ namespace RuneCode
             Vector2 direction = MissionWorldSpace.ToWorldDirection(spell.Direction);
             Color trail = tint; trail.a = TRAIL_ALPHA;
             MissionWorldSpace.PlaceLine(_trail, -direction * TRAIL_LENGTH, Vector2.zero, Mathf.Max(MIN_TRAIL_WIDTH, radius), trail);
+        }
+
+        /// <summary>실제 빔 중심선의 각 선분을 판정 폭과 같은 사각형 메시로 표시한다.</summary>
+        private void ApplyBeam(SimulationSpellEntity spell, Color tint, SimVector origin)
+        {
+            _coneVertices.Clear(); _coneColors.Clear(); _coneTriangles.Clear();
+            IReadOnlyList<SimVector> path = spell.BeamPath;
+            Vector2 offset = MissionWorldSpace.ToWorld(spell.Position, origin);
+            float halfWidth = MissionWorldSpace.ToWorldLength(spell.BoxWidth * 0.5);
+            for (int index = 1; index < path.Count; index++)
+            {
+                Vector3 start = MissionWorldSpace.ToWorld(path[index - 1], origin) - offset;
+                Vector3 end = MissionWorldSpace.ToWorld(path[index], origin) - offset;
+                Vector3 direction = (end - start).normalized;
+                Vector3 normal = new Vector3(-direction.y, direction.x, 0) * halfWidth;
+                int vertex = _coneVertices.Count;
+                _coneVertices.Add(start - normal); _coneVertices.Add(start + normal);
+                _coneVertices.Add(end + normal); _coneVertices.Add(end - normal);
+                for (int corner = 0; corner < 4; corner++) _coneColors.Add(tint);
+                _coneTriangles.Add(vertex); _coneTriangles.Add(vertex + 1); _coneTriangles.Add(vertex + 2);
+                _coneTriangles.Add(vertex); _coneTriangles.Add(vertex + 2); _coneTriangles.Add(vertex + 3);
+            }
+            _coneMesh.Clear();
+            _coneMesh.SetVertices(_coneVertices);
+            _coneMesh.SetColors(_coneColors);
+            _coneMesh.SetTriangles(_coneTriangles, 0);
         }
 
         /// <summary>발사·공전을 진행 방향의 속성별 도형(Beam이면 진행 방향으로 긴 사각형)으로 표시한다.</summary>

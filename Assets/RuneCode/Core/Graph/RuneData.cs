@@ -71,6 +71,7 @@ namespace RuneCode
         private readonly float _speed;
         private readonly float _radius;
         private readonly float _lifetime;
+        private readonly float _minimumLifetime;
         private readonly float _offset;
         private readonly int _count;
         private readonly int _orbitCount;
@@ -103,6 +104,7 @@ namespace RuneCode
         public float Speed => _speed;
         public float Radius => _radius;
         public float Lifetime => _lifetime;
+        public float MinimumLifetime => _minimumLifetime;
         public float Offset => _offset;
         public int Count => _count;
         public int OrbitCount => _orbitCount;
@@ -148,6 +150,7 @@ namespace RuneCode
             _speed = row._speed;
             _radius = row._radius;
             _lifetime = row._lifetime;
+            _minimumLifetime = row._minimumLifetime;
             _offset = row._offset;
             _count = row._count;
             _orbitCount = row._orbitCount;
@@ -932,7 +935,7 @@ namespace RuneCode
                 stats.AngularSpeed, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
                 stats.LearningMultiplier, stats.SpreadAngle, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
-                stats.BeamWidth, stats.BeamLength };
+                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime };
             foreach (float value in numbers)
             {
                 if (value < 0f)

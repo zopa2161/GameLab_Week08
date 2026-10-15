@@ -5,6 +5,7 @@ namespace RuneCode
     {
         Projectile,
         InstantArea,
-        LastingArea
+        LastingArea,
+        Beam
     }
 }

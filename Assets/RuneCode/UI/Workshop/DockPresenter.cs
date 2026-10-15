@@ -1,5 +1,7 @@
 using System;
 
+using UnityEngine;
+
 using UnityEngine.InputSystem;
 
 namespace RuneCode
@@ -71,13 +73,13 @@ namespace RuneCode
         {
             bool isTyping = UiFactory.IsTyping();
             bool isInputBlocked = _isInputBlocked();
-            bool canReadInput = !isTyping && !isInputBlocked;
+            bool canReadInput = Application.isFocused && !isTyping && !isInputBlocked;
             SimVector point = SimVector.Zero;
             bool isPointerInside = !isInputBlocked && _view.TryGetPointer(out point);
             SimVector aim = isPointerInside ? point - _run.Dock.Player.Position
                 : isInputBlocked ? _run.Dock.Player.AimDirection : new SimVector(1, 0);
             Mouse mouse = Mouse.current;
-            bool isClicking = !isTyping && isPointerInside && mouse != null && mouse.leftButton.isPressed;
+            bool isClicking = canReadInput && isPointerInside && mouse != null && mouse.leftButton.isPressed;
             if (LocalTelemetry.IsUsabilityTestActive && isClicking && !_wasClicking)
                 LocalTelemetry.RecordUsabilityEvent("simulation_request", "test_dock", new System.Collections.Generic.Dictionary<string, object>
                 {
@@ -86,7 +88,8 @@ namespace RuneCode
                 });
             _wasClicking = isClicking;
             if (canReadInput && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) _run.ResetDock();
-            _run.Step(aim, _run.AutoFire || isClicking);
+            _run.Step(aim, canReadInput && (_run.AutoFire || isClicking), canReadInput && _run.AutoFire,
+                isClicking && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
         }
 
         /// <summary>누적 피해·DPS·에너지·동시 개체 지표와 자동 발사·배속·적응 상태 문구를 표시한다.</summary>

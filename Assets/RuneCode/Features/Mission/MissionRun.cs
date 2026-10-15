@@ -56,6 +56,8 @@ namespace RuneCode
         private int _dashInputCount;
         private bool _hasPendingDash;
         private bool _wasCasting;
+        private bool _hasPendingCastPress;
+        private bool _hasPendingCastRelease;
         private bool _isPaused;
         private bool _settled;
         private string _lastResult;
@@ -145,16 +147,29 @@ namespace RuneCode
         }
 
         /// <summary>미션의 고정 시뮬레이션 갱신을 일시정지하거나 재개한다.</summary>
-        public void TogglePause() { _isPaused = !_isPaused; }
+        public void TogglePause()
+        {
+            _isPaused = !_isPaused;
+            _simulation.CancelBeamInput();
+        }
 
         /// <summary>
         /// 이동·대시·줍기 키, 포인터 조준과 시전 입력(isCasting, 좌클릭 유지)을 모아 MaxFrameSteps 제한 안의 고정 스텝만큼 시뮬레이션을 갱신하고,
         /// 입력·노드 텔레메트리를 기록하고 종료 조건을 확인한다.
         /// </summary>
-        public void Step(bool isTyping, bool hasPointer, SimVector pointer, bool isCasting, float unscaledDeltaTime)
+        public void Step(bool isTyping, bool hasPointer, SimVector pointer, bool isCasting, float unscaledDeltaTime,
+            bool castPressed = false, bool castReleased = false)
         {
             if (_settled) return;
-            if (_isPaused) { _accumulator = 0; _hasPendingDash = false; return; }
+            if (_isPaused)
+            {
+                _accumulator = 0; _hasPendingDash = false;
+                _hasPendingCastPress = false; _hasPendingCastRelease = false;
+                _simulation.CancelBeamInput();
+                return;
+            }
+            _hasPendingCastPress |= castPressed || isCasting && !_wasCasting;
+            _hasPendingCastRelease |= castReleased || !isCasting && _wasCasting;
             if (isCasting && !_wasCasting)
             {
                 _castRequestCount++;
@@ -183,7 +198,10 @@ namespace RuneCode
             while (_accumulator >= FIXED_STEP && steps++ < maxSteps)
             {
                 var aim = hasPointer ? pointer - _simulation.Player.Position : _simulation.Player.AimDirection;
-                _simulation.Step(new SimulationInput(movement, aim, isCasting, false, false, _hasPendingDash));
+                _simulation.Step(new SimulationInput(movement, aim, isCasting, false, false, _hasPendingDash,
+                    castPressed: _hasPendingCastPress, castReleased: _hasPendingCastRelease));
+                _hasPendingCastPress = false;
+                _hasPendingCastRelease = false;
                 _hasPendingDash = false;
                 _accumulator -= FIXED_STEP;
             }

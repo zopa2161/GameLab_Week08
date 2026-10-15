@@ -51,6 +51,9 @@ namespace RuneCode
         private readonly bool _castC;
         private readonly bool _dash;
         private readonly bool _interact;
+        private readonly bool _castPressed;
+        private readonly bool _castReleased;
+        private readonly bool _isAutomatic;
         public SimVector Movement => _movement;
         public SimVector AimDirection => _aimDirection;
         public bool CastA => _castA;
@@ -58,10 +61,17 @@ namespace RuneCode
         public bool CastC => _castC;
         public bool Dash => _dash;
         public bool Interact => _interact;
+        public bool CastPressed => _castPressed;
+        public bool CastReleased => _castReleased;
+        public bool IsAutomatic => _isAutomatic;
 
         /// <summary>한 고정 틱의 이동, 조준, 슬롯 시전, 대시, 상호작용 입력을 보관한다.</summary>
-        public SimulationInput(SimVector movement, SimVector aimDirection, bool castA = false, bool castB = false, bool castC = false, bool dash = false, bool interact = false)
-        { _movement = movement; _aimDirection = aimDirection; _castA = castA; _castB = castB; _castC = castC; _dash = dash; _interact = interact; }
+        public SimulationInput(SimVector movement, SimVector aimDirection, bool castA = false, bool castB = false, bool castC = false, bool dash = false, bool interact = false,
+            bool castPressed = false, bool castReleased = false, bool isAutomatic = false)
+        {
+            _movement = movement; _aimDirection = aimDirection; _castA = castA; _castB = castB; _castC = castC;
+            _dash = dash; _interact = interact; _castPressed = castPressed; _castReleased = castReleased; _isAutomatic = isAutomatic;
+        }
     }
 
     public enum MissionStage { Bench, Combat, Terminal, Cleared, Dead, TimedOut }
@@ -453,6 +463,10 @@ namespace RuneCode
 
         /// <summary>행동 실행 동작이 생성 시 만든 행동 전용 상태다. 없으면 null이다.</summary>
         internal object BehaviorState => _behaviorState;
+
+        /// <summary>빔 표시와 충돌이 공유하는 중심선이다. 빔이 아닌 개체는 빈 목록을 반환한다.</summary>
+        public IReadOnlyList<SimVector> BeamPath => _behaviorState is BeamBehaviorRuntime.BeamState beam
+            ? beam.Path : Array.Empty<SimVector>();
 
         /// <summary>판정 전 대기 시간이다. Burst의 확장 시간 또는 Persist의 예고 시간이며 그 외 행동은 0이다.</summary>
         internal double WarmupSeconds => _warmupSeconds;
