@@ -16,7 +16,7 @@ namespace RuneCode
     /// </summary>
     [RequireComponent(typeof(CanvasRenderer))]
     public sealed class RuneGraphCanvas : MaskableGraphic,
-        IPointerDownHandler, IPointerUpHandler, IPointerMoveHandler,
+        IPointerDownHandler, IPointerUpHandler, IPointerMoveHandler, IPointerExitHandler,
         IBeginDragHandler, IDragHandler, IEndDragHandler, IScrollHandler
     {
         private const float HIGHLIGHT_DURATION = 0.2f;
@@ -30,7 +30,7 @@ namespace RuneCode
 
         private ISpellEditor _editor;
         private Action<GraphNode> _selectionChanged;
-        private Action<GraphNode> _hoverChanged;
+        private Action<GraphNode, string> _hoverChanged;
         private Action<Vector2> _quickPlacement;
         private Action<string, string> _slotPicker;
         private GraphViewport _viewport;
@@ -40,6 +40,7 @@ namespace RuneCode
         private GraphMeshLayer _overlayLayer;
         private GraphPlacement _placement;
         private GraphNode _hoveredNode;
+        private string _hoveredSlot;
         private bool _isHoverValid;
 
         /// <summary>선택된 노드 ID 집합이다.</summary>
@@ -66,7 +67,7 @@ namespace RuneCode
         /// 편집 세션, 글꼴과 선택·포인터 진입·빠른 배치·슬롯 선택(노드 ID, 슬롯 키) 콜백을 연결하고 그래프를 표시한다.
         /// </summary>
         public void Initialize(ISpellEditor editor, TMP_FontAsset font, Action<GraphNode> selectionChanged,
-            Action<GraphNode> hoverChanged, Action<Vector2> quickPlacement, Action<string, string> slotPicker)
+            Action<GraphNode, string> hoverChanged, Action<Vector2> quickPlacement, Action<string, string> slotPicker)
         {
             _editor = editor;
             _selectionChanged = selectionChanged;
@@ -291,11 +292,27 @@ namespace RuneCode
         /// <summary>포인터 아래 노드가 바뀐 경우에만 툴팁용 노드를 알린다.</summary>
         public void OnPointerMove(PointerEventData eventData)
         {
-            GraphNode hovered = _layout.FindNodeAt(Local(eventData));
-            if (_isHoverValid && hovered == _hoveredNode) return;
+            if (!HasGraph) return;
+            Vector2 point = Local(eventData);
+            GraphNode hovered = _layout.FindNodeAt(point);
+            string slotKey = null;
+            if (_layout.FindSlot(point, out GraphNode slotNode, out string foundKey))
+            {
+                hovered = slotNode;
+                slotKey = foundKey;
+            }
+            if (_isHoverValid && hovered == _hoveredNode && slotKey == _hoveredSlot) return;
+            _hoveredSlot = slotKey;
             _hoveredNode = hovered;
             _isHoverValid = true;
-            _hoverChanged(hovered);
+            _hoverChanged(hovered, slotKey);
+        }
+
+        /// <summary>그래프를 벗어나면 호버 상태와 안내를 초기화한다.</summary>
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            _isHoverValid = false;
+            _hoverChanged?.Invoke(null, null);
         }
 
         /// <summary>화면 이동·확대에 맞춰 라벨을 배치하고 메시 재구성을 예약한다.</summary>
