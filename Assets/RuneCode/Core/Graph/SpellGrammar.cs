@@ -71,7 +71,7 @@ namespace RuneCode
         public const string ELEMENT_SLOT_PREFIX = "element";
         public const string MODIFIER_SLOT_PREFIX = "mod";
         public const int MAX_ELEMENT_SLOTS = 2;
-        public const int MAX_MODIFIER_SLOTS = 3;
+        public const int MAX_MODIFIER_SLOTS = 6;
         public const string DEFAULT_BEHAVIOR_GRADE = "C";
         public const string DEFAULT_SHAPE = "sphere";
         public const int UNLIMITED_PIERCE_COUNT = int.MaxValue;
@@ -91,9 +91,6 @@ namespace RuneCode
         private const string SHAPE_PREFIX = "shape.";
         private const string BEHAVIOR_PREFIX = "behavior.";
         private const string ELEMENT_PREFIX = "element.";
-
-        // 행동 노드 형태 선택 순서다. 클릭할 때 이 순서로 다음 값을 고른다.
-        public static readonly string[] SHAPE_OPTIONS = { MAGIC_TYPE_SPHERE, MAGIC_TYPE_BOX, MAGIC_TYPE_CONE };
 
         /// <summary>Inline Magic의 magicType 값(sphere 등)에 해당하는 Shape 룬 ID(shape.sphere 등)를 반환한다.</summary>
         public static string ShapeRune(string magicType) => SHAPE_PREFIX + magicType;

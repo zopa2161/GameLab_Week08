@@ -3,22 +3,22 @@
     {
       "_grade": "C",
       "_elementSlots": 1,
-      "_modifierSlots": 1
+      "_modifierSlots": 3
     },
     {
       "_grade": "B",
       "_elementSlots": 1,
-      "_modifierSlots": 2
+      "_modifierSlots": 4
     },
     {
       "_grade": "A",
       "_elementSlots": 1,
-      "_modifierSlots": 3
+      "_modifierSlots": 5
     },
     {
       "_grade": "S",
       "_elementSlots": 2,
-      "_modifierSlots": 3
+      "_modifierSlots": 6
     }
   ],
   "_runes": [
@@ -1493,6 +1493,36 @@
           "_step": 0,
           "_defaultNumber": 0,
           "_defaultText": ""
+        },
+        {
+          "_order": 7,
+          "_paramId": "mod3",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 8,
+          "_paramId": "mod4",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 9,
+          "_paramId": "mod5",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         }
       ]
 
@@ -1624,6 +1654,36 @@
         {
           "_order": 6,
           "_paramId": "mod2",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 7,
+          "_paramId": "mod3",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 8,
+          "_paramId": "mod4",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 9,
+          "_paramId": "mod5",
           "_kind": "text",
           "_min": 0,
           "_max": 0,
@@ -1767,6 +1827,36 @@
           "_step": 0,
           "_defaultNumber": 0,
           "_defaultText": ""
+        },
+        {
+          "_order": 7,
+          "_paramId": "mod3",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 8,
+          "_paramId": "mod4",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 9,
+          "_paramId": "mod5",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
         }
       ]
 
@@ -1891,6 +1981,36 @@
         {
           "_order": 6,
           "_paramId": "mod2",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 7,
+          "_paramId": "mod3",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 8,
+          "_paramId": "mod4",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 9,
+          "_paramId": "mod5",
           "_kind": "text",
           "_min": 0,
           "_max": 0,

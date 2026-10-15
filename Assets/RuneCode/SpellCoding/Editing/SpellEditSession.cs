@@ -240,37 +240,6 @@ namespace RuneCode
             RecordUsabilityAction("place_node", "success", new Dictionary<string, object> { ["node_id"] = node.Id, ["rune_id"] = runeId, ["grade"] = grade });
         }
 
-        /// <summary>
-        /// 행동 노드의 형태를 SHAPE_OPTIONS 순서의 다음 값으로 바꾼다. 해금되지 않았거나 그 행동에 허용되지 않는 형태는 건너뛴다.
-        /// 바꿀 값이 없으면 false를 반환한다.
-        /// </summary>
-        public bool CycleShape(string nodeId)
-        {
-            if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _))
-            {
-                RecordUsabilityAction("cycle_shape", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_node", ["node_id"] = nodeId });
-                return false;
-            }
-            string current = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
-            int start = Array.IndexOf(SpellGrammar.SHAPE_OPTIONS, current);
-            for (int step = 1; step < SpellGrammar.SHAPE_OPTIONS.Length; step++)
-            {
-                string next = SpellGrammar.SHAPE_OPTIONS[(Math.Max(start, 0) + step) % SpellGrammar.SHAPE_OPTIONS.Length];
-                if (!_policy.IsRuneUnlocked(SpellGrammar.ShapeRune(next)) || !SpellGrammar.IsShapeAllowed(node.RuneId, next)) continue;
-                SpellGraph candidate = _editingGraph.Clone();
-                candidate.FindNode(nodeId).SetText(SpellGrammar.SHAPE_PARAM, next);
-                if (!CommitSlotCandidate(candidate, nodeId))
-                {
-                    RecordUsabilityAction("cycle_shape", "rejected", new Dictionary<string, object> { ["reason"] = "ram_blocked", ["node_id"] = nodeId });
-                    return false;
-                }
-                RecordUsabilityAction("cycle_shape", "success", new Dictionary<string, object> { ["node_id"] = nodeId, ["shape"] = next });
-                return true;
-            }
-            RecordUsabilityAction("cycle_shape", "rejected", new Dictionary<string, object> { ["reason"] = "no_available_shape", ["node_id"] = nodeId });
-            return false;
-        }
-
         /// <summary>행동 노드 등급의 한도 안에서 지정 속성·모디를 장착할 수 있는 첫 빈 슬롯 키를 찾는다.</summary>
         public bool TryFindEquipSlot(string nodeId, string runeId, string grade, out string slotKey)
         {
@@ -520,7 +489,7 @@ namespace RuneCode
 
         /// <summary>
         /// 문자열 파라미터를 선택 노드에 저장하고 Modifier 등급 소지량을 검증한다.
-        /// 행동 노드의 등급·형태·슬롯 값은 소지량 검사를 거치는 전용 명령(CycleShape, Equip, ClearSlot)으로만 바꾼다.
+        /// 행동 노드의 등급·형태·슬롯 값은 직접 편집하지 못하게 한다. 형태 값은 저장 그래프 호환을 위해 유지한다.
         /// </summary>
         public void SetNodeText(string nodeId, string key, string value)
         {

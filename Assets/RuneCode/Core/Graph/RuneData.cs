@@ -458,7 +458,7 @@ namespace RuneCode
             return false;
         }
 
-        /// <summary>행동 등급 표를 만들고 등급 빈 값·중복과 슬롯 수 범위(속성 0~2, 모디 0~3)를 검증한다.</summary>
+        /// <summary>행동 등급 표를 만들고 등급 빈 값·중복과 슬롯 수 범위를 검증한다.</summary>
         private static void BuildBehaviorGrades(List<BehaviorGradeData> rows, List<string> order,
             Dictionary<string, (int ElementSlots, int ModifierSlots)> slots, TableErrorLog log)
         {
@@ -473,7 +473,8 @@ namespace RuneCode
                 if (row._elementSlots < 0 || row._elementSlots > SpellGrammar.MAX_ELEMENT_SLOTS
                     || row._modifierSlots < 0 || row._modifierSlots > SpellGrammar.MAX_MODIFIER_SLOTS)
                 {
-                    log.Add(null, "behaviorGrades:" + row._grade, "슬롯 수가 범위를 벗어났습니다 (속성 0~2, 모디 0~3).");
+                    log.Add(null, "behaviorGrades:" + row._grade, "슬롯 수가 범위를 벗어났습니다 (속성 0~"
+                        + SpellGrammar.MAX_ELEMENT_SLOTS + ", 모디 0~" + SpellGrammar.MAX_MODIFIER_SLOTS + ").");
                     continue;
                 }
                 order.Add(row._grade);
