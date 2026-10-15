@@ -175,20 +175,10 @@ namespace RuneCode
             if (rune.Category != SpellGrammar.CATEGORY_CORE) _view.AddButton(GameData.L("ui.delete"), "InspectorDeleteButton", () => _editor.RemoveNode(node.Id));
         }
 
-<<<<<<< HEAD
         /// <summary>행동 노드에서 사용 가능한 속성과 모든 모디 슬롯의 장착·빈·잠금 상태를 한 줄씩 표시한다.</summary>
         private void ShowSlots(GraphNode node)
         {
             var lines = new List<string>();
-=======
-        /// <summary>행동 노드의 고정 형태와 속성·모디 슬롯 내용(장착 이름, 빈 칸, 등급으로 잠긴 칸)을 한 줄씩 표시한다.</summary>
-        private void ShowSlots(GraphNode node)
-        {
-            var lines = new List<string>();
-            string shape = GameData.Runes.Get(node.RuneId).FixedShape;
-            string shapeName = GameData.Runes.TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune) ? shapeRune.Name : shape;
-            lines.Add(GameData.L("ui.fixedShape") + " " + shapeName);
->>>>>>> develop
             for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
             {
                 string slotKey = SpellGrammar.ElementSlotKey(index);
