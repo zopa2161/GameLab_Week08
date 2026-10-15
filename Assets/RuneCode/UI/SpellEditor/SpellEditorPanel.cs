@@ -61,6 +61,7 @@ namespace RuneCode
         private readonly Dictionary<UiRow, ViewPool<UiRow>> _paletteRows = new Dictionary<UiRow, ViewPool<UiRow>>();
         private SpellInspectorView _inspector;
 
+
         /// <summary>노드 그래프 View다.</summary>
         public RuneGraphCanvas GraphCanvas => _graphCanvas;
 
@@ -127,6 +128,12 @@ namespace RuneCode
             _tooltipText.text = text;
         }
 
+        /// <summary>호버한 룬과 등급을 인스펙터에 표시하며 null이면 선택 정보로 복구한다.</summary>
+        public void ShowRuneInfo(RuneDefinition rune, string grade)
+        {
+            _presenter.ShowRuneInfo(rune, grade);
+        }
+
         /// <summary>현재 팔레트 검색어다.</summary>
         public string SearchQuery => _searchField.text;
 
@@ -150,7 +157,7 @@ namespace RuneCode
             row.Configure(label, height, onClick, 12);
             RunePaletteDrag drag = row.GetComponent<RunePaletteDrag>();
             if (drag == null) drag = row.gameObject.AddComponent<RunePaletteDrag>();
-            drag.Initialize(_graphCanvas, runeId, grade, canPlace);
+            drag.Initialize(_graphCanvas, runeId, grade, canPlace, this);
         }
 
         void Update()

@@ -18,6 +18,9 @@ namespace RuneCode
         private readonly RuneGraphCanvas _graph;
         private readonly Action<string> _openSpellPicker;
         private GraphNode _selected;
+        private GraphNode _hoveredNode;
+        private RuneDefinition _hoveredRune;
+        private string _hoveredGrade;
 
         /// <summary>편집 세션, 인스펙터 View, 그래프(검증 항목 포커스용)와 프리셋 대상 선택 팝업 열기 동작으로 Presenter를 만든다.</summary>
         public SpellInspectorPresenter(ISpellEditor editor, SpellInspectorView view, RuneGraphCanvas graph, Action<string> openSpellPicker)
@@ -28,9 +31,86 @@ namespace RuneCode
             _openSpellPicker = openSpellPicker;
         }
 
+        /// <summary>룬의 동작 설명과 지정 등급의 현재 효과 값을 반환한다.</summary>
+        private static string RuneEffectText(RuneDefinition rune, string grade)
+        {
+            string effect;
+            switch (rune.Id)
+            {
+                case "element.fire": case "elem.fire": effect = "화상을 부여해 지속 피해를 줍니다."; break;
+                case "element.ice": case "elem.ice": effect = "적을 둔화시키고 냉기가 누적되면 빙결시킵니다."; break;
+                case "element.lightning": case "elem.arc": effect = "전격 피해와 EMP 효과를 부여합니다."; break;
+                case "element.healing": effect = "회복 효과를 적용합니다."; break;
+                case "element.protection": effect = "장착한 행동에 따라 보호 효과를 적용합니다."; break;
+                case "mod.amplify": effect = "피해·회복 등 효과의 위력을 높입니다."; break;
+                case "mod.multi": effect = "생성 개수를 늘립니다. 발사는 전용 개수와 퍼짐을 사용합니다."; break;
+                case "mod.pierce": effect = "적을 관통해 뒤쪽 대상도 타격합니다."; break;
+                case "mod.homing": effect = "탐색 범위 안의 적을 향해 방향을 조정합니다."; break;
+                case "mod.expand": effect = "효과 범위를 넓힙니다."; break;
+                case "mod.speed": effect = "이동 속도를 높입니다."; break;
+                case "mod.duration": effect = "효과의 지속시간을 늘립니다."; break;
+                case "behavior.launch": effect = "설정한 형태를 발사합니다."; break;
+                case "behavior.burst": effect = "설정한 형태의 범위에 폭발 효과를 줍니다."; break;
+                case "behavior.orbit": effect = "시전자 주변을 공전하며 효과를 줍니다."; break;
+                case "behavior.persist": effect = "효과를 남겨 일정 시간 유지합니다."; break;
+                case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
+                default: effect = string.Empty; break;
+            }
+            object value = GameData.ModifierGrades.GetGradeValue(rune.Id, grade);
+            if (value != null)
+            {
+                if (GameData.ModifierGrades.GetEffectType(rune.Id) == "homingTier")
+                {
+                    HomingTierDefinition homing = rune.FindHomingTier(value as string);
+                    if (homing != null) effect += " 회전 " + homing.HomingTurn.ToString("0.#") + "° · 탐색 범위 " + homing.HomingRange.ToString("0.#");
+                }
+                else
+                {
+                    string label;
+                    switch (GameData.ModifierGrades.GetEffectType(rune.Id))
+                    {
+                        case "effectMultiplier": label = " 효과 배율 ×"; break;
+                        case "multipleCount": label = " 생성 개수 "; break;
+                        case "pierceCount": label = " 관통 횟수 "; break;
+                        case "radiusMultiplier": label = " 범위 배율 ×"; break;
+                        case "durationMultiplier": label = " 지속시간 배율 ×"; break;
+                        case "speedMultiplier": label = " 속도 배율 ×"; break;
+                        default: label = " 등급 효과: "; break;
+                    }
+                    effect += label + value;
+                    if (rune.Id == "mod.multi" && GameData.ModifierGrades.TryGetCountValue(rune.Id, grade, SpellGrammar.FORM_BOLT, out int launchCount))
+                        effect += " · 발사 " + launchCount + "개";
+                }
+            }
+            return ModifierGradeText.FormatName(rune.Name, grade) + " · " + effect;
+        }
+
+        /// <summary>호버한 룬과 등급의 설명을 표시하고 null이면 기존 선택 내용을 복구한다.</summary>
+        public void PreviewRune(RuneDefinition rune, string grade)
+        {
+            if (_hoveredNode == null && _hoveredRune == rune && _hoveredGrade == grade) return;
+            _hoveredNode = null;
+            _hoveredRune = rune;
+            _hoveredGrade = grade;
+            Refresh();
+        }
+
+        /// <summary>선택을 바꾸지 않고 호버 노드의 기존 인스펙터 정보를 표시하며 null이면 선택 정보로 복구한다.</summary>
+        public void PreviewNode(GraphNode node)
+        {
+            if (_hoveredNode == node && _hoveredRune == null) return;
+            _hoveredNode = node;
+            _hoveredRune = null;
+            _hoveredGrade = null;
+            Refresh();
+        }
+
         /// <summary>선택 노드를 바꾸고 인스펙터를 다시 그린다.</summary>
         public void Select(GraphNode node)
         {
+            _hoveredRune = null;
+            _hoveredGrade = null;
+            _hoveredNode = null;
             _selected = node;
             Refresh();
         }
@@ -43,8 +123,16 @@ namespace RuneCode
         {
             if (_selected != null) _selected = _editor.Graph.FindNode(_selected.Id);
             _view.Begin();
-            if (_selected == null) _view.AddEmptyHint(GameData.L("ui.selectNode"));
-            else ShowNode(_selected);
+            if (_hoveredRune != null)
+            {
+                _view.AddTitle(ModifierGradeText.FormatName(_hoveredRune.Name, _hoveredGrade));
+                _view.AddNote(RuneEffectText(_hoveredRune, _hoveredGrade), 60f, 10f);
+                return;
+            }
+            if (_hoveredNode != null) _hoveredNode = _editor.Graph.FindNode(_hoveredNode.Id);
+            GraphNode displayedNode = _hoveredNode ?? _selected;
+            if (displayedNode == null) _view.AddEmptyHint(GameData.L("ui.selectNode"));
+            else ShowNode(displayedNode);
             ShowValidation();
         }
 

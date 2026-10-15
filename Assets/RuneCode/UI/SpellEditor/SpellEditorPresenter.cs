@@ -42,6 +42,12 @@ namespace RuneCode
             RefreshAll();
         }
 
+        /// <summary>팔레트에서 호버한 룬과 등급을 인스펙터로 전달한다.</summary>
+        public void ShowRuneInfo(RuneDefinition rune, string grade)
+        {
+            _inspector.PreviewRune(rune, grade);
+        }
+
         /// <summary>패널이 보일 때 편집을 허용하고 전체를 갱신한다.</summary>
         public void Enter()
         {
@@ -154,22 +160,40 @@ namespace RuneCode
 
         /// <summary>
         /// 포인터 아래 노드의 피해·노드 비용을 도구줄에 표시한다. Shape·Modifier 노드는 합쳐지거나 붙은 명령의 수치를 쓰고,
-        /// Modifier는 비용 배율을 함께 표시한다. 노드가 없으면 실행 순서 안내를 표시한다.
+        /// 속성·모디 슬롯의 효과는 인스펙터에 미리 표시하고 호버 종료 시 기존 선택 정보를 복구한다.
         /// </summary>
-        private void ShowTooltip(GraphNode node)
+        private void ShowTooltip(GraphNode node, string slotKey)
         {
             if (node == null)
             {
+                _inspector.PreviewRune(null, null);
                 _view.SetTooltip(GameData.L("ui.executionOrder"));
+                return;
+            }
+            if (slotKey != null && SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _))
+            {
+                string value = node.GetText(slotKey, null);
+                string runeId = null;
+                string slotGrade = null;
+                if (!string.IsNullOrEmpty(value))
+                {
+                    if (isElement && GameData.Runes.TryGetElement(value, out ElementDefinition element)) runeId = element.RuneId;
+                    else if (!isElement && SpellGrammar.TryParseStockKey(value, out string modifierId, out slotGrade)) runeId = modifierId;
+                }
+                if (runeId != null && GameData.Runes.TryGet(runeId, out RuneDefinition slotRune))
+                    _inspector.PreviewRune(slotRune, slotGrade);
+                else _inspector.PreviewNode(node);
                 return;
             }
             RuneDefinition rune = GameData.Runes.Get(node.RuneId);
             if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
             {
                 string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
+                _inspector.PreviewRune(rune, grade);
                 _view.SetTooltip(ModifierGradeText.FormatName(rune.Name, grade) + "  ·  " + GameData.L("ui.costMultiplier") + " ×" + rune.EnergyMult.ToString("0.##"));
                 return;
             }
+            _inspector.PreviewNode(node);
             SpellAction action = _editor.CompileResult.Spell?.FindNodeAction(_editor.Graph, node.Id);
             string text = rune.Name;
             if (action?.Stats != null) text += "  ·  " + GameData.L("ui.damage") + " " + action.Stats.Damage.ToString("0.#");
