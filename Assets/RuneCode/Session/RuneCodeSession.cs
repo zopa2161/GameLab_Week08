@@ -155,8 +155,8 @@ namespace RuneCode
             {
                 ["participant_id"] = participantId,
                 ["app_version"] = Application.version,
-                ["condition"] = "Legacy",
-                ["editor_model"] = "line_connected_nodes",
+                ["condition"] = "Develop",
+                ["editor_model"] = "combined_nodes",
                 ["test_order"] = null,
                 ["is_test_mode"] = true,
                 ["is_debug"] = false,

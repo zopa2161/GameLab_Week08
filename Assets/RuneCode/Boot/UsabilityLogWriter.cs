@@ -10,12 +10,45 @@ using UnityEngine;
 
 namespace RuneCode
 {
-    /// <summary>Owns one local schema-v3 session; callers supply measurements and call Flush periodically on the owning thread.</summary>
+    /// <summary>Owns one local schema-v4 session; callers supply measurements and call Flush periodically on the owning thread.</summary>
     public sealed class UsabilityLogWriter : IDisposable
     {
-        private const int SCHEMA_VERSION = 3;
+        private const int SCHEMA_VERSION = 4;
         private const long FLUSH_INTERVAL_MS = 1000;
         private static readonly Encoding _encoding = new UTF8Encoding(false, true);
+        private static readonly Dictionary<string, string> _combatFieldAliases = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["duration_ms"] = "seconds",
+            ["damage_received"] = "damage_taken",
+            ["dash_inputs"] = "space_presses",
+            ["dashes_started"] = "dash_count",
+        };
+        private static readonly Dictionary<string, string> _combatEventFieldAliases = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["duration_ms"] = "seconds",
+            ["damage_received"] = "damage_taken",
+            ["dash_inputs"] = "space_presses",
+            ["dashes_started"] = "dash_count",
+            ["kill_count"] = "kills",
+        };
+        private static readonly Dictionary<string, string> _compileEventFieldAliases = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["is_valid"] = "ok",
+            ["ram_used"] = "ram",
+            ["node_count"] = "nodes",
+            ["edge_count"] = "edges",
+        };
+        private static readonly Dictionary<string, string> _buildSnapshotFieldAliases = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["is_compile_valid"] = "compile_ok",
+        };
+        private static readonly Dictionary<string, string> _summaryFieldAliases = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["duration_ms"] = "elapsed_seconds",
+            ["editor_click_count"] = "editor_clicks",
+            ["successful_actions_count"] = "successful_actions",
+            ["rejected_actions_count"] = "failed_actions",
+        };
         private static readonly string[] _identityFields = { "schema_version", "participant_id", "test_session_id", "app_version", "condition", "editor_model", "test_order", "is_test_mode", "is_debug", "is_practice" };
 
         private readonly Dictionary<string, object> _session;
@@ -48,7 +81,8 @@ namespace RuneCode
             foreach (string column in combatColumns)
             {
                 if (string.IsNullOrWhiteSpace(column)) throw new ArgumentException("Combat CSV needs named columns.", nameof(combatColumns));
-                if (!columns.Contains(column)) columns.Add(column);
+                string normalizedColumn = RenameField(column, _combatFieldAliases);
+                if (!columns.Contains(normalizedColumn)) columns.Add(normalizedColumn);
             }
             _combatColumns = columns.ToArray();
             SessionId = Guid.NewGuid().ToString("N");
@@ -56,7 +90,7 @@ namespace RuneCode
             _session["schema_version"] = SCHEMA_VERSION;
             _session["test_session_id"] = SessionId;
             _session["started_at"] = Timestamp();
-            _session["timezone"] = "UTC+09:00";
+            _session["timezone"] = "UTC";
             _session["status"] = "in_progress";
             string sessionJson = Json(_session);
             Directory.CreateDirectory(Path.Combine(DirectoryPath, "builds"));
@@ -75,22 +109,23 @@ namespace RuneCode
             }
         }
 
-        /// <summary>Appends one ordered event with monotonic elapsed time, KST time and caller-supplied data; returns its session sequence.</summary>
+        /// <summary>Appends one ordered event with monotonic elapsed time, UTC time and normalized equivalent field names; returns its session sequence.</summary>
         public long AppendEvent(string eventName, string context, IDictionary<string, object> data)
         {
             EnsureOpen();
+            Dictionary<string, object> normalizedData = NormalizeEventData(eventName, data);
             var envelope = WithIdentity(new Dictionary<string, object>());
             envelope["event_name"] = eventName;
             envelope["event_seq"] = _eventSequence + 1;
-            envelope["timestamp_kst"] = Timestamp();
-            envelope["timezone"] = "UTC+09:00";
+            envelope["timestamp_utc"] = Timestamp();
+            envelope["timezone"] = "UTC";
             envelope["elapsed_ms"] = _clock.ElapsedMilliseconds;
-            envelope["editing_episode_id"] = FindValue(data, "editing_episode_id");
-            envelope["graph_revision_id"] = FindValue(data, "graph_revision_id");
-            envelope["spell_build_id"] = FindValue(data, "spell_build_id");
-            envelope["combat_id"] = FindValue(data, "combat_id");
+            envelope["editing_episode_id"] = FindValue(normalizedData, "editing_episode_id");
+            envelope["graph_revision_id"] = FindValue(normalizedData, "graph_revision_id");
+            envelope["spell_build_id"] = FindValue(normalizedData, "spell_build_id");
+            envelope["combat_id"] = FindValue(normalizedData, "combat_id");
             envelope["context"] = context;
-            envelope["data"] = data ?? new Dictionary<string, object>();
+            envelope["data"] = normalizedData;
             string line = Json(envelope);
             _events.WriteLine(line);
             _eventSequence++;
@@ -105,7 +140,7 @@ namespace RuneCode
             if (string.IsNullOrWhiteSpace(spellBuildId) || spellBuildId == "." || spellBuildId == ".." ||
                 spellBuildId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || spellBuildId.Contains("/") || spellBuildId.Contains("\\"))
                 throw new ArgumentException("Build ID must be a single valid filename component.", nameof(spellBuildId));
-            var snapshot = WithIdentity(metadata);
+            var snapshot = WithIdentity(RenameFields(metadata, _buildSnapshotFieldAliases));
             snapshot["spell_build_id"] = spellBuildId;
             snapshot["graph"] = SpellGraphData.From(graph);
             string json = Json(snapshot);
@@ -123,9 +158,10 @@ namespace RuneCode
         public void AppendCombatSummary(IDictionary<string, object> row)
         {
             EnsureOpen();
-            foreach (string key in row.Keys)
+            Dictionary<string, object> normalizedRow = NormalizeCombatSummary(row);
+            foreach (string key in normalizedRow.Keys)
                 if (Array.IndexOf(_combatColumns, key) < 0) throw new ArgumentException("Unknown combat column: " + key, nameof(row));
-            var record = WithIdentity(row);
+            var record = WithIdentity(normalizedRow);
             var values = new List<object>();
             foreach (string column in _combatColumns) values.Add(record.TryGetValue(column, out object value) ? value : null);
             _combats.WriteLine(CsvLine(values));
@@ -146,7 +182,7 @@ namespace RuneCode
         public void Close(IDictionary<string, object> summary, IDictionary<string, object> endState)
         {
             EnsureOpen();
-            var finalSummary = WithIdentity(summary);
+            var finalSummary = WithIdentity(NormalizeSummary(summary));
             var columns = new List<string>(finalSummary.Keys);
             var values = new List<object>();
             foreach (string column in columns) values.Add(finalSummary[column]);
@@ -231,10 +267,71 @@ namespace RuneCode
             else File.Move(temporary, path);
         }
 
-        /// <summary>Returns an ISO 8601 timestamp with an explicit Korean +09:00 offset, independent of the device timezone.</summary>
+        /// <summary>Returns an ISO 8601 UTC timestamp independent of the device timezone.</summary>
         private static string Timestamp()
         {
-            return DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(9)).ToString("yyyy-MM-dd'T'HH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
+            return DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>Renames event fields whose schema-v4 meaning matches the legacy field and converts their units where needed.</summary>
+        private static Dictionary<string, object> NormalizeEventData(string eventName, IDictionary<string, object> data)
+        {
+            if (eventName == "compile_result") return RenameFields(data, _compileEventFieldAliases);
+            if (eventName != "combat_end") return data == null
+                ? new Dictionary<string, object>(StringComparer.Ordinal)
+                : new Dictionary<string, object>(data, StringComparer.Ordinal);
+
+            Dictionary<string, object> normalized = RenameFields(data, _combatEventFieldAliases);
+            if (data != null && data.TryGetValue("duration_ms", out object durationMilliseconds))
+                normalized["seconds"] = MillisecondsToSeconds(durationMilliseconds);
+            return normalized;
+        }
+
+        /// <summary>Renames equivalent combat summary fields and converts the duration from milliseconds to seconds.</summary>
+        private static Dictionary<string, object> NormalizeCombatSummary(IDictionary<string, object> row)
+        {
+            Dictionary<string, object> normalized = RenameFields(row, _combatFieldAliases);
+            if (row.TryGetValue("duration_ms", out object durationMilliseconds))
+                normalized["seconds"] = MillisecondsToSeconds(durationMilliseconds);
+            return normalized;
+        }
+
+        /// <summary>Renames equivalent summary fields and converts the session duration from milliseconds to seconds.</summary>
+        private static Dictionary<string, object> NormalizeSummary(IDictionary<string, object> summary)
+        {
+            Dictionary<string, object> normalized = RenameFields(summary, _summaryFieldAliases);
+            if (summary.TryGetValue("duration_ms", out object durationMilliseconds))
+                normalized["elapsed_seconds"] = MillisecondsToSeconds(durationMilliseconds);
+            return normalized;
+        }
+
+        /// <summary>Copies fields under their target names and rejects a collision rather than silently overwriting data.</summary>
+        private static Dictionary<string, object> RenameFields(IDictionary<string, object> fields, IDictionary<string, string> aliases)
+        {
+            var normalized = fields == null
+                ? new Dictionary<string, object>(StringComparer.Ordinal)
+                : new Dictionary<string, object>(fields, StringComparer.Ordinal);
+            foreach (KeyValuePair<string, string> alias in aliases)
+            {
+                if (!normalized.TryGetValue(alias.Key, out object value)) continue;
+                if (normalized.ContainsKey(alias.Value))
+                    throw new InvalidOperationException("Log field alias would overwrite data: " + alias.Key + " -> " + alias.Value);
+                normalized.Remove(alias.Key);
+                normalized.Add(alias.Value, value);
+            }
+            return normalized;
+        }
+
+        /// <summary>Returns a combat CSV header under the matching legacy alias when one is defined.</summary>
+        private static string RenameField(string field, IDictionary<string, string> aliases)
+        {
+            return aliases.TryGetValue(field, out string alias) ? alias : field;
+        }
+
+        /// <summary>Converts a millisecond duration to seconds while preserving the measurement.</summary>
+        private static double MillisecondsToSeconds(object milliseconds)
+        {
+            return Convert.ToDouble(milliseconds, CultureInfo.InvariantCulture) / 1000d;
         }
 
         /// <summary>Serializes string-key dictionaries, arrays, primitives and existing graph DTOs; unavailable non-finite numbers become null.</summary>

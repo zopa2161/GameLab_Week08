@@ -82,7 +82,7 @@
 | `editor_model` | 편집 구조 구분. Legacy의 `line_connected_nodes`와 Develop의 `combined_nodes`를 구분 |
 | `test_order` | 해당 참가자가 수행한 버전 순서 |
 | `event_name`, `event_seq` | 이벤트 종류와 회차 안의 순번 |
-| `timestamp_kst`, `elapsed_ms` | 한국 시각을 `+09:00` 오프셋이 있는 ISO 8601로 기록. 경과 시간은 기존 단조 증가 시간 기준을 유지 |
+| `timestamp_utc`, `elapsed_ms` | 이벤트 시각은 UTC ISO 8601(`Z`)로 기록. 경과 시간은 기존 단조 증가 시간 기준을 유지 |
 | `editing_episode_id` | 편집 구간 ID. 하나의 편집 구간에서 여러 마법을 완성할 수 있음 |
 | `graph_revision_id` | 그래프가 바뀔 때 갱신하는 상태 ID. 도크·출격·클리어에 사용한 상태를 연결 |
 | `spell_build_id` | 완성·출격 시 보관한 그래프 스냅샷 ID |
@@ -217,8 +217,10 @@
 다음 값은 형식 설명용 가상 예시다.
 
 ```json
-{"schema_version":3,"participant_id":"P001","test_session_id":"session-example","app_version":"legacy-test-01","condition":"Legacy","editor_model":"line_connected_nodes","event_name":"editor_action_result","event_seq":12,"timestamp_kst":"2026-10-15T09:00:02.400+09:00","timezone":"UTC+09:00","elapsed_ms":2400,"context":"editor","is_test_mode":true,"data":{"editing_episode_id":"edit-01","graph_revision_id":"graph-03","action":"connect_edge","input_method":"drag","result":"rejected","reason":"invalid_connection","input_id":"input-08"}}
+{"schema_version":4,"participant_id":"P001","test_session_id":"session-example","app_version":"legacy-test-01","condition":"Legacy","editor_model":"line_connected_nodes","event_name":"editor_action_result","event_seq":12,"timestamp_utc":"2026-10-15T00:00:02.400Z","timezone":"UTC","elapsed_ms":2400,"context":"editor","is_test_mode":true,"data":{"editing_episode_id":"edit-01","graph_revision_id":"graph-03","action":"connect_edge","input_method":"drag","result":"rejected","reason":"invalid_connection","input_id":"input-08"}}
 ```
+
+현재 로그 writer는 `schema_version` 4를 사용한다. 의미가 같은 B 형식 필드는 B 이름으로 기록한다: 요약의 `duration_ms`는 초 단위 `elapsed_seconds`, `editor_click_count`는 `editor_clicks`, 성공·거절 행동 수는 `successful_actions`·`failed_actions`로 출력한다. 전투 시간은 `duration_ms`에서 `seconds`로 변환하고, `damage_received`·`dash_inputs`·`dashes_started`는 `damage_taken`·`space_presses`·`dash_count`로 기록한다. 컴파일 결과는 `ok`·`ram`·`nodes`·`edges`, 전투 종료 이벤트는 `kills`, 빌드 스냅샷은 `compile_ok`를 사용한다. 의미나 기록 범위가 일치한다고 확정할 수 없는 시전·요청 카운트와 그래프 서명은 별칭 처리하지 않으며, 기존 로그 파일도 변경하지 않는다.
 
 - 원본 이벤트를 유일한 집계 근거로 사용한다. 완성 기록에는 클리어한 전투와 출격 스냅샷을 연결하고, 반복 클리어는 원본에 남기되 집계에서 중복을 제외한다.
 - 클릭마다 전체 그래프를 복제하지 않는다. 그래프 원본은 필요한 스냅샷에 저장하고 이벤트는 ID로 참조한다.
@@ -283,3 +285,5 @@ python tools/summarize_usability.py "C:/Users/JUNGLE/AppData/LocalLow/DefaultCom
 6. 결과 폴더를 집계 도구로 읽고 CSV와 원본의 수치가 일치하는지 확인한다. 일반 저장 파일과 진행이 보존되는지 확인한다.
 
 2026-10-15 변경: 테스트 초기 트리를 전격까지 일반 노드 MAX로 조정하고 RAM 고정을 제거했다. 새 로그 형식은 schema_version 2이며 이벤트 `timestamp_kst`와 회차 `started_at`에 한국 시각(+09:00)을 기록한다. 경과 시간 계산은 변경하지 않는다. 재집계 도구는 기존 schema_version 1의 UTC 로그와 새 로그를 모두 읽고 CSV 시작 시각을 UTC+9로 출력한다. 과거 원본 로그는 변경하지 않는다.
+
+2026-10-15 후속 변경: writer schema_version 4는 이벤트 시각을 `timestamp_utc`로 기록한다. B와 동일 의미가 확인된 공통 전투·요약·컴파일 필드만 B 이름으로 정규화하며, 조합 모델에 종속된 필드와 이전 회차 로그는 그대로 보존한다.
