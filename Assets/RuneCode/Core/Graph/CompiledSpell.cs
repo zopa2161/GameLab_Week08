@@ -210,6 +210,7 @@ namespace RuneCode
         private readonly float _boxWidth;
         private readonly float _boxLength;
         private readonly float _lifetime;
+        private readonly float _minimumLifetime;
         private readonly float _offset;
         private readonly float _orbitRadius;
         private readonly float _angularSpeed;
@@ -234,6 +235,7 @@ namespace RuneCode
         public float BoxWidth => _boxWidth;
         public float BoxLength => _boxLength;
         public float Lifetime => _lifetime;
+        public float MinimumLifetime => _minimumLifetime;
         public float Offset => _offset;
         public float OrbitRadius => _orbitRadius;
         public float AngularSpeed => _angularSpeed;
@@ -261,6 +263,9 @@ namespace RuneCode
             float speedMult = 1f;
             float durationMult = 1f;
             _learningMultiplier = 1f;
+            SpellBehaviorRuleRegistry.TryGetByKind(formKind, out SpellBehaviorRules rules);
+            // 행동 규칙이 없는 공전은 수식으로 바뀔 예정이라 기존 유도 적용을 그대로 둔다.
+            bool usesHoming = rules != null ? rules.UsesHoming : formKind == SpellGrammar.FORM_ORBIT;
             for (int index = 0; index < mods.Count; index++)
             {
                 RuneDefinition mod = mods[index];
@@ -271,7 +276,7 @@ namespace RuneCode
                 radiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "radiusMultiplier", stats.RadiusMultiplier);
                 speedMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "speedMultiplier", stats.SpeedMultiplier);
                 durationMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "durationMultiplier", stats.DurationMultiplier);
-                if (formKind == "bolt")
+                if (rules != null && rules.UsesPierce)
                 {
                     int pierceCount = modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == "pierceCount"
                         ? modifierGrades.GetPierceCount(mod.Id, grade, stats.Pierce) : stats.Pierce;
@@ -279,7 +284,7 @@ namespace RuneCode
                     if (stats.PierceLoss > 0f) _pierceLoss = stats.PierceLoss;
                 }
                 // 유도는 발사체의 방향 전환, 잔류의 대상 추적 이동, 공전의 돌진·복귀 반복에 쓴다.
-                if (formKind == "bolt" || formKind == "zone" || formKind == "orbit")
+                if (usesHoming)
                 {
                     if (modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == "homingTier")
                     {
@@ -299,7 +304,7 @@ namespace RuneCode
                 }
                 _learningMultiplier *= stats.LearningMultiplier;
                 // 발사는 등급표의 발사 전용 퍼짐 각도가 있으면 그 값을 쓴다.
-                if (formKind == SpellGrammar.FORM_BOLT && modifierGrades != null
+                if (rules != null && rules.UsesLaunchGradeValues && modifierGrades != null
                     && modifierGrades.TryGetLaunchSpreadAngle(mod.Id, grade, out float launchSpread)) _spreadAngle = launchSpread;
                 else if (stats.SpreadAngle > 0f) _spreadAngle = stats.SpreadAngle;
             }
@@ -309,9 +314,11 @@ namespace RuneCode
             _shapeRadius = (shapeRadius >= 0f ? shapeRadius : form.Radius) * radiusMult;
             _boxWidth = (boxWidth >= 0f ? boxWidth : form.Radius * 2f) * radiusMult;
             _boxLength = (boxLength >= 0f ? boxLength : form.Radius * 2f) * radiusMult;
+            if (formKind == BeamBehaviorRules.BEAM_KIND) _boxLength = form.BeamLength;
             _radius = magicType == SpellGrammar.MAGIC_TYPE_SPHERE || magicType == SpellGrammar.MAGIC_TYPE_CONE
                 ? _shapeRadius : form.Radius * radiusMult;
-            _lifetime = (formKind == "bolt" ? form.Lifetime * rangeMult / speedMult : form.Lifetime) * durationMult;
+            _lifetime = rules != null ? rules.GetLifetime(form.Lifetime, rangeMult, speedMult, durationMult) : form.Lifetime * durationMult;
+            _minimumLifetime = form.MinimumLifetime;
             _offset = form.Offset * rangeMult;
             _orbitRadius = form.OrbitRadius * radiusMult * rangeMult;
             _angularSpeed = form.AngularSpeed * speedMult;
@@ -339,6 +346,12 @@ namespace RuneCode
             _boxLength = source._boxLength * modifiers.RadiusMultiplier;
             _radius = source._radius * modifiers.RadiusMultiplier;
             _lifetime = source._lifetime * modifiers.DurationMultiplier * modifiers.RangeMultiplier;
+            _minimumLifetime = source._minimumLifetime;
+            if (_minimumLifetime > 0)
+            {
+                _lifetime = source._lifetime;
+                _boxLength = source._boxLength;
+            }
             _offset = source._offset * modifiers.RangeMultiplier;
             _orbitRadius = source._orbitRadius * modifiers.RadiusMultiplier * modifiers.RangeMultiplier;
             _angularSpeed = source._angularSpeed * modifiers.SpeedMultiplier;
@@ -415,6 +428,7 @@ namespace RuneCode
         private readonly float _coneAngle;
         private readonly SpellModifierValues _modifierValues;
         private readonly CompiledSpell _calledSpell;
+        private readonly SpellBehaviorRules _rules;
 
         private IReadOnlyList<SpellAction> _onHit = new List<SpellAction>();
         private IReadOnlyList<SpellAction> _onExpire = new List<SpellAction>();
@@ -465,6 +479,9 @@ namespace RuneCode
         public float ConeAngle => _coneAngle;
         public SpellModifierValues ModifierValues => _modifierValues;
         public CompiledSpell CalledSpell => _calledSpell;
+
+        /// <summary>Form에 해당하는 행동 규칙이다. 행동 규칙이 없는 종류(공전, 비생성 명령)는 null이다.</summary>
+        public SpellBehaviorRules Rules => _rules;
         public IReadOnlyList<SpellAction> OnHit => _onHit;
         public IReadOnlyList<SpellAction> OnExpire => _onExpire;
         public IReadOnlyList<SpellAction> OnFirstHitOrExpire => _onFirstHitOrExpire;
@@ -497,14 +514,15 @@ namespace RuneCode
         public SpellAction(GraphNode node, RuneDefinition rune, RuneDefinition effectForm, RuneDefinition element,
             IReadOnlyList<RuneDefinition> mods, IReadOnlyList<GraphNode> modifierNodes = null, CompiledSpell calledSpell = null,
             RuneDefinition shape = null, float coneAngle = 0f, ModifierGradeTable modifierGrades = null,
-            RuneDefinition behavior = null)
+            RuneDefinition behavior = null, float beamWidth = -1f)
         {
             _nodeId = node.Id;
             _shapeDefinition = shape;
             float behaviorSeconds = behavior == null || behavior == rune ? 0f : behavior.ExecutionSeconds;
             _executionSeconds = rune.ExecutionSeconds + behaviorSeconds + (shape?.ExecutionSeconds ?? 0f);
             _magicType = rune.Id == "magic.inline" ? node.GetText("magicType", "sphere") : rune.Category == "form" ? "sphere" : "";
-            _form = rune.Id == "magic.inline" ? MapForm(node.GetText("form", "launch")) : rune.Category == "form" ? rune.Id.Substring(5) : "";
+            _form = rune.Id == "magic.inline" ? SpellGrammar.KindOf(node.GetText("form", "launch")) : rune.Category == "form" ? rune.Id.Substring(5) : "";
+            SpellBehaviorRuleRegistry.TryGetByKind(_form, out _rules);
             _coneAngle = _magicType == SpellGrammar.MAGIC_TYPE_CONE ? shape?.Stats.ConeAngle ?? coneAngle : 0f;
             _sourceElement = rune.Id == "magic.inline" ? node.GetText("element", "normal") : element == null ? "normal" : SourceElementFromRune(element.Id);
             _element = rune.Id == "magic.inline" ? RuntimeElement(_sourceElement) : element == null ? "raw" : element.Id.Substring(5);
@@ -543,6 +561,11 @@ namespace RuneCode
                     ? behaviorRadius * shape.Stats.RadiusMultiplier : behaviorRadius;
                 float boxWidth = shape != null && shape.Stats.BeamWidth > 0f ? shape.Stats.BeamWidth : behaviorRadius * 2f;
                 float boxLength = shape != null && shape.Stats.BeamLength > 0f ? shape.Stats.BeamLength : behaviorRadius * 2f;
+                if (_form == BeamBehaviorRules.BEAM_KIND)
+                {
+                    boxWidth = beamWidth;
+                    boxLength = effectForm.Stats.BeamLength;
+                }
                 _stats = new SpellStats(effectForm.Stats, element?.Stats, mods, _form, modifierNodes, modifierGrades,
                     _magicType, coneRadius, boxWidth, boxLength);
             }
@@ -612,19 +635,6 @@ namespace RuneCode
                     ? 0.5d * stats.ShapeRadius * stats.ShapeRadius * coneAngle * Math.PI / 180d
                     : Math.PI * stats.ShapeRadius * stats.ShapeRadius;
             return Math.Round(area, 1, MidpointRounding.AwayFromZero);
-        }
-
-        /// <summary>마법 문법의 Form 이름을 기존 런타임 Form ID에 연결한다.</summary>
-        private static string MapForm(string form)
-        {
-            switch (form)
-            {
-                case "launch": return "bolt";
-                case "explosion": return "burst";
-                case "orbit": return "orbit";
-                case "remain": return "zone";
-                default: return "";
-            }
         }
 
         /// <summary>마법 문법의 원소를 기존 시뮬레이션 원소 이름으로 연결한다.</summary>

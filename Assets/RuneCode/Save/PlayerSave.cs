@@ -282,7 +282,19 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 스키마 버전 4가 아닌 보관함 그래프를 제거하고(호환 없음), 해금 룬 ID를 현재 ID로 바꾸며
+        /// 보관함 그래프의 행동 노드에서 이전 형태 선택 파라미터(shape)를 지운다. 형태는 행동 정의의 고정 형태를 쓰므로
+        /// 저장된 값은 실행에 쓰이지 않는다. 여러 번 호출해도 결과가 같다.
+        /// </summary>
+        private void RemoveLegacyShapeParameters()
+        {
+            foreach (SpellGraph graph in _graphs)
+                foreach (GraphNode node in graph.Nodes)
+                    if (GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune) && rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
+                        node.RemoveParameter(SpellGrammar.LEGACY_SHAPE_PARAM);
+        }
+
+        /// <summary>
+        /// 스키마 버전 4가 아닌 보관함 그래프를 제거하고(호환 없음), 행동 노드의 이전 형태 파라미터를 지우며, 해금 룬 ID를 현재 ID로 바꾸며
         /// 카탈로그에 없는 ID만 정리한다. 보관함이 비면 시작 마법으로 채우고, 활성 마법과 장착 슬롯 참조가
         /// 제거된 마법을 가리키면 유효한 값으로 정리한다. 기본 마법 메소드가 없으면 보관함 한도 안에서 추가한다.
         /// 여러 번 호출해도 결과가 같다.
@@ -291,6 +303,7 @@ namespace RuneCode
         {
             if (_graphs == null || _unlockedRunes == null) return;
             _graphs.RemoveAll(graph => graph == null || graph.Version != SpellGraph.CURRENT_VERSION);
+            RemoveLegacyShapeParameters();
             if (_graphs.Count == 0) _graphs.Add(GameData.Spells[0].Clone());
             var unlocked = new List<string>();
             foreach (var runeId in _unlockedRunes)

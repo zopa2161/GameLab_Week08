@@ -19,6 +19,10 @@ namespace RuneCode
         private RuneSimulation _dock;
         private double _accumulator;
         private int _telemetryCount;
+        private bool _wasFiring;
+        private bool _wasAutomatic;
+        private bool _hasPendingCastPress;
+        private bool _hasPendingCastRelease;
 
         public RuneSimulation Dock => _dock;
         public string Scenario => _session.DockScenario;
@@ -53,6 +57,10 @@ namespace RuneCode
             ApplyLoadout();
             _accumulator = 0;
             _telemetryCount = 0;
+            _wasFiring = false;
+            _wasAutomatic = false;
+            _hasPendingCastPress = false;
+            _hasPendingCastRelease = false;
         }
 
         /// <summary>도크를 현재 시나리오의 초기 상태로 복구한다.</summary>
@@ -119,15 +127,23 @@ namespace RuneCode
         }
 
         /// <summary>조준과 시전 입력으로 도크 고정 스텝을 진행하고 새 노드 실행 텔레메트리를 기록한다.</summary>
-        public void Step(SimVector aim, bool fire)
+        public void Step(SimVector aim, bool fire, bool isAutomatic = false, bool castPressed = false, bool castReleased = false)
         {
             if (_dock == null) return;
+            if (isAutomatic != _wasAutomatic) _dock.CancelBeamInput();
+            _wasAutomatic = isAutomatic;
+            _hasPendingCastPress |= castPressed || fire && !_wasFiring;
+            _hasPendingCastRelease |= castReleased || !fire && _wasFiring;
+            _wasFiring = fire;
             int maxSteps = GameData.Balance.Limits.MaxFrameSteps;
             _accumulator = Math.Min(_accumulator + Time.unscaledDeltaTime * _session.DockSpeed, FIXED_STEP * maxSteps);
             int steps = 0;
             while (_accumulator >= FIXED_STEP && steps++ < maxSteps)
             {
-                _dock.Step(new SimulationInput(SimVector.Zero, aim, fire));
+                _dock.Step(new SimulationInput(SimVector.Zero, aim, fire, castPressed: _hasPendingCastPress,
+                    castReleased: _hasPendingCastRelease, isAutomatic: isAutomatic));
+                _hasPendingCastPress = false;
+                _hasPendingCastRelease = false;
                 _accumulator -= FIXED_STEP;
             }
             CaptureNodeTelemetry();
@@ -137,6 +153,10 @@ namespace RuneCode
         public void Suspend()
         {
             _accumulator = 0;
+            _wasFiring = false;
+            _hasPendingCastPress = false;
+            _hasPendingCastRelease = false;
+            _dock?.CancelBeamInput();
         }
 
         /// <summary>컴파일 결과가 갱신되면 현재 도크의 시전 프로그램을 교체한다.</summary>

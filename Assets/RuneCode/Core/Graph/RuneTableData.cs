@@ -31,6 +31,7 @@ namespace RuneCode
         public string _id;
         public string _name;
         public string _category;
+        public string _shape;
         public bool _disabled;
         public int _ram;
         public float _energy;
@@ -74,6 +75,7 @@ namespace RuneCode
         public float _speed;
         public float _radius;
         public float _lifetime;
+        public float _minimumLifetime;
         public float _offset;
         public int _count;
         public int _orbitCount;

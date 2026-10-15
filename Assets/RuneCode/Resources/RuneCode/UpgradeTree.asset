@@ -184,7 +184,7 @@ MonoBehaviour:
     - _nodeId: upgrade.gpu
       _requiredLevel: 1
     _levels:
-    - _cost: 50
+    - _cost: 0
       _amount: 0
   - _id: upgrade.killEnergy
     _requiredStage: 1
@@ -300,7 +300,7 @@ MonoBehaviour:
     - _nodeId: upgrade.maxEnergy.final
       _requiredLevel: 1
     _levels:
-    - _cost: 150
+    - _cost: 0
       _amount: 0
   - _id: unlock.flow.repeat
     _requiredStage: 1
@@ -2359,6 +2359,18 @@ MonoBehaviour:
     - _cost: 0
       _amount: 0
   _unplacedNodes:
+  - _id: unlock.behavior.beam
+    _requiredStage: 1
+    _titleKey: ui.tree.unlockRune
+    _descriptionKey: ui.tree.unlockRuneDescription
+    _icon: {fileID: 0}
+    _effectType: 8
+    _runeId: behavior.beam
+    _initialLevel: 0
+    _prerequisites: []
+    _levels:
+    - _cost: 0
+      _amount: 0
   - _id: unlock.mod.amplify
     _requiredStage: 1
     _titleKey: ui.tree.unlockRune

@@ -229,12 +229,20 @@ namespace RuneCode
         /// <summary>마법 개체를 범위형(폭발·잔류)과 이동형(발사·공전)으로 나눠 그린다.</summary>
         private void DrawSpell(UnityEngine.UI.VertexHelper mesh, SimulationSpellEntity spell)
         {
+            if (SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
+            {
+                Color beamColor = RuneMesh.ElementColor(spell.Element);
+                IReadOnlyList<SimVector> path = spell.BeamPath;
+                for (int index = 1; index < path.Count; index++)
+                    RuneMesh.Line(mesh, Point(path[index - 1]), Point(path[index]), (float)spell.BoxWidth * _scale, beamColor);
+                return;
+            }
             Vector2 point = Point(spell.Position);
             Color tint = RuneMesh.ElementColor(spell.Element);
             float radius = (float)spell.Radius * _scale;
             Vector2 direction = ScreenDirection(spell.Direction);
             float angle = Mathf.Atan2(direction.y, direction.x);
-            if (spell.Kind == SpellGrammar.FORM_ZONE || spell.Kind == SpellGrammar.FORM_BURST)
+            if (SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) != SpellDisplayType.Projectile)
                 DrawAreaSpell(mesh, spell, point, radius, angle, tint);
             else
                 DrawMovingSpell(mesh, spell, point, radius, direction, angle, tint);
@@ -253,7 +261,7 @@ namespace RuneCode
                 return;
             }
             Color fill = tint;
-            fill.a = spell.Kind == SpellGrammar.FORM_ZONE ? 0.12f : 0.22f;
+            fill.a = SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.LastingArea ? 0.12f : 0.22f;
             if (spell.IsBox)
             {
                 float halfWidth = (float)spell.BoxWidth * 0.5f * _scale;

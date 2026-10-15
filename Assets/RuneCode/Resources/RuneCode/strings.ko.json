@@ -1,5 +1,15 @@
 {
   "_entries": [
+    { "_key": "tag.beam", "_value": "빔" },
+    { "_key": "form.beam", "_value": "빔" },
+    { "_key": "ui.beamInitialCost", "_value": "최소 유지 마나" },
+    { "_key": "ui.beamMaximumCost", "_value": "최대 유지 마나" },
+    {"_key": "ui.beamHint", "_value": "공격 시작에 직접 연결하면 클릭 유지로 최대 3초 연장합니다. 대상별 두 번 피해마다 적중 이벤트를 발생시킵니다. 최대 시간 후 새 클릭이 필요합니다."},
+    {"_key": "ui.beamDuration", "_value": "유지 시간"},
+    {"_key": "ui.beamWidth", "_value": "빔 폭"},
+    {"_key": "ui.beamSustainCost", "_value": "유지 마나"},
+    {"_key": "ui.beamCurveLength", "_value": "유도 경로 최대 길이"},
+    {"_key": "ui.beamMapRange", "_value": "맵 경계 또는 첫 벽까지"},
     { "_key": "enemy.bomb_seed", "_value": "자폭 씨앗" },
     { "_key": "enemy.clock_sniper", "_value": "초침 저격수" },
     { "_key": "enemy.shield_melee", "_value": "보호막 근접형" },
@@ -1269,6 +1279,10 @@
     {
       "_key": "ui.mod.durationHint",
       "_value": "등급별 배율이 행동 효과의 지속시간을 늘립니다. 발사·공전·잔류·적용에 연결할 수 있습니다"
+    },
+    {
+      "_key": "ui.fixedShape",
+      "_value": "형태"
     },
     {
       "_key": "ui.shape.sphereHint",

@@ -13,23 +13,20 @@ namespace RuneCode
         public const int ARC_LINK_TICKS = 12;
         private const int RELAY_REGEN_INTERVAL_TICKS = 60;
         private const double MIN_KILL_ENERGY = 1;
-        private const double STEP_SECONDS = 1.0 / TICK_RATE;
+        internal const double STEP_SECONDS = 1.0 / TICK_RATE;
         private const double DEGREES_TO_RADIANS = Math.PI / 180;
         private const int STATUS_TYPE_COUNT = 4;
         private const int PLAYER_TARGET_ID = -1;
-        private const string BURST_FORM_ID = "form.burst";
-        private const string PERSIST_FORM_ID = "form.zone";
         private const double SAME_SPAWN_DISTANCE = 0.5;
         private const string BOLT_RUNE_ID = "form.bolt";
         private const double BEAM_CLIP_MIN_STEP = 4;
         private const double BEAM_CLIP_STEP_RATIO = 0.25;
         private const int BEAM_CLIP_REFINEMENT_STEPS = 6;
         private const double EXPLOSION_VISUAL_SECONDS = 0.25;
-        private const double COLLISION_EPSILON = 0.000001;
-        private const int SHAPE_CONTACT_REFINEMENT_STEPS = 16;
+        internal const double COLLISION_EPSILON = 0.000001;
         private const int WALL_CONTACT_REFINEMENT_STEPS = 12;
         private const double ORBIT_CONTACT_OVERLAP = 1;
-        private static readonly Dictionary<int, double> NoExcludedTargets = new Dictionary<int, double>();
+        internal static readonly Dictionary<int, double> NoExcludedTargets = new Dictionary<int, double>();
         private readonly BalanceData _balance;
         private readonly EnemyCatalog _enemyCatalog;
         private readonly SectorDefinition _sector;
@@ -52,8 +49,6 @@ namespace RuneCode
         private readonly double _scrapGainMultiplier;
         private readonly double _scrapPickupRangeMultiplier;
         private readonly double _killEnergyBonus;
-        private readonly double _burstExpandSeconds;
-        private readonly double _persistWarnSeconds;
         private readonly List<SimulationEnemy> _enemies = new List<SimulationEnemy>();
         private readonly List<SimulationSpellEntity> _spellEntities = new List<SimulationSpellEntity>();
         private readonly List<SimulationProjectile> _enemyProjectiles = new List<SimulationProjectile>();
@@ -73,6 +68,11 @@ namespace RuneCode
         private readonly Queue<DamageSample> _damageWindow = new Queue<DamageSample>();
         private readonly Dictionary<string, int> _killCounts = new Dictionary<string, int>();
         private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
+        private readonly bool[] _castHeld = new bool[3];
+        private readonly bool[] _beamQueued = new bool[3];
+        private readonly int[] _beamPressSerial = new int[3];
+        private readonly List<BeamBehaviorRuntime.BeamChannel> _beamChannels = new List<BeamBehaviorRuntime.BeamChannel>();
+        private bool _isAutomaticInput;
         private readonly List<string> _unlockedElements = new List<string> { "fire" };
         private readonly List<SimVector> _tickSpawnPositions = new List<SimVector>();
         private readonly SpawnSlots _spawnSlots;
@@ -135,6 +135,10 @@ namespace RuneCode
         public IReadOnlyDictionary<string, int> KillCounts => _killCounts;
         public AdaptationNet Adaptation { get; }
         public MissionMap Map => _map;
+
+        /// <summary>전투 규칙 수치다. 행동 실행 동작이 다중 배치 간격 등을 읽는다.</summary>
+        internal BalanceData Balance => _balance;
+        internal double PlayerRadius => _sector.PlayerRadius;
         public MissionStage Stage => _stage;
         public bool Completed => _stage == MissionStage.Cleared;
         public bool IsDead => _stage == MissionStage.Dead;
@@ -208,8 +212,6 @@ namespace RuneCode
             _moveSpeedMultiplier = moveSpeedMultiplier;
             _scrapGainMultiplier = scrapGainMultiplier;
             _scrapPickupRangeMultiplier = scrapPickupRangeMultiplier;
-            _burstExpandSeconds = GameData.Runes.Get(BURST_FORM_ID).Stats.ExpandSeconds;
-            _persistWarnSeconds = GameData.Runes.Get(PERSIST_FORM_ID).Stats.WarnSeconds;
             _spawnSlots = new SpawnSlots(NextRandom);
             _isSeparationFixed = IsSeparationFixed;
             Adaptation = new AdaptationNet(_balance);
@@ -232,7 +234,14 @@ namespace RuneCode
 
         /// <summary>전투에서는 하나의 마법, 시험 도크에서는 최대 3슬롯의 컴파일 마법을 다음 시전부터 사용한다.</summary>
         public void SetLoadout(IReadOnlyList<CompiledSpell> spells)
-        { for (int i = 0; i < _loadout.Length; i++) _loadout[i] = i < spells.Count && (!_isMission || i == 0) ? spells[i] : null; }
+        {
+            for (int i = 0; i < _loadout.Length; i++)
+            {
+                CompiledSpell next = i < spells.Count && (!_isMission || i == 0) ? spells[i] : null;
+                if (!ReferenceEquals(_loadout[i], next)) CancelBeamChannels();
+                _loadout[i] = next;
+            }
+        }
 
         /// <summary>해금한 속성 태그를 노이즈의 무작위 후보로 설정하고 기본 화염 후보를 보존한다.</summary>
         public void SetUnlockedElements(IReadOnlyList<string> elements)
@@ -293,7 +302,7 @@ namespace RuneCode
         /// <summary>
         /// 시전 가능 상태와 슬롯 쿨다운을 확인하고 루트 실행을 시작한다. 마나는 선지불하지 않고 실행 노드에 도달할 때마다 차감한다(백서 7.1).
         /// </summary>
-        public bool TryCast(CompiledSpell spell, int slot = 0)
+        public bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false)
         {
             if (spell == null || slot < 0 || slot >= _loadout.Length || (_stage != MissionStage.Bench && _stage != MissionStage.Combat)) return false;
             if (_isMission && slot != 0) return false;
@@ -301,7 +310,8 @@ namespace RuneCode
             double cooldownSeconds = spell.Cooldown + executionSeconds;
             if (!_player.TryBeginSpell(slot, executionSeconds, cooldownSeconds)) return false;
             RecordNode(spell.CoreNodeId);
-            var rootCast = new RootSpellExecution(slot);
+            _beamQueued[slot] = false;
+            var rootCast = new RootSpellExecution(slot, spell, _beamPressSerial[slot], allowBeamHold && _castHeld[slot]);
             var context = new SpellContext(_player.Position + _player.AimDirection * (_sector.PlayerRadius + _balance.Sim.WandOffset), _player.AimDirection, null, false, null,
                 caster: _player, randomState: new SpellRandomState());
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
@@ -312,7 +322,65 @@ namespace RuneCode
         /// <summary>선택 Trigger와 일치하는 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         private bool TryCastTriggered(CompiledSpell spell, string trigger, int slot)
         {
-            return spell != null && spell.Trigger == trigger && TryCast(spell, slot);
+            if (spell == null || spell.Trigger != trigger) return false;
+            if (trigger == SpellGrammar.TRIGGER_ON_ATTACK && HasDirectBeam(spell) && !_isAutomaticInput && !_beamQueued[slot]) return false;
+            return TryCast(spell, slot, trigger == SpellGrammar.TRIGGER_ON_ATTACK);
+        }
+
+        /// <summary>공격 코어에 직접 연결된 빔이 있는지 검사해 새 클릭이 필요한 마법을 구분한다.</summary>
+        private static bool HasDirectBeam(CompiledSpell spell)
+        {
+            foreach (SpellAction action in spell.Root)
+                if (action.Form == BeamBehaviorRules.BEAM_KIND) return true;
+            return false;
+        }
+
+        /// <summary>슬롯별 새 클릭을 예약하고 해제·재클릭 시 이전 빔의 연장 권한을 무효화한다.</summary>
+        private void ReadBeamInput(SimulationInput input)
+        {
+            _isAutomaticInput = input.IsAutomatic;
+            for (int slot = 0; slot < _castHeld.Length; slot++)
+            {
+                bool held = slot == 0 ? input.CastA : slot == 1 ? input.CastB : input.CastC;
+                bool released = _castHeld[slot] && !held || slot == 0 && input.CastReleased;
+                bool pressed = held && !_castHeld[slot] || slot == 0 && input.CastPressed;
+                if (released) _beamPressSerial[slot]++;
+                if (pressed)
+                {
+                    _beamPressSerial[slot]++;
+                    if (_loadout[slot] != null && _loadout[slot].Trigger == SpellGrammar.TRIGGER_ON_ATTACK
+                        && HasDirectBeam(_loadout[slot]))
+                        _beamQueued[slot] = true;
+                }
+                _castHeld[slot] = held;
+            }
+        }
+
+        /// <summary>빔이 시작한 클릭과 현재 슬롯 홀드가 같은지 반환한다.</summary>
+        internal bool IsBeamHeld(int slot, int pressSerial)
+            => slot >= 0 && _castHeld[slot] && _beamPressSerial[slot] == pressSerial;
+
+        /// <summary>입력 중단 시 기존 빔 홀드와 예약 클릭을 취소하며 다른 행동의 입력 규칙은 유지한다.</summary>
+        public void CancelBeamInput()
+        {
+            for (int slot = 0; slot < _castHeld.Length; slot++)
+            {
+                if (_castHeld[slot] || _beamQueued[slot]) _beamPressSerial[slot]++;
+                _castHeld[slot] = false;
+                _beamQueued[slot] = false;
+            }
+        }
+
+        /// <summary>빔의 모든 비용 자원을 원자적으로 차감하고 기존 누적 소비 통계에 기록한다.</summary>
+        internal bool TrySpendBeamCosts(ResourceCostSet costs)
+        {
+            if (!_player.TrySpend(costs)) return false;
+            foreach (ResourceAmount amount in costs.Amounts)
+            {
+                _resourceCostsSpent.TryGetValue(amount.Resource, out double spent);
+                _resourceCostsSpent[amount.Resource] = spent + amount.Amount;
+            }
+            return true;
         }
 
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
@@ -328,6 +396,7 @@ namespace RuneCode
         public void Step(SimulationInput input)
         {
             if (Completed || IsFailed) return;
+            ReadBeamInput(input);
             bool wasDashing = _player.DashRemaining > 0.000001;
             _player.Aim(input.AimDirection);
             _player.Advance(STEP_SECONDS, Time, _energyRegen);
@@ -337,9 +406,9 @@ namespace RuneCode
             if (input.Movement.LengthSquared > 0.000001) TryCastTrigger(SpellGrammar.TRIGGER_ON_MOVE);
             if (_isMission) { AdvanceSpawns(); AdvanceSplits(); }
             RunScheduled();
-            if (input.CastA) TryCastTriggered(_loadout[0], SpellGrammar.TRIGGER_ON_ATTACK, 0);
-            if (input.CastB) TryCastTriggered(_loadout[1], SpellGrammar.TRIGGER_ON_ATTACK, 1);
-            if (input.CastC) TryCastTriggered(_loadout[2], SpellGrammar.TRIGGER_ON_ATTACK, 2);
+            if (input.CastA || _beamQueued[0]) TryCastTriggered(_loadout[0], SpellGrammar.TRIGGER_ON_ATTACK, 0);
+            if (input.CastB || _beamQueued[1]) TryCastTriggered(_loadout[1], SpellGrammar.TRIGGER_ON_ATTACK, 1);
+            if (input.CastC || _beamQueued[2]) TryCastTriggered(_loadout[2], SpellGrammar.TRIGGER_ON_ATTACK, 2);
             AdvanceStatuses();
             AdvanceRelayRegen();
             AdvanceEnemies();
@@ -365,6 +434,7 @@ namespace RuneCode
         /// <summary>전투 중단 시 예약 노드 실행을 지우고 진행 중 시전 상태를 환급 없이 취소한다.</summary>
         public void CancelPendingSpellExecutions()
         {
+            CancelBeamChannels();
             _scheduled.Clear();
             _player.CancelSpellExecutions();
         }
@@ -419,6 +489,9 @@ namespace RuneCode
         public string StateHash()
         {
             var state = new StringBuilder();
+            state.Append("beamInput:").Append(_isAutomaticInput);
+            for (int slot = 0; slot < _castHeld.Length; slot++)
+                state.Append('|').Append(_castHeld[slot]).Append(':').Append(_beamQueued[slot]).Append(':').Append(_beamPressSerial[slot]);
             state.Append(_tick).Append('|').Append(_rngState).Append('|').Append(_nextEntityId).Append('|').Append(_stage).Append('|').Append(_stageNumber).Append('|').Append(_killTarget).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_killCount).Append('|').Append(_scenario).Append('|').Append(_debugInvulnerable);
             state.Append('|').Append(_actionBudgetTick).Append('|').Append(_actionsThisTick).Append('|').Append(_droppedExecutions);
             AppendNumber(state, TimeLimit); AppendNumber(state, _energyRegen);
@@ -449,7 +522,10 @@ namespace RuneCode
                 AppendNumber(state, pending.Context.CostMultiplier);
                 state.Append(pending.Context.SourceEntityId).Append('|');
                 if (pending.Tracker != null)
+                {
                     state.Append("|flow:").Append(pending.Tracker.RootCast?.Slot ?? -1).Append(':').Append(pending.Tracker.Pending);
+                    state.Append(':').Append(pending.Tracker.RootCast?.PressSerial ?? -1).Append(':').Append(pending.Tracker.RootCast?.CanHold ?? false);
+                }
                 pending.Context.Repeat?.AppendState(state);
                 pending.Context.Modifiers.AppendState(state);
                 pending.Context.CallEvents?.AppendState(state);
@@ -691,7 +767,7 @@ namespace RuneCode
                 context = GetEffectContext(context, tracker);
                 switch (action.Kind)
                 {
-                    case "spawn": SpawnForm(action, context); break;
+                    case "spawn": SpawnForm(action, context, tracker); break;
                     case "buff": ApplyBuff(action, context, tracker); break;
                     case "call": ExecuteCall(action, context, tracker); break;
                     case "delay": Execute(action.Then, context, tracker); break;
@@ -798,48 +874,47 @@ namespace RuneCode
             { case "targetHpBelow": return context.Target.Hp / context.Target.MaxHp * 100 < condition.Pct; case "targetHasStatus": return HasEnemyStatus(context.Target, condition.Status); case "targetDistanceBelow": return SimVector.Distance(_player.Position, context.Target.Position) < condition.Px; default: return false; }
         }
 
-        /// <summary>Form 종류별 개체 수, 다중 배치, 이벤트 앵커 및 노이즈 속성을 반영하여 마법 개체를 생성한다.</summary>
-        private void SpawnForm(SpellAction action, SpellContext context)
+        /// <summary>
+        /// 행동 실행 동작에 따라 개체 수만큼 배치·예열 시간을 정해 마법 개체를 생성하고 생성 직후 처리를 실행한다.
+        /// 이벤트 앵커와 노이즈 속성을 반영한다. 공전은 수식으로 바뀔 예정이라 기존 궤도 배치·보호막 분기를 그대로 둔다.
+        /// </summary>
+        private void SpawnForm(SpellAction action, SpellContext context, ExecutionTracker tracker)
         {
             foreach (string attachedNodeId in action.AttachedNodeIds) RecordNode(attachedNodeId);
             string element = action.Noise ? ChooseNoiseElement(context) : action.Element;
             SpellStats stats = action.Stats.Apply(context.Modifiers);
+            SpellBehaviorRuntime behavior = SpellBehaviorRuntimeRegistry.Get(action.Form);
+            BeamBehaviorRuntime.BeamChannel channel = null;
+            if (action.Form == BeamBehaviorRules.BEAM_KIND && action.Count > 0 && _spellEntities.Count < _balance.Limits.MaxLiveSpellEntities)
+            {
+                RootSpellExecution root = tracker.RootCast;
+                bool isDirect = !context.FromEvent && root != null && root.IsDirectBeam(action);
+                bool canExtend = isDirect && root.CanHold;
+                if (isDirect) tracker.Acquire();
+                channel = new BeamBehaviorRuntime.BeamChannel(_tick, stats, root?.Slot ?? -1, root?.PressSerial ?? -1,
+                    canExtend, isDirect, action.GetNodeCosts(context.Modifiers).Multiply(context.CostMultiplier),
+                    isDirect ? (Action)tracker.Release : null);
+                _beamChannels.Add(channel);
+            }
             for (int i = 0; i < action.Count; i++)
             {
                 if (_spellEntities.Count >= _balance.Limits.MaxLiveSpellEntities) return;
                 SimVector direction = context.Direction;
-                if (action.Form == "bolt" && action.Count > 1) direction = direction.Rotated((i / (double)(action.Count - 1) * 2 - 1) * stats.SpreadAngle * DEGREES_TO_RADIANS);
                 SimVector position = context.Origin;
-                // Beam 발사체는 뒤쪽 면을 실행 위치에 두고 진행 방향으로 뻗는다(백서 v7).
-                if (action.Form == "bolt" && action.MagicType == SpellGrammar.MAGIC_TYPE_BOX)
-                    position += direction.Normalized() * (stats.BoxLength * 0.5);
-                if (action.Form == "burst" || action.Form == "zone")
-                {
-                    // 회복·보호 범위는 시전자에게 적용되므로 생성 거리 없이 현재 실행 위치에 만든다.
-                    // 부채꼴은 실행 위치를 꼭짓점으로, Beam은 실행 위치를 뒤쪽 면으로 진행 방향에 펼친다(결정 Q17, 백서 v7).
-                    bool isFunctional = action.SourceElement == "heal" || action.SourceElement == "protection";
-                    bool isAnchored = action.MagicType == SpellGrammar.MAGIC_TYPE_CONE || action.MagicType == SpellGrammar.MAGIC_TYPE_BOX;
-                    if (!context.FromEvent && !isFunctional && !isAnchored) position += context.Direction * stats.Offset;
-                    // 지팡이 끝은 시전자 몸 밖이므로 직접 시전한 회복·보호 Beam은 뒤쪽 면을 시전자 중심에 둬 자신을 포함한다.
-                    if (!context.FromEvent && isFunctional && action.MagicType == SpellGrammar.MAGIC_TYPE_BOX) position = context.Caster.Position;
-                    if (action.Count > 1) position += new SimVector(Math.Cos(i * 2 * Math.PI / action.Count), Math.Sin(i * 2 * Math.PI / action.Count)) * _balance.Sim.MultiOffset;
-                }
+                behavior.PlaceSpawn(this, action, stats, i, context.FromEvent, context.Caster, ref position, ref direction);
                 double angle = i * 2 * Math.PI / action.Count;
                 if (action.Form == "orbit") position = (context.FromEvent ? context.Origin : _player.Position) + new SimVector(Math.Cos(angle), Math.Sin(angle)) * stats.OrbitRadius;
-                // 잔류 예고는 속도 수식 배율만큼 빨리 끝난다.
-                double warmup = action.Form == SpellGrammar.FORM_BURST ? _burstExpandSeconds
-                    : action.Form == SpellGrammar.FORM_ZONE ? _persistWarnSeconds / stats.SpeedMultiplier : 0;
+                double warmup = behavior.GetWarmupSeconds(stats);
                 var entity = new SimulationSpellEntity(++_nextEntityId, action, stats, element, position, direction,
                     context.FromEvent, context.Origin, angle, context.NoiseElement, _balance.Sim.SpellVisualSeconds, warmup,
                     context.CallEvents, context.Modifiers, context.CostMultiplier, context.Caster);
                 _spellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _spellEntities.Count);
+                if (channel != null) ((BeamBehaviorRuntime.BeamState)entity.BehaviorState).Attach(channel);
                 // 보호 Orbit(방벽)은 생성 시 보호막을 준다. 보호 Burst는 범위 안의 시전자에게만 HitArea에서 준다.
                 if (action.SourceElement == "protection" && action.Form == SpellGrammar.FORM_ORBIT)
                     _player.GiveShield(action.Power * action.ModifierValues.DamageMultiplier * context.Modifiers.DamageMultiplier,
                         action.BuffDuration * action.ModifierValues.DurationMultiplier * context.Modifiers.DurationMultiplier, Time);
-                // Burst는 크기 0에서 확장을 시작하고, Persist는 예고가 끝난 뒤에만 판정한다(백서 v3).
-                if (action.Form == "burst") HitArea(entity, true);
-                else if (action.Form == "zone" && action.SourceElement != "protection" && !entity.IsWarning) HitArea(entity, false);
+                behavior.OnSpawned(this, entity);
             }
         }
 
@@ -851,8 +926,8 @@ namespace RuneCode
             for (int i = 0; processed < initialCount && i < _spellEntities.Count; processed++)
             {
                 SimulationSpellEntity entity = _spellEntities[i];
-                if (entity.Kind == "bolt") AdvanceBolt(entity);
-                else if (entity.Kind == "orbit")
+                // 공전은 수식으로 바뀔 예정이라 행동 실행 클래스로 옮기지 않고 기존 궤도 이동을 그대로 둔다.
+                if (entity.Kind == "orbit")
                 {
                     entity.Angle += entity.Stats.AngularSpeed * DEGREES_TO_RADIANS * STEP_SECONDS;
                     SimVector anchor = entity.FromEvent ? entity.Anchor : _player.Position;
@@ -863,32 +938,15 @@ namespace RuneCode
                     else entity.Move(slot, tangent);
                     if (entity.Action.SourceElement != "protection") HitArea(entity, false);
                 }
-                else if (entity.Kind == "zone" && !entity.IsWarning)
-                {
-                    if (entity.Stats.HomingRange > 0) AdvanceHomingZone(entity);
-                    HitArea(entity, false);
-                }
+                else entity.Behavior.Advance(this, entity);
                 entity.Advance(STEP_SECONDS);
-                // Burst는 커진 반경으로 판정하도록 진행 후에 확장이 끝날 때까지 새 대상을 판정한다.
-                if (entity.Kind == SpellGrammar.FORM_BURST && entity.IsExpanding) HitArea(entity, true);
-                if ((entity.Kind != "burst" && entity.HasExpired) || entity.Age + 0.000001 >= entity.Lifetime)
+                entity.Behavior.AfterAdvance(this, entity);
+                if ((entity.Behavior.RemovesWhenExpired && entity.HasExpired) || entity.Age + 0.000001 >= entity.Lifetime)
                 { Expire(entity); _spellEntities.RemoveAt(i); }
                 else i++;
             }
-        }
-
-        /// <summary>
-        /// 유도 수식이 붙은 잔류를 유도 범위 안의 가장 가까운 적 쪽으로 이동 속도만큼 옮긴다. 대상에 닿으면 멈추고 벽은 통과하지 않는다.
-        /// 모양의 방향은 유지하며 예고 중에는 호출하지 않는다.
-        /// </summary>
-        private void AdvanceHomingZone(SimulationSpellEntity entity)
-        {
-            SimulationEnemy target = NearestEnemy(entity.Position, entity.Stats.HomingRange, NoExcludedTargets);
-            if (target == null) return;
-            SimVector offset = target.Position - entity.Position;
-            double step = Math.Min(entity.Stats.Speed * STEP_SECONDS, offset.Length);
-            if (step <= COLLISION_EPSILON) return;
-            entity.Move(_map.Move(entity.Position, offset.Normalized() * step, entity.Radius), entity.Direction);
+            for (int index = _beamChannels.Count - 1; index >= 0; index--)
+                if (_beamChannels[index].IsStopped) _beamChannels.RemoveAt(index);
         }
 
         /// <summary>
@@ -951,75 +1009,6 @@ namespace RuneCode
             entity.Move(entity.Position + back.Normalized() * step, back.Normalized());
         }
 
-        /// <summary>볼트의 유도 방향, 벽 충돌 및 가장 가까운 순서의 관통 적중을 처리한다.</summary>
-        private void AdvanceBolt(SimulationSpellEntity entity)
-        {
-            SimVector direction = entity.Direction;
-            SpellStats stats = entity.Stats;
-            if (stats.HomingTurn > 0)
-            {
-                SimulationEnemy target = NearestEnemy(entity.Position, stats.HomingRange, entity.HitTimes);
-                if (target != null)
-                {
-                    double current = Math.Atan2(direction.Y, direction.X); SimVector toTarget = target.Position - entity.Position;
-                    double wanted = Math.Atan2(toTarget.Y, toTarget.X); double delta = Math.Atan2(Math.Sin(wanted - current), Math.Cos(wanted - current));
-                    double turn = stats.HomingTurn * DEGREES_TO_RADIANS * STEP_SECONDS;
-                    direction = direction.Rotated(Math.Max(-turn, Math.Min(turn, delta)));
-                }
-            }
-            SimVector previous = entity.Position;
-            SimVector next = previous + direction * (stats.Speed * STEP_SECONDS);
-            // 사각형 발사체는 앞면 중심과 폭으로 벽을 검사하고 보호막은 전체 모양의 이동 경로로 검사한다.
-            SimVector front = entity.IsBox ? direction.Normalized() * (stats.BoxLength * 0.5) : SimVector.Zero;
-            double collisionRadius = entity.IsBox ? stats.BoxWidth * 0.5 : entity.Radius;
-            double wallFraction = FirstWallFraction(previous + front, next + front, collisionRadius);
-            double shieldFraction = double.PositiveInfinity;
-            SimulationEnemy shieldOwner = null;
-            foreach (SimulationEnemy shield in _enemies)
-            {
-                if (!shield.IsAlive || !shield.Definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD)) continue;
-                SimVector fromShield = previous - shield.Position;
-                if (fromShield.Length < shield.Definition.ShieldRadius - COLLISION_EPSILON || SimVector.Dot(next - previous, fromShield) >= 0) continue;
-                double fraction = SpellContactFraction(entity, previous, next, direction, shield.Position, shield.Definition.ShieldRadius);
-                if (fraction < shieldFraction) { shieldFraction = fraction; shieldOwner = shield; }
-            }
-            double stopFraction = Math.Min(wallFraction, shieldFraction);
-            entity.Move(next, direction);
-            var targets = new List<SimulationEnemy>();
-            foreach (SimulationEnemy enemy in _enemies)
-            {
-                bool isInside = entity.IsCone
-                    ? IntersectsConeSweep(previous, next, direction, entity.Radius, entity.ConeAngle, enemy.Position, enemy.Radius)
-                    : entity.IsBox
-                    ? IntersectsBoxSweep(previous, next, direction, entity.Stats.BoxWidth * 0.5,
-                        entity.Stats.BoxLength * 0.5, enemy.Position, enemy.Radius)
-                    : SegmentDistance(previous, next, enemy.Position) <= entity.Radius + enemy.Radius;
-                if (enemy.IsAlive && !entity.HitTimes.ContainsKey(enemy.Id) && isInside) targets.Add(enemy);
-            }
-            targets.Sort((a, b) =>
-            {
-                int distanceOrder = SpellContactFraction(entity, previous, next, direction, a.Position, a.Radius)
-                    .CompareTo(SpellContactFraction(entity, previous, next, direction, b.Position, b.Radius));
-                return distanceOrder != 0 ? distanceOrder : a.Id.CompareTo(b.Id);
-            });
-            foreach (SimulationEnemy enemy in targets)
-            {
-                if (!enemy.IsAlive) continue;
-                if (SpellContactFraction(entity, previous, next, direction, enemy.Position, enemy.Radius) + COLLISION_EPSILON >= stopFraction) break;
-                double multiplier = Math.Max(0, 1 - entity.Hits * stats.PierceLoss);
-                entity.HitTimes[enemy.Id] = Time; Hit(entity, enemy, stats.Damage * multiplier, false); entity.Hits++;
-                RaiseHitEvent(entity, enemy.Position, enemy);
-                if (entity.Hits > stats.Pierce) { entity.Move(enemy.Position, direction); entity.HasExpired = true; break; }
-            }
-            if (!entity.HasExpired && !double.IsPositiveInfinity(stopFraction))
-            {
-                SimVector contact = previous + (next - previous) * stopFraction;
-                entity.Move(contact, direction); entity.HasDirectHit = true; entity.HasExpired = true;
-                if (wallFraction < shieldFraction) RaiseHitEvent(entity, contact + front, null);
-                else RaiseShieldHitEvent(entity, contact, shieldOwner);
-            }
-        }
-
         /// <summary>원점 origin과 방향 direction의 중심선을 최대 length까지 검사해 첫 벽 앞의 길이를 반환한다.</summary>
         private double ClipBeamLength(SimVector origin, SimVector direction, double length)
         {
@@ -1047,43 +1036,8 @@ namespace RuneCode
             return free;
         }
 
-        /// <summary>발사체 모양의 경로가 대상 원에 처음 닿는 비율을 반환하며 미충돌이면 양의 무한대를 반환한다.</summary>
-        private static double SpellContactFraction(SimulationSpellEntity entity, SimVector start, SimVector end, SimVector direction, SimVector target, double targetRadius)
-        {
-            if (!entity.IsBox && !entity.IsCone) return CircleContactFraction(start, end, target, entity.Radius + targetRadius);
-            if (!IntersectsSpellSweep(entity, start, end, direction, target, targetRadius)) return double.PositiveInfinity;
-            if (IntersectsSpellSweep(entity, start, start, direction, target, targetRadius)) return 0;
-            double low = 0, high = 1;
-            for (int i = 0; i < SHAPE_CONTACT_REFINEMENT_STEPS; i++)
-            {
-                double middle = (low + high) * 0.5;
-                if (IntersectsSpellSweep(entity, start, start + (end - start) * middle, direction, target, targetRadius)) high = middle;
-                else low = middle;
-            }
-            return high;
-        }
-
-        /// <summary>사각·부채꼴 발사체의 기존 이동 경로 판정으로 대상 원과의 충돌 여부를 반환한다.</summary>
-        private static bool IntersectsSpellSweep(SimulationSpellEntity entity, SimVector start, SimVector end, SimVector direction, SimVector target, double radius)
-            => entity.IsCone ? IntersectsConeSweep(start, end, direction, entity.Radius, entity.ConeAngle, target, radius)
-                : IntersectsBoxSweep(start, end, direction, entity.Stats.BoxWidth * 0.5, entity.Stats.BoxLength * 0.5, target, radius);
-
-        /// <summary>선분이 대상 원에 처음 진입하는 비율을 해석적으로 계산하며 미충돌이면 양의 무한대를 반환한다.</summary>
-        private static double CircleContactFraction(SimVector start, SimVector end, SimVector target, double radius)
-        {
-            SimVector relative = start - target, delta = end - start;
-            double c = relative.LengthSquared - radius * radius;
-            if (c <= 0) return 0;
-            double a = delta.LengthSquared;
-            if (a <= COLLISION_EPSILON) return double.PositiveInfinity;
-            double b = SimVector.Dot(relative, delta), discriminant = b * b - a * c;
-            if (discriminant < 0) return double.PositiveInfinity;
-            double fraction = (-b - Math.Sqrt(discriminant)) / a;
-            return fraction >= 0 && fraction <= 1 ? fraction : double.PositiveInfinity;
-        }
-
         /// <summary>원형 개체의 직선 이동을 작은 구간으로 검사하고 첫 벽 접촉 비율을 반환한다.</summary>
-        private double FirstWallFraction(SimVector start, SimVector end, double radius)
+        internal double FirstWallFraction(SimVector start, SimVector end, double radius)
         {
             int steps = Math.Max(1, (int)Math.Ceiling((end - start).Length / Math.Max(1, Math.Min(radius, _map.TileSize * 0.25))));
             double last = 0;
@@ -1102,103 +1056,11 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 진행 방향으로 펼친 부채꼴 발사체(꼭짓점은 중심에서 반경만큼 뒤, 부채꼴 반경은 지름)가 이번 틱 이동 중 대상 원과 겹치는지 반환한다.
-        /// 이동 거리를 반경 간격으로 나눈 위치마다 판정해 빠른 발사체가 대상을 건너뛰지 않게 한다.
+        /// 범위 마법의 가까운 적부터 대상별 주기(행동의 범위 판정 주기)에 맞춰 피해를 적용한다. 주기 판정 적중은 OnHit을 만들지 않는다.
+        /// isBurst이면 대상별 한 번만 적중하고 확장 범위가 대상과 처음 겹친 접촉 위치로 OnHit을 낸다(Burst).
+        /// 공전은 대상과의 접촉이 시작될 때(떨어졌다 다시 닿을 때 포함) OnHit을 낸다.
         /// </summary>
-        private static bool IntersectsConeSweep(SimVector start, SimVector end, SimVector direction, double radius, double coneAngle,
-            SimVector target, double targetRadius)
-        {
-            int samples = Math.Max(1, (int)Math.Ceiling((end - start).Length / Math.Max(radius, 0.000001)));
-            for (int i = 1; i <= samples; i++)
-            {
-                SimVector center = start + (end - start) * (i / (double)samples);
-                if (IntersectsSector(SimulationSpellEntity.GetConeApex(center, direction, radius), direction, radius * 2, coneAngle, target, targetRadius))
-                    return true;
-            }
-            return false;
-        }
-
-        /// <summary>꼭짓점에서 방향으로 반경·전체 각도(도)만큼 펼친 부채꼴과 대상 원의 겹침 여부를 반환한다. 대상 반경만큼 거리와 각도에 여유를 준다.</summary>
-        private static bool IntersectsSector(SimVector apex, SimVector direction, double reach, double coneAngle, SimVector target, double targetRadius)
-        {
-            SimVector relative = target - apex;
-            double distance = relative.Length;
-            if (distance > reach + targetRadius) return false;
-            if (distance <= targetRadius) return true;
-            double cosine = Math.Max(-1, Math.Min(1, SimVector.Dot(relative / distance, direction.Normalized())));
-            double tolerance = Math.Asin(Math.Min(1, targetRadius / distance));
-            return Math.Acos(cosine) <= coneAngle * 0.5 * DEGREES_TO_RADIANS + tolerance;
-        }
-
-        /// <summary>진행 방향으로 길이, 수직으로 폭을 가진 이동 사각형이 이번 틱 이동 중 대상 원과 겹치는지 반환한다.</summary>
-        private static bool IntersectsBoxSweep(SimVector start, SimVector end, SimVector direction,
-            double halfWidth, double halfLength, SimVector target, double targetRadius)
-        {
-            SimVector movement = end - start;
-            double length = movement.Length;
-            SimVector forward = length > 0.000001 ? movement / length : direction.Normalized();
-            SimVector side = new SimVector(-forward.Y, forward.X);
-            SimVector relative = target - start;
-            double moveAlong = SimVector.Dot(movement, forward);
-            double moveAcross = SimVector.Dot(movement, side);
-            double along = SimVector.Dot(relative, forward);
-            double across = SimVector.Dot(relative, side);
-            double alongExtent = halfLength + targetRadius;
-            double acrossExtent = halfWidth + targetRadius;
-            return along >= Math.Min(0, moveAlong) - alongExtent && along <= Math.Max(0, moveAlong) + alongExtent
-                && across >= Math.Min(0, moveAcross) - acrossExtent && across <= Math.Max(0, moveAcross) + acrossExtent;
-        }
-
-        /// <summary>
-        /// 진행 방향으로 현재 길이, 수직으로 폭을 가진 Beam 범위(BoxCenter 중심)와 대상 원의 겹침 여부를 반환한다.
-        /// Burst·Persist는 뒤쪽 면이 개체 위치에 있고, 공전은 개체 위치가 중심이다.
-        /// </summary>
-        private bool IntersectsAreaBox(SimulationSpellEntity entity, SimVector target, double targetRadius)
-        {
-            SimVector forward = entity.Direction.Normalized();
-            SimVector side = new SimVector(-forward.Y, forward.X);
-            SimVector relative = target - entity.BoxCenter;
-            return Math.Abs(SimVector.Dot(relative, forward)) <= entity.BoxLength * 0.5 + targetRadius
-                && Math.Abs(SimVector.Dot(relative, side)) <= entity.BoxWidth * 0.5 + targetRadius;
-        }
-
-        /// <summary>범위 마법(원·사각형·부채꼴)이 대상 원과 겹치는지 반환한다.</summary>
-        private bool IsInsideArea(SimulationSpellEntity entity, SimVector target, double targetRadius)
-        {
-            if (entity.IsBox) return IntersectsAreaBox(entity, target, targetRadius);
-            if (entity.IsCone) return IntersectsCone(entity, target, targetRadius);
-            return SimVector.Distance(entity.Position, target) <= entity.Radius + targetRadius;
-        }
-
-        /// <summary>
-        /// 꼭짓점(개체 위치)에서 진행 방향으로 반경·전체 각도만큼 펼친 부채꼴과 대상 원의 겹침 여부를 반환한다.
-        /// 대상 반경만큼 거리와 각도에 여유를 준다.
-        /// </summary>
-        private static bool IntersectsCone(SimulationSpellEntity entity, SimVector target, double targetRadius)
-            => IntersectsSector(entity.Position, entity.Direction, entity.Radius, entity.ConeAngle, target, targetRadius);
-
-        /// <summary>
-        /// 범위 중심에서 대상 쪽으로 현재 반경만큼(대상이 더 가까우면 대상 위치까지) 간 접촉 위치를 반환한다.
-        /// Beam 범위는 현재 길이의 중심선 위에서 대상에 가장 가까운 위치다.
-        /// </summary>
-        private static SimVector GetContactPoint(SimulationSpellEntity entity, SimVector target)
-        {
-            if (entity.IsBox)
-            {
-                SimVector forward = entity.Direction.Normalized();
-                SimVector back = entity.BoxCenter - forward * (entity.BoxLength * 0.5);
-                return back + forward * Math.Max(0, Math.Min(entity.BoxLength, SimVector.Dot(target - back, forward)));
-            }
-            SimVector offset = target - entity.Position;
-            double distance = offset.Length;
-            return distance <= 0.000001 ? entity.Position : entity.Position + offset / distance * Math.Min(entity.Radius, distance);
-        }
-
-        /// <summary>
-        /// 범위 마법의 가까운 적부터 대상별 주기에 맞춰 피해를 적용한다. Persist 적중은 OnHit을 만들지 않는다.
-        /// Burst는 확장 범위가 대상과 처음 겹칠 때 대상별 한 번, 공전은 대상과의 접촉이 시작될 때(떨어졌다 다시 닿을 때 포함) OnHit을 낸다.
-        /// </summary>
-        private void HitArea(SimulationSpellEntity entity, bool isBurst)
+        internal void HitArea(SimulationSpellEntity entity, bool isBurst)
         {
             string source = entity.Action.SourceElement;
             if (source == "heal" || (source == "protection" && isBurst))
@@ -1210,14 +1072,14 @@ namespace RuneCode
             var targets = new List<SimulationEnemy>();
             foreach (SimulationEnemy enemy in _enemies)
             {
-                if (enemy.IsAlive && IsInsideArea(entity, enemy.Position, enemy.Radius)) targets.Add(enemy);
+                if (enemy.IsAlive && SpellGeometry.IsInsideArea(entity, enemy.Position, enemy.Radius)) targets.Add(enemy);
             }
             targets.Sort((a, b) =>
             {
                 int distanceOrder = (a.Position - entity.Position).LengthSquared.CompareTo((b.Position - entity.Position).LengthSquared);
                 return distanceOrder != 0 ? distanceOrder : a.Id.CompareTo(b.Id);
             });
-            double interval = entity.Kind == "zone" ? entity.Stats.TickInterval : entity.Stats.HitInterval;
+            double interval = entity.Behavior.GetAreaHitInterval(entity.Stats);
             bool isOrbit = entity.Kind == SpellGrammar.FORM_ORBIT;
             foreach (SimulationEnemy enemy in targets)
             {
@@ -1227,9 +1089,9 @@ namespace RuneCode
                 if (!hasHit || (!isBurst && Time - lastTime + 0.000001 >= interval))
                 {
                     entity.HitTimes[enemy.Id] = Time;
-                    Hit(entity, enemy, entity.Stats.Damage, entity.Kind == "zone");
+                    Hit(entity, enemy, entity.Stats.Damage, entity.Behavior.IsDamageOverTime);
                     // Burst.OnHit은 확장 범위가 대상과 처음 겹칠 때 대상별 한 번, 접촉 위치로 낸다.
-                    if (isBurst) RaiseHitEvent(entity, GetContactPoint(entity, enemy.Position), enemy);
+                    if (isBurst) RaiseHitEvent(entity, SpellGeometry.GetContactPoint(entity, enemy.Position), enemy);
                 }
                 if (isNewContact) RaiseHitEvent(entity, enemy.Position, enemy);
             }
@@ -1242,7 +1104,7 @@ namespace RuneCode
         /// </summary>
         private void ApplyFunctionalArea(SimulationSpellEntity entity, bool isBurst)
         {
-            if (!IsInsideArea(entity, _player.Position, _sector.PlayerRadius)) return;
+            if (!SpellGeometry.IsInsideArea(entity, _player.Position, _sector.PlayerRadius)) return;
             bool hasApplied = entity.HitTimes.TryGetValue(PLAYER_TARGET_ID, out double lastTime);
             if (hasApplied && (isBurst || Time - lastTime + 0.000001 < entity.Stats.TickInterval)) return;
             entity.HitTimes[PLAYER_TARGET_ID] = Time;
@@ -1252,8 +1114,8 @@ namespace RuneCode
             else _player.GiveShield(amount, action.BuffDuration * action.ModifierValues.DurationMultiplier * entity.Modifiers.DurationMultiplier, Time);
         }
 
-        /// <summary>스펠 피해와 상태를 적용하고 전격 연쇄를 처리한다. 잔류 개체의 실제 피해는 PersistDamage에도 누적한다. 이벤트 실행은 호출부가 RaiseHitEvent로 따로 처리한다.</summary>
-        private void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot)
+        /// <summary>스펠 피해와 상태를 적용하고 전격 연쇄를 처리한다. 잔류 피해를 누적하는 행동은 실제 피해를 PersistDamage에도 누적한다. 이벤트 실행은 호출부가 RaiseHitEvent로 따로 처리한다.</summary>
+        internal void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot)
         {
             double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true);
             if (entity.Element == "arc")
@@ -1273,20 +1135,20 @@ namespace RuneCode
                     _arcLinks.Add(new ArcLink(enemy.Position, chain[i].Position, _tick));
                 }
             }
-            if (entity.Kind == SpellGrammar.FORM_ZONE) _persistDamage += actual;
+            if (entity.Behavior.AccumulatesPersistDamage) _persistDamage += actual;
         }
 
         /// <summary>
-        /// 개체의 OnHit 이벤트를 지정 위치·대상(벽이면 null)으로 실행한다. 발사체는 직접 충돌로 기록하고
+        /// 개체의 OnHit 이벤트를 지정 위치·대상(벽이면 null)으로 실행한다. 직접 충돌을 추적하는 행동(발사)은 직접 충돌로 기록하고
         /// 첫 이벤트이면 OnFirstHitOrExpire도 실행한다.
         /// </summary>
-        private void RaiseHitEvent(SimulationSpellEntity entity, SimVector position, SimulationEnemy target)
+        internal void RaiseHitEvent(SimulationSpellEntity entity, SimVector position, SimulationEnemy target)
         {
-            bool isBolt = entity.Kind == SpellGrammar.FORM_BOLT;
-            if (isBolt) entity.HasDirectHit = true;
+            bool tracksDirectHit = entity.Behavior.TracksDirectHit;
+            if (tracksDirectHit) entity.HasDirectHit = true;
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id);
-            bool isFirstEvent = isBolt && entity.TryMarkFirstEvent();
+            bool isFirstEvent = tracksDirectHit && entity.TryMarkFirstEvent();
             Execute(entity.Action.OnHit, context);
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
             ExecuteCallEvent(entity, true, isFirstEvent, position, target);
@@ -1296,7 +1158,7 @@ namespace RuneCode
         /// 원형 쉴드에 막아 소멸한 발사체의 명중·소멸 이벤트를 모두 실행한다.
         /// OnHit과 첫 이벤트는 접촉 위치와 쉴드 소유자 대상으로, OnExpire는 개체 위치와 대상 없이 낸다.
         /// </summary>
-        private void RaiseShieldHitEvent(SimulationSpellEntity entity, SimVector contact, SimulationEnemy shieldOwner)
+        internal void RaiseShieldHitEvent(SimulationSpellEntity entity, SimVector contact, SimulationEnemy shieldOwner)
         {
             RaiseHitEvent(entity, contact, shieldOwner);
             RaiseExpireEvent(entity);
@@ -1723,7 +1585,7 @@ namespace RuneCode
                 if (!projectile.IsHazard)
                 {
                     double wall = FirstWallFraction(previous, projectile.Position, projectile.Radius);
-                    double hit = CircleContactFraction(previous, projectile.Position, _player.Position, projectile.Radius + _sector.PlayerRadius);
+                    double hit = SpellGeometry.CircleContactFraction(previous, projectile.Position, _player.Position, projectile.Radius + _sector.PlayerRadius);
                     if (hit < wall && !double.IsPositiveInfinity(hit)) { HurtPlayer(projectile.Damage); _enemyProjectiles.RemoveAt(i); continue; }
                     if (!double.IsPositiveInfinity(wall)) { _enemyProjectiles.RemoveAt(i); continue; }
                 }
@@ -1735,13 +1597,13 @@ namespace RuneCode
 
         /// <summary>
         /// 개체의 자연 소멸(수명·사거리 종료)을 처리하고 OnExpire를 소멸 위치에서 한 번 실행한다.
-        /// Burst는 소멸 이벤트를 내지 않고, 직접 충돌한 발사체는 OnExpire를 내지 않는다. 명중 없이 사라지는 발사체만 OnFirstHitOrExpire도 실행한다.
+        /// 소멸 이벤트를 내지 않는 행동(Burst)과 직접 충돌한 발사체는 OnExpire를 내지 않는다. 명중 없이 사라지는 발사체만 OnFirstHitOrExpire도 실행한다.
         /// </summary>
         private void Expire(SimulationSpellEntity entity)
         {
             if (entity.HasExpired) return;
             entity.HasExpired = true;
-            if (entity.Kind == SpellGrammar.FORM_BURST || entity.HasDirectHit) return;
+            if (!entity.Behavior.RaisesExpireEvent || entity.HasDirectHit) return;
             RaiseExpireEvent(entity);
         }
 
@@ -1750,7 +1612,7 @@ namespace RuneCode
         {
             SpellContext context = new SpellContext(entity.Position, entity.Direction, null, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id);
-            bool isFirstEvent = entity.Kind == SpellGrammar.FORM_BOLT && entity.TryMarkFirstEvent();
+            bool isFirstEvent = entity.Behavior.TracksDirectHit && entity.TryMarkFirstEvent();
             Execute(entity.Action.OnExpire, context);
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
             ExecuteCallEvent(entity, false, isFirstEvent, entity.Position, null);
@@ -2174,8 +2036,26 @@ namespace RuneCode
         /// <summary>사망, 클리어 및 시간 초과 시 지속 개체, 예약 실행과 분열 대기를 취소한다.</summary>
         private void CancelCombat()
         {
+            CancelBeamChannels();
             _spellEntities.Clear(); _enemyProjectiles.Clear(); _scheduled.Clear(); _pendingEnemyShots.Clear(); _pendingSplits.Clear(); _deadEnemies.Clear();
             if (_player != null) _player.CancelSpellExecutions();
+        }
+
+        /// <summary>도크·장착·전투가 바뀔 때 빔 실행 추적과 입력 권한을 이벤트 없이 정리한다.</summary>
+        private void CancelBeamChannels()
+        {
+            foreach (BeamBehaviorRuntime.BeamChannel channel in _beamChannels) channel.Stop();
+            _beamChannels.Clear();
+            for (int index = _scheduled.Count - 1; index >= 0; index--)
+            {
+                ScheduledExecution pending = _scheduled[index];
+                if (pending.Action?.Form != BeamBehaviorRules.BEAM_KIND) continue;
+                _scheduled.RemoveAt(index);
+                pending.Tracker.Release();
+            }
+            for (int index = _spellEntities.Count - 1; index >= 0; index--)
+                if (_spellEntities[index].Kind == BeamBehaviorRules.BEAM_KIND) _spellEntities.RemoveAt(index);
+            CancelBeamInput();
         }
 
         /// <summary>노드 실행 틱을 기록하고 누적 실행 수를 증가시킨다.</summary>
@@ -2198,12 +2078,8 @@ namespace RuneCode
         }
 
         /// <summary>이미 적중한 적을 제외하고 탐지 반경 내 가장 가까운 생존 적을 반환한다.</summary>
-        private SimulationEnemy NearestEnemy(SimVector position, double range, Dictionary<int, double> excluded)
+        internal SimulationEnemy NearestEnemy(SimVector position, double range, Dictionary<int, double> excluded)
         { SimulationEnemy result = null; double best = range * range; foreach (SimulationEnemy enemy in _enemies) { if (!enemy.IsAlive || excluded.ContainsKey(enemy.Id)) continue; double distance = (enemy.Position - position).LengthSquared; if (distance < best) { result = enemy; best = distance; } } return result; }
-
-        /// <summary>점과 선분 사이의 최단 거리를 반환하여 빠른 투사체의 연속 충돌을 판정한다.</summary>
-        private static double SegmentDistance(SimVector start, SimVector end, SimVector point)
-        { SimVector segment = end - start; double progress = segment.LengthSquared < 0.000001 ? 0 : Math.Max(0, Math.Min(1, SimVector.Dot(point - start, segment) / segment.LengthSquared)); return SimVector.Distance(start + segment * progress, point); }
 
         /// <summary>시전의 모든 실행 분기를 읽어 노이즈가 있을 때만 시전 단위 속성 선택이 필요한지 반환한다.</summary>
         private static bool ContainsNoise(IReadOnlyList<SpellAction> actions)
@@ -2300,10 +2176,28 @@ namespace RuneCode
         private sealed class RootSpellExecution
         {
             private readonly int _slot;
+            private readonly IReadOnlyList<SpellAction> _actions;
+            private readonly bool _canHold;
+            private readonly int _pressSerial;
             public int Slot => _slot;
+            public bool CanHold => _canHold;
+            public int PressSerial => _pressSerial;
 
             /// <summary>Tracks which player slot should be marked complete when the root execution finishes.</summary>
-            public RootSpellExecution(int slot) { _slot = slot; }
+            public RootSpellExecution(int slot, CompiledSpell spell, int pressSerial, bool canHold)
+            {
+                _slot = slot; _actions = spell.Root; _pressSerial = pressSerial;
+                _canHold = canHold && spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK;
+            }
+
+            /// <summary>행동 인스턴스가 시작 조건에 직접 연결된 빔인지 검사한다.</summary>
+            public bool IsDirectBeam(SpellAction action)
+            {
+                if (action.Form != BeamBehaviorRules.BEAM_KIND) return false;
+                foreach (SpellAction direct in _actions)
+                    if (ReferenceEquals(direct, action)) return true;
+                return false;
+            }
         }
 
         /// <summary>분기와 예약된 후속 노드의 대기 수를 세고 모두 끝나면 콜백을 한 번 호출한다.</summary>

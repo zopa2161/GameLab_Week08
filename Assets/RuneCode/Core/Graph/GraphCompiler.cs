@@ -8,6 +8,8 @@ namespace RuneCode
 {
     public static class GraphCompiler
     {
+        private const string FORM_RUNE_PREFIX = "form.";
+
         /// <summary>
         /// 그래프와 해금·RAM·에너지 조건을 검증하고 최악 비용의 실행 트리를 컴파일한다.
         /// modifierStock이 있으면 모디파이어·속성·행동의 통합 소지량(보관함 전체 공유)을 넘는 배치를 E21 오류로 낸다. null이면 검사하지 않는다.
@@ -169,7 +171,7 @@ namespace RuneCode
             if (!string.IsNullOrEmpty(graph.Id)) context.ActiveSpellIds.Add(graph.Id);
             List<CompileIssue> chainErrors = new List<CompileIssue>();
             List<CompileIssue> chainWarnings = new List<CompileIssue>();
-            SpellGraph normalized = SpellChainNormalizer.Normalize(graph, runes, context.UnlockedIds, chainErrors, chainWarnings,
+            SpellGraph normalized = SpellChainNormalizer.Normalize(graph, runes, chainErrors, chainWarnings,
                 out int chainRam, out Dictionary<string, List<GraphNode>> slotModifiers);
             CompileResult result = chainErrors.Any(issue => issue.Code != "E10")
                 ? new CompileResult(chainErrors, chainWarnings, null)
@@ -330,26 +332,18 @@ namespace RuneCode
             else if (element == "heal") isValid = form == "explosion" || form == "remain";
             else if (element == "protection") isValid = form == "explosion" || isProtectionOrbit;
             else isValid = true;
-            // 부채꼴은 실행 위치에서 방향으로 펼친 범위(Burst·Persist)와 진행 방향으로 펼친 부채꼴 발사체(Launch)에만 정의되어 있다.
-            if (magicType == SpellGrammar.MAGIC_TYPE_CONE && form != "explosion" && form != "remain" && form != "launch") isValid = false;
             if (!isValid) errors.Add(new CompileIssue("E14", node.Id));
             if (magicType == "buff" && edges.Any(edge => edge.FromNode == node.Id
                 && (edge.FromPort == SpellGrammar.ON_HIT_PORT || edge.FromPort == SpellGrammar.ON_EXPIRE_PORT)))
                 errors.Add(new CompileIssue("E16", node.Id));
         }
 
-        /// <summary>Inline Magic의 기존 런타임 Form 룬 ID를 반환한다.</summary>
+        /// <summary>Inline Magic의 form 값에 해당하는 행동 수치 룬 ID(form.bolt 등)를 반환한다. 알 수 없는 form이면 빈 문자열이다.</summary>
         private static string EffectiveFormId(GraphNode node, RuneDefinition rune)
         {
             if (rune.Id != "magic.inline") return rune.Category == "form" ? rune.Id : "";
-            switch (node.GetText("form", "launch"))
-            {
-                case "launch": return "form.bolt";
-                case "explosion": return "form.burst";
-                case "orbit": return "form.orbit";
-                case "remain": return "form.zone";
-                default: return "";
-            }
+            string kind = SpellGrammar.KindOf(node.GetText("form", "launch"));
+            return string.IsNullOrEmpty(kind) ? "" : FORM_RUNE_PREFIX + kind;
         }
 
         /// <summary>라이브러리 참조를 따라가며 없는 Spell ID와 직접·간접 재귀를 검사한다.</summary>
@@ -585,7 +579,8 @@ namespace RuneCode
                 else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR) behavior = rune;
                 float coneAngle = shape?.Stats.ConeAngle ?? 0f;
                 SpellAction action = new SpellAction(node, rune, effectForm, element, mods, modifierNodes, calledSpell,
-                    shape, coneAngle, runes.ModifierGrades, behavior);
+                    shape, coneAngle, runes.ModifierGrades, behavior,
+                    effectForm?.Id == "form.beam" ? runes.Get("form.bolt").Stats.Radius : -1f);
                 action.SetAttachedNodes(attachedNodeIds);
                 foreach (PortDefinition output in rune.Ports)
                 {
@@ -610,20 +605,26 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 개체 하나가 낼 수 있는 최대 OnHit 횟수를 구하고 유한하면 true를 반환한다. 발사체는 관통 허용 수 + 1(마지막은 적 또는 벽)이다.
-        /// 무제한 관통 발사체와 대상마다 내는 Burst·공전·잔류는 상한이 없어 false다.
+        /// 개체 하나가 낼 수 있는 최대 OnHit 횟수를 행동 규칙에서 구하고 유한하면 true를 반환한다.
+        /// 행동 규칙이 없는 종류(공전)는 대상마다 OnHit을 내므로 상한이 없어 false다.
         /// </summary>
         private static bool TryGetMaxHitEvents(SpellAction action, out int count)
         {
-            bool isBounded = action.Form == SpellGrammar.FORM_BOLT && action.Stats.Pierce < SpellGrammar.UNLIMITED_PIERCE_COUNT;
-            count = isBounded ? 1 + action.Stats.Pierce : 0;
-            return isBounded;
+            count = 0;
+            return action.Rules != null && action.Rules.TryGetMaxHitEvents(action.Stats, out count);
         }
+
+        /// <summary>행동 규칙상 명중 경로와 미명중 소멸 경로가 서로 배타적이라 큰 쪽만 세는지 반환한다.</summary>
+        private static bool HasExclusiveHitAndExpire(SpellAction action) => action.Rules != null && action.Rules.HasExclusiveHitAndExpire;
 
         /// <summary>
         /// 실행 수·생성 수 안전 검사에 쓰는 개체당 OnHit 배수를 반환한다. 유한하면 최대 횟수이고, 상한이 없으면 이벤트 분기를 한 번으로 센다.
         /// </summary>
-        private static int HitEventMultiplier(SpellAction action) => TryGetMaxHitEvents(action, out int count) ? count : 1;
+        private static int HitEventMultiplier(SpellAction action)
+        {
+            if (action.Form == BeamBehaviorRules.BEAM_KIND) return int.MaxValue;
+            return TryGetMaxHitEvents(action, out int count) ? count : 1;
+        }
 
         /// <summary>상한 없는 이벤트 후속 비용이 있으면 산정 불가로 표시하고, 없으면 빈 비용을 반환한다.</summary>
         private static ResourceCostSet UnboundedCost(ResourceCostSet chainCost)
@@ -642,6 +643,8 @@ namespace RuneCode
             foreach (SpellAction action in actions)
             {
                 ResourceCostSet ownCosts = action.GetNodeCosts(inheritedModifiers).Multiply(costMultiplier);
+                if (includeEvents && action.Form == BeamBehaviorRules.BEAM_KIND)
+                    ownCosts = ownCosts.Multiply(action.Stats.Lifetime / action.Stats.MinimumLifetime);
                 if (!includeEvents && (action.Kind == "spawn" || action.Kind == "buff"))
                 {
                     sum = sum.Add(ownCosts);
@@ -655,7 +658,7 @@ namespace RuneCode
                         ResourceCostSet hitCost = TryGetMaxHitEvents(action, out int maxHits)
                             ? hitChainCost.Multiply(maxHits) : UnboundedCost(hitChainCost);
                         ResourceCostSet expireCost = Cost(action.OnExpire, inheritedModifiers, costMultiplier);
-                        ResourceCostSet eventCost = action.Form == SpellGrammar.FORM_BOLT
+                        ResourceCostSet eventCost = HasExclusiveHitAndExpire(action)
                             ? ResourceCostSet.Max(hitCost, expireCost) : hitCost.Add(expireCost);
                         sum = sum.Add(ownCosts).Add(eventCost.Add(Cost(action.OnFirstHitOrExpire,
                             inheritedModifiers, costMultiplier)).Multiply(action.Count));
@@ -710,7 +713,7 @@ namespace RuneCode
                     case "spawn":
                         long hitWork = MultiplyBounded(HitEventMultiplier(action), EntityCount(action.OnHit), limit);
                         long expireWork = EntityCount(action.OnExpire);
-                        long pathWork = action.Form == SpellGrammar.FORM_BOLT ? Math.Max(hitWork, expireWork) : AddBounded(hitWork, expireWork, limit);
+                        long pathWork = HasExclusiveHitAndExpire(action) ? Math.Max(hitWork, expireWork) : AddBounded(hitWork, expireWork, limit);
                         long eventWork = AddBounded(pathWork, EntityCount(action.OnFirstHitOrExpire), limit);
                         long perEntityWork = AddBounded(1L, eventWork, limit);
                         count = MultiplyBounded(action.Count, perEntityWork, limit);
@@ -748,7 +751,7 @@ namespace RuneCode
                     case "spawn":
                         long hitWork = MultiplyBounded(HitEventMultiplier(action), ActionCount(action.OnHit, saturation), saturation);
                         long expireWork = ActionCount(action.OnExpire, saturation);
-                        long pathWork = action.Form == SpellGrammar.FORM_BOLT ? Math.Max(hitWork, expireWork) : AddBounded(hitWork, expireWork, saturation);
+                        long pathWork = HasExclusiveHitAndExpire(action) ? Math.Max(hitWork, expireWork) : AddBounded(hitWork, expireWork, saturation);
                         long eventWork = AddBounded(pathWork, ActionCount(action.OnFirstHitOrExpire, saturation), saturation);
                         count = AddBounded(count, MultiplyBounded(action.Count, eventWork, saturation), saturation);
                         break;

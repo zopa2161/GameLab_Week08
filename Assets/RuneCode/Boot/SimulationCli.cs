@@ -72,7 +72,7 @@ namespace RuneCode
             var castRange = GetAutomaticCastRange(compiled.Spell);
             var timer = Stopwatch.StartNew();
             for (var tick = 0; tick < ticks && !simulation.Completed && !simulation.IsFailed; tick++)
-                simulation.Step(isTimedBattle ? CreateAutomaticInput(simulation, castRange) : new SimulationInput(SimVector.Zero, new SimVector(1, 0), true));
+                simulation.Step(isTimedBattle ? CreateAutomaticInput(simulation, castRange) : new SimulationInput(SimVector.Zero, new SimVector(1, 0), true, isAutomatic: true));
             timer.Stop();
             return JsonUtility.ToJson(new SimulationReport(simulation, simulation.Tick, seed, scenario, compiled.Spell, timer.Elapsed.TotalMilliseconds), true);
         }
@@ -92,7 +92,7 @@ namespace RuneCode
             var aim = nearest == null ? simulation.Player.AimDirection : nearest.Position - simulation.Player.Position;
             var reach = castRange + (nearest == null ? 0 : nearest.Radius);
             // 실행 중·쿨다운이면 TryCast가 시전을 거부하므로 여기서 미리 거르지 않는다(같은 틱에 쿨다운이 끝나는 경우를 놓치지 않기 위함).
-            return new SimulationInput(SimVector.Zero, aim, nearest != null && distanceSquared <= reach * reach);
+            return new SimulationInput(SimVector.Zero, aim, nearest != null && distanceSquared <= reach * reach, isAutomatic: true);
         }
 
         /// <summary>컴파일된 형태와 흐름의 최대 도달 범위에 지팡이 발사 위치를 더해 자동 시전 거리를 반환한다.</summary>
@@ -112,8 +112,8 @@ namespace RuneCode
                 if (action.Kind == "spawn")
                 {
                     var stats = action.Stats;
-                    candidate = action.Form == "bolt" ? stats.Speed * stats.Lifetime + stats.Radius :
-                        action.Form == "orbit" ? stats.OrbitRadius + stats.Radius : stats.Offset + stats.Radius;
+                    candidate = action.Form == "orbit" ? stats.OrbitRadius + stats.Radius
+                        : (action.Rules != null ? action.Rules.GetReach(stats) : stats.Offset) + stats.Radius;
                 }
                 else if (action.Kind == "blink") candidate = action.Distance + GetActionRange(action.Next);
                 else if (action.Kind == "repeat") candidate = Math.Max(GetActionRange(action.Body), GetActionRange(action.OnComplete));

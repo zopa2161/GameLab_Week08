@@ -195,7 +195,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 행동 노드를 지정 등급(비면 기본 등급)과 기본 형태로 지정 좌표에 배치한다. 행동 외 룬, 등급표에 없는 등급,
+        /// 행동 노드를 지정 등급(비면 기본 등급)으로 지정 좌표에 배치한다. 형태는 행동 정의의 고정 형태를 쓴다. 행동 외 룬, 등급표에 없는 등급,
         /// 행동 소지량 초과는 배치하지 않는다. RAM은 연결될 때 검사한다.
         /// </summary>
         public void AddRune(string runeId, float x, float y, string grade = null)
@@ -226,7 +226,6 @@ namespace RuneCode
             var candidate = _editingGraph.Clone();
             var node = new GraphNode(NewId("node"), runeId, x, y);
             node.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, grade);
-            node.SetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
             candidate.AddNode(node);
             if (!_policy.IsWithinModifierStock(_editingGraph, candidate))
             {
@@ -497,7 +496,7 @@ namespace RuneCode
             var node = _editingGraph.Nodes.FirstOrDefault(item => item.Id == nodeId);
             if (node == null) return;
             if (TryGetBehaviorNode(_editingGraph, nodeId, out _, out _) && (key == SpellGrammar.MODIFIER_GRADE_PARAM
-                || key == SpellGrammar.SHAPE_PARAM || SpellGrammar.TryParseSlotKey(key, out _, out _))) return;
+                || SpellGrammar.TryParseSlotKey(key, out _, out _))) return;
             if (key == SpellGrammar.MODIFIER_GRADE_PARAM && GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune)
                 && rune.Category == SpellGrammar.CATEGORY_MODIFIER)
             {

@@ -71,6 +71,7 @@ namespace RuneCode
         private readonly float _speed;
         private readonly float _radius;
         private readonly float _lifetime;
+        private readonly float _minimumLifetime;
         private readonly float _offset;
         private readonly int _count;
         private readonly int _orbitCount;
@@ -103,6 +104,7 @@ namespace RuneCode
         public float Speed => _speed;
         public float Radius => _radius;
         public float Lifetime => _lifetime;
+        public float MinimumLifetime => _minimumLifetime;
         public float Offset => _offset;
         public int Count => _count;
         public int OrbitCount => _orbitCount;
@@ -148,6 +150,7 @@ namespace RuneCode
             _speed = row._speed;
             _radius = row._radius;
             _lifetime = row._lifetime;
+            _minimumLifetime = row._minimumLifetime;
             _offset = row._offset;
             _count = row._count;
             _orbitCount = row._orbitCount;
@@ -235,6 +238,7 @@ namespace RuneCode
         private readonly RuneStats _stats;
         private readonly IReadOnlyList<HomingTierDefinition> _homingTiers;
         private readonly IReadOnlyList<ShapeCostRateDefinition> _shapeCostRates;
+        private readonly string _fixedShape;
 
         public string Id => _id;
         public string Name => _name;
@@ -256,6 +260,9 @@ namespace RuneCode
         public IReadOnlyList<ParameterDefinition> Params => _params;
         public RuneStats Stats => _stats;
         public IReadOnlyList<ShapeCostRateDefinition> ShapeCostRates => _shapeCostRates;
+
+        /// <summary>행동 룬의 고정 형태(sphere 등)다. 형태 프리셋 룬 shape.{값}의 수치를 쓴다. 행동이 아니면 빈 문자열이다.</summary>
+        public string FixedShape => _fixedShape;
 
         /// <summary>룬 데이터와 자식 목록에서 모은 태그·포트·파라미터·유도 단계 수치로 룬 정의를 만든다.</summary>
         internal RuneDefinition(RuneRowData row, IReadOnlyList<string> tags, IReadOnlyList<PortDefinition> ports,
@@ -280,6 +287,7 @@ namespace RuneCode
             _stats = new RuneStats(row._stats ?? new RuneStatsData());
             _homingTiers = homingTiers;
             _shapeCostRates = shapeCostRates;
+            _fixedShape = row._shape ?? "";
         }
 
         /// <summary>이름이 일치하는 유도 단계 설정을 반환하고 없으면 null을 반환한다.</summary>
@@ -440,8 +448,20 @@ namespace RuneCode
             }
 
             ValidateModifierTargets(modifiers, definitions, log);
+            ValidateBehaviorShapes(definitions, runeIds, log);
             log.ThrowIfAny();
             return new RuneCatalog(definitions, elements, BuildModifierTargets(modifiers), behaviorGradeOrder, behaviorSlots);
+        }
+
+        /// <summary>활성 행동 룬의 고정 형태(_shape)가 비어 있거나 형태 프리셋 룬(shape.*)을 가리키지 않으면 오류를 추가한다.</summary>
+        private static void ValidateBehaviorShapes(List<RuneDefinition> definitions, HashSet<string> runeIds, TableErrorLog log)
+        {
+            foreach (RuneDefinition rune in definitions)
+            {
+                if (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled) continue;
+                if (string.IsNullOrEmpty(rune.FixedShape) || !runeIds.Contains(SpellGrammar.ShapeRune(rune.FixedShape)))
+                    log.Add(rune.Id, "shape", "행동의 고정 형태가 비어 있거나 형태 프리셋(shape.*)에 없습니다.");
+            }
         }
 
         /// <summary>행동 등급의 속성·모디 슬롯 수를 반환한다. 없는 등급이면 false를 반환한다.</summary>
@@ -493,7 +513,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 그래프 노드 하나가 차지하는 RAM을 반환한다. behavior 노드는 행동·형태·장착 속성·장착 모디 룬 RAM의 합이며
+        /// 그래프 노드 하나가 차지하는 RAM을 반환한다. behavior 노드는 행동·장착 속성·장착 모디 룬 RAM의 합이며
         /// 슬롯 값이 잘못됐으면 해당 항목만 0으로 뺀다. 다른 노드는 룬 자체 RAM에 속성 드롭다운을 가진 노드(Shape·Apply)는
         /// 선택한 속성 룬의 RAM을 더한다. 알 수 없는 룬이면 0을 반환한다.
         /// </summary>
@@ -507,8 +527,6 @@ namespace RuneCode
                 return baseRam;
             }
             int ram = rune.Ram;
-            string shape = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
-            if (TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune)) ram += shapeRune.Ram;
             for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
             {
                 string value = node.GetText(SpellGrammar.ElementSlotKey(index), null);
@@ -918,7 +936,7 @@ namespace RuneCode
                 stats.AngularSpeed, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
                 stats.LearningMultiplier, stats.SpreadAngle, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
-                stats.BeamWidth, stats.BeamLength };
+                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime };
             foreach (float value in numbers)
             {
                 if (value < 0f)

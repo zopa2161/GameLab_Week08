@@ -78,8 +78,9 @@ namespace RuneCode
             SimVector pointer = SimVector.Zero;
             bool hasPointer = !isTyping && !_ui.IsPopupOpen && _screen.TryGetPointer(out pointer);
             Mouse mouse = Mouse.current;
-            bool isCasting = hasPointer && mouse != null && mouse.leftButton.isPressed && !IsPointerOverUi();
-            _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime);
+            bool isCasting = Application.isFocused && hasPointer && mouse != null && mouse.leftButton.isPressed && !IsPointerOverUi();
+            _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
+                isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
             RenderHud();
         }
 

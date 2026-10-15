@@ -116,3 +116,6 @@ InitTestScene*.unity*
 # 테이블 편집기 빌드 산출물
 tools/TableEditor/bin/
 tools/TableEditor/obj/
+
+# VS Code
+.vscode

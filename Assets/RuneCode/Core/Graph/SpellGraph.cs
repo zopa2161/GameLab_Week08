@@ -86,7 +86,7 @@ namespace RuneCode
         public void SetText(string key, string value) => SetParameter(new NodeParameter(key, 0f, value));
 
         /// <summary>지정한 키의 파라미터를 모두 제거하고 하나라도 제거했는지 반환한다.</summary>
-        internal bool RemoveParameter(string key)
+        public bool RemoveParameter(string key)
         {
             return _params.RemoveAll(parameter => parameter.Key == key) > 0;
         }
