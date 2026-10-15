@@ -34,10 +34,10 @@ namespace PlayLogDashboard
                 catch (WaitHandleCannotBeOpenedException) { }
                 return;
             }
-            bool isCreated;
-            using (Mutex mutex = new Mutex(true, "Local\\PlayLogDashboard-" + key, out isCreated))
+            bool created;
+            using (Mutex mutex = new Mutex(true, "Local\\PlayLogDashboard-" + key, out created))
             {
-                if (!isCreated)
+                if (!created)
                 {
                     MessageBox.Show("이미 실행 중입니다. 작업 표시줄의 플레이 로그 분석 창에서 브라우저 열기를 누르세요.", "플레이 로그 분석");
                     return;
