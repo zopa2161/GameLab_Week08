@@ -53,6 +53,7 @@ namespace RuneCode
                 case "behavior.burst": effect = "설정한 형태의 범위에 폭발 효과를 줍니다."; break;
                 case "behavior.orbit": effect = "시전자 주변을 공전하며 효과를 줍니다."; break;
                 case "behavior.persist": effect = "효과를 남겨 일정 시간 유지합니다."; break;
+                case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
                 case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
                 default: effect = string.Empty; break;
             }
@@ -235,6 +236,7 @@ namespace RuneCode
         /// <summary>행동 ID를 해당 행동이 사용하는 내부 효과 형태의 룬 ID로 바꾸고 지원하지 않으면 null을 반환한다.</summary>
         private static string GetBehaviorFormId(string behaviorId)
         {
+            if (SpellBehaviorRuleRegistry.TryGetByRuneId(behaviorId, out SpellBehaviorRules rules)) return rules.StatsRuneId;
             switch (behaviorId)
             {
                 case "behavior.launch": return "form.bolt";
@@ -253,6 +255,24 @@ namespace RuneCode
             {
                 FormatTransition(GameData.L("ui.runeUsedEnergy"), form.Energy, action == null ? form.Energy : action.OwnEnergy)
             };
+            if (behavior.Id == "behavior.beam")
+            {
+                SpellStats beam = action?.Stats;
+                float minimumCost = action?.OwnEnergy ?? form.Energy;
+                lines.Clear();
+                lines.Add(GameData.L("ui.beamInitialCost") + " " + minimumCost.ToString("0.##"));
+                lines.Add(GameData.L("ui.beamMaximumCost") + " "
+                    + (minimumCost * form.Stats.Lifetime / form.Stats.MinimumLifetime).ToString("0.##"));
+                lines.Add(GameData.L("ui.beamDuration") + " " + form.Stats.MinimumLifetime.ToString("0.##")
+                    + "–" + form.Stats.Lifetime.ToString("0.##") + "s");
+                lines.Add(GameData.L("ui.runeDamageAmount") + " " + (beam?.Damage ?? form.Stats.Damage).ToString("0.##")
+                    + " / " + form.Stats.TickInterval.ToString("0.##") + "s");
+                lines.Add(GameData.L("ui.beamWidth") + " " + (beam?.BoxWidth ?? GameData.Runes.Get("form.bolt").Stats.Radius).ToString("0.##") + "px");
+                lines.Add(GameData.L("ui.beamSustainCost") + " " + (minimumCost / form.Stats.MinimumLifetime).ToString("0.##") + "/s");
+                lines.Add(GameData.L("ui.beamHint"));
+                _view.AddNote(string.Join("\n", lines), 150, 6);
+                return;
+            }
 
             if (behavior.Id == SpellGrammar.APPLY_RUNE)
             {
@@ -650,6 +670,12 @@ namespace RuneCode
         {
             if (action?.Stats == null) return;
             SpellStats stats = action.Stats;
+            if (action.Form == BeamBehaviorRules.BEAM_KIND)
+            {
+                _view.AddNote(GameData.L("ui.beamMapRange") + "\n" + GameData.L("ui.beamCurveLength") + " "
+                    + stats.BoxLength.ToString("0.#") + "px", 48, 6);
+                return;
+            }
             bool isAnchored = action.MagicType == SpellGrammar.MAGIC_TYPE_CONE || action.MagicType == SpellGrammar.MAGIC_TYPE_BOX
                 || action.SourceElement == "heal" || action.SourceElement == "protection";
             bool isArea = SpellBehaviorRuleRegistry.GetDisplayType(action.Form) != SpellDisplayType.Projectile || isAnchored;

@@ -75,6 +75,7 @@ namespace RuneCode
         public float _speed;
         public float _radius;
         public float _lifetime;
+        public float _minimumLifetime;
         public float _offset;
         public int _count;
         public int _orbitCount;

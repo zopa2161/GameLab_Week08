@@ -229,6 +229,14 @@ namespace RuneCode
         /// <summary>마법 개체를 범위형(폭발·잔류)과 이동형(발사·공전)으로 나눠 그린다.</summary>
         private void DrawSpell(UnityEngine.UI.VertexHelper mesh, SimulationSpellEntity spell)
         {
+            if (SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
+            {
+                Color beamColor = RuneMesh.ElementColor(spell.Element);
+                IReadOnlyList<SimVector> path = spell.BeamPath;
+                for (int index = 1; index < path.Count; index++)
+                    RuneMesh.Line(mesh, Point(path[index - 1]), Point(path[index]), (float)spell.BoxWidth * _scale, beamColor);
+                return;
+            }
             Vector2 point = Point(spell.Position);
             Color tint = RuneMesh.ElementColor(spell.Element);
             float radius = (float)spell.Radius * _scale;

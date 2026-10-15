@@ -579,7 +579,8 @@ namespace RuneCode
                 else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR) behavior = rune;
                 float coneAngle = shape?.Stats.ConeAngle ?? 0f;
                 SpellAction action = new SpellAction(node, rune, effectForm, element, mods, modifierNodes, calledSpell,
-                    shape, coneAngle, runes.ModifierGrades, behavior);
+                    shape, coneAngle, runes.ModifierGrades, behavior,
+                    effectForm?.Id == "form.beam" ? runes.Get("form.bolt").Stats.Radius : -1f);
                 action.SetAttachedNodes(attachedNodeIds);
                 foreach (PortDefinition output in rune.Ports)
                 {
@@ -619,7 +620,11 @@ namespace RuneCode
         /// <summary>
         /// 실행 수·생성 수 안전 검사에 쓰는 개체당 OnHit 배수를 반환한다. 유한하면 최대 횟수이고, 상한이 없으면 이벤트 분기를 한 번으로 센다.
         /// </summary>
-        private static int HitEventMultiplier(SpellAction action) => TryGetMaxHitEvents(action, out int count) ? count : 1;
+        private static int HitEventMultiplier(SpellAction action)
+        {
+            if (action.Form == BeamBehaviorRules.BEAM_KIND) return int.MaxValue;
+            return TryGetMaxHitEvents(action, out int count) ? count : 1;
+        }
 
         /// <summary>상한 없는 이벤트 후속 비용이 있으면 산정 불가로 표시하고, 없으면 빈 비용을 반환한다.</summary>
         private static ResourceCostSet UnboundedCost(ResourceCostSet chainCost)
@@ -638,6 +643,8 @@ namespace RuneCode
             foreach (SpellAction action in actions)
             {
                 ResourceCostSet ownCosts = action.GetNodeCosts(inheritedModifiers).Multiply(costMultiplier);
+                if (includeEvents && action.Form == BeamBehaviorRules.BEAM_KIND)
+                    ownCosts = ownCosts.Multiply(action.Stats.Lifetime / action.Stats.MinimumLifetime);
                 if (!includeEvents && (action.Kind == "spawn" || action.Kind == "buff"))
                 {
                     sum = sum.Add(ownCosts);

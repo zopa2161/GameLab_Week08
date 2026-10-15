@@ -166,6 +166,11 @@ namespace RuneCode
                 case "behavior.burst":
                     Path(mesh,c,s,t,0,16,4,7,13,11,9,2,16,-3,6,-5,5,-15,-2,-8,-12,-13,-8,-3,-16,3,-6,5,-7,14,0,16);
                     break;
+                case "behavior.beam":
+                    Path(mesh,c,s,t,-16,-2,16,-2);
+                    Path(mesh,c,s,t,-16,2,16,2);
+                    Path(mesh,c,s,t,-13,-7,-13,7);
+                    break;
                 case "behavior.orbit":
                     Ring(mesh,c,s,t,0,0,12); Dot(mesh,c,s,t,0,0,4);
                     Dot(mesh,c,s,t,10,7,4);

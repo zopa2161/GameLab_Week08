@@ -81,6 +81,12 @@ namespace RuneCode
         /// </summary>
         private static void ValidateBehaviorRegistries(RuneCatalog runes)
         {
+            foreach (RuneDefinition rune in runes.All)
+            {
+                if (rune.IsDisabled || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.Id == SpellGrammar.ORBIT_RUNE) continue;
+                if (!SpellBehaviorRuleRegistry.TryGetByRuneId(rune.Id, out _))
+                    throw new FormatException("활성 행동의 규칙이 등록되지 않았습니다: " + rune.Id);
+            }
             foreach (SpellBehaviorRules rules in SpellBehaviorRuleRegistry.All)
             {
                 if (!runes.TryGet(rules.RuneId, out _) || !runes.TryGet(rules.StatsRuneId, out _))
@@ -88,6 +94,9 @@ namespace RuneCode
                 if (!SpellBehaviorRuntimeRegistry.IsRegistered(rules.Kind))
                     throw new FormatException("행동 규칙에 맞는 실행 동작이 등록되지 않았습니다: " + rules.Kind);
             }
+            RuneStats beam = runes.Get("form.beam").Stats;
+            if (beam.MinimumLifetime <= 0 || beam.Lifetime < beam.MinimumLifetime || beam.TickInterval <= 0 || beam.BeamLength <= 0 || beam.Speed <= 0)
+                throw new FormatException("빔의 최소·최대 지속, 피해 간격, 곡선 길이와 경로 속도는 양수여야 합니다.");
         }
 
         /// <summary>시작 마법 템플릿 중 ID가 일치하는 그래프를 반환하며 없으면 null을 반환한다.</summary>

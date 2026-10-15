@@ -336,6 +336,71 @@
       ]
     },
     {
+      "_id": "form.beam",
+      "_name": "빔 수치",
+      "_category": "internal",
+      "_ram": 2,
+      "_energy": 2,
+      "_energyMult": 1,
+      "_unlockType": "start",
+      "_stats": {
+        "_damage": 3,
+        "_radius": 3,
+        "_lifetime": 3,
+        "_minimumLifetime": 0.5,
+        "_speed": 480,
+        "_count": 1,
+        "_tickInterval": 0.1,
+        "_beamLength": 1200,
+        "_damageMultiplier": 1,
+        "_radiusMultiplier": 1,
+        "_learningMultiplier": 1
+      },
+      "_ports": [
+        {
+          "_order": 0,
+          "_portId": "exec",
+          "_kind": "exec",
+          "_direction": "in",
+          "_max": 1
+        },
+        {
+          "_order": 1,
+          "_portId": "mod",
+          "_kind": "mod",
+          "_direction": "in",
+          "_max": 0
+        },
+        {
+          "_order": 2,
+          "_portId": "onHit",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 3,
+          "_portId": "onExpire",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 4,
+          "_portId": "onFirstHitOrExpire",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        }
+      ],
+      "_tags": [
+        {
+          "_order": 0,
+          "_tag": "beam"
+        }
+      ]
+    },
+    {
       "_id": "elem.fire",
       "_name": "화염",
       "_category": "internal",
@@ -455,9 +520,9 @@
         "behavior.orbit",
         "behavior.persist",
         "behavior.apply",
-        "spell.call"
+        "spell.call",
+        "behavior.beam"
       ]
-
     },
     {
       "_id": "mod.multi",
@@ -491,9 +556,9 @@
         "behavior.burst",
         "behavior.orbit",
         "behavior.persist",
-        "spell.call"
+        "spell.call",
+        "behavior.beam"
       ]
-
     },
     {
       "_id": "mod.pierce",
@@ -574,9 +639,9 @@
         "behavior.launch",
         "behavior.orbit",
         "behavior.persist",
-        "spell.call"
+        "spell.call",
+        "behavior.beam"
       ]
-
     },
     {
       "_id": "mod.expand",
@@ -607,9 +672,9 @@
         "behavior.burst",
         "behavior.orbit",
         "behavior.persist",
-        "spell.call"
+        "spell.call",
+        "behavior.beam"
       ]
-
     },
     {
       "_id": "mod.speed",
@@ -1017,6 +1082,10 @@
             {
               "_order": 3,
               "_option": "remain"
+            },
+            {
+              "_order": 4,
+              "_option": "beam"
             }
           ]
         },
@@ -1045,7 +1114,6 @@
           "_tag": "magic"
         }
       ]
-
     },
     {
       "_id": "spell.call",
@@ -1808,6 +1876,118 @@
         }
       ]
 
+    },
+    {
+      "_id": "behavior.beam",
+      "_name": "빔",
+      "_category": "behavior",
+      "_shape": "box",
+      "_ram": 1,
+      "_energy": 0,
+      "_energyMult": 1,
+      "_executionSeconds": 0.05,
+      "_unlockType": "bench",
+      "_stats": {
+        "_damageMultiplier": 1,
+        "_radiusMultiplier": 1,
+        "_learningMultiplier": 1
+      },
+      "_ports": [
+        {
+          "_order": 0,
+          "_portId": "exec",
+          "_kind": "exec",
+          "_direction": "in",
+          "_max": 1
+        },
+        {
+          "_order": 1,
+          "_portId": "onHit",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        }
+      ],
+      "_params": [
+        {
+          "_order": 0,
+          "_paramId": "grade",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "C",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "C"
+            },
+            {
+              "_order": 1,
+              "_option": "B"
+            },
+            {
+              "_order": 2,
+              "_option": "A"
+            },
+            {
+              "_order": 3,
+              "_option": "S"
+            }
+          ]
+        },
+        {
+          "_order": 1,
+          "_paramId": "element0",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 2,
+          "_paramId": "element1",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 3,
+          "_paramId": "mod0",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 4,
+          "_paramId": "mod1",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        },
+        {
+          "_order": 5,
+          "_paramId": "mod2",
+          "_kind": "text",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": ""
+        }
+      ]
     },
     {
       "_id": "behavior.apply",

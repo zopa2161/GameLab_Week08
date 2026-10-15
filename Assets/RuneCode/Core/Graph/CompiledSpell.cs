@@ -210,6 +210,7 @@ namespace RuneCode
         private readonly float _boxWidth;
         private readonly float _boxLength;
         private readonly float _lifetime;
+        private readonly float _minimumLifetime;
         private readonly float _offset;
         private readonly float _orbitRadius;
         private readonly float _angularSpeed;
@@ -234,6 +235,7 @@ namespace RuneCode
         public float BoxWidth => _boxWidth;
         public float BoxLength => _boxLength;
         public float Lifetime => _lifetime;
+        public float MinimumLifetime => _minimumLifetime;
         public float Offset => _offset;
         public float OrbitRadius => _orbitRadius;
         public float AngularSpeed => _angularSpeed;
@@ -312,9 +314,11 @@ namespace RuneCode
             _shapeRadius = (shapeRadius >= 0f ? shapeRadius : form.Radius) * radiusMult;
             _boxWidth = (boxWidth >= 0f ? boxWidth : form.Radius * 2f) * radiusMult;
             _boxLength = (boxLength >= 0f ? boxLength : form.Radius * 2f) * radiusMult;
+            if (formKind == BeamBehaviorRules.BEAM_KIND) _boxLength = form.BeamLength;
             _radius = magicType == SpellGrammar.MAGIC_TYPE_SPHERE || magicType == SpellGrammar.MAGIC_TYPE_CONE
                 ? _shapeRadius : form.Radius * radiusMult;
             _lifetime = rules != null ? rules.GetLifetime(form.Lifetime, rangeMult, speedMult, durationMult) : form.Lifetime * durationMult;
+            _minimumLifetime = form.MinimumLifetime;
             _offset = form.Offset * rangeMult;
             _orbitRadius = form.OrbitRadius * radiusMult * rangeMult;
             _angularSpeed = form.AngularSpeed * speedMult;
@@ -342,6 +346,12 @@ namespace RuneCode
             _boxLength = source._boxLength * modifiers.RadiusMultiplier;
             _radius = source._radius * modifiers.RadiusMultiplier;
             _lifetime = source._lifetime * modifiers.DurationMultiplier * modifiers.RangeMultiplier;
+            _minimumLifetime = source._minimumLifetime;
+            if (_minimumLifetime > 0)
+            {
+                _lifetime = source._lifetime;
+                _boxLength = source._boxLength;
+            }
             _offset = source._offset * modifiers.RangeMultiplier;
             _orbitRadius = source._orbitRadius * modifiers.RadiusMultiplier * modifiers.RangeMultiplier;
             _angularSpeed = source._angularSpeed * modifiers.SpeedMultiplier;
@@ -504,7 +514,7 @@ namespace RuneCode
         public SpellAction(GraphNode node, RuneDefinition rune, RuneDefinition effectForm, RuneDefinition element,
             IReadOnlyList<RuneDefinition> mods, IReadOnlyList<GraphNode> modifierNodes = null, CompiledSpell calledSpell = null,
             RuneDefinition shape = null, float coneAngle = 0f, ModifierGradeTable modifierGrades = null,
-            RuneDefinition behavior = null)
+            RuneDefinition behavior = null, float beamWidth = -1f)
         {
             _nodeId = node.Id;
             _shapeDefinition = shape;
@@ -551,6 +561,11 @@ namespace RuneCode
                     ? behaviorRadius * shape.Stats.RadiusMultiplier : behaviorRadius;
                 float boxWidth = shape != null && shape.Stats.BeamWidth > 0f ? shape.Stats.BeamWidth : behaviorRadius * 2f;
                 float boxLength = shape != null && shape.Stats.BeamLength > 0f ? shape.Stats.BeamLength : behaviorRadius * 2f;
+                if (_form == BeamBehaviorRules.BEAM_KIND)
+                {
+                    boxWidth = beamWidth;
+                    boxLength = effectForm.Stats.BeamLength;
+                }
                 _stats = new SpellStats(effectForm.Stats, element?.Stats, mods, _form, modifierNodes, modifierGrades,
                     _magicType, coneRadius, boxWidth, boxLength);
             }

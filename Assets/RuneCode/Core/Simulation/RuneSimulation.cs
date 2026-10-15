@@ -68,6 +68,11 @@ namespace RuneCode
         private readonly Queue<DamageSample> _damageWindow = new Queue<DamageSample>();
         private readonly Dictionary<string, int> _killCounts = new Dictionary<string, int>();
         private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
+        private readonly bool[] _castHeld = new bool[3];
+        private readonly bool[] _beamQueued = new bool[3];
+        private readonly int[] _beamPressSerial = new int[3];
+        private readonly List<BeamBehaviorRuntime.BeamChannel> _beamChannels = new List<BeamBehaviorRuntime.BeamChannel>();
+        private bool _isAutomaticInput;
         private readonly List<string> _unlockedElements = new List<string> { "fire" };
         private readonly List<SimVector> _tickSpawnPositions = new List<SimVector>();
         private readonly SpawnSlots _spawnSlots;
@@ -133,6 +138,7 @@ namespace RuneCode
 
         /// <summary>전투 규칙 수치다. 행동 실행 동작이 다중 배치 간격 등을 읽는다.</summary>
         internal BalanceData Balance => _balance;
+        internal double PlayerRadius => _sector.PlayerRadius;
         public MissionStage Stage => _stage;
         public bool Completed => _stage == MissionStage.Cleared;
         public bool IsDead => _stage == MissionStage.Dead;
@@ -228,7 +234,14 @@ namespace RuneCode
 
         /// <summary>전투에서는 하나의 마법, 시험 도크에서는 최대 3슬롯의 컴파일 마법을 다음 시전부터 사용한다.</summary>
         public void SetLoadout(IReadOnlyList<CompiledSpell> spells)
-        { for (int i = 0; i < _loadout.Length; i++) _loadout[i] = i < spells.Count && (!_isMission || i == 0) ? spells[i] : null; }
+        {
+            for (int i = 0; i < _loadout.Length; i++)
+            {
+                CompiledSpell next = i < spells.Count && (!_isMission || i == 0) ? spells[i] : null;
+                if (!ReferenceEquals(_loadout[i], next)) CancelBeamChannels();
+                _loadout[i] = next;
+            }
+        }
 
         /// <summary>해금한 속성 태그를 노이즈의 무작위 후보로 설정하고 기본 화염 후보를 보존한다.</summary>
         public void SetUnlockedElements(IReadOnlyList<string> elements)
@@ -289,7 +302,7 @@ namespace RuneCode
         /// <summary>
         /// 시전 가능 상태와 슬롯 쿨다운을 확인하고 루트 실행을 시작한다. 마나는 선지불하지 않고 실행 노드에 도달할 때마다 차감한다(백서 7.1).
         /// </summary>
-        public bool TryCast(CompiledSpell spell, int slot = 0)
+        public bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false)
         {
             if (spell == null || slot < 0 || slot >= _loadout.Length || (_stage != MissionStage.Bench && _stage != MissionStage.Combat)) return false;
             if (_isMission && slot != 0) return false;
@@ -297,7 +310,8 @@ namespace RuneCode
             double cooldownSeconds = spell.Cooldown + executionSeconds;
             if (!_player.TryBeginSpell(slot, executionSeconds, cooldownSeconds)) return false;
             RecordNode(spell.CoreNodeId);
-            var rootCast = new RootSpellExecution(slot);
+            _beamQueued[slot] = false;
+            var rootCast = new RootSpellExecution(slot, spell, _beamPressSerial[slot], allowBeamHold && _castHeld[slot]);
             var context = new SpellContext(_player.Position + _player.AimDirection * (_sector.PlayerRadius + _balance.Sim.WandOffset), _player.AimDirection, null, false, null,
                 caster: _player, randomState: new SpellRandomState());
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
@@ -308,7 +322,65 @@ namespace RuneCode
         /// <summary>선택 Trigger와 일치하는 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         private bool TryCastTriggered(CompiledSpell spell, string trigger, int slot)
         {
-            return spell != null && spell.Trigger == trigger && TryCast(spell, slot);
+            if (spell == null || spell.Trigger != trigger) return false;
+            if (trigger == SpellGrammar.TRIGGER_ON_ATTACK && HasDirectBeam(spell) && !_isAutomaticInput && !_beamQueued[slot]) return false;
+            return TryCast(spell, slot, trigger == SpellGrammar.TRIGGER_ON_ATTACK);
+        }
+
+        /// <summary>공격 코어에 직접 연결된 빔이 있는지 검사해 새 클릭이 필요한 마법을 구분한다.</summary>
+        private static bool HasDirectBeam(CompiledSpell spell)
+        {
+            foreach (SpellAction action in spell.Root)
+                if (action.Form == BeamBehaviorRules.BEAM_KIND) return true;
+            return false;
+        }
+
+        /// <summary>슬롯별 새 클릭을 예약하고 해제·재클릭 시 이전 빔의 연장 권한을 무효화한다.</summary>
+        private void ReadBeamInput(SimulationInput input)
+        {
+            _isAutomaticInput = input.IsAutomatic;
+            for (int slot = 0; slot < _castHeld.Length; slot++)
+            {
+                bool held = slot == 0 ? input.CastA : slot == 1 ? input.CastB : input.CastC;
+                bool released = _castHeld[slot] && !held || slot == 0 && input.CastReleased;
+                bool pressed = held && !_castHeld[slot] || slot == 0 && input.CastPressed;
+                if (released) _beamPressSerial[slot]++;
+                if (pressed)
+                {
+                    _beamPressSerial[slot]++;
+                    if (_loadout[slot] != null && _loadout[slot].Trigger == SpellGrammar.TRIGGER_ON_ATTACK
+                        && HasDirectBeam(_loadout[slot]))
+                        _beamQueued[slot] = true;
+                }
+                _castHeld[slot] = held;
+            }
+        }
+
+        /// <summary>빔이 시작한 클릭과 현재 슬롯 홀드가 같은지 반환한다.</summary>
+        internal bool IsBeamHeld(int slot, int pressSerial)
+            => slot >= 0 && _castHeld[slot] && _beamPressSerial[slot] == pressSerial;
+
+        /// <summary>입력 중단 시 기존 빔 홀드와 예약 클릭을 취소하며 다른 행동의 입력 규칙은 유지한다.</summary>
+        public void CancelBeamInput()
+        {
+            for (int slot = 0; slot < _castHeld.Length; slot++)
+            {
+                if (_castHeld[slot] || _beamQueued[slot]) _beamPressSerial[slot]++;
+                _castHeld[slot] = false;
+                _beamQueued[slot] = false;
+            }
+        }
+
+        /// <summary>빔의 모든 비용 자원을 원자적으로 차감하고 기존 누적 소비 통계에 기록한다.</summary>
+        internal bool TrySpendBeamCosts(ResourceCostSet costs)
+        {
+            if (!_player.TrySpend(costs)) return false;
+            foreach (ResourceAmount amount in costs.Amounts)
+            {
+                _resourceCostsSpent.TryGetValue(amount.Resource, out double spent);
+                _resourceCostsSpent[amount.Resource] = spent + amount.Amount;
+            }
+            return true;
         }
 
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
@@ -324,6 +396,7 @@ namespace RuneCode
         public void Step(SimulationInput input)
         {
             if (Completed || IsFailed) return;
+            ReadBeamInput(input);
             bool wasDashing = _player.DashRemaining > 0.000001;
             _player.Aim(input.AimDirection);
             _player.Advance(STEP_SECONDS, Time, _energyRegen);
@@ -333,9 +406,9 @@ namespace RuneCode
             if (input.Movement.LengthSquared > 0.000001) TryCastTrigger(SpellGrammar.TRIGGER_ON_MOVE);
             if (_isMission) { AdvanceSpawns(); AdvanceSplits(); }
             RunScheduled();
-            if (input.CastA) TryCastTriggered(_loadout[0], SpellGrammar.TRIGGER_ON_ATTACK, 0);
-            if (input.CastB) TryCastTriggered(_loadout[1], SpellGrammar.TRIGGER_ON_ATTACK, 1);
-            if (input.CastC) TryCastTriggered(_loadout[2], SpellGrammar.TRIGGER_ON_ATTACK, 2);
+            if (input.CastA || _beamQueued[0]) TryCastTriggered(_loadout[0], SpellGrammar.TRIGGER_ON_ATTACK, 0);
+            if (input.CastB || _beamQueued[1]) TryCastTriggered(_loadout[1], SpellGrammar.TRIGGER_ON_ATTACK, 1);
+            if (input.CastC || _beamQueued[2]) TryCastTriggered(_loadout[2], SpellGrammar.TRIGGER_ON_ATTACK, 2);
             AdvanceStatuses();
             AdvanceRelayRegen();
             AdvanceEnemies();
@@ -361,6 +434,7 @@ namespace RuneCode
         /// <summary>전투 중단 시 예약 노드 실행을 지우고 진행 중 시전 상태를 환급 없이 취소한다.</summary>
         public void CancelPendingSpellExecutions()
         {
+            CancelBeamChannels();
             _scheduled.Clear();
             _player.CancelSpellExecutions();
         }
@@ -415,6 +489,9 @@ namespace RuneCode
         public string StateHash()
         {
             var state = new StringBuilder();
+            state.Append("beamInput:").Append(_isAutomaticInput);
+            for (int slot = 0; slot < _castHeld.Length; slot++)
+                state.Append('|').Append(_castHeld[slot]).Append(':').Append(_beamQueued[slot]).Append(':').Append(_beamPressSerial[slot]);
             state.Append(_tick).Append('|').Append(_rngState).Append('|').Append(_nextEntityId).Append('|').Append(_stage).Append('|').Append(_stageNumber).Append('|').Append(_killTarget).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_killCount).Append('|').Append(_scenario).Append('|').Append(_debugInvulnerable);
             state.Append('|').Append(_actionBudgetTick).Append('|').Append(_actionsThisTick).Append('|').Append(_droppedExecutions);
             AppendNumber(state, TimeLimit); AppendNumber(state, _energyRegen);
@@ -445,7 +522,10 @@ namespace RuneCode
                 AppendNumber(state, pending.Context.CostMultiplier);
                 state.Append(pending.Context.SourceEntityId).Append('|');
                 if (pending.Tracker != null)
+                {
                     state.Append("|flow:").Append(pending.Tracker.RootCast?.Slot ?? -1).Append(':').Append(pending.Tracker.Pending);
+                    state.Append(':').Append(pending.Tracker.RootCast?.PressSerial ?? -1).Append(':').Append(pending.Tracker.RootCast?.CanHold ?? false);
+                }
                 pending.Context.Repeat?.AppendState(state);
                 pending.Context.Modifiers.AppendState(state);
                 pending.Context.CallEvents?.AppendState(state);
@@ -687,7 +767,7 @@ namespace RuneCode
                 context = GetEffectContext(context, tracker);
                 switch (action.Kind)
                 {
-                    case "spawn": SpawnForm(action, context); break;
+                    case "spawn": SpawnForm(action, context, tracker); break;
                     case "buff": ApplyBuff(action, context, tracker); break;
                     case "call": ExecuteCall(action, context, tracker); break;
                     case "delay": Execute(action.Then, context, tracker); break;
@@ -798,12 +878,24 @@ namespace RuneCode
         /// 행동 실행 동작에 따라 개체 수만큼 배치·예열 시간을 정해 마법 개체를 생성하고 생성 직후 처리를 실행한다.
         /// 이벤트 앵커와 노이즈 속성을 반영한다. 공전은 수식으로 바뀔 예정이라 기존 궤도 배치·보호막 분기를 그대로 둔다.
         /// </summary>
-        private void SpawnForm(SpellAction action, SpellContext context)
+        private void SpawnForm(SpellAction action, SpellContext context, ExecutionTracker tracker)
         {
             foreach (string attachedNodeId in action.AttachedNodeIds) RecordNode(attachedNodeId);
             string element = action.Noise ? ChooseNoiseElement(context) : action.Element;
             SpellStats stats = action.Stats.Apply(context.Modifiers);
             SpellBehaviorRuntime behavior = SpellBehaviorRuntimeRegistry.Get(action.Form);
+            BeamBehaviorRuntime.BeamChannel channel = null;
+            if (action.Form == BeamBehaviorRules.BEAM_KIND && action.Count > 0 && _spellEntities.Count < _balance.Limits.MaxLiveSpellEntities)
+            {
+                RootSpellExecution root = tracker.RootCast;
+                bool isDirect = !context.FromEvent && root != null && root.IsDirectBeam(action);
+                bool canExtend = isDirect && root.CanHold;
+                if (isDirect) tracker.Acquire();
+                channel = new BeamBehaviorRuntime.BeamChannel(_tick, stats, root?.Slot ?? -1, root?.PressSerial ?? -1,
+                    canExtend, isDirect, action.GetNodeCosts(context.Modifiers).Multiply(context.CostMultiplier),
+                    isDirect ? (Action)tracker.Release : null);
+                _beamChannels.Add(channel);
+            }
             for (int i = 0; i < action.Count; i++)
             {
                 if (_spellEntities.Count >= _balance.Limits.MaxLiveSpellEntities) return;
@@ -817,6 +909,7 @@ namespace RuneCode
                     context.FromEvent, context.Origin, angle, context.NoiseElement, _balance.Sim.SpellVisualSeconds, warmup,
                     context.CallEvents, context.Modifiers, context.CostMultiplier, context.Caster);
                 _spellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _spellEntities.Count);
+                if (channel != null) ((BeamBehaviorRuntime.BeamState)entity.BehaviorState).Attach(channel);
                 // 보호 Orbit(방벽)은 생성 시 보호막을 준다. 보호 Burst는 범위 안의 시전자에게만 HitArea에서 준다.
                 if (action.SourceElement == "protection" && action.Form == SpellGrammar.FORM_ORBIT)
                     _player.GiveShield(action.Power * action.ModifierValues.DamageMultiplier * context.Modifiers.DamageMultiplier,
@@ -852,6 +945,8 @@ namespace RuneCode
                 { Expire(entity); _spellEntities.RemoveAt(i); }
                 else i++;
             }
+            for (int index = _beamChannels.Count - 1; index >= 0; index--)
+                if (_beamChannels[index].IsStopped) _beamChannels.RemoveAt(index);
         }
 
         /// <summary>
@@ -1941,8 +2036,26 @@ namespace RuneCode
         /// <summary>사망, 클리어 및 시간 초과 시 지속 개체, 예약 실행과 분열 대기를 취소한다.</summary>
         private void CancelCombat()
         {
+            CancelBeamChannels();
             _spellEntities.Clear(); _enemyProjectiles.Clear(); _scheduled.Clear(); _pendingEnemyShots.Clear(); _pendingSplits.Clear(); _deadEnemies.Clear();
             if (_player != null) _player.CancelSpellExecutions();
+        }
+
+        /// <summary>도크·장착·전투가 바뀔 때 빔 실행 추적과 입력 권한을 이벤트 없이 정리한다.</summary>
+        private void CancelBeamChannels()
+        {
+            foreach (BeamBehaviorRuntime.BeamChannel channel in _beamChannels) channel.Stop();
+            _beamChannels.Clear();
+            for (int index = _scheduled.Count - 1; index >= 0; index--)
+            {
+                ScheduledExecution pending = _scheduled[index];
+                if (pending.Action?.Form != BeamBehaviorRules.BEAM_KIND) continue;
+                _scheduled.RemoveAt(index);
+                pending.Tracker.Release();
+            }
+            for (int index = _spellEntities.Count - 1; index >= 0; index--)
+                if (_spellEntities[index].Kind == BeamBehaviorRules.BEAM_KIND) _spellEntities.RemoveAt(index);
+            CancelBeamInput();
         }
 
         /// <summary>노드 실행 틱을 기록하고 누적 실행 수를 증가시킨다.</summary>
@@ -2063,10 +2176,28 @@ namespace RuneCode
         private sealed class RootSpellExecution
         {
             private readonly int _slot;
+            private readonly IReadOnlyList<SpellAction> _actions;
+            private readonly bool _canHold;
+            private readonly int _pressSerial;
             public int Slot => _slot;
+            public bool CanHold => _canHold;
+            public int PressSerial => _pressSerial;
 
             /// <summary>Tracks which player slot should be marked complete when the root execution finishes.</summary>
-            public RootSpellExecution(int slot) { _slot = slot; }
+            public RootSpellExecution(int slot, CompiledSpell spell, int pressSerial, bool canHold)
+            {
+                _slot = slot; _actions = spell.Root; _pressSerial = pressSerial;
+                _canHold = canHold && spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK;
+            }
+
+            /// <summary>행동 인스턴스가 시작 조건에 직접 연결된 빔인지 검사한다.</summary>
+            public bool IsDirectBeam(SpellAction action)
+            {
+                if (action.Form != BeamBehaviorRules.BEAM_KIND) return false;
+                foreach (SpellAction direct in _actions)
+                    if (ReferenceEquals(direct, action)) return true;
+                return false;
+            }
         }
 
         /// <summary>분기와 예약된 후속 노드의 대기 수를 세고 모두 끝나면 콜백을 한 번 호출한다.</summary>
