@@ -44,10 +44,18 @@ namespace RuneCode
         private readonly CompiledSpell _spell;
         private readonly string _spellName;
         private readonly RuneSimulation _simulation;
+        private readonly int _seed;
+        private readonly string _spellBuildId;
+        private readonly string _testCombatId;
+        private readonly string _coreNodeId;
 
         private double _accumulator;
         private int _telemetryCount;
+        private int _castRequestCount;
+        private int _castSuccessCount;
+        private int _dashInputCount;
         private bool _hasPendingDash;
+        private bool _wasCasting;
         private bool _isPaused;
         private bool _settled;
         private string _lastResult;
@@ -96,7 +104,7 @@ namespace RuneCode
         /// <summary>보스 클리어 Modifier 선택이 이미 확정됐는지 반환한다.</summary>
         public bool IsClearModifierChosen => _isClearModifierChosen;
 
-        /// <summary>세션의 능력치와 선택 스테이지로 전투를 만들고 마법과 해금 속성을 연결한 뒤 시작 텔레메트리를 기록한다.</summary>
+        /// <summary>세션의 능력치와 선택 스테이지로 전투를 만들고 출격 그래프 스냅샷·전투 ID와 시작 텔레메트리를 기록한다.</summary>
         public MissionRun(RuneCodeSession session, CompiledSpell spell, string spellName)
         {
             _session = session;
@@ -104,12 +112,35 @@ namespace RuneCode
             _spellName = spellName;
             // 미션마다 시드를 바꿔 스폰·드롭·보상 순서가 매번 달라지게 한다. 재현용으로 시작 텔레메트리에 남긴다.
             int seed = Environment.TickCount;
+            _seed = seed;
             _simulation = new RuneSimulation(seed, true, session.MaxHp, session.MaxEnergy, session.SelectedStage, session.EnergyRegen,
                 session.DamageMultiplier, session.MoveSpeedMultiplier, session.ScrapGainMultiplier,
                 carrier: CarrierSpawnSettings.LoadDefinition(), scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
                 killEnergyBonus: session.KillEnergyBonus);
             _simulation.SetLoadout(new[] { spell });
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
+            _coreNodeId = null;
+            foreach (GraphNode node in session.Spells.Graph.Nodes)
+            {
+                if (node.RuneId != SpellGrammar.CORE_RUNE) continue;
+                _coreNodeId = node.Id;
+                break;
+            }
+            _spellBuildId = LocalTelemetry.SaveUsabilityBuild(null, session.Spells.Graph, new Dictionary<string, object>
+            {
+                ["reason"] = "mission_start",
+                ["signature"] = spell.Signature,
+                ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(session.Spells.Graph),
+                ["stage"] = session.SelectedStage,
+                ["ram_used"] = spell.RamUsed,
+                ["is_compile_valid"] = true,
+            });
+            _testCombatId = LocalTelemetry.BeginUsabilityCombat(session.SelectedStage, _spellBuildId, seed);
+            LocalTelemetry.RecordUsabilityEvent("stage_enter", "combat", new Dictionary<string, object>
+            {
+                ["stage"] = session.SelectedStage,
+                ["seed"] = seed,
+            });
             LocalTelemetry.Record(0, "mission.start", session.SelectedStage + ":" + spell.Signature + ":seed=" + seed);
         }
 
@@ -118,19 +149,33 @@ namespace RuneCode
 
         /// <summary>
         /// 이동·대시·줍기 키, 포인터 조준과 시전 입력(isCasting, 좌클릭 유지)을 모아 MaxFrameSteps 제한 안의 고정 스텝만큼 시뮬레이션을 갱신하고,
-        /// 노드 텔레메트리 기록과 종료 조건을 확인한다.
+        /// 입력·노드 텔레메트리를 기록하고 종료 조건을 확인한다.
         /// </summary>
         public void Step(bool isTyping, bool hasPointer, SimVector pointer, bool isCasting, float unscaledDeltaTime)
         {
             if (_settled) return;
             if (_isPaused) { _accumulator = 0; _hasPendingDash = false; return; }
+            if (isCasting && !_wasCasting)
+            {
+                _castRequestCount++;
+                LocalTelemetry.RecordUsabilityEvent("simulation_request", "combat", new Dictionary<string, object>
+                {
+                    ["input_method"] = "pointer",
+                    ["stage"] = _simulation.StageNumber,
+                });
+            }
+            _wasCasting = isCasting;
             var keyboard = Keyboard.current;
             var movement = SimVector.Zero;
             if (!isTyping && keyboard != null)
             {
                 movement = new SimVector((keyboard.dKey.isPressed ? 1 : 0) - (keyboard.aKey.isPressed ? 1 : 0),
                     (keyboard.sKey.isPressed ? 1 : 0) - (keyboard.wKey.isPressed ? 1 : 0));
-                _hasPendingDash |= keyboard.spaceKey.wasPressedThisFrame;
+                if (keyboard.spaceKey.wasPressedThisFrame)
+                {
+                    _hasPendingDash = true;
+                    _dashInputCount++;
+                }
             }
             var maxSteps = GameData.Balance.Limits.MaxFrameSteps;
             _accumulator = Math.Min(_accumulator + unscaledDeltaTime, FIXED_STEP * maxSteps);
@@ -147,11 +192,21 @@ namespace RuneCode
             if (_simulation.Completed || _simulation.IsFailed) FinishMission();
         }
 
-        /// <summary>이번 프레임에 새로 주운 소지 아이템 드롭을 세션에 넘겨 즉시 지급하고 결과 문구용 목록에 쌓는다.</summary>
+        /// <summary>새 소지 아이템 드롭을 기록하고 일반 모드에서만 지급·결과 목록에 반영한다.</summary>
         private void GrantPickedItems()
         {
             foreach (SimulationItemDrop drop in _simulation.TakeNewPickedItems())
             {
+                if (_session.IsTestMode)
+                {
+                    LocalTelemetry.RecordUsabilityEvent("combat_item_pickup", "combat", new Dictionary<string, object>
+                    {
+                        ["rune_id"] = drop.RuneId,
+                        ["grade"] = drop.Grade,
+                        ["count"] = drop.Count,
+                    });
+                    continue;
+                }
                 _session.GrantRune(drop.RuneId, drop.Grade, drop.Count);
                 _pickedModifiers.Add(drop);
                 AddModifierReward(drop.RuneId, drop.Grade, drop.Count);
@@ -211,7 +266,7 @@ namespace RuneCode
             bool isFirstClear = _session.HighestClearedStage < _simulation.StageNumber;
             var fragments = _simulation.SettlementFragments;
             var modifierRewards = _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts);
-            AddFragmentReward(fragments);
+            if (!_session.IsTestMode) AddFragmentReward(fragments);
             foreach (ModifierRewardDefinition reward in modifierRewards)
             {
                 // 속성 보상은 등급이 없으므로 그대로 두고, 모디 보상만 등급이 비면 최저 등급으로 채운다.
@@ -223,7 +278,8 @@ namespace RuneCode
             }
             var result = cleared ? "clear" : _simulation.IsTimedOut ? "timeout" : "death";
             var resultKey = cleared ? "result.stageCleared" : _simulation.IsTimedOut ? "result.timeout" : "result.dead";
-            _lastResult = GameData.L(resultKey) + "\n" + GameData.L("result.fragments") + " " + fragments;
+            _lastResult = GameData.L(resultKey);
+            if (!_session.IsTestMode) _lastResult += "\n" + GameData.L("result.fragments") + " " + fragments;
             if (cleared) _lastResult += "  ·  " + GameData.L("result.clearReward") + " " + _simulation.ClearReward;
             foreach (var reward in modifierRewards)
             {
@@ -238,6 +294,37 @@ namespace RuneCode
             SetClearModifierChoices(cleared, isFirstClear);
             _isPaused = false;
             LocalTelemetry.Record(_simulation.Tick, "mission.result", result + ":" + fragments);
+            LocalTelemetry.EndUsabilityCombat(new Dictionary<string, object>
+            {
+                ["stage"] = _simulation.StageNumber,
+                ["spell_build_id"] = _spellBuildId,
+                ["result"] = result,
+                ["duration_ms"] = (long)(_simulation.Time * 1000),
+                ["damage_dealt"] = _simulation.TotalDamage,
+                ["damage_received"] = _simulation.Player.DamageReceived,
+                ["shield_absorbed"] = _simulation.Player.ShieldAbsorbed,
+                ["energy_spent"] = _simulation.EnergySpent,
+                ["cast_requests"] = _castRequestCount,
+                ["cast_successes"] = _castSuccessCount,
+                ["dash_inputs"] = _dashInputCount,
+                ["dashes_started"] = _simulation.Player.DashesStarted,
+                ["kill_count"] = _simulation.KillCount,
+                ["fragments"] = fragments,
+                ["seed"] = _seed,
+            });
+            if (cleared)
+            {
+                string signature = _spell.Signature;
+                bool isFirstCompletion = LocalTelemetry.MarkFirstUsabilityCompletion(_session.Spells.Graph, out string comparisonKey);
+                LocalTelemetry.RecordUsabilityEvent("spell_complete", "combat", new Dictionary<string, object>
+                {
+                    ["combat_id"] = _testCombatId,
+                    ["spell_build_id"] = _spellBuildId,
+                    ["signature"] = signature,
+                    ["comparison_key"] = comparisonKey,
+                    ["is_first_completion"] = isFirstCompletion,
+                });
+            }
         }
 
         /// <summary>보스 클리어 Modifier 선택 후보와 후보별 등급을 결정적 난수로 뽑아 결과에 담는다. 현재는 매 클리어 지급이며 상수로 첫 클리어만 지급하도록 바꿀 수 있다.</summary>
@@ -246,7 +333,7 @@ namespace RuneCode
             _clearModifierChoices = null;
             _clearModifierGrades = null;
             _isClearModifierChosen = false;
-            if (!cleared || (!CLEAR_MODIFIER_CHOICE_EVERY_CLEAR && !isFirstClear)) return;
+            if (_session.IsTestMode || !cleared || (!CLEAR_MODIFIER_CHOICE_EVERY_CLEAR && !isFirstClear)) return;
             if (!_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
             _clearModifierChoices = candidates;
             _clearModifierGrades = grades;
@@ -266,7 +353,7 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>전투를 중단하여 사망과 같은 보존 비율로 현재 획득 조각을 한 번만 정산하고 결과 문구를 남긴다.</summary>
+        /// <summary>전투를 중단해 현재 조각을 정산하고 결과 문구와 중단 전투 로그를 남긴다.</summary>
         public void AbandonMission()
         {
             if (_settled) return;
@@ -274,10 +361,29 @@ namespace RuneCode
             _simulation.CancelPendingSpellExecutions();
             var fragments = (int)Math.Round(_simulation.EarnedFragments * GameData.Balance.Economy.DeathRetention, MidpointRounding.AwayFromZero);
             _session.SettleMission(_simulation.StageNumber, fragments, false, _simulation.KillCounts);
-            AddFragmentReward(fragments);
-            _lastResult = GameData.L("result.retreat") + "\n" + GameData.L("result.fragments") + " " + fragments;
+            if (!_session.IsTestMode) AddFragmentReward(fragments);
+            _lastResult = GameData.L("result.retreat");
+            if (!_session.IsTestMode) _lastResult += "\n" + GameData.L("result.fragments") + " " + fragments;
             AppendPickedModifiers();
             _isPaused = false;
+            LocalTelemetry.EndUsabilityCombat(new Dictionary<string, object>
+            {
+                ["stage"] = _simulation.StageNumber,
+                ["spell_build_id"] = _spellBuildId,
+                ["result"] = "retreat",
+                ["duration_ms"] = (long)(_simulation.Time * 1000),
+                ["damage_dealt"] = _simulation.TotalDamage,
+                ["damage_received"] = _simulation.Player.DamageReceived,
+                ["shield_absorbed"] = _simulation.Player.ShieldAbsorbed,
+                ["energy_spent"] = _simulation.EnergySpent,
+                ["cast_requests"] = _castRequestCount,
+                ["cast_successes"] = _castSuccessCount,
+                ["dash_inputs"] = _dashInputCount,
+                ["dashes_started"] = _simulation.Player.DashesStarted,
+                ["kill_count"] = _simulation.KillCount,
+                ["fragments"] = fragments,
+                ["seed"] = _seed,
+            });
         }
 
         /// <summary>디버그 실행에서만 미션 플레이어 무적을 토글한다.</summary>
@@ -294,7 +400,7 @@ namespace RuneCode
             _simulation.DebugSpawn(kind, isElite);
         }
 
-        /// <summary>새로 실행된 노드만 로컬 링 버퍼에 기록하여 동일 tick 실행도 보존한다.</summary>
+        /// <summary>새 노드 실행을 로컬 로그에 기록하고 Core 실행을 성공 시전 수에 더한다.</summary>
         private void CaptureNodeTelemetry()
         {
             var count = _simulation.NodeExecutionCount - _telemetryCount;
@@ -303,6 +409,15 @@ namespace RuneCode
             {
                 var entry = _simulation.NodeEvents[index];
                 LocalTelemetry.Record(entry.Tick, "mission.node", entry.NodeId);
+                if (entry.NodeId == _coreNodeId)
+                {
+                    _castSuccessCount++;
+                    LocalTelemetry.RecordUsabilityEvent("simulation_cast_result", "combat", new Dictionary<string, object>
+                    {
+                        ["result"] = "success",
+                        ["node_id"] = entry.NodeId,
+                    });
+                }
             }
             _telemetryCount = _simulation.NodeExecutionCount;
         }

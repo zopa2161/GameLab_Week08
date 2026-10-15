@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 using UnityEngine;
@@ -14,6 +15,7 @@ namespace RuneCode
     {
         private const int DEBUG_MODIFIER_STOCK = 9;
         private const int TEST_CLEARED_STAGE = 10;
+        private const int TEST_STAGE = 9;
         private const string TEST_STOCK_GRADE = "B";
         private const int TEST_STOCK_COUNT = 2;
 
@@ -67,7 +69,7 @@ namespace RuneCode
         public float KillEnergyBonus => GetUpgradeTreeEffectTotal(UpgradeEffectType.KillEnergy);
         public float BattleDuration => (float)_stages.Get(1).Stream.RampSeconds;
         public int EquippedRam => CalculateEquippedRam(_spells.Graph);
-        public int SelectedStage => _save.SelectedStage;
+        public int SelectedStage => _isTestMode ? TEST_STAGE : _save.SelectedStage;
         public StageDefinition SelectedStageDefinition => _stages.Get(SelectedStage);
         public int HighestClearedStage => _save.HighestClearedStage;
 
@@ -100,6 +102,7 @@ namespace RuneCode
         /// <summary>타이틀에서 선택한 일반 저장 또는 새 메모리 디버그 진행을 열고 작업실로 전환한다.</summary>
         public void StartGame(bool isDebug)
         {
+            if (_isTestMode) LocalTelemetry.EndUsabilityTest("mode_changed", _spells.Graph);
             bool isFirstGameStart = !isDebug && !SaveStore.HasSlot(SaveStore.ActiveSlot);
             if (isDebug) _hasPendingFirstRunHelp = false;
             else _hasPendingFirstRunHelp |= isFirstGameStart;
@@ -118,15 +121,72 @@ namespace RuneCode
             RequestScreen(AppScreen.Workshop);
         }
 
-        /// <summary>저장하지 않는 테스트 프로필 진행을 새로 열고 작업실로 전환한다. 일반 저장은 그대로 유지한다.</summary>
-        public void StartTestGame()
+        /// <summary>익명 참가자 ID로 테스트 프로필과 로컬 로그 세션을 열고 시작에 성공하면 true를 반환한다.</summary>
+        public bool StartTestGame(string participantId)
         {
+            if (string.IsNullOrWhiteSpace(participantId)) return false;
+            if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("restarted", _spells.Graph);
             _hasPendingFirstRunHelp = false;
             _isDebugEnabled = false;
             _isTestMode = true;
             _save = CreateTestSave();
             _spells.Reload();
+
+            var stock = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (KeyValuePair<string, int> pair in _save.CreateStockMap()) stock[pair.Key] = pair.Value;
+            var upgrades = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
+                if (node != null) upgrades[node.Id] = GetUpgradeNodeLevel(node.Id);
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
+                if (node != null) upgrades[node.Id] = GetUpgradeNodeLevel(node.Id);
+            var startState = new Dictionary<string, object>
+            {
+                ["selected_stage"] = SelectedStage,
+                ["currency"] = _save.Currency,
+                ["ram_capacity"] = Capacity,
+                ["equipped_ram"] = EquippedRam,
+                ["max_energy"] = MaxEnergy,
+                ["max_hp"] = MaxHp,
+                ["unlocked_runes"] = new List<string>(_save.UnlockedRunes),
+                ["stock"] = stock,
+                ["upgrade_levels"] = upgrades,
+            };
+            var metadata = new Dictionary<string, object>
+            {
+                ["participant_id"] = participantId,
+                ["app_version"] = Application.version,
+                ["condition"] = "Legacy",
+                ["editor_model"] = "line_connected_nodes",
+                ["test_order"] = null,
+                ["is_test_mode"] = true,
+                ["is_debug"] = false,
+                ["is_practice"] = false,
+                ["starting_state"] = startState,
+            };
+            try
+            {
+                LocalTelemetry.BeginUsabilityTest(metadata, null);
+                LocalTelemetry.RecordUsabilityEvent("test_start", "title", startState);
+                LocalTelemetry.SaveUsabilityBuild(null, _spells.Graph, new Dictionary<string, object>
+                {
+                    ["reason"] = "test_start",
+                    ["signature"] = GraphCompiler.Signature(_spells.Graph),
+                    ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(_spells.Graph),
+                    ["is_compile_valid"] = _spells.CompileResult.Ok,
+                    ["ram_used"] = _spells.CompileResult.Spell?.RamUsed ?? 0,
+                });
+            }
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
+            {
+                LocalTelemetry.AbortUsabilityTest();
+                _isTestMode = false;
+                _save = _normalSave;
+                _spells.Reload();
+                Debug.LogException(exception);
+                return false;
+            }
             RequestScreen(AppScreen.Workshop);
+            return true;
         }
 
         /// <summary>새 세이브로 처음 시작할 때 대기 중인 도움말 요청을 반환하고 한 번만 소비한다.</summary>
@@ -272,7 +332,7 @@ namespace RuneCode
             return _isDebugEnabled && cost >= 0 ? 0 : cost;
         }
 
-        /// <summary>스테이지, 선행 노드, 재화를 확인하고 노드를 구매할 수 없으면 이유 키를 반환한다.</summary>
+        /// <summary>스테이지, 선행 노드, 재화를 확인하고 테스트 모드 구매를 포함해 구매 불가 사유를 반환한다.</summary>
         public bool CanPurchaseUpgradeNode(string nodeId, out string reasonKey)
         {
             reasonKey = null;
@@ -280,6 +340,11 @@ namespace RuneCode
             if (node == null || node.MaxLevel == 0)
             {
                 reasonKey = "tree.invalidNode";
+                return false;
+            }
+            if (_isTestMode)
+            {
+                reasonKey = "tree.maxed";
                 return false;
             }
             int currentLevel = GetUpgradeNodeLevel(nodeId);
@@ -341,6 +406,7 @@ namespace RuneCode
         /// <summary>출격 스테이지를 선택하고 저장한다. 디버그 모드에서는 클리어에 따른 선택 제한을 무시한다.</summary>
         public void SelectStage(int stage)
         {
+            if (_isTestMode && stage != TEST_STAGE) return;
             if (stage < 1 || (!_isDebugEnabled && stage > HighestClearedStage + 1)) return;
             _save.SelectStage(stage, _isDebugEnabled);
             PersistProgress();
@@ -415,11 +481,12 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 전투 보상과 처치 기록을 세이브에 반영하고 저장한다. 클리어면 다음 스테이지를 해금하고, 처음 클리어한 스테이지면
-        /// 스테이지 데이터의 룬 소지량 보상(모디·속성·행동)을 지급한다. 지급한 보상 목록을 반환한다.
+        /// 일반 모드에서 전투 보상과 처치 기록을 세이브에 반영한다. 테스트 모드에서는 시작 조건 유지를 위해 보상을 반영하지 않는다.
+        /// 클리어 때 지급한 룬 보상 목록을 반환한다.
         /// </summary>
         public IReadOnlyList<ModifierRewardDefinition> SettleMission(int stageNumber, int fragments, bool isCleared, IEnumerable<KeyValuePair<string, int>> killCounts)
         {
+            if (_isTestMode) return Array.Empty<ModifierRewardDefinition>();
             var modifierRewards = new List<ModifierRewardDefinition>();
             if (isCleared && stageNumber > _save.HighestClearedStage)
             {
@@ -457,10 +524,10 @@ namespace RuneCode
             return modifierRewards;
         }
 
-        /// <summary>주운·선택·보상받은 룬 소지 아이템(모디·속성·행동)을 (종류, 등급) 소지량에 즉시 반영하고 저장한다. 이후 사망·시간 초과·후퇴와 무관하게 유지된다. 받을 수 없는 (룬, 등급)이면 지급하지 않는다.</summary>
+        /// <summary>일반 모드에서 주운·선택·보상받은 룬 소지 아이템을 즉시 반영한다. 테스트 모드는 시작 소지량을 유지한다.</summary>
         public void GrantRune(string runeId, string grade, int count)
         {
-            if (count <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)
+            if (_isTestMode || count <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)
                 || (rune.Category != SpellGrammar.CATEGORY_MODIFIER && rune.Category != SpellGrammar.CATEGORY_ELEMENT
                     && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)) return;
             _save.AddStock(runeId, grade, count);
@@ -594,6 +661,7 @@ namespace RuneCode
         {
             PlayerSave save = PlayerSave.CreateNew();
             for (int stage = 1; stage <= TEST_CLEARED_STAGE; stage++) save.RecordStageClear(stage);
+            save.SelectStage(TEST_STAGE, false);
             MaxUpgradeNodes(save, _upgradeTree.Nodes);
             MaxUpgradeNodes(save, _upgradeTree.UnplacedNodes);
             foreach (RuneDefinition rune in GameData.Runes.All)

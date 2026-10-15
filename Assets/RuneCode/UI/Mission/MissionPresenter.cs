@@ -67,6 +67,7 @@ namespace RuneCode
         /// </summary>
         public void Tick(float unscaledDeltaTime)
         {
+            LocalTelemetry.FlushUsabilityTest();
             if (_run == null) return;
             if (_run.IsFinished)
             {

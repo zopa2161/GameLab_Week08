@@ -32,10 +32,25 @@ namespace RuneCode
             _session.StartGame(true);
         }
 
-        /// <summary>저장하지 않는 테스트 프로필 진행을 열고 작업실로 전환한다.</summary>
+        /// <summary>익명 참가자 ID를 입력받아 저장하지 않는 테스트 프로필과 로그 회차를 시작한다.</summary>
         private void StartTest()
         {
-            _session.StartTestGame();
+            RenamePopup popup = _ui.OpenPopup<RenamePopup>();
+            popup.Configure(string.Empty, StartTestWithParticipantId);
+            popup.SetPrompt(GameData.L("usabilityTest.participantTitle"), GameData.L("usabilityTest.participantPlaceholder"));
+        }
+
+        /// <summary>참가자 ID를 검증해 테스트 세션을 시작하고 실패하면 제목 화면에 안내한다.</summary>
+        private void StartTestWithParticipantId(string participantId)
+        {
+            string normalizedParticipantId = participantId?.Trim();
+            if (string.IsNullOrEmpty(normalizedParticipantId))
+            {
+                _ui.Alert(GameData.L("usabilityTest.participantTitle"), GameData.L("usabilityTest.participantRequired"));
+                return;
+            }
+            if (!_session.StartTestGame(normalizedParticipantId))
+                _ui.Alert(GameData.L("usabilityTest.participantTitle"), GameData.L("usabilityTest.startFailed"));
         }
 
         /// <summary>타이틀 위에 저장 슬롯 관리 팝업을 연다.</summary>

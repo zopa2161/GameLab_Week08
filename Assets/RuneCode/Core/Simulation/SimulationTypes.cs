@@ -79,13 +79,16 @@ namespace RuneCode
         private SimVector _dashDirection;
         private double _hp;
         private double _maxHp;
+        private double _damageReceived;
         private double _energy;
         private double _maxEnergy;
         private double _shield;
+        private double _shieldAbsorbed;
         private double _shieldUntil;
         private double _dashCooldown;
         private double _dashCooldownDuration;
         private double _dashRemaining;
+        private int _dashesStarted;
         private double _invulnerableUntil;
         private double _burnUntil;
         private double _burnNextTick;
@@ -93,12 +96,18 @@ namespace RuneCode
         public SimVector AimDirection => _aimDirection;
         public double Hp => _hp;
         public double MaxHp => _maxHp;
+        /// <summary>실제 HP에서 감소한 누적 피해를 반환한다. 초과 피해는 포함하지 않는다.</summary>
+        public double DamageReceived => _damageReceived;
         public double Energy => _energy;
         public double MaxEnergy => _maxEnergy;
         public double Shield => _shield;
+        /// <summary>보호막이 흡수한 누적 피해를 반환한다.</summary>
+        public double ShieldAbsorbed => _shieldAbsorbed;
         public double DashCooldown => _dashCooldown;
         public double DashCooldownDuration => _dashCooldownDuration;
         public double DashRemaining => _dashRemaining;
+        /// <summary>실제로 시작한 대시 횟수를 반환한다.</summary>
+        public int DashesStarted => _dashesStarted;
         public IReadOnlyList<double> Cooldowns => _cooldowns;
         public IReadOnlyList<double> CooldownDurations => _cooldownDurations;
 
@@ -186,20 +195,20 @@ namespace RuneCode
 
         /// <summary>대시가 가능한 경우 방향, 지속 시간, 무적 및 쿨다운을 설정한다.</summary>
         internal bool StartDash(SimVector direction, double seconds, double cooldown, double time)
-        { if (_dashCooldown > 0.000001) return false; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds); return true; }
+        { if (_dashCooldown > 0.000001) return false; _dashesStarted++; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds); return true; }
 
         /// <summary>진행 중인 대시의 이동 방향을 반환한다.</summary>
         internal SimVector GetDashDirection() => _dashDirection;
 
         /// <summary>무적을 확인하고 보호막과 체력에 피해를 적용하여 실제 체력 피해를 반환한다.</summary>
         internal double Hurt(double damage, double time, double invulnerability)
-        { if (time < _invulnerableUntil) return 0; double absorbed = Math.Min(_shield, damage); _shield -= absorbed; double actual = Math.Min(_hp, damage - absorbed); _hp -= actual; _invulnerableUntil = time + invulnerability; return actual; }
+        { if (time < _invulnerableUntil) return 0; double absorbed = Math.Min(_shield, damage); _shield -= absorbed; _shieldAbsorbed += absorbed; double actual = Math.Min(_hp, damage - absorbed); _hp -= actual; _damageReceived += actual; _invulnerableUntil = time + invulnerability; return actual; }
 
         /// <summary>
         /// 상태 이상 피해를 보호막과 체력에 적용하고 실제 체력 피해를 반환한다. 피격 무적을 무시하며 새 무적도 주지 않는다(결정 Q13).
         /// </summary>
         internal double HurtByStatus(double damage)
-        { double absorbed = Math.Min(_shield, damage); _shield -= absorbed; double actual = Math.Min(_hp, damage - absorbed); _hp -= actual; return actual; }
+        { double absorbed = Math.Min(_shield, damage); _shield -= absorbed; _shieldAbsorbed += absorbed; double actual = Math.Min(_hp, damage - absorbed); _hp -= actual; _damageReceived += actual; return actual; }
 
         /// <summary>지정 시각에 화상 상태인지 반환한다.</summary>
         public bool IsBurning(double time) => time < _burnUntil;

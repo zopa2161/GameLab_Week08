@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -53,11 +54,13 @@ namespace RuneCode
             _view.HelpClicked += OpenHelp;
             _view.BackClicked += ReturnFromDeploy;
             _session.Spells.Compiled += RefreshHeader;
+            _session.Spells.Compiled += RecordCompileResult;
         }
 
         /// <summary>작업실에 들어올 때 도크를 다시 시작하고 에디터 탭으로 전체를 갱신한다.</summary>
         public void Enter()
         {
+            if (_session.IsTestMode) LocalTelemetry.BeginUsabilityEditingEpisode();
             ShowEditorTab();
             if (_session.ConsumeFirstRunHelpRequest()) OpenHelp();
         }
@@ -65,6 +68,7 @@ namespace RuneCode
         /// <summary>작업실을 떠날 때 편집 패널을 닫고 도크 누적 시간을 버린다.</summary>
         public void Exit()
         {
+            if (_session.IsTestMode) LocalTelemetry.EndUsabilityEditingEpisode("screen_exit");
             _view.SpellEditor.Hide();
             _dock.Suspend();
         }
@@ -73,6 +77,7 @@ namespace RuneCode
         public void Tick()
         {
             _session.Spells.Tick(Time.unscaledTime);
+            LocalTelemetry.FlushUsabilityTest();
             Mouse mouse = Mouse.current;
             if (mouse != null) _lastMouseScreenPosition = mouse.position.ReadValue();
             bool hasNewStatus = _observedStatusRevision != _session.StatusRevision;
@@ -100,6 +105,7 @@ namespace RuneCode
             _view.HelpClicked -= OpenHelp;
             _view.BackClicked -= ReturnFromDeploy;
             _session.Spells.Compiled -= RefreshHeader;
+            _session.Spells.Compiled -= RecordCompileResult;
             _dockRun.Dispose();
         }
 
@@ -194,6 +200,26 @@ namespace RuneCode
             //_view.SetHeader(GameData.L("ui.fragments") + "  " + _session.Save.Currency + "   /   " + GameData.L("ui.capacity") + " "
             //    + _session.EquippedRam + "/" + _session.Capacity);
             _view.SetHeader(GameData.L("ui.fragments") + "  " + _session.Save.Currency);
+        }
+
+        /// <summary>컴파일 변경을 테스트 로그에 결과·오류·그래프 크기로 기록한다.</summary>
+        private void RecordCompileResult()
+        {
+            if (!LocalTelemetry.IsUsabilityTestActive) return;
+            CompileResult result = _session.Spells.CompileResult;
+            var errors = new List<string>(result.Errors.Count);
+            foreach (CompileIssue issue in result.Errors) errors.Add(issue.Code);
+            var warnings = new List<string>(result.Warnings.Count);
+            foreach (CompileIssue warning in result.Warnings) warnings.Add(warning.Code);
+            LocalTelemetry.RecordUsabilityEvent("compile_result", "editor", new Dictionary<string, object>
+            {
+                ["is_valid"] = result.Ok,
+                ["errors"] = errors,
+                ["warnings"] = warnings,
+                ["ram_used"] = result.Ok ? result.Spell.RamUsed : (int?)null,
+                ["node_count"] = _session.Spells.Graph.Nodes.Count,
+                ["edge_count"] = _session.Spells.Graph.Edges.Count,
+            });
         }
 
         /// <summary>팝업이 열려 있어 도크 클릭 시전을 막아야 하는지 반환한다.</summary>

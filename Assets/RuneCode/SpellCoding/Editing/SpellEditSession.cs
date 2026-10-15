@@ -200,22 +200,44 @@ namespace RuneCode
         /// </summary>
         public void AddRune(string runeId, float x, float y, string grade = null)
         {
-            if (!_isEditable || !_policy.IsRuneUnlocked(runeId)) return;
+            if (!_isEditable || !_policy.IsRuneUnlocked(runeId))
+            {
+                RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "not_editable_or_unlocked", ["rune_id"] = runeId });
+                return;
+            }
             if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.IsDisabled
-                || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR) return;
+                || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)
+            {
+                RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_behavior", ["rune_id"] = runeId });
+                return;
+            }
             grade = string.IsNullOrEmpty(grade) ? SpellGrammar.DEFAULT_BEHAVIOR_GRADE : grade;
-            if (!GameData.Runes.BehaviorGradeOrder.Contains(grade)) return;
+            if (!GameData.Runes.BehaviorGradeOrder.Contains(grade))
+            {
+                RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_grade", ["rune_id"] = runeId, ["grade"] = grade });
+                return;
+            }
             if (_editingGraph.Nodes.Count >= GameData.Balance.Limits.MaxGraphNodes)
-            { _policy.ReportStatus("editor.graphLimit"); return; }
+            {
+                _policy.ReportStatus("editor.graphLimit");
+                RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "graph_limit", ["rune_id"] = runeId });
+                return;
+            }
             var candidate = _editingGraph.Clone();
             var node = new GraphNode(NewId("node"), runeId, x, y);
             node.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, grade);
             node.SetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
             candidate.AddNode(node);
-            if (!_policy.IsWithinModifierStock(_editingGraph, candidate)) { _policy.ReportStatus("editor.stockBlocked"); return; }
+            if (!_policy.IsWithinModifierStock(_editingGraph, candidate))
+            {
+                _policy.ReportStatus("editor.stockBlocked");
+                RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "stock_blocked", ["rune_id"] = runeId, ["grade"] = grade });
+                return;
+            }
             _editingGraph = candidate;
             _policy.OnRunePlaced(runeId);
             MarkChanged(); RaiseGraphChanged();
+            RecordUsabilityAction("place_node", "success", new Dictionary<string, object> { ["node_id"] = node.Id, ["rune_id"] = runeId, ["grade"] = grade });
         }
 
         /// <summary>
@@ -224,7 +246,11 @@ namespace RuneCode
         /// </summary>
         public bool CycleShape(string nodeId)
         {
-            if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)) return false;
+            if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _))
+            {
+                RecordUsabilityAction("cycle_shape", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_node", ["node_id"] = nodeId });
+                return false;
+            }
             string current = node.GetText(SpellGrammar.SHAPE_PARAM, SpellGrammar.DEFAULT_SHAPE);
             int start = Array.IndexOf(SpellGrammar.SHAPE_OPTIONS, current);
             for (int step = 1; step < SpellGrammar.SHAPE_OPTIONS.Length; step++)
@@ -233,9 +259,15 @@ namespace RuneCode
                 if (!_policy.IsRuneUnlocked(SpellGrammar.ShapeRune(next)) || !SpellGrammar.IsShapeAllowed(node.RuneId, next)) continue;
                 SpellGraph candidate = _editingGraph.Clone();
                 candidate.FindNode(nodeId).SetText(SpellGrammar.SHAPE_PARAM, next);
-                if (!CommitSlotCandidate(candidate, nodeId)) return false;
+                if (!CommitSlotCandidate(candidate, nodeId))
+                {
+                    RecordUsabilityAction("cycle_shape", "rejected", new Dictionary<string, object> { ["reason"] = "ram_blocked", ["node_id"] = nodeId });
+                    return false;
+                }
+                RecordUsabilityAction("cycle_shape", "success", new Dictionary<string, object> { ["node_id"] = nodeId, ["shape"] = next });
                 return true;
             }
+            RecordUsabilityAction("cycle_shape", "rejected", new Dictionary<string, object> { ["reason"] = "no_available_shape", ["node_id"] = nodeId });
             return false;
         }
 
@@ -275,24 +307,45 @@ namespace RuneCode
             if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
                 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune) || IsSlotLocked(nodeId, slotKey)
                 || !CanEquip(node, slotKey, rune, grade))
-            { _policy.ReportStatus("editor.slotBlocked"); return false; }
+            {
+                _policy.ReportStatus("editor.slotBlocked");
+                RecordUsabilityAction("equip_slot", "rejected", new Dictionary<string, object> { ["reason"] = "slot_blocked", ["node_id"] = nodeId, ["slot_key"] = slotKey, ["rune_id"] = runeId, ["grade"] = grade });
+                return false;
+            }
             string value = rune.Category == SpellGrammar.CATEGORY_ELEMENT
                 ? (GameData.Runes.TryGetRuneElement(runeId, out ElementDefinition element) ? element.Id : null)
                 : SpellGrammar.ModifierStockKey(runeId, grade);
-            if (string.IsNullOrEmpty(value) || node.GetText(slotKey, null) == value) return false;
+            if (string.IsNullOrEmpty(value) || node.GetText(slotKey, null) == value)
+            {
+                RecordUsabilityAction("equip_slot", "cancelled", new Dictionary<string, object> { ["reason"] = "unchanged_value", ["node_id"] = nodeId, ["slot_key"] = slotKey, ["rune_id"] = runeId, ["grade"] = grade });
+                return false;
+            }
             SpellGraph candidate = _editingGraph.Clone();
             candidate.FindNode(nodeId).SetText(slotKey, value);
-            if (!_policy.IsWithinModifierStock(_editingGraph, candidate)) { _policy.ReportStatus("editor.stockBlocked"); return false; }
-            return CommitSlotCandidate(candidate, nodeId);
+            if (!_policy.IsWithinModifierStock(_editingGraph, candidate))
+            {
+                _policy.ReportStatus("editor.stockBlocked");
+                RecordUsabilityAction("equip_slot", "rejected", new Dictionary<string, object> { ["reason"] = "stock_blocked", ["node_id"] = nodeId, ["slot_key"] = slotKey, ["rune_id"] = runeId, ["grade"] = grade });
+                return false;
+            }
+            bool isCommitted = CommitSlotCandidate(candidate, nodeId);
+            RecordUsabilityAction("equip_slot", isCommitted ? "success" : "rejected",
+                new Dictionary<string, object> { ["reason"] = isCommitted ? null : "ram_blocked", ["node_id"] = nodeId, ["slot_key"] = slotKey, ["rune_id"] = runeId, ["grade"] = grade });
+            return isCommitted;
         }
 
         /// <summary>행동 노드의 지정 슬롯 값을 비운다. 비어 있거나 슬롯 키가 아니면 false를 반환한다.</summary>
         public bool ClearSlot(string nodeId, string slotKey)
         {
             if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
-                || !SpellGrammar.TryParseSlotKey(slotKey, out _, out _) || string.IsNullOrEmpty(node.GetText(slotKey, null))) return false;
+                || !SpellGrammar.TryParseSlotKey(slotKey, out _, out _) || string.IsNullOrEmpty(node.GetText(slotKey, null)))
+            {
+                RecordUsabilityAction("clear_slot", "cancelled", new Dictionary<string, object> { ["reason"] = "empty_or_invalid_slot", ["node_id"] = nodeId, ["slot_key"] = slotKey });
+                return false;
+            }
             node.SetText(slotKey, "");
             MarkChanged(); RaiseGraphChanged();
+            RecordUsabilityAction("clear_slot", "success", new Dictionary<string, object> { ["node_id"] = nodeId, ["slot_key"] = slotKey });
             return true;
         }
 
@@ -353,24 +406,46 @@ namespace RuneCode
         /// <summary>필요하면 단일 포트의 기존 연결을 교체한 후보의 RAM·문법을 검사하고 성공할 때만 저장한다.</summary>
         public bool Connect(string fromNode, string fromPort, string toNode, string toPort, bool replaceExisting = false)
         {
-            if (!_isEditable) return false;
+            if (!_isEditable)
+            {
+                RecordUsabilityAction("connect_edge", "rejected", new Dictionary<string, object> { ["reason"] = "edit_locked", ["from_node"] = fromNode, ["from_port"] = fromPort, ["to_node"] = toNode, ["to_port"] = toPort });
+                return false;
+            }
             var candidate = CreateConnectionCandidate(fromNode, fromPort, toNode, toPort, replaceExisting);
             if (candidate.Edges.Count >= GameData.Balance.Limits.MaxGraphEdges)
-            { _policy.ReportStatus("editor.graphLimit"); return false; }
+            {
+                _policy.ReportStatus("editor.graphLimit");
+                RecordUsabilityAction("connect_edge", "rejected", new Dictionary<string, object> { ["reason"] = "graph_limit", ["from_node"] = fromNode, ["from_port"] = fromPort, ["to_node"] = toNode, ["to_port"] = toPort });
+                return false;
+            }
             var edge = new GraphEdge(NewId("edge"), fromNode, fromPort, toNode, toPort,
                 candidate.NextEdgeOrder(fromNode, fromPort));
             if (!GraphCompiler.CanConnect(candidate, edge, GameData.Runes, out _))
-            { _policy.ReportStatus("editor.invalidConnection"); return false; }
+            {
+                _policy.ReportStatus("editor.invalidConnection");
+                RecordUsabilityAction("connect_edge", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_connection", ["from_node"] = fromNode, ["from_port"] = fromPort, ["to_node"] = toNode, ["to_port"] = toPort });
+                return false;
+            }
             candidate.AddEdge(edge);
-            if (!_policy.IsWithinRam(candidate)) { _policy.ReportStatus("editor.ramBlocked"); return false; }
+            if (!_policy.IsWithinRam(candidate))
+            {
+                _policy.ReportStatus("editor.ramBlocked");
+                RecordUsabilityAction("connect_edge", "rejected", new Dictionary<string, object> { ["reason"] = "ram_blocked", ["from_node"] = fromNode, ["from_port"] = fromPort, ["to_node"] = toNode, ["to_port"] = toPort });
+                return false;
+            }
             var context = _policy.GetCompileContext();
             CompileResult result = GraphCompiler.Compile(candidate, GameData.Runes, GameData.Balance.Grammar,
                 context.UnlockedRunes, context.Capacity, context.MaxEnergy, context.Library, context.ModifierStock,
                 context.MaxResourceCosts);
             if (result.Errors.Any(issue => issue.Code == "E2" || issue.Code == "E3" || issue.Code == "E4" || issue.Code == "E5" || issue.Code == "E6"))
-            { _policy.ReportStatus("editor.invalidConnection"); return false; }
+            {
+                _policy.ReportStatus("editor.invalidConnection");
+                RecordUsabilityAction("connect_edge", "rejected", new Dictionary<string, object> { ["reason"] = "compile_rejected", ["from_node"] = fromNode, ["from_port"] = fromPort, ["to_node"] = toNode, ["to_port"] = toPort });
+                return false;
+            }
             _editingGraph = candidate;
             MarkChanged(); RaiseGraphChanged();
+            RecordUsabilityAction("connect_edge", "success", new Dictionary<string, object> { ["from_node"] = fromNode, ["from_port"] = fromPort, ["to_node"] = toNode, ["to_port"] = toPort, ["replace_existing"] = replaceExisting });
             return true;
         }
 
@@ -490,6 +565,7 @@ namespace RuneCode
             }
             _graphDirty = true;
             _compileAt = Time.unscaledTime + COMPILE_DEBOUNCE;
+            LocalTelemetry.AdvanceUsabilityGraphRevision();
         }
 
         /// <summary>이전 그래프 스냅샷으로 되돌리고 현재 상태를 다시 실행 목록에 기록한다.</summary>
@@ -571,6 +647,15 @@ namespace RuneCode
             { _policy.ReportStatus("editor.graphLimit"); return; }
             _editingGraph = graph.Clone(_editingGraph.Id);
             MarkChanged(); RaiseGraphChanged();
+        }
+
+        /// <summary>기록 중이면 편집 작업 결과와 근거 데이터를 사용성 이벤트로 남긴다.</summary>
+        private static void RecordUsabilityAction(string action, string result, Dictionary<string, object> data)
+        {
+            if (!LocalTelemetry.IsUsabilityTestActive) return;
+            data["action"] = action;
+            data["result"] = result;
+            LocalTelemetry.RecordUsabilityEvent("editor_action_result", "editor", data);
         }
 
         /// <summary>순번과 GUID를 결합한 보관함·노드·엣지의 영구 고유 ID를 반환한다.</summary>
