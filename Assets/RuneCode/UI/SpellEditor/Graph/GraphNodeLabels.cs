@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Text;
 
 using UnityEngine;
 
@@ -8,7 +7,7 @@ using TMPro;
 namespace RuneCode
 {
     /// <summary>
-    /// 그래프 노드마다 이름·RAM·핵심 설정 요약·포트 이름과 행동 노드 슬롯 내용을 담은 TMP 라벨을 만들고 배치한다.
+    /// 그래프 노드마다 상단 이름·지표·핵심 설정 요약·포트 이름과 행동 노드 슬롯 내용을 담은 TMP 라벨을 만들고 배치한다.
     /// 글꼴 크기는 고정하고 Transform 스케일로 확대해 rich text 크기·위치 태그가 노드와 같은 비율을 유지한다.
     /// </summary>
     internal sealed class GraphNodeLabels
@@ -27,6 +26,7 @@ namespace RuneCode
         private readonly TMP_FontAsset _font;
         private readonly GraphViewport _viewport;
         private readonly GraphNodeLayout _layout;
+        private readonly GraphNodeMetricLabels _metricLabels;
         private readonly Dictionary<string, TextMeshProUGUI> _labels = new Dictionary<string, TextMeshProUGUI>();
         private readonly Dictionary<string, List<TextMeshProUGUI>> _portLabels = new Dictionary<string, List<TextMeshProUGUI>>();
         private readonly Dictionary<string, List<TextMeshProUGUI>> _slotLabels = new Dictionary<string, List<TextMeshProUGUI>>();
@@ -34,7 +34,6 @@ namespace RuneCode
         private readonly Dictionary<string, GraphMeshLayer> _nodeLayers = new Dictionary<string, GraphMeshLayer>();
         private readonly HashSet<string> _existingNodes = new HashSet<string>();
         private readonly List<string> _staleIds = new List<string>();
-        private readonly StringBuilder _builder = new StringBuilder();
         private string _frontNodeId;
 
         /// <summary>라벨을 둘 캔버스, 글꼴, 뷰포트와 노드 배치로 라벨 관리자를 만든다.</summary>
@@ -45,22 +44,26 @@ namespace RuneCode
             _viewport = viewport;
             _layout = layout;
             _painter = painter;
+            _metricLabels = new GraphNodeMetricLabels(parent, font, viewport);
         }
 
         /// <summary>
-        /// 그래프 노드마다 라벨 내용을 갱신하고 사라진 노드의 라벨을 지운다. 프리셋 호출 요약은 보관함에서 이름을 찾는다.
+        /// 그래프 노드마다 현재 컴파일 결과를 반영한 라벨을 갱신하고 사라진 노드의 라벨을 지운다.
         /// 남아 있는 노드 ID 집합을 반환한다(선택 정리용).
         /// </summary>
-        public HashSet<string> Refresh(SpellGraph graph, IEnumerable<SpellGraph> library)
+        public HashSet<string> Refresh(SpellGraph graph, IEnumerable<SpellGraph> library, CompiledSpell compiledSpell)
         {
             _existingNodes.Clear();
+            _metricLabels.Refresh(graph, library, compiledSpell);
             foreach (GraphNode node in graph.Nodes)
             {
                 _existingNodes.Add(node.Id);
                 TextMeshProUGUI label = GetOrCreate(node.Id);
                 _nodeLayers[node.Id].Initialize(_painter, node);
-                string text = BuildText(node, library);
-                if (label.text != text) label.text = text;
+                RuneDefinition rune = GameData.Runes.Get(node.RuneId);
+                string nameText = rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
+                    ? GraphNodeLabelText.BuildNameText(node) : GraphNodeLabelText.BuildLegacyText(node, library);
+                if (label.text != nameText) label.text = nameText;
                 RefreshPortLabels(node);
                 RefreshSlotLabels(node);
             }
@@ -68,7 +71,7 @@ namespace RuneCode
             return _existingNodes;
         }
 
-        /// <summary>화면 이동·확대 배율에 맞춰 라벨을 배치하고 노드 본체·제목·포트를 노드 순서대로 겹쳐 그린다.</summary>
+        /// <summary>화면 이동·확대 배율에 맞춰 이름·지표·포트와 슬롯 라벨을 배치한다.</summary>
         public void Layout(SpellGraph graph)
         {
             float zoom = _viewport.Zoom;
@@ -82,10 +85,12 @@ namespace RuneCode
                 _nodeLayers[node.Id].transform.SetAsLastSibling();
                 label.gameObject.SetActive(true);
                 label.transform.SetAsLastSibling();
-                RectTransform textRect = label.rectTransform;
-                textRect.anchoredPosition = new Vector2(rect.x + LABEL_PADDING_X * zoom, rect.yMax - _parent.rect.yMax - LABEL_PADDING_TOP * zoom);
-                textRect.sizeDelta = new Vector2(LABEL_WIDTH, HEADER_HEIGHT);
-                textRect.localScale = scale;
+                RectTransform titleRect = label.rectTransform;
+                titleRect.anchoredPosition = new Vector2(rect.x + LABEL_PADDING_X * zoom,
+                    rect.yMax - _parent.rect.yMax - LABEL_PADDING_TOP * zoom);
+                titleRect.sizeDelta = new Vector2(LABEL_WIDTH, HEADER_HEIGHT);
+                titleRect.localScale = scale;
+                if (GraphNodeLayout.HasSlots(rune)) _metricLabels.LayoutNode(node.Id, rect);
                 List<TextMeshProUGUI> ports = _portLabels[node.Id];
                 int rows = _layout.PortRowCount(node, rune);
                 for (int index = 0; index < rows * 2; index++)
@@ -119,7 +124,7 @@ namespace RuneCode
             foreach (GraphMeshLayer layer in _nodeLayers.Values) layer.SetVerticesDirty();
         }
 
-        /// <summary>지정된 노드의 본체, 제목, 포트 라벨을 형제 순서의 맨 앞으로 옮긴다.</summary>
+        /// <summary>지정된 노드의 본체, 이름·지표, 포트와 슬롯 라벨을 형제 순서의 맨 앞으로 옮긴다.</summary>
         private void BringFrontNodeToTop()
         {
             if (string.IsNullOrEmpty(_frontNodeId)) return;
@@ -129,11 +134,12 @@ namespace RuneCode
 
             nodeLayer.transform.SetAsLastSibling();
             label.transform.SetAsLastSibling();
+            _metricLabels.BringToFront(_frontNodeId);
             foreach (TextMeshProUGUI portLabel in ports) portLabel.transform.SetAsLastSibling();
             foreach (TextMeshProUGUI slotLabel in _slotLabels[_frontNodeId]) slotLabel.transform.SetAsLastSibling();
         }
 
-        /// <summary>노드 ID의 라벨을 반환하며 없으면 고정 글꼴 크기와 좌상단 기준점으로 새로 만든다.</summary>
+        /// <summary>노드 ID의 이름·지표 라벨을 반환하며 없으면 글꼴과 정렬을 지정해 만든다.</summary>
         private TextMeshProUGUI GetOrCreate(string nodeId)
         {
             if (_labels.TryGetValue(nodeId, out TextMeshProUGUI label)) return label;
@@ -182,13 +188,13 @@ namespace RuneCode
                 PortDefinition port = _layout.PortAt(node, rune,
                     isOutput ? SpellGrammar.DIRECTION_OUT : SpellGrammar.DIRECTION_IN, index / 2);
                 label.gameObject.SetActive(port != null);
-                string text = BuildPortText(port);
+                string text = GraphNodeLabelText.BuildPortText(port);
                 if (label.text != text) label.text = text;
             }
             for (int index = rows * 2; index < labels.Count; index++) labels[index].gameObject.SetActive(false);
         }
 
-        /// <summary>행동 노드의 슬롯 셀마다 라벨을 재사용해 형태·속성·모디 이름 또는 빈 상태 문구를 지정한다. 행동 노드가 아니면 숨긴다.</summary>
+        /// <summary>행동 노드의 속성·모디 슬롯마다 라벨을 재사용해 룬 이름 또는 빈 상태 문구를 지정한다. 행동 노드가 아니면 숨긴다.</summary>
         private void RefreshSlotLabels(GraphNode node)
         {
             RuneDefinition rune = GameData.Runes.Get(node.RuneId);
@@ -202,7 +208,7 @@ namespace RuneCode
                     slotLabel.horizontalAlignment = HorizontalAlignmentOptions.Center;
                     labels.Add(slotLabel);
                 }
-                string text = SlotText(node, GraphNodeLayout.SlotKeys[index]);
+                string text = GraphNodeLabelText.SlotText(node, GraphNodeLayout.SlotKeys[index]);
                 if (labels[index].text != text) labels[index].text = text;
             }
             for (int index = count; index < labels.Count; index++) labels[index].gameObject.SetActive(false);
@@ -229,23 +235,6 @@ namespace RuneCode
             }
         }
 
-        /// <summary>슬롯 셀 문구를 반환한다. 빈 속성·모디 슬롯은 비어 있음 문구, 잠긴 칸은 빈 문자열을 반환한다.</summary>
-        private static string SlotText(GraphNode node, string slotKey)
-        {
-            if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return string.Empty;
-            if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return string.Empty;
-            string value = node.GetText(slotKey, null);
-            if (string.IsNullOrEmpty(value)) return GameData.L("editor.slotEmpty");
-            if (isElement)
-            {
-                return GameData.Runes.TryGetElement(value, out ElementDefinition element)
-                    && GameData.Runes.TryGet(element.RuneId, out RuneDefinition elementRune) ? elementRune.Name : value;
-            }
-            return SpellGrammar.TryParseStockKey(value, out string modifierId, out string grade)
-                && GameData.Runes.TryGet(modifierId, out RuneDefinition modifierRune)
-                ? ModifierGradeText.FormatName(modifierRune.Name, grade) : value;
-        }
-
         /// <summary>그래프에서 사라진 노드의 라벨 오브젝트를 파괴하고 목록에서 뺀다.</summary>
         private void RemoveStale()
         {
@@ -267,67 +256,5 @@ namespace RuneCode
             }
         }
 
-        /// <summary>
-        /// 룬 이름·Modifier 또는 행동 등급·RAM과 핵심 설정 요약을 담은 제목 라벨을 반환한다. 포트 이름·슬롯 내용은 별도 라벨로 표시한다.
-        /// </summary>
-        private string BuildText(GraphNode node, IEnumerable<SpellGraph> library)
-        {
-            RuneDefinition rune = GameData.Runes.Get(node.RuneId);
-            _builder.Clear();
-            string name = rune.Name;
-            if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
-            {
-                string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
-                name = ModifierGradeText.FormatName(name, grade);
-            }
-            else if (GraphNodeLayout.HasSlots(rune))
-            {
-                name = ModifierGradeText.FormatName(name, node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE));
-            }
-            _builder.Append("<b>").Append(name).Append("</b>  ").Append(GameData.Runes.NodeRam(node)).Append(" RAM");
-            string summary = Summary(node, rune, library);
-            if (!string.IsNullOrEmpty(summary)) _builder.Append("\n<size=12>").Append(summary).Append("</size>");
-            return _builder.ToString();
-        }
-
-        /// <summary>포트 이름을 반환하며 없는 포트는 빈 문자열, 지원 중단 포트는 취소선을 붙인 이름으로 반환한다.</summary>
-        private static string BuildPortText(PortDefinition port)
-        {
-            if (port == null) return string.Empty;
-            string label = port.Id == SpellGrammar.BODY_PORT ? "shape/method" : port.Id;
-            return port.IsDeprecated ? "<s>" + label + "</s>" : label;
-        }
-
-        /// <summary>Trigger·Apply·프리셋 호출의 핵심 값(시작 조건, 속성, 호출 대상)을 반환하며 해당 없으면 null을 반환한다. Shape 속성은 붙은 속성 노드로 보인다.</summary>
-        private static string Summary(GraphNode node, RuneDefinition rune, IEnumerable<SpellGraph> library)
-        {
-            if (node.RuneId == SpellGrammar.CORE_RUNE)
-            {
-                string trigger = node.GetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK);
-                return LocalizedValue("trigger." + trigger, trigger);
-            }
-            if (rune.Id == SpellGrammar.APPLY_RUNE)
-            {
-                string element = node.GetText(SpellGrammar.ELEMENT_PARAM, "healing");
-                return LocalizedValue("element." + element, element);
-            }
-            if (node.RuneId == SpellGrammar.CALL_RUNE)
-            {
-                string spellId = node.GetText("spellId");
-                foreach (SpellGraph graph in library)
-                {
-                    if (graph.Id == spellId) return graph.Name;
-                }
-                return string.IsNullOrEmpty(spellId) ? GameData.L("ui.selectSpell") : GameData.L("ui.missingSpell");
-            }
-            return null;
-        }
-
-        /// <summary>현지화 값을 찾고 번역이 없으면 지정 원문을 반환한다.</summary>
-        private static string LocalizedValue(string key, string fallback)
-        {
-            string value = GameData.L(key);
-            return value == key ? fallback : value;
-        }
     }
 }

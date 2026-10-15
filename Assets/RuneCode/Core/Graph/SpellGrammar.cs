@@ -75,7 +75,7 @@ namespace RuneCode
         public const string ELEMENT_SLOT_PREFIX = "element";
         public const string MODIFIER_SLOT_PREFIX = "mod";
         public const int MAX_ELEMENT_SLOTS = 2;
-        public const int MAX_MODIFIER_SLOTS = 3;
+        public const int MAX_MODIFIER_SLOTS = 6;
         public const string DEFAULT_BEHAVIOR_GRADE = "C";
         public const int UNLIMITED_PIERCE_COUNT = int.MaxValue;
         // 관통 수가 이 값 이상이면 사실상 무제한으로 보고 무제한 관통과 같게 다룬다(예: 등급표의 999).

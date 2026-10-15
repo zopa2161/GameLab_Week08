@@ -49,8 +49,8 @@ namespace RuneCode
                 case "mod.expand": effect = "효과 범위를 넓힙니다."; break;
                 case "mod.speed": effect = "이동 속도를 높입니다."; break;
                 case "mod.duration": effect = "효과의 지속시간을 늘립니다."; break;
-                case "behavior.launch": effect = "설정한 형태를 발사합니다."; break;
-                case "behavior.burst": effect = "설정한 형태의 범위에 폭발 효과를 줍니다."; break;
+                case "behavior.launch": effect = "마법을 발사합니다."; break;
+                case "behavior.burst": effect = "범위에 폭발 효과를 줍니다."; break;
                 case "behavior.orbit": effect = "시전자 주변을 공전하며 효과를 줍니다."; break;
                 case "behavior.persist": effect = "효과를 남겨 일정 시간 유지합니다."; break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
@@ -175,15 +175,15 @@ namespace RuneCode
             if (rune.Category != SpellGrammar.CATEGORY_CORE) _view.AddButton(GameData.L("ui.delete"), "InspectorDeleteButton", () => _editor.RemoveNode(node.Id));
         }
 
-        /// <summary>행동 노드의 고정 형태와 속성·모디 슬롯 내용(장착 이름, 빈 칸, 등급으로 잠긴 칸)을 한 줄씩 표시한다.</summary>
+        /// <summary>행동 노드에서 사용 가능한 속성과 모든 모디 슬롯의 장착·빈·잠금 상태를 한 줄씩 표시한다.</summary>
         private void ShowSlots(GraphNode node)
         {
             var lines = new List<string>();
-            string shape = GameData.Runes.Get(node.RuneId).FixedShape;
-            string shapeName = GameData.Runes.TryGet(SpellGrammar.ShapeRune(shape), out RuneDefinition shapeRune) ? shapeRune.Name : shape;
-            lines.Add(GameData.L("ui.fixedShape") + " " + shapeName);
             for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
-                lines.Add(SlotLine(node, SpellGrammar.ElementSlotKey(index)));
+            {
+                string slotKey = SpellGrammar.ElementSlotKey(index);
+                if (!GraphNodeLayout.IsSlotLocked(node, slotKey)) lines.Add(SlotLine(node, slotKey));
+            }
             for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
                 lines.Add(SlotLine(node, SpellGrammar.ModifierSlotKey(index)));
             _view.AddNote(string.Join("\n", lines), 34, 6);
@@ -331,7 +331,7 @@ namespace RuneCode
             if (hint != key) _view.AddNote(ModifierGradeText.Colorize(hint, grade), 52, 6);
         }
 
-        /// <summary>Shape·Apply에 선택된 속성의 이름과 원소·기능 효과 구분을 표시한다.</summary>
+        /// <summary>노드에 선택된 속성의 이름과 원소·기능 효과 구분을 표시한다.</summary>
         private void ShowElementInfo(GraphNode node)
         {
             if (!GameData.Runes.TryGetNodeElement(node, out ElementDefinition element)) return;

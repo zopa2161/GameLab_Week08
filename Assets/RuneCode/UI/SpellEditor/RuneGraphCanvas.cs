@@ -97,7 +97,7 @@ namespace RuneCode
         public void RefreshGraph()
         {
             if (!HasGraph) return;
-            HashSet<string> existing = _labels.Refresh(_editor.Graph, _editor.Library);
+            HashSet<string> existing = _labels.Refresh(_editor.Graph, _editor.Library, _editor.CompileResult.Spell);
             _state.Selected.RemoveWhere(id => !existing.Contains(id));
             _isHoverValid = false;
             LayoutLabels();

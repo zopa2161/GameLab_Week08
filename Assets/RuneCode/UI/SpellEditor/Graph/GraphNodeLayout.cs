@@ -19,13 +19,14 @@ namespace RuneCode
         private const float PORT_HIT_RADIUS = 9f;
         private const float MIN_PORT_HIT_RADIUS = 8f;
         private const float EDGE_HIT_DISTANCE = 8f;
-        private const float SLOT_ROW_HEIGHT = 22f;
+        private const float SLOT_ROW_HEIGHT = 26f;
         private const float SLOT_GAP = 3f;
         private const float SLOT_MARGIN = 6f;
         private const float SLOT_PADDING = 6f;
-        private const int SLOT_ROW_COUNT = 2;
+        private const int MODIFIER_SLOT_COLUMNS = 2;
+        private const int MODIFIER_SLOT_ROWS = SpellGrammar.MAX_MODIFIER_SLOTS / MODIFIER_SLOT_COLUMNS;
 
-        // 행동 노드 슬롯 키를 형태 행, 속성 행, 모디 행 순서로 나열한다.
+        // 행동 노드 슬롯 키를 속성 슬롯과 모디 슬롯 순서로 나열한다.
         private static readonly string[] SLOT_KEYS = BuildSlotKeys();
 
         private readonly GraphViewport _viewport;
@@ -53,10 +54,10 @@ namespace RuneCode
         public float NodeHeight(GraphNode node, RuneDefinition rune)
         {
             float height = NODE_BASE_HEIGHT + PortRowCount(node, rune) * PORT_SPACING;
-            return HasSlots(rune) ? height + SlotSectionHeight() : height;
+            return HasSlots(rune) ? height + SlotSectionHeight(node) : height;
         }
 
-        /// <summary>룬이 형태·속성·모디 슬롯을 가진 행동 노드인지 반환한다.</summary>
+        /// <summary>룬이 속성·모디 슬롯을 가진 행동 노드인지 반환한다.</summary>
         public static bool HasSlots(RuneDefinition rune)
         {
             return rune != null && !rune.IsDisabled && rune.Category == SpellGrammar.CATEGORY_BEHAVIOR;
@@ -64,7 +65,7 @@ namespace RuneCode
 
         /// <summary>
         /// 슬롯 순번이 행동 노드 등급의 속성·모디 슬롯 수 이상이면 잠긴 슬롯으로 보고 true를 반환한다.
-        /// 슬롯 키가 아니면 true다.
+        /// 슬롯 키가 아니면 true를 반환한다.
         /// </summary>
         public static bool IsSlotLocked(GraphNode node, string slotKey)
         {
@@ -75,7 +76,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 행동 노드 사각형 아래쪽 슬롯 영역에서 슬롯 키(element0, mod0 등)에 해당하는 셀 사각형을 구한다.
+        /// 행동 노드 사각형 아래쪽 슬롯 영역에서 element·modifier 슬롯 키에 해당하는 셀 사각형을 구한다.
         /// 행동 노드가 아니거나 슬롯 키가 아니면 false를 반환한다.
         /// </summary>
         public bool TryGetSlotRect(GraphNode node, RuneDefinition rune, string slotKey, out Rect rect)
@@ -83,13 +84,28 @@ namespace RuneCode
             rect = default;
             if (!HasSlots(rune)) return false;
             if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out int index)) return false;
-            int row = isElement ? 0 : 1;
-            int column = index;
-            int columns = isElement ? SpellGrammar.MAX_ELEMENT_SLOTS : SpellGrammar.MAX_MODIFIER_SLOTS;
+
+            int elementSlots = ElementSlotCount(node);
+            int row;
+            int column;
+            int columns;
+            if (isElement)
+            {
+                if (index >= elementSlots) return false;
+                row = index;
+                column = 0;
+                columns = 1;
+            }
+            else
+            {
+                row = elementSlots + index / MODIFIER_SLOT_COLUMNS;
+                column = index % MODIFIER_SLOT_COLUMNS;
+                columns = MODIFIER_SLOT_COLUMNS;
+            }
 
             float zoom = _viewport.Zoom;
             Rect nodeRect = NodeRect(node, rune);
-            float sectionTop = nodeRect.yMin + SlotSectionHeight() * zoom;
+            float sectionTop = nodeRect.yMin + SlotSectionHeight(node) * zoom;
             float rowTop = sectionTop - (SLOT_PADDING * 0.5f + row * SLOT_ROW_HEIGHT) * zoom;
             float cellHeight = (SLOT_ROW_HEIGHT - SLOT_GAP) * zoom;
             float innerWidth = nodeRect.width - SLOT_MARGIN * 2f * zoom;
@@ -278,16 +294,25 @@ namespace RuneCode
             return -1;
         }
 
-        /// <summary>슬롯 영역(속성·모디 행과 위아래 여백)의 배율 적용 전 높이를 반환한다.</summary>
-        private static float SlotSectionHeight() => SLOT_ROW_COUNT * SLOT_ROW_HEIGHT + SLOT_PADDING;
+        /// <summary>행동 등급의 속성 행과 Modifier 여섯 칸의 세 행을 포함한 슬롯 영역 높이를 반환한다.</summary>
+        private static float SlotSectionHeight(GraphNode node)
+            => (ElementSlotCount(node) + MODIFIER_SLOT_ROWS) * SLOT_ROW_HEIGHT + SLOT_PADDING;
 
-        /// <summary>속성 슬롯 키, 모디 슬롯 키 순서의 슬롯 키 배열을 만든다.</summary>
+        /// <summary>최대 속성 슬롯과 Modifier 슬롯에 해당하는 셀 키 배열을 만든다.</summary>
         private static string[] BuildSlotKeys()
         {
             var keys = new List<string>();
             for (int i = 0; i < SpellGrammar.MAX_ELEMENT_SLOTS; i++) keys.Add(SpellGrammar.ElementSlotKey(i));
             for (int i = 0; i < SpellGrammar.MAX_MODIFIER_SLOTS; i++) keys.Add(SpellGrammar.ModifierSlotKey(i));
             return keys.ToArray();
+        }
+
+        /// <summary>노드 등급으로 사용할 수 있는 속성 슬롯 행 수를 반환하고 등급을 찾지 못하면 최대 행 수를 반환한다.</summary>
+        private static int ElementSlotCount(GraphNode node)
+        {
+            string grade = node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
+            return GameData.Runes.TryGetBehaviorSlots(grade, out int elementSlots, out _)
+                ? elementSlots : SpellGrammar.MAX_ELEMENT_SLOTS;
         }
 
         /// <summary>지정 방향에 속한 노드의 표시 포트 개수를 반환한다.</summary>

@@ -488,7 +488,7 @@ namespace RuneCode
 
         /// <summary>
         /// 문자열 파라미터를 선택 노드에 저장하고 Modifier 등급 소지량을 검증한다.
-        /// 행동 노드의 등급·슬롯 값은 소지량 검사를 거치는 전용 명령(Equip, ClearSlot)으로만 바꾼다.
+        /// 행동 노드의 등급·형태·슬롯 값은 직접 편집하지 못하게 한다. 형태 값은 저장 그래프 호환을 위해 유지한다.
         /// </summary>
         public void SetNodeText(string nodeId, string key, string value)
         {
