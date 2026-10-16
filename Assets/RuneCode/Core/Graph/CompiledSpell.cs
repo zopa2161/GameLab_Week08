@@ -460,6 +460,8 @@ namespace RuneCode
         private readonly string _calledSpellId;
         private readonly bool _isNoise;
         private readonly int _count;
+        private readonly int _waveCount = 1;
+        private readonly float _waveInterval;
         private readonly SpellStats _stats;
         private readonly IReadOnlyList<string> _mods;
         private readonly IReadOnlyList<SpellModifierRules> _modifierRules;
@@ -502,6 +504,13 @@ namespace RuneCode
         public string CalledSpellId => _calledSpellId;
         public bool Noise => _isNoise;
         public int Count => _count;
+
+        /// <summary>연속 모드의 실행 회차 수다. 연속 모드가 없으면 1이다.</summary>
+        public int WaveCount => _waveCount;
+
+        /// <summary>연속 모드의 회차 사이 간격(초)이다. 회차가 하나면 0이다.</summary>
+        public float WaveInterval => _waveInterval;
+
         public SpellStats Stats => _stats;
         public IReadOnlyList<string> Mods => _mods;
 
@@ -601,11 +610,19 @@ namespace RuneCode
                 RuneStats modifierStats = mod.Stats;
                 string grade = SpellGrammar.GetModifierGrade(mod, modifierNode, modifierGrades);
                 ids.Add(mod.Id);
-                energyMultiplier *= mod.EnergyMult;
+                energyMultiplier *= modifierGrades == null
+                    ? ModifierGradeTable.DEFAULT_ENERGY_MULTIPLIER
+                    : modifierGrades.GetEnergyMultiplier(mod.Id, grade);
                 if (SpellModifierRuleRegistry.TryGetByRuneId(mod.Id, out SpellModifierRules modifierRules))
+                {
                     _count = modifierRules.ModifyCount(_count, _rules, grade, modifierStats, modifierGrades);
+                    _waveCount = modifierRules.ModifyWaveCount(_waveCount, _rules, grade, modifierStats, modifierGrades);
+                }
+                if (mod.Id == SequenceModifierRules.RUNE_ID) _waveInterval = modifierStats.WaveInterval;
                 if (mod.Id == "mod.noise") _isNoise = true;
             }
+            if (_waveCount < 1) _waveCount = 1;
+            if (_waveCount == 1) _waveInterval = 0f;
             _mods = ids;
             _modifierRules = SpellModifierRuleRegistry.SelectInRegistryOrder(ids);
             _spawnOrigin = _rules != null ? _rules.SpawnOrigin : SpellSpawnOrigin.Wand;
@@ -863,6 +880,10 @@ namespace RuneCode
         {
             double nodeSeconds = action.Kind == "delay" ? action.Seconds : action.GetExecutionSeconds(inheritedModifiers);
             int nodeTicks = GetExecutionDelayTicks(nodeSeconds * executionTimeScale);
+            // 연속 모드의 회차 사이 간격을 노드 실행 시간에 더한다. 마지막 회차 뒤에는 간격이 없다.
+            if (action.Kind == "spawn" && action.WaveCount > 1)
+                nodeTicks = AddTicks(nodeTicks,
+                    MultiplyTicks(GetExecutionDelayTicks(action.WaveInterval * executionTimeScale), action.WaveCount - 1));
             int nextTicks;
             switch (action.Kind)
             {

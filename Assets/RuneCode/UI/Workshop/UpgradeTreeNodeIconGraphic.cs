@@ -234,6 +234,9 @@ namespace RuneCode
                     Path(mesh,c,s,t,9,-3,14,2);
                     Dot(mesh,c,s,t,9,-13,3);
                     break;
+                case "mod.sequence":
+                    Dot(mesh,c,s,t,-10,0,4); Dot(mesh,c,s,t,0,0,4); Dot(mesh,c,s,t,10,0,4);
+                    break;
                 case "mod.expand":
                     Path(mesh,c,s,t,-12,4,-12,12,-4,12);
                     Path(mesh,c,s,t,12,-4,12,-12,4,-12);

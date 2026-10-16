@@ -35,7 +35,6 @@ namespace RuneCode
         public bool _disabled;
         public int _ram;
         public float _energy;
-        public float _energyMult = 1f;
         public float _executionSeconds;
         public float _executionSecondsPerArea;
         public int _unlockCost;
@@ -108,6 +107,8 @@ namespace RuneCode
         public float _warnSeconds;
         public float _beamWidth;
         public float _beamLength;
+        public int _waveCount;
+        public float _waveInterval;
     }
 
     /// <summary>유도 Modifier의 하위 유도 단계와 적용 수치다.</summary>

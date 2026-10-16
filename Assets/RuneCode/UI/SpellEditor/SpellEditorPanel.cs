@@ -15,13 +15,14 @@ namespace RuneCode
     /// </summary>
     public sealed class SpellEditorPanel : MonoBehaviour
     {
-        public static readonly string[] CATEGORY_IDS = { "all", SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_ELEMENT, SpellGrammar.CATEGORY_BEHAVIOR, SpellGrammar.CATEGORY_MODIFIER, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD };
-
-        // 탭 버튼은 프리팹에서 CATEGORY_IDS 순번으로 연결되어 있다. 슬롯 방식에서 노드로 배치하지 않는 분류의 탭은 숨긴다.
+        private const float FILTER_BUTTON_ROW_GAP = 5f;
+        private static readonly string[] _gradeFilterIds = { "C", "B", "A", "S" };
         private static readonly HashSet<string> HIDDEN_CATEGORY_IDS = new HashSet<string>
         {
             SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD
         };
+
+        public static readonly string[] CATEGORY_IDS = { "all", SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_ELEMENT, SpellGrammar.CATEGORY_BEHAVIOR, SpellGrammar.CATEGORY_MODIFIER, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD };
 
         [Header("마법 제목 줄")]
         [SerializeField] private TextMeshProUGUI _spellTitle;
@@ -58,6 +59,7 @@ namespace RuneCode
         [SerializeField] private GameObject _buttonPrefab;
 
         private SpellEditorPresenter _presenter;
+        private readonly List<Button> _gradeButtons = new List<Button>();
         private readonly Dictionary<UiRow, ViewPool<UiRow>> _paletteRows = new Dictionary<UiRow, ViewPool<UiRow>>();
         private SpellInspectorView _inspector;
 
@@ -87,6 +89,8 @@ namespace RuneCode
 
         /// <summary>팔레트 분류 버튼을 눌렀을 때 분류 ID와 함께 알린다.</summary>
         public event Action<string> CategoryClicked;
+
+        public event Action<string> GradeClicked;
 
         /// <summary>편집 세션·작업실 호스트·UI 관리자로 Presenter를 만들고 버튼을 이벤트로 연결한다. 이미 초기화했으면 무시한다.</summary>
         public void Initialize(ISpellEditor editor, ISpellEditorHost host, UIManager ui)
@@ -177,6 +181,13 @@ namespace RuneCode
                 _categoryButtons[i].GetComponent<TabButton>().SetSelected(CATEGORY_IDS[i] == category);
         }
 
+        /// <summary>grade에 해당하는 등급 필터 버튼만 선택 표시한다.</summary>
+        public void ShowGrade(string grade)
+        {
+            for (int i = 0; i < _gradeButtons.Count; i++)
+                _gradeButtons[i].GetComponent<TabButton>().SetSelected(_gradeFilterIds[i] == grade);
+        }
+
         /// <summary>편집 버튼과 검색·분류 입력을 화면 이벤트에 연결한다.</summary>
         private void BindButtons()
         {
@@ -190,11 +201,36 @@ namespace RuneCode
             _copyButton.onClick.AddListener(() => CopyClicked?.Invoke());
             _pasteButton.onClick.AddListener(() => PasteClicked?.Invoke());
             _searchField.onValueChanged.AddListener(query => SearchChanged?.Invoke(query));
+            CreateGradeFilterButtons();
             for (int i = 0; i < _categoryButtons.Length; i++)
             {
                 string category = CATEGORY_IDS[i];
                 _categoryButtons[i].onClick.AddListener(() => CategoryClicked?.Invoke(category));
                 if (HIDDEN_CATEGORY_IDS.Contains(category)) _categoryButtons[i].gameObject.SetActive(false);
+            }
+        }
+
+        /// <summary>기존 TabButton 프리팹 인스턴스를 복제해 C·B·A·S 등급 필터를 검색창과 목록 사이에 만든다.</summary>
+        private void CreateGradeFilterButtons()
+        {
+            RectTransform firstCategoryRect = (RectTransform)_categoryButtons[0].transform;
+            RectTransform behaviorCategoryRect = (RectTransform)_categoryButtons[3].transform;
+            float columnStep = behaviorCategoryRect.anchoredPosition.x - firstCategoryRect.anchoredPosition.x;
+            float rowY = firstCategoryRect.anchoredPosition.y - firstCategoryRect.rect.height - FILTER_BUTTON_ROW_GAP;
+
+            for (int index = 0; index < _gradeFilterIds.Length; index++)
+            {
+                string grade = _gradeFilterIds[index];
+                Button button = Instantiate(_categoryButtons[0], firstCategoryRect.parent, false);
+                button.name = "GradeFilter" + grade;
+                RectTransform buttonRect = (RectTransform)button.transform;
+                buttonRect.anchoredPosition = new Vector2(firstCategoryRect.anchoredPosition.x + columnStep * index, rowY);
+                TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
+                label.richText = true;
+                label.text = ModifierGradeText.Colorize(grade + GameData.L("ui.modifierGrade"), grade);
+                string selectedGrade = grade;
+                button.onClick.AddListener(() => GradeClicked?.Invoke(selectedGrade));
+                _gradeButtons.Add(button);
             }
         }
     }

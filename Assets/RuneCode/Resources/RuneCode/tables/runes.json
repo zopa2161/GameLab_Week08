@@ -28,7 +28,6 @@
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.2,
       "_executionSeconds": 0,
       "_unlockType": "start",
       "_unlockCost": 0,
@@ -522,7 +521,6 @@
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.4,
       "_executionSeconds": 0,
       "_unlockType": "tree",
       "_unlockCost": 0,
@@ -556,7 +554,6 @@
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.8,
       "_executionSeconds": 0,
       "_unlockType": "tree",
       "_unlockCost": 0,
@@ -590,7 +587,6 @@
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.2,
       "_executionSeconds": 0,
       "_unlockType": "bench",
       "_unlockCost": 30,
@@ -616,12 +612,41 @@
       ]
     },
     {
+      "_id": "mod.sequence",
+      "_name": "연속",
+      "_category": "modifier",
+      "_ram": 1,
+      "_energy": 0,
+      "_executionSeconds": 0,
+      "_unlockType": "bench",
+      "_unlockCost": 50,
+      "_stats": {
+        "_damageMultiplier": 0.8,
+        "_radiusMultiplier": 1,
+        "_learningMultiplier": 1,
+        "_waveCount": 2,
+        "_waveInterval": 0.2
+      },
+      "_ports": [
+        {
+          "_order": 0,
+          "_portId": "mod",
+          "_kind": "mod",
+          "_direction": "out",
+          "_max": 1
+        }
+      ],
+      "_modifierTargets": [
+        "behavior.launch",
+        "behavior.burst"
+      ]
+    },
+    {
       "_id": "mod.homing",
       "_name": "유도",
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.2,
       "_executionSeconds": 0,
       "_unlockType": "bench",
       "_unlockCost": 50,
@@ -674,7 +699,6 @@
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.3,
       "_executionSeconds": 0,
       "_unlockType": "bench",
       "_unlockCost": 50,
@@ -709,7 +733,6 @@
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.2,
       "_executionSeconds": 0,
       "_unlockType": "bench",
       "_unlockCost": 30,
@@ -742,7 +765,6 @@
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.15,
       "_executionSeconds": 0,
       "_unlockType": "bench",
       "_unlockCost": 20,
@@ -1256,7 +1278,6 @@
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.25,
       "_executionSeconds": 0,
       "_unlockType": "tree",
       "_unlockCost": 0,
