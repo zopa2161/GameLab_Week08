@@ -46,6 +46,8 @@ namespace RuneCode
             _session.ScreenRequested += OnScreenRequested;
             _ui = UIManager.Create(transform);
             LocalTelemetry.Record(0, "session", "start");
+            UsabilityLogUploader.AttachIfConfigured(gameObject,
+                () => LocalTelemetry.EndUsabilityTest("application_quit", _session?.Spells.Graph));
             OnScreenRequested(AppScreen.Title);
         }
 
