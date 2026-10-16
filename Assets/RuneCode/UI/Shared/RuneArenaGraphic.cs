@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 using UnityEngine;
 
+using UnityEngine.InputSystem;
+
 using TMPro;
 
 namespace RuneCode
@@ -34,6 +36,9 @@ namespace RuneCode
         private const float ARC_AMPLITUDE = 0.18f;
         private const int ARC_FLICKER_TICKS = 3;
         private const int ARC_SEGMENTS = 4;
+        private const int RANGE_SEGMENTS = 96;
+        private const float RANGE_LINE_WIDTH = 1.8f;
+        private const float RANGE_FILL_ALPHA = 0.12f;
 
         private static readonly Color BACKGROUND_COLOR = new Color(0.02f, 0.04f, 0.075f);
         private static readonly Color WALL_COLOR = new Color(0.13f, 0.20f, 0.27f);
@@ -139,6 +144,54 @@ namespace RuneCode
             foreach (HealPulse pulse in sim.HealPulses) DrawHealPulse(mesh, pulse, sim.Tick - pulse.Tick);
             foreach (ArcLink link in sim.ArcLinks) DrawArcLink(mesh, link, sim.Tick - link.Tick);
             DrawPlayer(mesh, sim);
+            DrawRangePreview(mesh, sim);
+        }
+
+        /// <summary>시작 노드 직결 범위의 최대 사거리를 플레이어 중심 흰 점선으로, 생성 위치와 모양은 반투명 채움으로 표시한다.</summary>
+        private void DrawRangePreview(UnityEngine.UI.VertexHelper mesh, RuneSimulation sim)
+        {
+            Mouse mouse = Mouse.current;
+            if (mouse == null || !TryGetPointer(mouse.position.ReadValue(), out SimVector pointer)) return;
+            Vector2 center = Point(sim.Player.Position);
+            SimVector delta = pointer - sim.Player.Position;
+            SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : sim.Player.AimDirection;
+            foreach (CompiledSpell spell in sim.Loadout)
+            {
+                if (spell == null) continue;
+                foreach (SpellAction action in spell.Root)
+                {
+                    if (!RuneSimulation.IsAreaPreviewAction(action)) continue;
+                    for (int instance = 0; instance < action.Count; instance++)
+                        DrawAreaPreview(mesh, action, Point(sim.GetAreaTargetPosition(action, pointer, instance)), direction);
+                    float radius = (float)sim.GetAreaPlacementRange(action) * _scale;
+                    for (int segment = 0; segment < RANGE_SEGMENTS; segment += 2)
+                    {
+                        float from = segment * Mathf.PI * 2 / RANGE_SEGMENTS;
+                        float to = (segment + 1) * Mathf.PI * 2 / RANGE_SEGMENTS;
+                        RuneMesh.Line(mesh, center + new Vector2(Mathf.Cos(from), Mathf.Sin(from)) * radius,
+                            center + new Vector2(Mathf.Cos(to), Mathf.Sin(to)) * radius, RANGE_LINE_WIDTH * _scale, Color.white);
+                    }
+                }
+            }
+        }
+
+        /// <summary>생성 위치와 방향에 명령의 최종 원·사각형·부채꼴 범위를 테두리 없이 반투명 채움으로 그린다.</summary>
+        private void DrawAreaPreview(UnityEngine.UI.VertexHelper mesh, SpellAction action, Vector2 point, SimVector direction)
+        {
+            Color fill = RuneMesh.ElementColor(action.Element);
+            fill.a = RANGE_FILL_ALPHA;
+            Vector2 aim = ScreenDirection(direction);
+            float angle = Mathf.Atan2(aim.y, aim.x);
+            float radius = action.Stats.Radius * _scale;
+            if (action.MagicType == SpellGrammar.MAGIC_TYPE_BOX)
+            {
+                Vector2 center = point + aim * action.Stats.BoxLength * 0.5f * _scale;
+                RuneMesh.Rectangle(mesh, center, action.Stats.BoxWidth * 0.5f * _scale,
+                    action.Stats.BoxLength * 0.5f * _scale, angle, fill);
+            }
+            else if (action.MagicType == SpellGrammar.MAGIC_TYPE_CONE)
+                RuneMesh.Sector(mesh, point, radius, angle, action.ConeAngle * Mathf.Deg2Rad, fill);
+            else RuneMesh.Polygon(mesh, point, radius, fill, 24);
         }
 
         /// <summary>전격 연쇄 구간을 경과 틱에 따라 흐려지는 속성 색 빛과 흰 심선의 지그재그 번개로 그린다.</summary>

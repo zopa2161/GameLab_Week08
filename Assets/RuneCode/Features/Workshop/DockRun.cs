@@ -126,8 +126,9 @@ namespace RuneCode
             if (_dock != null) _dock.SetAdaptationEnabled(adaptation);
         }
 
-        /// <summary>조준과 시전 입력으로 도크 고정 스텝을 진행하고 새 노드 실행 텔레메트리를 기록한다.</summary>
-        public void Step(SimVector aim, bool fire, bool isAutomatic = false, bool castPressed = false, bool castReleased = false)
+        /// <summary>조준 방향·선택적 포인터 위치와 시전 입력으로 도크 고정 스텝을 진행하고 새 노드 실행 텔레메트리를 기록한다.</summary>
+        public void Step(SimVector aim, bool fire, bool isAutomatic = false, bool castPressed = false, bool castReleased = false,
+            SimVector? aimPoint = null)
         {
             if (_dock == null) return;
             if (isAutomatic != _wasAutomatic) _dock.CancelBeamInput();
@@ -141,7 +142,7 @@ namespace RuneCode
             while (_accumulator >= FIXED_STEP && steps++ < maxSteps)
             {
                 _dock.Step(new SimulationInput(SimVector.Zero, aim, fire, castPressed: _hasPendingCastPress,
-                    castReleased: _hasPendingCastRelease, isAutomatic: isAutomatic));
+                    castReleased: _hasPendingCastRelease, isAutomatic: isAutomatic, aimPoint: aimPoint));
                 _hasPendingCastPress = false;
                 _hasPendingCastRelease = false;
                 _accumulator -= FIXED_STEP;

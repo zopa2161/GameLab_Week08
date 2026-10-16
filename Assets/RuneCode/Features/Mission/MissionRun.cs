@@ -199,7 +199,8 @@ namespace RuneCode
             {
                 var aim = hasPointer ? pointer - _simulation.Player.Position : _simulation.Player.AimDirection;
                 _simulation.Step(new SimulationInput(movement, aim, isCasting, false, false, _hasPendingDash,
-                    castPressed: _hasPendingCastPress, castReleased: _hasPendingCastRelease));
+                    castPressed: _hasPendingCastPress, castReleased: _hasPendingCastRelease,
+                    aimPoint: hasPointer ? pointer : (SimVector?)null));
                 _hasPendingCastPress = false;
                 _hasPendingCastRelease = false;
                 _hasPendingDash = false;

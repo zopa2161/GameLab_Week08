@@ -67,6 +67,7 @@ namespace RuneCode
         private readonly Queue<DamageSample> _damageWindow = new Queue<DamageSample>();
         private readonly Dictionary<string, int> _killCounts = new Dictionary<string, int>();
         private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
+        private SimVector? _aimPoint;
         private readonly bool[] _castHeld = new bool[3];
         private readonly bool[] _beamQueued = new bool[3];
         private readonly int[] _beamPressSerial = new int[3];
@@ -117,6 +118,32 @@ namespace RuneCode
         public SimulationPlayer Player => _player;
         public IReadOnlyList<SimulationEnemy> Enemies => _enemies;
         public IReadOnlyList<SimulationSpellEntity> SpellEntities => _spellEntities;
+
+        /// <summary>장착된 마법 목록이다. 화면에서 시작 노드 직결 범위 미리보기를 조회한다.</summary>
+        public IReadOnlyList<CompiledSpell> Loadout => _loadout;
+
+        /// <summary>지면에 배치하는 폭발·잔류 명령인지 반환한다. 궤도 생성 등 다른 모드의 생성 규칙은 보존한다.</summary>
+        public static bool IsAreaPreviewAction(SpellAction action)
+            => action.Kind == "spawn" && action.SpawnOrigin == SpellSpawnOrigin.Ground
+                && (action.Form == SpellGrammar.FORM_BURST || action.Form == SpellGrammar.FORM_ZONE);
+
+        /// <summary>지팡이 거리와 행동의 생성 거리를 더한 플레이어 중심 최대 배치 반경을 반환한다.</summary>
+        public double GetAreaPlacementRange(SpellAction action)
+            => Math.Max(0, _sector.PlayerRadius + _balance.Sim.WandOffset + action.Stats.Offset);
+
+        /// <summary>포인터를 시전자 중심 최대 사거리로만 제한하고 index번째 모드 배치를 적용한 생성 위치를 반환한다. 최소 거리는 없다.</summary>
+        public SimVector GetAreaTargetPosition(SpellAction action, SimVector pointer, int index = 0, SimVector? playerPosition = null)
+        {
+            SimVector origin = playerPosition ?? _player.Position;
+            SimVector delta = pointer - origin;
+            SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : _player.AimDirection;
+            SimVector position = delta.Length > GetAreaPlacementRange(action)
+                ? origin + direction * GetAreaPlacementRange(action) : pointer;
+            foreach (SpellModifierRules rule in action.ModifierRules)
+                if (SpellModifierRuntimeRegistry.TryGet(rule.RuneId, out SpellModifierRuntime modifier))
+                    modifier.AfterPlaceSpawn(this, action, action.Stats, index, ref position, ref direction);
+            return position;
+        }
         public IReadOnlyList<SimulationProjectile> EnemyProjectiles => _enemyProjectiles;
         public IReadOnlyList<FragmentOrb> Orbs => _orbs;
 
@@ -310,7 +337,10 @@ namespace RuneCode
             if (!_player.TryBeginSpell(slot, executionSeconds, cooldownSeconds)) return false;
             RecordNode(spell.CoreNodeId);
             _beamQueued[slot] = false;
-            var rootCast = new RootSpellExecution(slot, spell, _beamPressSerial[slot], allowBeamHold && _castHeld[slot]);
+            SimVector delta = _aimPoint.HasValue ? _aimPoint.Value - _player.Position : SimVector.Zero;
+            SimVector targetDirection = delta.LengthSquared > 0.000001 ? delta.Normalized() : _player.AimDirection;
+            var rootCast = new RootSpellExecution(slot, spell, _beamPressSerial[slot], allowBeamHold && _castHeld[slot],
+                _player.Position, targetDirection, _aimPoint);
             var context = new SpellContext(_player.Position + _player.AimDirection * (_sector.PlayerRadius + _balance.Sim.WandOffset), _player.AimDirection, null, false, null,
                 caster: _player, randomState: new SpellRandomState());
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
@@ -395,6 +425,7 @@ namespace RuneCode
         public void Step(SimulationInput input)
         {
             if (Completed || IsFailed) return;
+            _aimPoint = input.AimPoint;
             ReadBeamInput(input);
             bool wasDashing = _player.DashRemaining > 0.000001;
             _player.Aim(input.AimDirection);
@@ -494,6 +525,8 @@ namespace RuneCode
             state.Append(_tick).Append('|').Append(_rngState).Append('|').Append(_nextEntityId).Append('|').Append(_stage).Append('|').Append(_stageNumber).Append('|').Append(_killTarget).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_killCount).Append('|').Append(_scenario).Append('|').Append(_debugInvulnerable);
             state.Append('|').Append(_actionBudgetTick).Append('|').Append(_actionsThisTick).Append('|').Append(_droppedExecutions);
             AppendNumber(state, TimeLimit); AppendNumber(state, _energyRegen);
+            state.Append('|').Append(_aimPoint.HasValue);
+            if (_aimPoint.HasValue) { AppendNumber(state, _aimPoint.Value.X); AppendNumber(state, _aimPoint.Value.Y); }
             AppendNumber(state, _damageMultiplier); AppendNumber(state, _moveSpeedMultiplier);
             AppendNumber(state, _scrapGainMultiplier); AppendNumber(state, _scrapPickupRangeMultiplier); AppendNumber(state, _scrapRemainder);
             _player.WriteState(state);
@@ -524,6 +557,7 @@ namespace RuneCode
                 {
                     state.Append("|flow:").Append(pending.Tracker.RootCast?.Slot ?? -1).Append(':').Append(pending.Tracker.Pending);
                     state.Append(':').Append(pending.Tracker.RootCast?.PressSerial ?? -1).Append(':').Append(pending.Tracker.RootCast?.CanHold ?? false);
+                    pending.Tracker.RootCast?.WriteTargetState(state);
                 }
                 pending.Context.Repeat?.AppendState(state);
                 pending.Context.Modifiers.AppendState(state);
@@ -904,6 +938,13 @@ namespace RuneCode
                 foreach (SpellModifierRuntime modifier in modifiers) modifier.BeforePlaceSpawn(this, action, stats, i, ref position, ref direction);
                 behavior.PlaceSpawn(this, action, stats, i, context.FromEvent, context.Caster, ref position, ref direction);
                 foreach (SpellModifierRuntime modifier in modifiers) modifier.AfterPlaceSpawn(this, action, stats, i, ref position, ref direction);
+                RootSpellExecution targetCast = tracker.RootCast;
+                if (!context.FromEvent && targetCast != null && targetCast.AimPoint.HasValue
+                    && IsAreaPreviewAction(action) && targetCast.IsDirectAction(action))
+                {
+                    position = GetAreaTargetPosition(action, targetCast.AimPoint.Value, i, targetCast.PlayerPosition);
+                    direction = targetCast.AimDirection;
+                }
                 // 개체 순번 각도다. 공전 모드가 궤도 자리를 등각으로 나누는 데 쓴다.
                 double angle = i * 2 * Math.PI / action.Count;
                 double warmup = behavior.GetWarmupSeconds(stats);
@@ -2133,24 +2174,47 @@ namespace RuneCode
             private readonly IReadOnlyList<SpellAction> _actions;
             private readonly bool _canHold;
             private readonly int _pressSerial;
+            private readonly SimVector _playerPosition;
+            private readonly SimVector _aimDirection;
+            private readonly SimVector? _aimPoint;
             public int Slot => _slot;
             public bool CanHold => _canHold;
             public int PressSerial => _pressSerial;
+            public SimVector PlayerPosition => _playerPosition;
+            public SimVector AimDirection => _aimDirection;
+            public SimVector? AimPoint => _aimPoint;
 
-            /// <summary>Tracks which player slot should be marked complete when the root execution finishes.</summary>
-            public RootSpellExecution(int slot, CompiledSpell spell, int pressSerial, bool canHold)
+            /// <summary>완료 슬롯·실행 루트·빔 유지 상태와 시전 시작 위치·조준 방향·포인터 좌표를 보관한다.</summary>
+            public RootSpellExecution(int slot, CompiledSpell spell, int pressSerial, bool canHold,
+                SimVector playerPosition, SimVector aimDirection, SimVector? aimPoint)
             {
                 _slot = slot; _actions = spell.Root; _pressSerial = pressSerial;
                 _canHold = canHold && spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK;
+                _playerPosition = playerPosition; _aimDirection = aimDirection; _aimPoint = aimPoint;
+            }
+
+            /// <summary>명령이 시작 노드에 직접 연결된 실행 대상인지 반환한다.</summary>
+            public bool IsDirectAction(SpellAction action)
+            {
+                foreach (SpellAction direct in _actions)
+                    if (ReferenceEquals(direct, action)) return true;
+                return false;
+            }
+
+            /// <summary>예약된 범위 마법의 생성 위치·방향을 결정하는 시전 시점 상태를 해시에 기록한다.</summary>
+            public void WriteTargetState(StringBuilder state)
+            {
+                state.Append('|').Append(_aimPoint.HasValue);
+                AppendNumber(state, _playerPosition.X); AppendNumber(state, _playerPosition.Y);
+                AppendNumber(state, _aimDirection.X); AppendNumber(state, _aimDirection.Y);
+                if (_aimPoint.HasValue) { AppendNumber(state, _aimPoint.Value.X); AppendNumber(state, _aimPoint.Value.Y); }
             }
 
             /// <summary>행동 인스턴스가 시작 조건에 직접 연결된 빔인지 검사한다.</summary>
             public bool IsDirectBeam(SpellAction action)
             {
                 if (action.Form != BeamBehaviorRules.BEAM_KIND) return false;
-                foreach (SpellAction direct in _actions)
-                    if (ReferenceEquals(direct, action)) return true;
-                return false;
+                return IsDirectAction(action);
             }
         }
 
