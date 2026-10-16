@@ -56,12 +56,17 @@ namespace RuneCode
 
         /// <summary>
         /// 맵 경계·벽을 반영한 중심선 경로를 빔 상태에 재사용해 저장한다. 각 칸의 방향은 장착된 이동 모드(유도 등)가 경로 개입으로 고친다.
-        /// 공전은 시전 위치 중심의 원 한 바퀴, 그 외에는 유도 수치가 있으면 빔 길이, 없으면 맵 대각선을 경로 길이로 쓴다.
+        /// 공전은 현재 공전 중심의 원 한 바퀴, 그 외에는 유도 수치가 있으면 빔 길이, 없으면 맵 대각선을 경로 길이로 쓴다.
         /// </summary>
         private static void BuildPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
         {
             state.ClearPath();
             entity.BeginPath(simulation);
+            if (entity.HasModifierPath && entity.Stats.OrbitRadius > 0)
+            {
+                BuildOrbitPath(simulation, entity, state);
+                return;
+            }
             SimVector point = entity.Position;
             SimVector direction = entity.Direction;
             double halfWidth = entity.Stats.BoxWidth * 0.5;
@@ -71,17 +76,9 @@ namespace RuneCode
             bool isHoming = entity.Stats.HomingRange > 0 && entity.Stats.HomingTurn > 0;
             double pathSpeed = GameData.Runes.Get("form.beam").Stats.Speed;
             double remaining = isHoming ? entity.Stats.BoxLength : diagonal;
-            double pathStep = PATH_STEP;
-            if (entity.HasModifierPath && entity.Stats.OrbitRadius > 0)
-            {
-                double radius = entity.Stats.OrbitRadius;
-                int segments = Math.Max(3, (int)Math.Ceiling(2 * Math.PI * radius / PATH_STEP));
-                pathStep = 2 * radius * Math.Sin(Math.PI / segments);
-                remaining = segments * pathStep;
-            }
             while (remaining > RuneSimulation.COLLISION_EPSILON)
             {
-                double step = Math.Min(pathStep, remaining);
+                double step = Math.Min(PATH_STEP, remaining);
                 entity.SteerPathStep(simulation, point, ref direction, step, pathSpeed, halfWidth);
                 SimVector next = point + direction * step;
                 double wall = simulation.FirstWallFraction(point, next, halfWidth);
@@ -93,6 +90,34 @@ namespace RuneCode
                 state.AddPoint(next);
                 point = next;
                 remaining -= step;
+            }
+        }
+
+        /// <summary>현재 공전 중심의 원을 독립된 각도 표본으로 만들고 유도 구간만 변형한다. 벽이 없으면 마지막 점을 첫 점과 정확히 연결한다.</summary>
+        private static void BuildOrbitPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
+        {
+            double radius = entity.Stats.OrbitRadius;
+            bool isHoming = entity.Stats.HomingRange > 0 && entity.Stats.HomingTurn > 0;
+            double extent = radius + (isHoming ? entity.Stats.HomingRange : 0);
+            int segments = Math.Max(3, (int)Math.Ceiling(2 * Math.PI * extent / PATH_STEP));
+            SimVector radial = (entity.Position - OrbitModifierRuntime.GetCenter(entity)).Normalized();
+            double halfWidth = entity.Stats.BoxWidth * 0.5;
+            SimVector first = HomingModifierRuntime.GetOrbitPathPoint(simulation, entity, radial, 0, segments);
+            SimVector point = first;
+            state.AddPoint(first);
+            if (!simulation.Map.CanOccupy(first, halfWidth)) return;
+            for (int index = 1; index <= segments; index++)
+            {
+                SimVector next = index == segments ? first : HomingModifierRuntime.GetOrbitPathPoint(
+                    simulation, entity, radial, index, segments);
+                double wall = simulation.FirstWallFraction(point, next, halfWidth);
+                if (!double.IsPositiveInfinity(wall))
+                {
+                    state.AddPoint(point + (next - point) * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON));
+                    return;
+                }
+                state.AddPoint(next);
+                point = next;
             }
         }
 

@@ -258,6 +258,8 @@ namespace RuneCode
             float damageMult = 1f;
             float radiusMult = 1f;
             float rangeMult = 1f;
+            float orbitRadiusMult = 1f;
+            float orbitRadius = 0f;
             float speedMult = 1f;
             float durationMult = 1f;
             _learningMultiplier = 1f;
@@ -270,6 +272,8 @@ namespace RuneCode
                 GraphNode modifierNode = modifierNodes == null ? null : modifierNodes[index];
                 RuneStats stats = mod.Stats;
                 string grade = SpellGrammar.GetModifierGrade(mod, modifierNode, modifierGrades);
+                if (mod.Id == OrbitModifierRules.RUNE_ID) orbitRadius = stats.OrbitRadius;
+                orbitRadiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "orbitPath", 1f);
                 damageMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "effectMultiplier", stats.DamageMultiplier);
                 radiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "radiusMultiplier", stats.RadiusMultiplier);
                 speedMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "speedMultiplier", stats.SpeedMultiplier);
@@ -320,8 +324,8 @@ namespace RuneCode
             }
             _minimumLifetime = form.MinimumLifetime;
             _offset = form.Offset * rangeMult;
-            // 공전 모드의 궤도 반경은 행동별 값이며 확장 배율을 적용하지 않는다.
-            _orbitRadius = form.OrbitRadius * rangeMult;
+            // 공전 룬의 공통 반경에 등급 배율을 적용한다. 확장 배율은 적용하지 않는다.
+            _orbitRadius = orbitRadius * rangeMult * orbitRadiusMult;
             _hitInterval = form.HitInterval;
             _tickInterval = form.TickInterval;
             if (element != null)

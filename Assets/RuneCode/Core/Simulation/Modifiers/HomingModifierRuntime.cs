@@ -16,6 +16,7 @@ namespace RuneCode
     internal sealed class HomingModifierRuntime : SpellModifierRuntime
     {
         private const double DEGREES_TO_RADIANS = Math.PI / 180;
+        private const int ORBIT_INTERPOLATION_POINTS = 6;
 
         public override string RuneId => HomingModifierRules.RUNE_ID;
 
@@ -149,6 +150,57 @@ namespace RuneCode
             double turn = stats.HomingTurn * DEGREES_TO_RADIANS * step / pathSpeed;
             direction = direction.Rotated(Math.Max(-turn, Math.Min(turn, delta)));
             return true;
+        }
+
+        /// <summary>시작 반경 방향과 표본 순번으로 원 위의 점을 구한다. 적에 가장 가까운 표본만 적 위치에 고정하고 양옆 여섯 표본 이내에서 변위 벡터를 보간한다.</summary>
+        internal static SimVector GetOrbitPathPoint(RuneSimulation simulation, SimulationSpellEntity entity,
+            SimVector startRadial, int index, int segments)
+        {
+            SpellStats stats = entity.Stats;
+            double radius = stats.OrbitRadius;
+            SimVector center = OrbitModifierRuntime.GetCenter(entity);
+            double angleStep = 2 * Math.PI / segments;
+            SimVector radial = startRadial.Rotated(angleStep * index);
+            SimVector basePoint = OrbitModifierRuntime.GetPoint(entity, radial);
+            if (stats.HomingRange <= 0 || stats.HomingTurn <= 0)
+                return basePoint;
+            double startAngle = Math.Atan2(startRadial.Y, startRadial.X);
+            int neighbors = Math.Min(ORBIT_INTERPOLATION_POINTS, Math.Max(1, segments / 4));
+            SimVector displacement = SimVector.Zero;
+            double totalWeight = 0;
+            SimulationEnemy pinnedTarget = null;
+            double bestDistance = double.PositiveInfinity;
+            foreach (SimulationEnemy enemy in simulation.Enemies)
+            {
+                if (!enemy.IsAlive) continue;
+                SimVector offset = enemy.Position - center;
+                double distance = offset.Length;
+                if (distance <= RuneSimulation.COLLISION_EPSILON || Math.Abs(distance - radius) > stats.HomingRange) continue;
+                double targetAngle = Math.Atan2(offset.Y, offset.X) - startAngle;
+                int targetIndex = ((int)Math.Round(targetAngle / angleStep) % segments + segments) % segments;
+                int separation = Math.Abs(targetIndex - index);
+                separation = Math.Min(separation, segments - separation);
+                if (separation >= neighbors) continue;
+                SimVector anchor = OrbitModifierRuntime.GetPoint(entity, startRadial.Rotated(angleStep * targetIndex));
+                double targetDistance = (enemy.Position - anchor).LengthSquared;
+                if (targetDistance > stats.HomingRange * stats.HomingRange) continue;
+                if (separation == 0)
+                {
+                    if (targetDistance < bestDistance || (targetDistance == bestDistance
+                        && (pinnedTarget == null || enemy.Id < pinnedTarget.Id)))
+                    {
+                        pinnedTarget = enemy;
+                        bestDistance = targetDistance;
+                    }
+                    continue;
+                }
+                double t = (double)separation / neighbors;
+                double weight = (1 - t) * (1 - t) / (t * t);
+                displacement += (enemy.Position - anchor) * weight;
+                totalWeight += weight;
+            }
+            if (pinnedTarget != null) return pinnedTarget.Position;
+            return basePoint + displacement / (1 + totalWeight);
         }
 
         /// <summary>진행 방향 앞의 유도 범위 안에서 이번 경로에서 지나치지 않은 가장 가까운 적을 고른다. 거리가 같으면 ID가 작은 적이다.</summary>

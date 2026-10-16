@@ -2,7 +2,7 @@ namespace RuneCode
 {
     /// <summary>
     /// 공전 모드 규칙이다. 생성된 개체의 경로를 행동 기준점 주위의 원 궤도로 바꾸는 이동 모드이며 유도보다 우선순위가 낮다.
-    /// 즉시 범위 행동(폭발)에는 장착할 수 없다. 궤도 반경은 행동 수치, 회전 속도·진입 속도는 모드 수치이며 등급은 C 하나다.
+    /// 즉시 범위 행동(폭발)에는 장착할 수 없다. 공전 룬의 공통 반경에 등급 배율을 적용하며 회전 속도·진입 속도도 모드 수치다.
     /// </summary>
     public sealed class OrbitModifierRules : SpellModifierRules
     {

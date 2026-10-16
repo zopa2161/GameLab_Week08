@@ -656,7 +656,7 @@ namespace RuneCode
         /// <summary>
         /// 테스트 프로필 세이브를 만든다. 1~10스테이지 클리어, endgame 노드를 제외한 강화 트리 최대 레벨과 룬 해금, 시작 소지량에 더해
         /// 모디·행동 각 2개와 무속성을 제외한 전투 속성 각 2개를 지급하고, 행동은 C등급을 시작 수량만큼 채운다.
-        /// 모디는 B등급을 주되 공전처럼 B등급이 정의되지 않은 모디는 사용 가능한 가장 낮은 등급으로 지급한다.
+        /// 공전은 사용 가능한 모든 등급을 지급하고 다른 모디는 B등급 또는 정의된 가장 낮은 등급으로 지급한다.
         /// </summary>
         private PlayerSave CreateTestSave()
         {
@@ -669,7 +669,13 @@ namespace RuneCode
             {
                 if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
                 {
-                    // 공전처럼 B등급 값이 없는 모디는 AddModifierStock이 거르므로 정의된 가장 낮은 등급으로 지급한다.
+                    if (rune.Id == OrbitModifierRules.RUNE_ID)
+                    {
+                        foreach (string orbitGrade in GameData.ModifierGrades.GetAvailableGrades(rune.Id))
+                            save.AddModifierStock(rune.Id, orbitGrade, TEST_STOCK_COUNT);
+                        continue;
+                    }
+                    // B등급 값이 없는 모디는 정의된 가장 낮은 등급으로 지급한다.
                     string grade = GameData.ModifierGrades.IsGradeAvailable(rune.Id, TEST_STOCK_GRADE)
                         ? TEST_STOCK_GRADE
                         : GameData.ModifierGrades.GetLowestAvailableGrade(rune.Id);

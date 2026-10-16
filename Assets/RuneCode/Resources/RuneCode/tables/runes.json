@@ -95,7 +95,6 @@
         "_radius": 6,
         "_lifetime": 1.4,
         "_count": 1,
-        "_orbitRadius": 70,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1
@@ -221,7 +220,6 @@
         "_lifetime": 4,
         "_offset": 180,
         "_count": 1,
-        "_orbitRadius": 160,
         "_tickInterval": 0.5,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
@@ -289,7 +287,6 @@
         "_count": 1,
         "_tickInterval": 0.1,
         "_beamLength": 1200,
-        "_orbitRadius": 240,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1
@@ -589,6 +586,7 @@
       "_unlockCost": 50,
       "_stats": {
         "_angularSpeed": 210,
+        "_orbitRadius": 70,
         "_entrySpeed": 240,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
