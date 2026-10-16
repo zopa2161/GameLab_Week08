@@ -10,9 +10,11 @@ namespace RuneCode
         private const string TABLE_FILE = "elite_modifier_drops.json";
         private const string LAUNCH_COUNT_KEY = "_launchGradeValues";
         private const string LAUNCH_SPREAD_KEY = "_launchSpreadAngles";
+        private const string ENERGY_MULT_BY_GRADE_KEY = "_energyMultByGrade";
         private const string SLOT_GRADE_CHANCES_KEY = "_slotGradeChancesPercent";
         private const string ELITE_GRADE_CHANCES_KEY = "_eliteModifierGradeChancesPercent";
         private const string BEHAVIOR_GRADE_CHANCES_KEY = "_behaviorGradeChancesPercent";
+        internal const float DEFAULT_ENERGY_MULTIPLIER = 1.2f;
         private const double MAX_LAUNCH_SPREAD_ANGLE = 90d;
         private static readonly IReadOnlyDictionary<string, int> EMPTY_CHANCES = new Dictionary<string, int>(StringComparer.Ordinal);
 
@@ -111,6 +113,16 @@ namespace RuneCode
             if (string.IsNullOrEmpty(modifierId) || string.IsNullOrEmpty(grade)) return null;
             return _effects.TryGetValue(modifierId, out ModifierGradeEffect effect)
                 && effect.GradeValues.TryGetValue(grade, out object value) ? value : null;
+        }
+
+        /// <summary>Modifier ID와 등급의 에너지 배율을 반환하고 값이 없으면 기본 배율을 반환한다.</summary>
+        public float GetEnergyMultiplier(string modifierId, string grade)
+        {
+            if (string.IsNullOrEmpty(modifierId) || string.IsNullOrEmpty(grade)
+                || !_effects.TryGetValue(modifierId, out ModifierGradeEffect effect)
+                || !effect.EnergyMultipliersByGrade.TryGetValue(grade, out float multiplier))
+                return DEFAULT_ENERGY_MULTIPLIER;
+            return multiplier;
         }
 
         /// <summary>숫자 등급 효과를 읽으며 타입이 다르거나 값이 없으면 false를 반환한다.</summary>
@@ -257,15 +269,44 @@ namespace RuneCode
                 string name = ReadString(row, "_name", string.Empty, log, modifierId);
                 string effectType = ReadString(row, "_effectType", string.Empty, log, modifierId);
                 Dictionary<string, object> values = ReadGradeValues(row, modifierId, gradeOrder, log);
+                Dictionary<string, float> energyMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log);
                 if (!HasAvailableValue(values)) log.Add(modifierId, "_gradeValues", "값이 있는 등급이 하나 이상 있어야 합니다.");
                 ValidateGradeValueTypes(modifierId, effectType, values, rune, log);
                 Dictionary<string, object> launchValues = ReadLaunchGradeValues(row, modifierId, effectType, gradeOrder, values, log, LAUNCH_COUNT_KEY);
                 if (launchValues != null) ValidateGradeValueTypes(modifierId, effectType, launchValues, rune, log, LAUNCH_COUNT_KEY);
                 Dictionary<string, object> spreadAngles = ReadLaunchGradeValues(row, modifierId, effectType, gradeOrder, values, log, LAUNCH_SPREAD_KEY);
                 if (spreadAngles != null) ValidateSpreadAngles(modifierId, spreadAngles, log);
-                result.Add(modifierId, new ModifierGradeEffect(name, effectType, values, launchValues, spreadAngles));
+                result.Add(modifierId, new ModifierGradeEffect(name, effectType, values, energyMultipliers, launchValues, spreadAngles));
                 modifierOrder.Add(modifierId);
             }
+            return result;
+        }
+
+        /// <summary>Modifier별 등급 에너지 배율을 읽고 모든 등급 키와 양수 범위를 검증한다.</summary>
+        private static Dictionary<string, float> ReadEnergyMultipliers(Dictionary<string, object> row, string modifierId,
+            IReadOnlyList<string> gradeOrder, TableErrorLog log)
+        {
+            var result = new Dictionary<string, float>(StringComparer.Ordinal);
+            if (!TryObject(Get(row, ENERGY_MULT_BY_GRADE_KEY), out Dictionary<string, object> values))
+            {
+                log.Add(modifierId, ENERGY_MULT_BY_GRADE_KEY, "등급별 에너지 배율 객체가 필요합니다.");
+                return result;
+            }
+
+            var expected = new HashSet<string>(gradeOrder, StringComparer.Ordinal);
+            foreach (string grade in gradeOrder)
+            {
+                if (!values.TryGetValue(grade, out object rawValue)
+                    || !(rawValue is double multiplier) || double.IsNaN(multiplier) || double.IsInfinity(multiplier)
+                    || multiplier <= 0d || multiplier > float.MaxValue)
+                {
+                    log.Add(modifierId, ENERGY_MULT_BY_GRADE_KEY + "." + grade, "0보다 큰 float 범위 숫자여야 합니다.");
+                    continue;
+                }
+                result.Add(grade, (float)multiplier);
+            }
+            foreach (string grade in values.Keys)
+                if (!expected.Contains(grade)) log.Add(modifierId, ENERGY_MULT_BY_GRADE_KEY + "." + grade, "_gradeOrder에 없는 등급 키입니다.");
             return result;
         }
 
@@ -575,12 +616,13 @@ namespace RuneCode
         }
     }
 
-    /// <summary>Modifier 하나의 등급 이름·효과 종류·등급값과 선택적인 발사 전용 등급값을 보관한다.</summary>
+    /// <summary>Modifier 하나의 등급 효과, 에너지 배율과 선택적인 발사 전용 등급값을 보관한다.</summary>
     internal sealed class ModifierGradeEffect
     {
         public string Name { get; }
         public string EffectType { get; }
         public IReadOnlyDictionary<string, object> GradeValues { get; }
+        public IReadOnlyDictionary<string, float> EnergyMultipliersByGrade { get; }
 
         /// <summary>발사 Behavior에만 쓰는 등급값이다. 없으면 null이며 발사도 GradeValues를 쓴다.</summary>
         public IReadOnlyDictionary<string, object> LaunchGradeValues { get; }
@@ -588,13 +630,15 @@ namespace RuneCode
         /// <summary>발사 Behavior 다중 탄의 등급별 좌우 최대 퍼짐 각도다. 없으면 null이며 룬 기본 퍼짐 각도를 쓴다.</summary>
         public IReadOnlyDictionary<string, object> LaunchSpreadAngles { get; }
 
-        /// <summary>검증이 끝난 Modifier 효과 값을 보관한다.</summary>
+        /// <summary>검증이 끝난 Modifier 효과 값과 등급 에너지 배율을 보관한다.</summary>
         public ModifierGradeEffect(string name, string effectType, IReadOnlyDictionary<string, object> gradeValues,
+            IReadOnlyDictionary<string, float> energyMultipliersByGrade,
             IReadOnlyDictionary<string, object> launchGradeValues = null, IReadOnlyDictionary<string, object> launchSpreadAngles = null)
         {
             Name = name;
             EffectType = effectType;
             GradeValues = gradeValues;
+            EnergyMultipliersByGrade = energyMultipliersByGrade;
             LaunchGradeValues = launchGradeValues;
             LaunchSpreadAngles = launchSpreadAngles;
         }

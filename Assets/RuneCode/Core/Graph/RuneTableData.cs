@@ -35,7 +35,6 @@ namespace RuneCode
         public bool _disabled;
         public int _ram;
         public float _energy;
-        public float _energyMult = 1f;
         public float _executionSeconds;
         public float _executionSecondsPerArea;
         public int _unlockCost;

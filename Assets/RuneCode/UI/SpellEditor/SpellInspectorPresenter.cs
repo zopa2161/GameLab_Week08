@@ -623,7 +623,7 @@ namespace RuneCode
                     break;
             }
             RuneStats stats = rune.Stats;
-            values.Add(GameData.L("ui.costMultiplier") + " ×" + rune.EnergyMult.ToString("0.##"));
+            values.Add(GameData.L("ui.costMultiplier") + " ×" + grades.GetEnergyMultiplier(rune.Id, grade).ToString("0.##"));
             if (rune.Id == "mod.multi")
             {
                 if (grades.TryGetCountValue(rune.Id, grade, true, out int launchCount)

@@ -80,12 +80,24 @@ namespace RuneCode
         {
             if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return;
             QuickPalettePopup popup = _ui.OpenPopup<QuickPalettePopup>();
-            popup.Begin();
+            popup.Begin(true);
             string category = isElement ? SpellGrammar.CATEGORY_ELEMENT : SpellGrammar.CATEGORY_MODIFIER;
-            Action<string> onSearch = query => FillSlotPicker(popup, query, nodeId, slotKey, category);
+            string selectedGrade = null;
+            Action<string> onSearch = query => FillSlotPicker(popup, query, nodeId, slotKey, category, selectedGrade);
+            Action<string> onGrade = grade =>
+            {
+                selectedGrade = selectedGrade == grade ? null : grade;
+                popup.ShowGrade(selectedGrade);
+                FillSlotPicker(popup, popup.Query, nodeId, slotKey, category, selectedGrade);
+            };
             popup.SearchChanged += onSearch;
-            popup.Closed += () => popup.SearchChanged -= onSearch;
-            FillSlotPicker(popup, popup.Query, nodeId, slotKey, category);
+            popup.GradeClicked += onGrade;
+            popup.Closed += () =>
+            {
+                popup.SearchChanged -= onSearch;
+                popup.GradeClicked -= onGrade;
+            };
+            FillSlotPicker(popup, popup.Query, nodeId, slotKey, category, selectedGrade);
         }
 
         /// <summary>보유 행동 중 검색어와 일치하는 등급별 항목으로 빠른 검색 결과를 채운다.</summary>
@@ -109,8 +121,9 @@ namespace RuneCode
             }
         }
 
-        /// <summary>지정 분류의 장착 가능한 룬과 슬롯 비우기 선택지로 선택 결과를 채운다.</summary>
-        private void FillSlotPicker(QuickPalettePopup popup, string query, string nodeId, string slotKey, string category)
+        /// <summary>지정 분류와 등급 필터에 맞는 장착 가능한 룬과 슬롯 비우기 선택지로 선택 결과를 채운다. gradeFilter가 null이면 모든 등급을 표시한다.</summary>
+        private void FillSlotPicker(QuickPalettePopup popup, string query, string nodeId, string slotKey, string category,
+            string gradeFilter)
         {
             popup.ClearResults();
             popup.AddResult(GameData.L("editor.slotEmpty"), () =>
@@ -123,6 +136,7 @@ namespace RuneCode
                 if (!IsPaletteRune(rune) || rune.Category != category || !MatchesSearch(rune, query)) continue;
                 foreach (string grade in StockGrades(rune))
                 {
+                    if (gradeFilter != null && grade != gradeFilter) continue;
                     if (!TryGetStock(rune.Id, grade, out int remaining, out int owned) || remaining <= 0
                         || !_editor.CanEquipToSlot(nodeId, slotKey, rune.Id, grade)) continue;
                     string runeId = rune.Id;

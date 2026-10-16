@@ -588,7 +588,9 @@ namespace RuneCode
                 RuneStats modifierStats = mod.Stats;
                 string grade = SpellGrammar.GetModifierGrade(mod, modifierNode, modifierGrades);
                 ids.Add(mod.Id);
-                energyMultiplier *= mod.EnergyMult;
+                energyMultiplier *= modifierGrades == null
+                    ? ModifierGradeTable.DEFAULT_ENERGY_MULTIPLIER
+                    : modifierGrades.GetEnergyMultiplier(mod.Id, grade);
                 if (SpellModifierRuleRegistry.TryGetByRuneId(mod.Id, out SpellModifierRules modifierRules))
                     _count = modifierRules.ModifyCount(_count, _rules, grade, modifierStats, modifierGrades);
                 if (mod.Id == "mod.noise") _isNoise = true;
