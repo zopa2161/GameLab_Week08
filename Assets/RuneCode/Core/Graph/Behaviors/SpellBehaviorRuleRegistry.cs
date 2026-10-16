@@ -10,10 +10,10 @@ namespace RuneCode
         private static readonly SpellBehaviorRules[] RULES =
         {
             new LaunchBehaviorRules(),
-            new BurstBehaviorRules(),
+            new LegacyBurstBehaviorRules(),
             new PersistBehaviorRules(),
             new BeamBehaviorRules(),
-            new RadiateBehaviorRules()
+            new ExplosionBehaviorRules()
         };
 
         /// <summary>등록된 모든 행동 규칙이다.</summary>

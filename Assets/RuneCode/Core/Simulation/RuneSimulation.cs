@@ -125,7 +125,7 @@ namespace RuneCode
         /// <summary>지면에 배치하는 폭발·잔류 명령인지 반환한다. 궤도 생성 등 다른 모드의 생성 규칙은 보존한다.</summary>
         public static bool IsAreaPreviewAction(SpellAction action)
             => action.Kind == "spawn" && action.SpawnOrigin == SpellSpawnOrigin.Ground
-                && (action.Form == SpellGrammar.FORM_BURST || action.Form == SpellGrammar.FORM_ZONE);
+                && (action.Form == SpellGrammar.FORM_LEGACY_BURST || action.Form == SpellGrammar.FORM_ZONE);
 
         /// <summary>지면 범위 명령 중 공전 모듈이 없는 경우에만 미리보기를 표시할 수 있는지 반환한다.</summary>
         public static bool CanShowAreaPreview(SpellAction action)
@@ -1571,7 +1571,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 보스 패턴의 방사 사격, 조준 사격, 예고 장판, 증원 주기 및 접촉 피해를 페이즈에 맞춰 처리한다.
+        /// 보스 패턴의 폭발 사격, 조준 사격, 예고 장판, 증원 주기 및 접촉 피해를 페이즈에 맞춰 처리한다.
         /// 페이즈 전환과 이동은 호출 전에 끝난 상태여야 하며 조준은 이동 전 방향을 사용한다.
         /// </summary>
         private void AdvanceBoss(SimulationEnemy boss, BossDefinition pattern, SimVector direction)
