@@ -76,7 +76,7 @@ const LABELS = {
   _benchLineCount: "벤치 열 수", _benchSwarmX: "벤치 군집 X", _benchSwarmY: "벤치 군집 Y",
   _benchSwarmColumns: "벤치 군집 열", _benchSwarmRows: "벤치 군집 행", _benchSwarmGapX: "벤치 군집 간격 X",
   _benchSwarmGapY: "벤치 군집 간격 Y", _spellVisualSeconds: "마법 이펙트 시간", _hitFlashSeconds: "피격 플래시",
-  _damageNumberSeconds: "피해 숫자 시간", _wandOffset: "지팡이 오프셋", _executionTimeScale: "실행 시간 배율",
+  _damageNumberSeconds: "피해 숫자 시간", _wandOffset: "지팡이 오프셋", _areaPlacementRange: "폭발·잔류 공통 사거리", _executionTimeScale: "실행 시간 배율",
   // 스테이지
   _roomColumns: "방 열 수", _roomRows: "방 행 수", _roomsX: "가로 방 수", _roomsY: "세로 방 수",
   _hpStageScale: "체력 스케일", _damageStageScale: "피해 스케일", _clearRewardStageScale: "클리어 보상 스케일",
@@ -338,7 +338,7 @@ const SCHEMAS = {
       { title: "적응", keys: ["_elementLearning", "_formLearning", "_elementCap", "_formCap", "_dotWeight", "_noiseMultiplier", "_relayMultiplier", "_decayDelay", "_decayPerSecond", "_resistanceThreshold"] },
       { title: "전투와 방어", keys: ["_burnDps", "_burnInterval", "_burnSeconds", "_chillSlow", "_chillSeconds", "_chillMaxStacks", "_chillImmuneMaxStacks", "_freezeSeconds", "_freezeImmunity", "_empSeconds", "_aegisAngle", "_aegisReduction", "_relayRadius", "_relayReduction", "_separationAllowance", "_separationStrength", "_separationMaxStep"] },
       { title: "성장", keys: ["_slotCost", "_deathRetention", "_baseCapacity", "_maxLibrary", "_modifierStartStock", "_orbAbsorbRadius", "_pickupAttractSpeed", "_terminalHeal"] },
-      { title: "시뮬레이션", keys: ["_tickRate", "_multiOffset", "_telemetryHighlightSeconds", "_benchPlayerX", "_benchPlayerY", "_benchDummyX", "_benchDummyY", "_benchHp", "_benchLineStartX", "_benchLineGap", "_benchLineCount", "_benchSwarmX", "_benchSwarmY", "_benchSwarmColumns", "_benchSwarmRows", "_benchSwarmGapX", "_benchSwarmGapY", "_spellVisualSeconds", "_hitFlashSeconds", "_damageNumberSeconds", "_wandOffset", "_executionTimeScale"] },
+      { title: "시뮬레이션", keys: ["_tickRate", "_multiOffset", "_telemetryHighlightSeconds", "_benchPlayerX", "_benchPlayerY", "_benchDummyX", "_benchDummyY", "_benchHp", "_benchLineStartX", "_benchLineGap", "_benchLineCount", "_benchSwarmX", "_benchSwarmY", "_benchSwarmColumns", "_benchSwarmRows", "_benchSwarmGapX", "_benchSwarmGapY", "_spellVisualSeconds", "_hitFlashSeconds", "_damageNumberSeconds", "_wandOffset", "_areaPlacementRange", "_executionTimeScale"] },
     ],
   },
 };

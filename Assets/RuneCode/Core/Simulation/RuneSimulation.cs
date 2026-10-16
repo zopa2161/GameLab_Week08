@@ -127,9 +127,28 @@ namespace RuneCode
             => action.Kind == "spawn" && action.SpawnOrigin == SpellSpawnOrigin.Ground
                 && (action.Form == SpellGrammar.FORM_BURST || action.Form == SpellGrammar.FORM_ZONE);
 
-        /// <summary>지팡이 거리와 행동의 생성 거리를 더한 플레이어 중심 최대 배치 반경을 반환한다.</summary>
-        public double GetAreaPlacementRange(SpellAction action)
-            => Math.Max(0, _sector.PlayerRadius + _balance.Sim.WandOffset + action.Stats.Offset);
+        /// <summary>지면 범위 명령 중 공전 모듈이 없는 경우에만 미리보기를 표시할 수 있는지 반환한다.</summary>
+        public static bool CanShowAreaPreview(SpellAction action)
+        {
+            if (!IsAreaPreviewAction(action)) return false;
+            foreach (SpellModifierRules rule in action.ModifierRules)
+                if (rule.RuneId == OrbitModifierRules.RUNE_ID) return false;
+            return true;
+        }
+
+        /// <summary>폭발·잔류가 함께 사용하는 플레이어 중심 최대 배치 반경을 반환한다.</summary>
+        public double GetAreaPlacementRange() => _balance.Sim.AreaPlacementRange;
+
+        /// <summary>다중 분산을 제외하고 포인터를 최대 사거리로만 제한한 기본 범위 미리보기 위치를 반환한다.</summary>
+        public SimVector GetAreaPreviewPosition(SimVector pointer) => ClampAreaTargetPosition(pointer, _player.Position);
+
+        /// <summary>시전자 위치를 중심으로 포인터를 공통 최대 사거리 안에 제한하여 반환한다. 최소 거리는 없다.</summary>
+        private SimVector ClampAreaTargetPosition(SimVector pointer, SimVector origin)
+        {
+            SimVector delta = pointer - origin;
+            double range = GetAreaPlacementRange();
+            return delta.Length > range ? origin + delta.Normalized() * range : pointer;
+        }
 
         /// <summary>포인터를 시전자 중심 최대 사거리로만 제한하고 index번째 모드 배치를 적용한 생성 위치를 반환한다. 최소 거리는 없다.</summary>
         public SimVector GetAreaTargetPosition(SpellAction action, SimVector pointer, int index = 0, SimVector? playerPosition = null)
@@ -137,8 +156,7 @@ namespace RuneCode
             SimVector origin = playerPosition ?? _player.Position;
             SimVector delta = pointer - origin;
             SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : _player.AimDirection;
-            SimVector position = delta.Length > GetAreaPlacementRange(action)
-                ? origin + direction * GetAreaPlacementRange(action) : pointer;
+            SimVector position = ClampAreaTargetPosition(pointer, origin);
             foreach (SpellModifierRules rule in action.ModifierRules)
                 if (SpellModifierRuntimeRegistry.TryGet(rule.RuneId, out SpellModifierRuntime modifier))
                     modifier.AfterPlaceSpawn(this, action, action.Stats, index, ref position, ref direction);
@@ -340,7 +358,7 @@ namespace RuneCode
             SimVector delta = _aimPoint.HasValue ? _aimPoint.Value - _player.Position : SimVector.Zero;
             SimVector targetDirection = delta.LengthSquared > 0.000001 ? delta.Normalized() : _player.AimDirection;
             var rootCast = new RootSpellExecution(slot, spell, _beamPressSerial[slot], allowBeamHold && _castHeld[slot],
-                _player.Position, targetDirection, _aimPoint);
+                _player.Position, targetDirection, _aimPoint ?? _player.Position + targetDirection * GetAreaPlacementRange());
             var context = new SpellContext(_player.Position + _player.AimDirection * (_sector.PlayerRadius + _balance.Sim.WandOffset), _player.AimDirection, null, false, null,
                 caster: _player, randomState: new SpellRandomState());
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));

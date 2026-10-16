@@ -160,10 +160,9 @@ namespace RuneCode
                 if (spell == null) continue;
                 foreach (SpellAction action in spell.Root)
                 {
-                    if (!RuneSimulation.IsAreaPreviewAction(action)) continue;
-                    for (int instance = 0; instance < action.Count; instance++)
-                        DrawAreaPreview(mesh, action, Point(sim.GetAreaTargetPosition(action, pointer, instance)), direction);
-                    float radius = (float)sim.GetAreaPlacementRange(action) * _scale;
+                    if (!RuneSimulation.CanShowAreaPreview(action)) continue;
+                    DrawAreaPreview(mesh, action, Point(sim.GetAreaPreviewPosition(pointer)), direction);
+                    float radius = (float)sim.GetAreaPlacementRange() * _scale;
                     for (int segment = 0; segment < RANGE_SEGMENTS; segment += 2)
                     {
                         float from = segment * Mathf.PI * 2 / RANGE_SEGMENTS;

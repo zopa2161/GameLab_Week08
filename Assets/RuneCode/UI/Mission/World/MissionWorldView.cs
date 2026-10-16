@@ -176,11 +176,10 @@ namespace RuneCode
                     if (spell == null) continue;
                     foreach (SpellAction action in spell.Root)
                     {
-                        if (!RuneSimulation.IsAreaPreviewAction(action)) continue;
-                        for (int instance = 0; instance < action.Count; instance++)
-                            GetView(_rangePreviews, _spellPrefab, previewCount++).ApplyPreview(action,
-                                sim.GetAreaTargetPosition(action, pointer, instance), direction, sim.MapCenter);
-                        float radius = (float)sim.GetAreaPlacementRange(action);
+                        if (!RuneSimulation.CanShowAreaPreview(action)) continue;
+                        GetView(_rangePreviews, _spellPrefab, previewCount++).ApplyPreview(action,
+                            sim.GetAreaPreviewPosition(pointer), direction, sim.MapCenter);
+                        float radius = (float)sim.GetAreaPlacementRange();
                         for (int segment = 0; segment < RANGE_SEGMENTS; segment += 2)
                         {
                             if (lineCount == _rangeLines.Count)
