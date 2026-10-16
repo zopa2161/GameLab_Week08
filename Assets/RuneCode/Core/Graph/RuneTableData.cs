@@ -80,7 +80,9 @@ namespace RuneCode
         public int _count;
         public float _orbitRadius;
         public float _angularSpeed;
+        public float _stationaryAngularSpeed;
         public float _entrySpeed;
+        public float _movingLifetimeBonus = 1f;
         public float _hitInterval;
         public float _tickInterval;
         public float _damageMultiplier = 1f;

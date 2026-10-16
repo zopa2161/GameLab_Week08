@@ -215,7 +215,7 @@
       "_unlockType": "start",
       "_stats": {
         "_damage": 3,
-        "_speed": 60,
+        "_speed": 100,
         "_radius": 90,
         "_lifetime": 4,
         "_offset": 180,
@@ -587,7 +587,9 @@
       "_stats": {
         "_angularSpeed": 210,
         "_orbitRadius": 70,
+        "_stationaryAngularSpeed": 70,
         "_entrySpeed": 240,
+        "_movingLifetimeBonus": 2,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1

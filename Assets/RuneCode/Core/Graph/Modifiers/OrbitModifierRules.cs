@@ -20,9 +20,9 @@ namespace RuneCode
         public override SpellSpawnOrigin ModifySpawnOrigin(SpellBehaviorRules behavior, SpellSpawnOrigin origin)
             => behavior.MotionKind == SpellMotionKind.Path ? origin : SpellSpawnOrigin.Orbit;
 
-        /// <summary>이동형(발사)은 직진 사거리 대신 기본 수명 × 지속 배율을 쓴다. 속도 배율로 줄지 않는다(F17).</summary>
-        public override float ModifyLifetime(SpellBehaviorRules behavior, float lifetime, float baseLifetime, float durationMultiplier)
-            => behavior.MotionKind == SpellMotionKind.Moving ? baseLifetime * durationMultiplier : lifetime;
+        /// <summary>이동형(발사)은 직진 사거리 대신 기본 수명 × 지속 배율 × 수명 보너스를 쓴다. 속도 배율로 줄지 않는다(F17).</summary>
+        public override float ModifyLifetime(RuneDefinition modifier, SpellBehaviorRules behavior, float lifetime, float baseLifetime, float durationMultiplier)
+            => behavior.MotionKind == SpellMotionKind.Moving ? baseLifetime * durationMultiplier * modifier.Stats.MovingLifetimeBonus : lifetime;
 
         /// <summary>공전 행동은 시전 기준점에서 궤도 반경까지만 닿으므로 stats의 궤도 반경을 반환한다.</summary>
         public override float ModifyReach(SpellBehaviorRules behavior, SpellStats stats, float reach)

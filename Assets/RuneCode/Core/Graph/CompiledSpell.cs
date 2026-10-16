@@ -320,7 +320,7 @@ namespace RuneCode
                 // 동작 모드가 행동의 수명 규칙을 바꿀 수 있다(발사 + 공전은 사거리 대신 기본 수명).
                 for (int index = 0; index < mods.Count; index++)
                     if (SpellModifierRuleRegistry.TryGetByRuneId(mods[index].Id, out SpellModifierRules modifierRules))
-                        _lifetime = modifierRules.ModifyLifetime(rules, _lifetime, form.Lifetime, durationMult);
+                        _lifetime = modifierRules.ModifyLifetime(mods[index], rules, _lifetime, form.Lifetime, durationMult);
             }
             _minimumLifetime = form.MinimumLifetime;
             _offset = form.Offset * rangeMult;
