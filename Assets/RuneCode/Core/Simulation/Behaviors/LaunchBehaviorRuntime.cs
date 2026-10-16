@@ -83,7 +83,9 @@ namespace RuneCode
                 double damage = stats.Damage;
                 bool isConsumed = true;
                 entity.ApplyHitModifiers(simulation, enemy, ref damage, ref isConsumed);
-                entity.HitTimes[enemy.Id] = simulation.Time; simulation.Hit(entity, enemy, damage, false); entity.Hits++;
+                SimVector pushDirection = next - previous;
+                if (pushDirection.Length <= RuneSimulation.COLLISION_EPSILON) pushDirection = direction;
+                entity.HitTimes[enemy.Id] = simulation.Time; simulation.Hit(entity, enemy, damage, false, pushDirection); entity.Hits++;
                 simulation.RaiseHitEvent(entity, enemy.Position, enemy);
                 if (isConsumed) { entity.Move(enemy.Position, direction); entity.HasExpired = true; break; }
             }

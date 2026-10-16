@@ -16,7 +16,6 @@ namespace RuneCode
         private const int DEBUG_MODIFIER_STOCK = 9;
         private const int TEST_CLEARED_STAGE = 10;
         private const int TEST_STAGE = 9;
-        private const string TEST_STOCK_GRADE = "B";
         private const int TEST_STOCK_COUNT = 2;
 
         // 이 레벨 상한을 가진 노드는 반복 성장용 endgame 노드로 보고 테스트 프로필에서 구매하지 않는다.
@@ -655,8 +654,8 @@ namespace RuneCode
 
         /// <summary>
         /// 테스트 프로필 세이브를 만든다. 1~10스테이지 클리어, endgame 노드를 제외한 강화 트리 최대 레벨과 룬 해금, 시작 소지량에 더해
-        /// 모디·행동 각 2개와 무속성을 제외한 전투 속성 각 2개를 지급하고, 행동은 C등급을 시작 수량만큼 채운다.
-        /// 공전은 사용 가능한 모든 등급을 지급하고 다른 모디는 B등급 또는 정의된 가장 낮은 등급으로 지급한다.
+        /// 활성 모디·행동의 사용 가능한 모든 등급을 최소 2개씩, 무속성을 제외한 전투 속성을 각 2개 지급한다.
+        /// 행동 C등급의 시작 소지량은 유지하며 새 룬·등급은 등록된 데이터에서 자동으로 포함한다.
         /// </summary>
         private PlayerSave CreateTestSave()
         {
@@ -667,25 +666,18 @@ namespace RuneCode
             MaxUpgradeNodes(save, _upgradeTree.UnplacedNodes);
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
+                if (rune.IsDisabled) continue;
                 if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
                 {
-                    if (rune.Id == OrbitModifierRules.RUNE_ID)
-                    {
-                        foreach (string orbitGrade in GameData.ModifierGrades.GetAvailableGrades(rune.Id))
-                            save.AddModifierStock(rune.Id, orbitGrade, TEST_STOCK_COUNT);
-                        continue;
-                    }
-                    // B등급 값이 없는 모디는 정의된 가장 낮은 등급으로 지급한다.
-                    string grade = GameData.ModifierGrades.IsGradeAvailable(rune.Id, TEST_STOCK_GRADE)
-                        ? TEST_STOCK_GRADE
-                        : GameData.ModifierGrades.GetLowestAvailableGrade(rune.Id);
-                    save.AddModifierStock(rune.Id, grade, TEST_STOCK_COUNT);
+                    foreach (string grade in GameData.ModifierGrades.GetAvailableGrades(rune.Id))
+                        save.AddModifierStock(rune.Id, grade, TEST_STOCK_COUNT - save.GetModifierStock(rune.Id, grade));
                 }
                 else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR && !rune.IsDisabled)
                 {
                     int startStock = GameData.Balance.Economy.BehaviorStartStock;
                     save.AddStock(rune.Id, SpellGrammar.DEFAULT_BEHAVIOR_GRADE, startStock - save.GetStock(rune.Id, SpellGrammar.DEFAULT_BEHAVIOR_GRADE));
-                    save.AddStock(rune.Id, TEST_STOCK_GRADE, TEST_STOCK_COUNT);
+                    foreach (string grade in GameData.Runes.BehaviorGradeOrder)
+                        save.AddStock(rune.Id, grade, TEST_STOCK_COUNT - save.GetStock(rune.Id, grade));
                 }
                 else if (rune.Category == SpellGrammar.CATEGORY_ELEMENT && !rune.IsDisabled
                     && GameData.Runes.TryGetRuneElement(rune.Id, out ElementDefinition element) && element.Id != SpellGrammar.ELEMENT_NEUTRAL)

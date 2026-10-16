@@ -142,7 +142,7 @@ namespace RuneCode
                                 ? Math.Max(0, Math.Min(1, SimVector.Dot(enemy.Position - start, segment) / segment.LengthSquared)) : 0;
                         }
                         state.AddTarget(enemy, distance + (end - start).Length * fraction,
-                            start + (end - start) * fraction);
+                            start + (end - start) * fraction, end - start);
                         break;
                     }
                     distance += (end - start).Length;
@@ -154,7 +154,7 @@ namespace RuneCode
                 SimulationEnemy enemy = target.Enemy;
                 if (!enemy.IsAlive) continue;
                 double previousHp = enemy.Hp;
-                simulation.Hit(entity, enemy, entity.Stats.Damage, true);
+                simulation.Hit(entity, enemy, entity.Stats.Damage, true, target.Direction);
                 if (enemy.Hp >= previousHp) continue;
                 entity.HitTimes[enemy.Id] = simulation.Time;
                 if (state.RecordHit(enemy.Id) % HITS_PER_EVENT == 0)
@@ -264,9 +264,9 @@ namespace RuneCode
             internal void AddPoint(SimVector point) => _path.Add(point);
             /// <summary>이전 피해 후보 목록을 비운다.</summary>
             internal void ClearTargets() => _targets.Clear();
-            /// <summary>중심선에 겹친 적과 최초 접촉 거리를 피해 후보에 추가한다.</summary>
-            internal void AddTarget(SimulationEnemy enemy, double distance, SimVector contact)
-                => _targets.Add(new BeamTarget(enemy, distance, contact));
+            /// <summary>중심선에 겹친 적의 최초 접촉 거리·접점·구간 진행 방향을 피해 후보에 추가한다.</summary>
+            internal void AddTarget(SimulationEnemy enemy, double distance, SimVector contact, SimVector direction)
+                => _targets.Add(new BeamTarget(enemy, distance, contact, direction));
             /// <summary>경로 거리와 적 ID 순서로 피해 후보를 정렬한다.</summary>
             internal void SortTargets() => _targets.Sort(CompareTargets);
             /// <summary>후보의 경로 거리를 비교하고 동률이면 적 ID로 순서를 정한다.</summary>
@@ -296,13 +296,15 @@ namespace RuneCode
             private readonly SimulationEnemy _enemy;
             private readonly double _distance;
             private readonly SimVector _contact;
+            private readonly SimVector _direction;
             internal SimulationEnemy Enemy => _enemy;
             internal double Distance => _distance;
             internal SimVector Contact => _contact;
+            internal SimVector Direction => _direction;
 
-            /// <summary>경로상의 적·거리·접점을 피해 처리용으로 보관한다.</summary>
-            internal BeamTarget(SimulationEnemy enemy, double distance, SimVector contact)
-            { _enemy = enemy; _distance = distance; _contact = contact; }
+            /// <summary>경로상의 적·거리·접점·구간 진행 방향을 피해와 밀어내기 처리용으로 보관한다.</summary>
+            internal BeamTarget(SimulationEnemy enemy, double distance, SimVector contact, SimVector direction)
+            { _enemy = enemy; _distance = distance; _contact = contact; _direction = direction; }
         }
     }
 }

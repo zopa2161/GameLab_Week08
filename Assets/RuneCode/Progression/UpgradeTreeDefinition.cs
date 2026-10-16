@@ -95,7 +95,7 @@ namespace RuneCode
         private const int MAX_UPGRADE_LEVEL = 99;
         private static readonly HashSet<string> _starterRuneIds = new HashSet<string>
         {
-            "shape.sphere", "behavior.launch", "element.neutral"
+            "shape.sphere", "behavior.launch", "element.neutral", "mod.knockback"
         };
 
         [SerializeField, HideInInspector] private int _layoutVersion = 1;
