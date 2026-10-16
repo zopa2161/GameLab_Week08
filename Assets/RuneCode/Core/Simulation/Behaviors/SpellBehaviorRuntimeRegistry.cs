@@ -2,7 +2,7 @@ namespace RuneCode
 {
     /// <summary>
     /// 행동 실행 등록 목록이다. 새 행동은 RUNTIMES에 한 줄 추가한다. 컴파일 규칙은 SpellBehaviorRuleRegistry에 같은 Kind로 등록한다.
-    /// 등록되지 않은 종류(공전 등)는 기본 동작을 받고, 공전의 이동·접촉 판정은 RuneSimulation의 기존 분기가 처리한다.
+    /// 등록되지 않은 종류는 기본 동작을 받는다.
     /// </summary>
     internal static class SpellBehaviorRuntimeRegistry
     {

@@ -74,9 +74,9 @@ namespace RuneCode
         private readonly float _minimumLifetime;
         private readonly float _offset;
         private readonly int _count;
-        private readonly int _orbitCount;
         private readonly float _orbitRadius;
         private readonly float _angularSpeed;
+        private readonly float _entrySpeed;
         private readonly float _hitInterval;
         private readonly float _tickInterval;
         private readonly float _damageMultiplier;
@@ -107,9 +107,11 @@ namespace RuneCode
         public float MinimumLifetime => _minimumLifetime;
         public float Offset => _offset;
         public int Count => _count;
-        public int OrbitCount => _orbitCount;
         public float OrbitRadius => _orbitRadius;
         public float AngularSpeed => _angularSpeed;
+
+        /// <summary>공전 모드가 생성 위치에서 궤도 자리로 날아가 진입하는 속도(px/s)다. 개체를 직접 옮기지 않는 행동(잔류)에 쓴다.</summary>
+        public float EntrySpeed => _entrySpeed;
         public float HitInterval => _hitInterval;
         public float TickInterval => _tickInterval;
         public float DamageMultiplier => _damageMultiplier;
@@ -153,9 +155,9 @@ namespace RuneCode
             _minimumLifetime = row._minimumLifetime;
             _offset = row._offset;
             _count = row._count;
-            _orbitCount = row._orbitCount;
             _orbitRadius = row._orbitRadius;
             _angularSpeed = row._angularSpeed;
+            _entrySpeed = row._entrySpeed;
             _hitInterval = row._hitInterval;
             _tickInterval = row._tickInterval;
             _damageMultiplier = row._damageMultiplier;
@@ -555,12 +557,15 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 효과 룬이 대상 룬(Behavior 또는 프리셋 호출)에 효과를 내는지 반환한다. 효과 대상에 없는 조합은
-        /// 부착은 허용하되 실행·비용 계산에서 무시한다.
+        /// 효과 룬이 대상 룬(Behavior 또는 프리셋 호출)에 효과를 내는지 반환한다. 효과 대상(_modifierTargets)에 있어야 하고,
+        /// 동작 모드면 모드 규칙이 행동 규칙의 성질로도 허용해야 한다. 효과 대상에 없는 조합은 부착은 허용하되 실행·비용 계산에서 무시한다.
         /// </summary>
         public bool IsModifierCompatible(string modifierId, string targetId)
         {
-            return _modifierTargets.TryGetValue(modifierId, out HashSet<string> targets) && targets.Contains(targetId);
+            if (!_modifierTargets.TryGetValue(modifierId, out HashSet<string> targets) || !targets.Contains(targetId)) return false;
+            if (!SpellModifierRuleRegistry.TryGetByRuneId(modifierId, out SpellModifierRules modifierRules)) return true;
+            return !SpellBehaviorRuleRegistry.TryGetByRuneId(targetId, out SpellBehaviorRules behaviorRules)
+                || modifierRules.CanAttachTo(behaviorRules);
         }
 
         /// <summary>속성 식별자(neutral, fire 등)의 존재 여부와 정의를 반환한다.</summary>
@@ -933,7 +938,7 @@ namespace RuneCode
         private static void ValidateStats(RuneDefinition rune, RuneStats stats, TableErrorLog log, string field)
         {
             float[] numbers = { stats.Damage, stats.Speed, stats.Radius, stats.Lifetime, stats.Offset, stats.OrbitRadius,
-                stats.AngularSpeed, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
+                stats.AngularSpeed, stats.EntrySpeed, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
                 stats.LearningMultiplier, stats.SpreadAngle, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
                 stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime };
@@ -945,7 +950,7 @@ namespace RuneCode
                     break;
                 }
             }
-            if (stats.Count < 0 || stats.Pierce < 0 || stats.ArcTargets < 0 || stats.OrbitCount < 0
+            if (stats.Count < 0 || stats.Pierce < 0 || stats.ArcTargets < 0
                 || (rune.Category == "form" && (stats.Count <= 0 || stats.Damage <= 0f || stats.Radius <= 0f)))
                 log.Add(rune.Id, field, "유효하지 않은 형태 룬 수치입니다 (form은 count·damage·radius가 0보다 커야 함).");
             if (rune.Id == SpellGrammar.CONE_RUNE && (stats.ConeAngle <= 0f || stats.ConeAngle > 360f))

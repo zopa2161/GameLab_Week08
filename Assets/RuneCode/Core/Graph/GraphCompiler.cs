@@ -317,7 +317,7 @@ namespace RuneCode
 
         /// <summary>
         /// Inline Magic의 종류·속성·형태 조합과 버프의 이벤트 출력을 검사한다. 해금은 문법 블록 단계에서 검사한다.
-        /// Apply는 회복·보호·화염, 회복 Shape는 Burst·Persist, 보호 Shape는 Burst와 구형 Orbit(방벽)만 허용한다.
+        /// Apply는 회복·보호·화염, 회복 Shape는 Burst·Persist, 보호 Shape는 Burst만 허용한다.
         /// </summary>
         private static void ValidateMagicNode(GraphNode node, RuneDefinition rune, IReadOnlyList<GraphEdge> edges, List<CompileIssue> errors)
         {
@@ -326,11 +326,10 @@ namespace RuneCode
             string element = node.GetText("element", "normal");
             string form = node.GetText("form", "launch");
             bool isBuffElement = element == "heal" || element == "protection" || element == "fire";
-            bool isProtectionOrbit = magicType == "sphere" && element == "protection" && form == "orbit";
             bool isValid;
             if (magicType == "buff") isValid = isBuffElement && form == "remain";
             else if (element == "heal") isValid = form == "explosion" || form == "remain";
-            else if (element == "protection") isValid = form == "explosion" || isProtectionOrbit;
+            else if (element == "protection") isValid = form == "explosion";
             else isValid = true;
             if (!isValid) errors.Add(new CompileIssue("E14", node.Id));
             if (magicType == "buff" && edges.Any(edge => edge.FromNode == node.Id
@@ -611,7 +610,10 @@ namespace RuneCode
         private static bool TryGetMaxHitEvents(SpellAction action, out int count)
         {
             count = 0;
-            return action.Rules != null && action.Rules.TryGetMaxHitEvents(action.Stats, out count);
+            if (action.Rules == null || !action.Rules.TryGetMaxHitEvents(action.Stats, out count)) return false;
+            foreach (SpellModifierRules modifierRules in action.ModifierRules)
+                if (!modifierRules.TryModifyMaxHitEvents(action.Stats, ref count)) return false;
+            return true;
         }
 
         /// <summary>행동 규칙상 명중 경로와 미명중 소멸 경로가 서로 배타적이라 큰 쪽만 세는지 반환한다.</summary>

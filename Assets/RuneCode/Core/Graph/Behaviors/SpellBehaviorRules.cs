@@ -24,17 +24,11 @@ namespace RuneCode
         /// <summary>화면에 그리는 방식이다.</summary>
         public virtual SpellDisplayType DisplayType => SpellDisplayType.Projectile;
 
-        /// <summary>관통 수식을 적용하는지 나타낸다.</summary>
-        public virtual bool UsesPierce => false;
+        /// <summary>개체가 생성되는 위치의 유형이다. 기본은 지팡이 앞이다. 다중 모드는 지팡이 앞이면 발사 전용 개수·퍼짐 값을 쓴다.</summary>
+        public virtual SpellSpawnOrigin SpawnOrigin => SpellSpawnOrigin.Wand;
 
-        /// <summary>유도 수식을 적용하는지 나타낸다.</summary>
-        public virtual bool UsesHoming => false;
-
-        /// <summary>다중 수식의 발사 전용 개수·퍼짐 등급 값을 쓰는지 나타낸다.</summary>
-        public virtual bool UsesLaunchGradeValues => false;
-
-        /// <summary>개체가 진행 방향으로 날아가는 이동형인지 나타낸다. 사거리·속도 표시와 범위 계산에 쓴다.</summary>
-        public virtual bool IsTravelling => false;
+        /// <summary>개체의 이동 성격이다. 이동 모드가 적용 방식을 고르고, 표시가 사거리·속도 줄을 고를 때 쓴다. 기본은 이동형이다.</summary>
+        public virtual SpellMotionKind MotionKind => SpellMotionKind.Moving;
 
         /// <summary>
         /// 명중 경로(OnHit)와 미명중 소멸 경로(OnExpire)가 서로 배타적인지 나타낸다.

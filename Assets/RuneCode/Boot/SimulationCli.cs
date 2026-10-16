@@ -102,7 +102,7 @@ namespace RuneCode
             return (range > 0 ? range : FALLBACK_CAST_RANGE) + GameData.Balance.Sim.WandOffset;
         }
 
-        /// <summary>중첩 분기와 후속 실행에서 볼트·영역·궤도·순간이동의 최대 도달 거리를 계산한다.</summary>
+        /// <summary>중첩 분기와 후속 실행에서 볼트·영역·순간이동의 최대 도달 거리를 계산한다.</summary>
         private static double GetActionRange(IReadOnlyList<SpellAction> actions)
         {
             var range = 0.0;
@@ -112,8 +112,7 @@ namespace RuneCode
                 if (action.Kind == "spawn")
                 {
                     var stats = action.Stats;
-                    candidate = action.Form == "orbit" ? stats.OrbitRadius + stats.Radius
-                        : (action.Rules != null ? action.Rules.GetReach(stats) : stats.Offset) + stats.Radius;
+                    candidate = action.GetReach(stats) + stats.Radius;
                 }
                 else if (action.Kind == "blink") candidate = action.Distance + GetActionRange(action.Next);
                 else if (action.Kind == "repeat") candidate = Math.Max(GetActionRange(action.Body), GetActionRange(action.OnComplete));

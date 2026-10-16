@@ -294,8 +294,57 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 스키마 버전 4가 아닌 보관함 그래프를 제거하고(호환 없음), 행동 노드의 이전 형태 파라미터를 지우며, 해금 룬 ID를 현재 ID로 바꾸며
-        /// 카탈로그에 없는 ID만 정리한다. 보관함이 비면 시작 마법으로 채우고, 활성 마법과 장착 슬롯 참조가
+        /// 보관함 그래프에서 룬 카탈로그가 인식하지 못하는 항목만 지운다. 알 수 없는 룬의 노드는 연결선과 함께 지우고,
+        /// 행동 노드의 속성·모디 슬롯이 알 수 없는 룬을 가리키면 그 슬롯 값만 비운다. 그래프와 나머지 노드는 유지한다.
+        /// 지운 항목이 있으면 개수를 경고 로그로 남기며 여러 번 호출해도 결과가 같다.
+        /// </summary>
+        private void RemoveUnknownGraphEntries()
+        {
+            int removedNodes = 0;
+            int clearedSlots = 0;
+            var unknownNodeIds = new List<string>();
+            foreach (SpellGraph graph in _graphs)
+            {
+                unknownNodeIds.Clear();
+                foreach (GraphNode node in graph.Nodes)
+                {
+                    if (!GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune)) unknownNodeIds.Add(node.Id);
+                    else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR) clearedSlots += ClearUnknownSlots(node);
+                }
+                foreach (string nodeId in unknownNodeIds)
+                    if (graph.RemoveNode(nodeId)) removedNodes++;
+            }
+            if (removedNodes > 0 || clearedSlots > 0)
+                Debug.LogWarning("[Save] 인식할 수 없는 항목을 무시했습니다. 노드 " + removedNodes + "개, 슬롯 " + clearedSlots + "개");
+        }
+
+        /// <summary>행동 노드의 속성·모디 슬롯 중 알 수 없는 속성·모디 룬을 가리키는 값을 지우고 지운 슬롯 수를 반환한다.</summary>
+        private static int ClearUnknownSlots(GraphNode node)
+        {
+            int cleared = 0;
+            for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
+            {
+                string slotKey = SpellGrammar.ElementSlotKey(index);
+                string value = node.GetText(slotKey, null);
+                if (string.IsNullOrEmpty(value) || GameData.Runes.TryGetElement(value, out _)) continue;
+                node.RemoveParameter(slotKey);
+                cleared++;
+            }
+            for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
+            {
+                string slotKey = SpellGrammar.ModifierSlotKey(index);
+                string value = node.GetText(slotKey, null);
+                if (string.IsNullOrEmpty(value)
+                    || (SpellGrammar.TryParseStockKey(value, out string modifierId, out _) && GameData.Runes.TryGet(modifierId, out _))) continue;
+                node.RemoveParameter(slotKey);
+                cleared++;
+            }
+            return cleared;
+        }
+
+        /// <summary>
+        /// 스키마 버전 4가 아닌 보관함 그래프를 제거하고(호환 없음), 인식할 수 없는 룬의 노드·슬롯 값과 행동 노드의 이전 형태 파라미터를 지우며,
+        /// 해금 룬 ID를 현재 ID로 바꾸며 카탈로그에 없는 ID만 정리한다. 보관함이 비면 시작 마법으로 채우고, 활성 마법과 장착 슬롯 참조가
         /// 제거된 마법을 가리키면 유효한 값으로 정리한다. 기본 마법 메소드가 없으면 보관함 한도 안에서 추가한다.
         /// 여러 번 호출해도 결과가 같다.
         /// </summary>
@@ -303,6 +352,7 @@ namespace RuneCode
         {
             if (_graphs == null || _unlockedRunes == null) return;
             _graphs.RemoveAll(graph => graph == null || graph.Version != SpellGraph.CURRENT_VERSION);
+            RemoveUnknownGraphEntries();
             RemoveLegacyShapeParameters();
             if (_graphs.Count == 0) _graphs.Add(GameData.Spells[0].Clone());
             var unlocked = new List<string>();

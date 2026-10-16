@@ -213,7 +213,6 @@ namespace RuneCode
         private readonly float _minimumLifetime;
         private readonly float _offset;
         private readonly float _orbitRadius;
-        private readonly float _angularSpeed;
         private readonly float _hitInterval;
         private readonly float _tickInterval;
         private readonly int _pierce;
@@ -238,7 +237,6 @@ namespace RuneCode
         public float MinimumLifetime => _minimumLifetime;
         public float Offset => _offset;
         public float OrbitRadius => _orbitRadius;
-        public float AngularSpeed => _angularSpeed;
         public float HitInterval => _hitInterval;
         public float TickInterval => _tickInterval;
         public int Pierce => _pierce;
@@ -264,8 +262,8 @@ namespace RuneCode
             float durationMult = 1f;
             _learningMultiplier = 1f;
             SpellBehaviorRuleRegistry.TryGetByKind(formKind, out SpellBehaviorRules rules);
-            // 행동 규칙이 없는 공전은 수식으로 바뀔 예정이라 기존 유도 적용을 그대로 둔다.
-            bool usesHoming = rules != null ? rules.UsesHoming : formKind == SpellGrammar.FORM_ORBIT;
+            // 다중의 발사 전용 개수·퍼짐 값은 지팡이 앞에서 생성되는 행동(발사·빔)이 쓴다.
+            bool usesLaunchGradeValues = rules != null && rules.SpawnOrigin == SpellSpawnOrigin.Wand;
             for (int index = 0; index < mods.Count; index++)
             {
                 RuneDefinition mod = mods[index];
@@ -276,35 +274,30 @@ namespace RuneCode
                 radiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "radiusMultiplier", stats.RadiusMultiplier);
                 speedMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "speedMultiplier", stats.SpeedMultiplier);
                 durationMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "durationMultiplier", stats.DurationMultiplier);
-                if (rules != null && rules.UsesPierce)
+                // 관통·유도 수치는 장착 가능 여부(_modifierTargets, 모드 규칙 CanAttachTo)가 허용한 행동에만 들어온다.
+                int pierceCount = modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == "pierceCount"
+                    ? modifierGrades.GetPierceCount(mod.Id, grade, stats.Pierce) : stats.Pierce;
+                _pierce = SpellModifierValues.AddPierce(_pierce, pierceCount);
+                if (stats.PierceLoss > 0f) _pierceLoss = stats.PierceLoss;
+                // 유도는 발사체의 방향 전환, 잔류의 대상 추적 이동, 빔 경로 휨, 공전 위 직선 추적에 쓴다.
+                if (modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == "homingTier")
                 {
-                    int pierceCount = modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == "pierceCount"
-                        ? modifierGrades.GetPierceCount(mod.Id, grade, stats.Pierce) : stats.Pierce;
-                    _pierce = SpellModifierValues.AddPierce(_pierce, pierceCount);
-                    if (stats.PierceLoss > 0f) _pierceLoss = stats.PierceLoss;
+                    string tier = modifierGrades.GetGradeValue(mod.Id, grade) as string;
+                    HomingTierDefinition homing = mod.FindHomingTier(tier);
+                    if (homing != null)
+                    {
+                        _homingTurn = homing.HomingTurn;
+                        _homingRange = homing.HomingRange;
+                    }
                 }
-                // 유도는 발사체의 방향 전환, 잔류의 대상 추적 이동, 공전의 돌진·복귀 반복에 쓴다.
-                if (usesHoming)
+                else
                 {
-                    if (modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == "homingTier")
-                    {
-                        string tier = modifierGrades.GetGradeValue(mod.Id, grade) as string;
-                        HomingTierDefinition homing = mod.FindHomingTier(tier);
-                        if (homing != null)
-                        {
-                            _homingTurn = homing.HomingTurn;
-                            _homingRange = homing.HomingRange;
-                        }
-                    }
-                    else
-                    {
-                        if (stats.HomingTurn > 0f) _homingTurn = stats.HomingTurn;
-                        if (stats.HomingRange > 0f) _homingRange = stats.HomingRange;
-                    }
+                    if (stats.HomingTurn > 0f) _homingTurn = stats.HomingTurn;
+                    if (stats.HomingRange > 0f) _homingRange = stats.HomingRange;
                 }
                 _learningMultiplier *= stats.LearningMultiplier;
-                // 발사는 등급표의 발사 전용 퍼짐 각도가 있으면 그 값을 쓴다.
-                if (rules != null && rules.UsesLaunchGradeValues && modifierGrades != null
+                // 지팡이 앞 행동(발사·빔)은 등급표의 발사 전용 퍼짐 각도가 있으면 그 값을 쓴다.
+                if (usesLaunchGradeValues && modifierGrades != null
                     && modifierGrades.TryGetLaunchSpreadAngle(mod.Id, grade, out float launchSpread)) _spreadAngle = launchSpread;
                 else if (stats.SpreadAngle > 0f) _spreadAngle = stats.SpreadAngle;
             }
@@ -318,10 +311,17 @@ namespace RuneCode
             _radius = magicType == SpellGrammar.MAGIC_TYPE_SPHERE || magicType == SpellGrammar.MAGIC_TYPE_CONE
                 ? _shapeRadius : form.Radius * radiusMult;
             _lifetime = rules != null ? rules.GetLifetime(form.Lifetime, rangeMult, speedMult, durationMult) : form.Lifetime * durationMult;
+            if (rules != null)
+            {
+                // 동작 모드가 행동의 수명 규칙을 바꿀 수 있다(발사 + 공전은 사거리 대신 기본 수명).
+                for (int index = 0; index < mods.Count; index++)
+                    if (SpellModifierRuleRegistry.TryGetByRuneId(mods[index].Id, out SpellModifierRules modifierRules))
+                        _lifetime = modifierRules.ModifyLifetime(rules, _lifetime, form.Lifetime, durationMult);
+            }
             _minimumLifetime = form.MinimumLifetime;
             _offset = form.Offset * rangeMult;
-            _orbitRadius = form.OrbitRadius * radiusMult * rangeMult;
-            _angularSpeed = form.AngularSpeed * speedMult;
+            // 공전 모드의 궤도 반경은 행동별 값이며 확장 배율을 적용하지 않는다.
+            _orbitRadius = form.OrbitRadius * rangeMult;
             _hitInterval = form.HitInterval;
             _tickInterval = form.TickInterval;
             if (element != null)
@@ -353,8 +353,7 @@ namespace RuneCode
                 _boxLength = source._boxLength;
             }
             _offset = source._offset * modifiers.RangeMultiplier;
-            _orbitRadius = source._orbitRadius * modifiers.RadiusMultiplier * modifiers.RangeMultiplier;
-            _angularSpeed = source._angularSpeed * modifiers.SpeedMultiplier;
+            _orbitRadius = source._orbitRadius * modifiers.RangeMultiplier;
             _hitInterval = source._hitInterval;
             _tickInterval = source._tickInterval;
             _pierce = SpellModifierValues.AddPierce(source._pierce, modifiers.Pierce);
@@ -410,6 +409,7 @@ namespace RuneCode
         private readonly int _count;
         private readonly SpellStats _stats;
         private readonly IReadOnlyList<string> _mods;
+        private readonly IReadOnlyList<SpellModifierRules> _modifierRules;
         private readonly float _seconds;
         private readonly int _times;
         private readonly float _interval;
@@ -429,6 +429,7 @@ namespace RuneCode
         private readonly SpellModifierValues _modifierValues;
         private readonly CompiledSpell _calledSpell;
         private readonly SpellBehaviorRules _rules;
+        private readonly SpellSpawnOrigin _spawnOrigin;
 
         private IReadOnlyList<SpellAction> _onHit = new List<SpellAction>();
         private IReadOnlyList<SpellAction> _onExpire = new List<SpellAction>();
@@ -450,6 +451,9 @@ namespace RuneCode
         public int Count => _count;
         public SpellStats Stats => _stats;
         public IReadOnlyList<string> Mods => _mods;
+
+        /// <summary>장착된 동작 모드의 규칙 목록이다. 등록 순서로 정렬되며 수치 모드는 들어가지 않는다.</summary>
+        public IReadOnlyList<SpellModifierRules> ModifierRules => _modifierRules;
         public float Seconds => _seconds;
         public int Times => _times;
         public float Interval => _interval;
@@ -480,8 +484,11 @@ namespace RuneCode
         public SpellModifierValues ModifierValues => _modifierValues;
         public CompiledSpell CalledSpell => _calledSpell;
 
-        /// <summary>Form에 해당하는 행동 규칙이다. 행동 규칙이 없는 종류(공전, 비생성 명령)는 null이다.</summary>
+        /// <summary>Form에 해당하는 행동 규칙이다. 행동 규칙이 없는 종류(비생성 명령)는 null이다.</summary>
         public SpellBehaviorRules Rules => _rules;
+
+        /// <summary>개체 생성 위치 유형이다. 행동 규칙의 값을 장착된 동작 모드가 바꾼 결과다(공전이면 궤도). 행동 규칙이 없으면 지팡이 앞이다.</summary>
+        public SpellSpawnOrigin SpawnOrigin => _spawnOrigin;
         public IReadOnlyList<SpellAction> OnHit => _onHit;
         public IReadOnlyList<SpellAction> OnExpire => _onExpire;
         public IReadOnlyList<SpellAction> OnFirstHitOrExpire => _onFirstHitOrExpire;
@@ -541,16 +548,15 @@ namespace RuneCode
                 string grade = SpellGrammar.GetModifierGrade(mod, modifierNode, modifierGrades);
                 ids.Add(mod.Id);
                 energyMultiplier *= mod.EnergyMult;
-                if (mod.Id == "mod.multi")
-                {
-                    if (modifierGrades != null && modifierGrades.TryGetCountValue(mod.Id, grade, _form, out int count))
-                        _count = _form == "orbit" ? _count + count : count;
-                    else
-                        _count = _form == "orbit" ? modifierStats.OrbitCount : modifierStats.Count;
-                }
+                if (SpellModifierRuleRegistry.TryGetByRuneId(mod.Id, out SpellModifierRules modifierRules))
+                    _count = modifierRules.ModifyCount(_count, _rules, grade, modifierStats, modifierGrades);
                 if (mod.Id == "mod.noise") _isNoise = true;
             }
             _mods = ids;
+            _modifierRules = SpellModifierRuleRegistry.SelectInRegistryOrder(ids);
+            _spawnOrigin = _rules != null ? _rules.SpawnOrigin : SpellSpawnOrigin.Wand;
+            if (_rules != null)
+                foreach (SpellModifierRules modifierRules in _modifierRules) _spawnOrigin = modifierRules.ModifySpawnOrigin(_rules, _spawnOrigin);
             _energyMultiplier = energyMultiplier;
             _modifierValues = SpellModifierValues.From(mods, modifierNodes, modifierGrades);
             if (_kind == "spawn" || _kind == "buff")
@@ -587,6 +593,18 @@ namespace RuneCode
             _shieldAmount = rune.Stats.ShieldAmount;
             _shieldSeconds = rune.Stats.ShieldSeconds;
             if (_kind == "if") _condition = new SpellCondition(node, rune);
+        }
+
+        /// <summary>
+        /// 시전 위치에서 효과가 닿는 최대 거리를 반환한다. 행동 규칙의 사거리를 장착된 동작 모드가 고친 값이며(공전이면 궤도 반경),
+        /// 행동 규칙이 없으면 생성 거리다. stats는 호출 문맥이 적용된 수치다.
+        /// </summary>
+        public float GetReach(SpellStats stats)
+        {
+            if (_rules == null) return stats.Offset;
+            float reach = _rules.GetReach(stats);
+            foreach (SpellModifierRules modifierRules in _modifierRules) reach = modifierRules.ModifyReach(_rules, stats, reach);
+            return reach;
         }
 
         /// <summary>Shape의 effective 넓이에 자원별 단가를 곱해 자원 비용을 소수 첫째 자리로 반올림한다.</summary>

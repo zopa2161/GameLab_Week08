@@ -8,7 +8,6 @@ namespace RuneCode
     /// <summary>얇은 빔의 홀드 수명, 곡선 경로, 지속 피해와 두 번 적중마다 발생하는 이벤트를 처리한다.</summary>
     internal sealed class BeamBehaviorRuntime : SpellBehaviorRuntime
     {
-        private const double DEGREES_TO_RADIANS = Math.PI / 180;
         private const double PATH_STEP = 12;
         private const int HITS_PER_EVENT = 2;
 
@@ -18,28 +17,34 @@ namespace RuneCode
         /// <summary>빔별 경로·적중 횟수·피해 예약을 보관할 상태를 생성한다.</summary>
         public override object CreateState(SimulationSpellEntity entity) => new BeamState();
 
-        /// <summary>발사와 같은 등급별 퍼짐으로 다중 빔의 고정 시작 방향을 배치한다.</summary>
-        public override void PlaceSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
-            bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
+        /// <summary>생성 틱에 발사 지점을 정하고(이동 단계) 경로를 만들어 최초 피해를 한 번 판정한다.</summary>
+        public override void OnSpawned(RuneSimulation simulation, SimulationSpellEntity entity)
         {
-            if (action.Count > 1)
-                direction = direction.Rotated((index / (double)(action.Count - 1) * 2 - 1) * stats.SpreadAngle * DEGREES_TO_RADIANS);
+            MoveAlongPath(simulation, entity);
+            Judge(simulation, entity);
         }
 
-        /// <summary>생성 틱에 경로를 만들고 최초 피해를 한 번 판정한다.</summary>
-        public override void OnSpawned(RuneSimulation simulation, SimulationSpellEntity entity) => Advance(simulation, entity);
+        /// <summary>
+        /// 직접 시전해 시전자를 따라가는 빔이면 발사 지점을 시전자 앞 지팡이 끝으로 옮긴다. 이동 모드가 이동을 맡으면 호출되지 않는다.
+        /// </summary>
+        public override void MoveAlongPath(RuneSimulation simulation, SimulationSpellEntity entity)
+        {
+            var state = (BeamState)entity.BehaviorState;
+            if (!state.Channel.FollowsPlayer) return;
+            entity.Move(simulation.Player.Position + entity.Direction *
+                (simulation.PlayerRadius + simulation.Balance.Sim.WandOffset), entity.Direction);
+        }
 
-        /// <summary>공유 채널의 결제·종료를 갱신하고 고정 방향에서 경로와 예약된 지속 피해를 처리한다.</summary>
-        public override void Advance(RuneSimulation simulation, SimulationSpellEntity entity)
+        /// <summary>
+        /// 공유 채널의 결제·종료를 갱신하고 발사 지점에서 경로와 예약된 지속 피해를 처리한다. 한 틱에 한 번만 처리한다.
+        /// </summary>
+        public override void Judge(RuneSimulation simulation, SimulationSpellEntity entity)
         {
             var state = (BeamState)entity.BehaviorState;
             if (state.LastAdvanceTick == simulation.Tick) return;
             state.SetAdvanceTick(simulation.Tick);
             state.Channel.Advance(simulation);
             if (state.Channel.IsStopped) { entity.HasExpired = true; return; }
-            if (state.Channel.FollowsPlayer)
-                entity.Move(simulation.Player.Position + entity.Direction *
-                    (simulation.PlayerRadius + simulation.Balance.Sim.WandOffset), entity.Direction);
             BuildPath(simulation, entity, state);
             if (simulation.Tick < state.NextDamageTick) return;
             state.ScheduleDamage(simulation.Tick + Math.Max(1, (int)Math.Round(entity.Stats.TickInterval * RuneSimulation.TICK_RATE)));
@@ -49,10 +54,14 @@ namespace RuneCode
         /// <summary>구간 종료는 틱 기반 채널이 처리하므로 공용 나이 판정으로 빔을 조기 제거하지 않는다.</summary>
         public override double GetLifetime(SimulationSpellEntity entity) => double.PositiveInfinity;
 
-        /// <summary>맵 경계·벽·유도를 반영한 중심선 경로를 빔 상태에 재사용해 저장한다.</summary>
+        /// <summary>
+        /// 맵 경계·벽을 반영한 중심선 경로를 빔 상태에 재사용해 저장한다. 각 칸의 방향은 장착된 이동 모드(유도 등)가 경로 개입으로 고친다.
+        /// 유도 수치가 있으면 경로 길이를 빔 길이로, 없으면 맵 대각선으로 둔다.
+        /// </summary>
         private static void BuildPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
         {
             state.ClearPath();
+            entity.BeginPath(simulation);
             SimVector point = entity.Position;
             SimVector direction = entity.Direction;
             double halfWidth = entity.Stats.BoxWidth * 0.5;
@@ -62,32 +71,10 @@ namespace RuneCode
             bool isHoming = entity.Stats.HomingRange > 0 && entity.Stats.HomingTurn > 0;
             double pathSpeed = GameData.Runes.Get("form.beam").Stats.Speed;
             double remaining = isHoming ? entity.Stats.BoxLength : diagonal;
-            SimulationEnemy target = null;
             while (remaining > RuneSimulation.COLLISION_EPSILON)
             {
                 double step = Math.Min(PATH_STEP, remaining);
-                if (isHoming)
-                {
-                    if (target == null) target = FindTarget(simulation, point, direction, entity.Stats.HomingRange, state);
-                    if (target != null)
-                    {
-                        SimVector offset = target.Position - point;
-                        if (offset.Length <= Math.Max(step, target.Radius + halfWidth)
-                            || SimVector.Dot(offset, direction) < 0)
-                        {
-                            state.PassTarget(target.Id);
-                            target = null;
-                        }
-                        else
-                        {
-                            double current = Math.Atan2(direction.Y, direction.X);
-                            double wanted = Math.Atan2(offset.Y, offset.X);
-                            double delta = Math.Atan2(Math.Sin(wanted - current), Math.Cos(wanted - current));
-                            double turn = entity.Stats.HomingTurn * DEGREES_TO_RADIANS * step / pathSpeed;
-                            direction = direction.Rotated(Math.Max(-turn, Math.Min(turn, delta)));
-                        }
-                    }
-                }
+                entity.SteerPathStep(simulation, point, ref direction, step, pathSpeed, halfWidth);
                 SimVector next = point + direction * step;
                 double wall = simulation.FirstWallFraction(point, next, halfWidth);
                 if (!double.IsPositiveInfinity(wall))
@@ -99,25 +86,6 @@ namespace RuneCode
                 point = next;
                 remaining -= step;
             }
-        }
-
-        /// <summary>진행 방향 앞의 탐색 범위에서 아직 지나지 않은 가장 가까운 적을 ID 동률 규칙으로 고른다.</summary>
-        private static SimulationEnemy FindTarget(RuneSimulation simulation, SimVector point, SimVector direction,
-            double range, BeamState state)
-        {
-            SimulationEnemy selected = null;
-            double bestDistance = range * range;
-            foreach (SimulationEnemy enemy in simulation.Enemies)
-            {
-                if (!enemy.IsAlive || state.HasPassedTarget(enemy.Id)) continue;
-                SimVector offset = enemy.Position - point;
-                double distance = offset.LengthSquared;
-                if (SimVector.Dot(offset, direction) < 0 || distance > bestDistance) continue;
-                if (selected != null && distance == bestDistance && enemy.Id > selected.Id) continue;
-                selected = enemy;
-                bestDistance = distance;
-            }
-            return selected;
         }
 
         /// <summary>경로에 겹친 적을 경로 거리·ID 순으로 한 번씩 타격하고 대상별 두 번째 피해마다 onHit을 발생시킨다.</summary>
@@ -240,7 +208,6 @@ namespace RuneCode
         {
             private readonly List<SimVector> _path = new List<SimVector>();
             private readonly List<BeamTarget> _targets = new List<BeamTarget>();
-            private readonly HashSet<int> _passedTargets = new HashSet<int>();
             private readonly SortedDictionary<int, int> _hitCounts = new SortedDictionary<int, int>();
             private BeamChannel _channel;
             private int _lastAdvanceTick = -1;
@@ -258,14 +225,10 @@ namespace RuneCode
             internal void SetAdvanceTick(int tick) => _lastAdvanceTick = tick;
             /// <summary>다음 피해 판정 틱을 예약한다.</summary>
             internal void ScheduleDamage(int tick) => _nextDamageTick = tick;
-            /// <summary>이전 중심선과 경로 탐색 이력을 비운다.</summary>
-            internal void ClearPath() { _path.Clear(); _passedTargets.Clear(); }
+            /// <summary>이전 중심선을 비운다. 경로 유도의 지나친 대상 기록은 유도 모드가 BeginPath에서 비운다.</summary>
+            internal void ClearPath() => _path.Clear();
             /// <summary>공유 표시·판정 중심선에 점을 추가한다.</summary>
             internal void AddPoint(SimVector point) => _path.Add(point);
-            /// <summary>경로가 지난 유도 대상을 기록한다.</summary>
-            internal void PassTarget(int id) => _passedTargets.Add(id);
-            /// <summary>유도 대상이 이미 경로에서 지났는지 반환한다.</summary>
-            internal bool HasPassedTarget(int id) => _passedTargets.Contains(id);
             /// <summary>이전 피해 후보 목록을 비운다.</summary>
             internal void ClearTargets() => _targets.Clear();
             /// <summary>중심선에 겹친 적과 최초 접촉 거리를 피해 후보에 추가한다.</summary>

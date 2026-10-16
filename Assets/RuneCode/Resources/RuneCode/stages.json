@@ -392,11 +392,6 @@
       ],
       "_modifierRewards": [
         {
-          "_runeId": "behavior.orbit",
-          "_grade": "C",
-          "_count": 1
-        },
-        {
           "_runeId": "element.lightning",
           "_grade": "",
           "_count": 1

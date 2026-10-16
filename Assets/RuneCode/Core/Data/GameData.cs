@@ -54,6 +54,7 @@ namespace RuneCode
             RuneTableData runeTable = JsonUtility.FromJson<RuneTableData>(ReadResource(RUNE_TABLE));
             RuneCatalog runes = RuneCatalog.FromTable(runeTable);
             ValidateBehaviorRegistries(runes);
+            ValidateModifierRegistries(runes);
             ModifierGradeTable modifierGrades = ModifierGradeTable.FromJson(ReadResource(MODIFIER_GRADE_TABLE), runes);
             runes.AttachModifierGrades(modifierGrades);
             BalanceData balance = BalanceData.FromJson(ReadResource("balance"));
@@ -83,7 +84,7 @@ namespace RuneCode
         {
             foreach (RuneDefinition rune in runes.All)
             {
-                if (rune.IsDisabled || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.Id == SpellGrammar.ORBIT_RUNE) continue;
+                if (rune.IsDisabled || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR) continue;
                 if (!SpellBehaviorRuleRegistry.TryGetByRuneId(rune.Id, out _))
                     throw new FormatException("활성 행동의 규칙이 등록되지 않았습니다: " + rune.Id);
             }
@@ -97,6 +98,24 @@ namespace RuneCode
             RuneStats beam = runes.Get("form.beam").Stats;
             if (beam.MinimumLifetime <= 0 || beam.Lifetime < beam.MinimumLifetime || beam.TickInterval <= 0 || beam.BeamLength <= 0 || beam.Speed <= 0)
                 throw new FormatException("빔의 최소·최대 지속, 피해 간격, 곡선 길이와 경로 속도는 양수여야 합니다.");
+        }
+
+        /// <summary>
+        /// 등록된 동작 모드 규칙마다 모드 룬이 룬 테이블의 modifier 카테고리로 있고 같은 ID의 실행 동작이 등록되어 있는지,
+        /// 등록된 실행 동작마다 규칙이 있는지 검사한다. 하나라도 어긋나면 FormatException을 던진다.
+        /// </summary>
+        private static void ValidateModifierRegistries(RuneCatalog runes)
+        {
+            foreach (SpellModifierRules rules in SpellModifierRuleRegistry.All)
+            {
+                if (!runes.TryGet(rules.RuneId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER)
+                    throw new FormatException("동작 모드 규칙의 모드 룬이 없습니다: " + rules.RuneId);
+                if (!SpellModifierRuntimeRegistry.TryGet(rules.RuneId, out _))
+                    throw new FormatException("동작 모드 규칙에 맞는 실행 동작이 등록되지 않았습니다: " + rules.RuneId);
+            }
+            foreach (SpellModifierRuntime runtime in SpellModifierRuntimeRegistry.All)
+                if (!SpellModifierRuleRegistry.TryGetByRuneId(runtime.RuneId, out _))
+                    throw new FormatException("동작 모드 실행에 맞는 규칙이 등록되지 않았습니다: " + runtime.RuneId);
         }
 
         /// <summary>시작 마법 템플릿 중 ID가 일치하는 그래프를 반환하며 없으면 null을 반환한다.</summary>

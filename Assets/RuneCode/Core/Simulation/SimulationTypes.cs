@@ -383,6 +383,9 @@ namespace RuneCode
 
     public sealed class SimulationSpellEntity
     {
+        private static readonly object[] NO_MODIFIER_STATES = new object[0];
+        private static readonly int[] NO_MOTION_ORDER = new int[0];
+
         private readonly int _id;
         private readonly SpellAction _action;
         private readonly SpellStats _stats;
@@ -392,25 +395,27 @@ namespace RuneCode
         private readonly double _visualSeconds;
         private readonly double _warmupSeconds;
         private readonly SimVector _anchor;
+        private readonly double _angle;
         private readonly SpellEventScope _callEvents;
         private readonly SpellModifierValues _modifiers;
         private readonly double _costMultiplier;
         private readonly SimulationPlayer _caster;
         private readonly SpellBehaviorRuntime _behavior;
         private readonly object _behaviorState;
+        private readonly SpellModifierRuntime[] _modifierRuntimes;
+        private readonly object[] _modifierStates;
+        private readonly int[] _motionOrder;
+        private readonly bool _hasModifierPath;
         private readonly Dictionary<int, double> _hitTimes = new Dictionary<int, double>();
-        private HashSet<int> _contacts = new HashSet<int>();
-        private HashSet<int> _nextContacts = new HashSet<int>();
         private SimVector _position;
+        private SimVector _previousPosition;
+        private bool _isPassingWalls;
         private SimVector _direction;
         private double _age;
-        private double _angle;
         private int _hits;
         private bool _hasExpired;
         private bool _hasFiredFirstEvent;
         private bool _hasDirectHit;
-        private int _homingTargetId;
-        private bool _isReturning;
         public int Id => _id;
         public string Kind => _action.Form;
         public string Element => _element;
@@ -458,11 +463,26 @@ namespace RuneCode
         internal SpellAction Action => _action;
         internal SpellStats Stats => _stats;
 
-        /// <summary>이 개체의 행동 실행 동작이다. 등록되지 않은 종류(공전)는 기본 동작이다.</summary>
+        /// <summary>이 개체의 행동 실행 동작이다. 등록되지 않은 종류는 기본 동작이다.</summary>
         internal SpellBehaviorRuntime Behavior => _behavior;
 
         /// <summary>행동 실행 동작이 생성 시 만든 행동 전용 상태다. 없으면 null이다.</summary>
         internal object BehaviorState => _behaviorState;
+
+        /// <summary>장착된 동작 모드의 실행 동작 목록이다. 등록 순서이며 동작 모드가 없으면 비어 있다.</summary>
+        internal IReadOnlyList<SpellModifierRuntime> ModifierRuntimes => _modifierRuntimes;
+
+        /// <summary>ModifierRuntimes의 index번째 동작 모드가 생성 시 만든 전용 상태를 반환한다. 상태가 없는 모드는 null이다.</summary>
+        internal object GetModifierState(int index) => _modifierStates[index];
+
+        /// <summary>이번 틱 이동 전 위치다. 매 틱 이동 단계 직전에 기록하며 판정이 이동 구간의 시작점으로 쓴다.</summary>
+        internal SimVector PreviousPosition => _previousPosition;
+
+        /// <summary>이번 틱 이동이 벽을 무시하는 경로(공전 궤도·진입)였는지 나타낸다. 발사 판정이 벽 충돌을 건너뛴다. 매 틱 이동 전에 꺼진다.</summary>
+        internal bool IsPassingWalls => _isPassingWalls;
+
+        /// <summary>행동의 기본 경로를 대신하는 경로 모드(공전)가 장착되어 있는지 나타낸다.</summary>
+        internal bool HasModifierPath => _hasModifierPath;
 
         /// <summary>빔 표시와 충돌이 공유하는 중심선이다. 빔이 아닌 개체는 빈 목록을 반환한다.</summary>
         public IReadOnlyList<SimVector> BeamPath => _behaviorState is BeamBehaviorRuntime.BeamState beam
@@ -486,17 +506,12 @@ namespace RuneCode
         internal SimVector Anchor => _anchor;
         internal Dictionary<int, double> HitTimes => _hitTimes;
         internal int Hits { get => _hits; set => _hits = value; }
-        internal double Angle { get => _angle; set => _angle = value; }
+        /// <summary>같은 실행에서 생성된 개체 중 순번에 따른 각도(순번 × 360° ÷ 개수, 라디안)다. 공전 모드가 궤도 자리를 등각으로 나누는 데 쓴다.</summary>
+        internal double Angle => _angle;
         internal bool HasExpired { get => _hasExpired; set => _hasExpired = value; }
 
         /// <summary>발사체가 적·벽·지형에 한 번이라도 직접 충돌했는지 나타낸다. 직접 충돌한 발사체는 OnExpire를 내지 않는다.</summary>
         internal bool HasDirectHit { get => _hasDirectHit; set => _hasDirectHit = value; }
-
-        /// <summary>유도 공전이 돌진 중인 적 ID다. 0이면 궤도 위에 있거나 궤도로 돌아오는 중이다.</summary>
-        internal int HomingTargetId { get => _homingTargetId; set => _homingTargetId = value; }
-
-        /// <summary>유도 공전이 적과 부딪친 뒤 궤도 자리로 날아 돌아오는 중인지 나타낸다.</summary>
-        internal bool IsReturning { get => _isReturning; set => _isReturning = value; }
 
         /// <summary>부채꼴 발사체 중심(center)과 진행 방향, 반경으로 꼭짓점(중심에서 반경만큼 뒤)을 반환한다.</summary>
         internal static SimVector GetConeApex(SimVector center, SimVector direction, double radius) => center - direction.Normalized() * radius;
@@ -527,10 +542,97 @@ namespace RuneCode
             _modifiers = modifiers ?? SpellModifierValues.None;
             _behavior = SpellBehaviorRuntimeRegistry.Get(action.Form);
             _behaviorState = _behavior.CreateState(this);
+            _modifierRuntimes = SpellModifierRuntimeRegistry.Resolve(action.ModifierRules);
+            _modifierStates = _modifierRuntimes.Length == 0 ? NO_MODIFIER_STATES : new object[_modifierRuntimes.Length];
+            for (int index = 0; index < _modifierRuntimes.Length; index++) _modifierStates[index] = _modifierRuntimes[index].CreateState(this);
+            _motionOrder = BuildMotionOrder(action.ModifierRules);
+            foreach (int index in _motionOrder) _hasModifierPath |= _modifierRuntimes[index].ReplacesBasePath;
+            _previousPosition = position;
         }
 
         /// <summary>스펠 개체의 위치와 진행 방향을 갱신한다.</summary>
         internal void Move(SimVector position, SimVector direction) { _position = position; _direction = direction; }
+
+        /// <summary>이번 틱 이동 전 위치를 현재 위치로 기록하고 벽 무시 표시를 끈다. 이동 단계 직전에 한 번 호출한다.</summary>
+        internal void MarkPreviousPosition() { _previousPosition = _position; _isPassingWalls = false; }
+
+        /// <summary>이번 틱 이동이 벽을 무시하는 경로였음을 표시한다. 이동 모드가 이동할 때 호출한다.</summary>
+        internal void MarkPassingWalls() { _isPassingWalls = true; }
+
+        /// <summary>
+        /// 장착된 경로 모드가 모두 반응 모드에 이동을 넘길 수 있는 상태인지 반환한다(공전 진입 완료).
+        /// 경로 모드가 없으면 true다.
+        /// </summary>
+        internal bool CanLeaveModifierPath()
+        {
+            foreach (int index in _motionOrder)
+            {
+                SpellModifierRuntime runtime = _modifierRuntimes[index];
+                if (runtime.ReplacesBasePath && !runtime.CanYieldMove(this, _modifierStates[index])) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// 이동 모드를 우선순위가 높은 순서로 돌며 처음 이동을 맡은 모드만 개체를 옮기게 하고, 나머지 이동 모드는 상태만 갱신한다.
+        /// 어느 이동 모드가 이동을 맡았으면 true를 반환하며, 이 경우 행동의 기본 경로 이동을 건너뛴다.
+        /// </summary>
+        internal bool MoveByModifiers(RuneSimulation simulation)
+        {
+            bool hasMoved = false;
+            foreach (int index in _motionOrder)
+            {
+                SpellModifierRuntime runtime = _modifierRuntimes[index];
+                if (!hasMoved && runtime.TryMove(simulation, this, _modifierStates[index])) hasMoved = true;
+                else runtime.UpdatePassive(simulation, this, _modifierStates[index]);
+            }
+            return hasMoved;
+        }
+
+        /// <summary>
+        /// 적 적중 한 번에 장착된 동작 모드의 적중 개입을 등록 순서로 적용한다. damage·isConsumed는 행동이 넣은 기본값에서 시작한다.
+        /// </summary>
+        internal void ApplyHitModifiers(RuneSimulation simulation, SimulationEnemy enemy, ref double damage, ref bool isConsumed)
+        {
+            for (int index = 0; index < _modifierRuntimes.Length; index++)
+                _modifierRuntimes[index].OnHit(simulation, this, _modifierStates[index], enemy, ref damage, ref isConsumed);
+        }
+
+        /// <summary>경로형 행동이 이번 틱 경로를 새로 그리기 시작할 때 이동 모드들에 알린다(우선순위 순).</summary>
+        internal void BeginPath(RuneSimulation simulation)
+        {
+            foreach (int index in _motionOrder) _modifierRuntimes[index].BeginPath(simulation, this, _modifierStates[index]);
+        }
+
+        /// <summary>
+        /// 경로형 행동이 경로 한 칸을 그리기 전에 이동 모드를 우선순위 순으로 물어 처음 맡은 모드만 그 칸의 진행 방향을 고치게 한다.
+        /// point는 칸 시작점, step은 칸 길이, pathSpeed는 경로 기준 속도, halfWidth는 경로 반폭이다.
+        /// </summary>
+        internal void SteerPathStep(RuneSimulation simulation, SimVector point, ref SimVector direction, double step,
+            double pathSpeed, double halfWidth)
+        {
+            foreach (int index in _motionOrder)
+                if (_modifierRuntimes[index].SteerPathStep(simulation, this, _modifierStates[index], point, ref direction, step, pathSpeed, halfWidth))
+                    return;
+        }
+
+        /// <summary>
+        /// 동작 모드 규칙 목록(실행 목록과 같은 순서)에서 이동 모드의 순번만 골라 우선순위가 높은 순서로 정렬한 배열을 반환한다.
+        /// 우선순위가 같으면 등록 순서를 유지한다. 이동 모드가 없으면 공유 빈 배열을 반환한다.
+        /// </summary>
+        private static int[] BuildMotionOrder(IReadOnlyList<SpellModifierRules> rules)
+        {
+            if (rules.Count == 0) return NO_MOTION_ORDER;
+            var order = new List<int>();
+            for (int index = 0; index < rules.Count; index++)
+            {
+                if (rules[index].Category != SpellModifierCategory.Motion) continue;
+                int position = order.Count;
+                while (position > 0 && rules[order[position - 1]].MotionPriority < rules[index].MotionPriority) position--;
+                order.Insert(position, index);
+            }
+            return order.Count == 0 ? NO_MOTION_ORDER : order.ToArray();
+        }
 
         /// <summary>
         /// 적중·소멸 중 첫 이벤트인지 확인하고 기록한다. 처음 호출이면 true, 이후 호출은 false를 반환한다.
@@ -546,25 +648,6 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>
-        /// 이번 틱의 접촉 대상을 기록하고 직전 틱에 접촉하지 않았던 대상이면 true를 반환한다.
-        /// 공전의 접촉 시작 이벤트 판정에 쓰며, 틱마다 EndContactScan으로 마무리한다.
-        /// </summary>
-        internal bool MarkContact(int enemyId)
-        {
-            _nextContacts.Add(enemyId);
-            return !_contacts.Contains(enemyId);
-        }
-
-        /// <summary>이번 틱에 기록한 접촉 대상을 다음 틱의 비교 기준으로 바꾼다. 떨어진 대상은 다시 닿으면 새 접촉이 된다.</summary>
-        internal void EndContactScan()
-        {
-            HashSet<int> previous = _contacts;
-            _contacts = _nextContacts;
-            _nextContacts = previous;
-            _nextContacts.Clear();
-        }
-
         /// <summary>스펠 개체의 수명 경과를 고정 시간만큼 증가시킨다.</summary>
         internal void Advance(double dt) { _age += dt; }
 
@@ -572,15 +655,14 @@ namespace RuneCode
         internal void WriteState(StringBuilder state)
         {
             state.Append(_id).Append('|').Append(_action.NodeId).Append('|').Append(_element).Append('|').Append(_castNoiseElement).Append('|').Append(_fromEvent);
-            state.Append(FormattableString.Invariant($"|{_anchor.X:R}|{_anchor.Y:R}|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_age:R}|{_angle:R}|{_hits}|{_hasExpired}|{_hasFiredFirstEvent}|{_hasDirectHit}|{_costMultiplier:R}|{_homingTargetId}|{_isReturning}"));
+            state.Append(FormattableString.Invariant($"|{_anchor.X:R}|{_anchor.Y:R}|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_age:R}|{_angle:R}|{_hits}|{_hasExpired}|{_hasFiredFirstEvent}|{_hasDirectHit}|{_costMultiplier:R}"));
             state.Append(FormattableString.Invariant($"|{_stats.Damage:R}|{_stats.Speed:R}|{_stats.Radius:R}|{_stats.Lifetime:R}|{_stats.Pierce}|{_stats.HomingTurn:R}|{_stats.HomingRange:R}"));
             _modifiers.AppendState(state);
             _callEvents?.AppendState(state);
             var ids = new List<int>(_hitTimes.Keys); ids.Sort();
             foreach (int id in ids) state.Append(FormattableString.Invariant($"|{id}:{_hitTimes[id]:R}"));
-            var contacts = new List<int>(_contacts); contacts.Sort();
-            foreach (int id in contacts) state.Append('|').Append('c').Append(id);
             _behavior.WriteState(this, state);
+            for (int index = 0; index < _modifierRuntimes.Length; index++) _modifierRuntimes[index].WriteState(this, _modifierStates[index], state);
         }
     }
 

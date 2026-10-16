@@ -84,10 +84,10 @@ namespace RuneCode
             }
             float radius = (float)spell.Radius;
             float angle = MissionWorldSpace.ToWorldAngle(spell.Direction);
-            // 행동 규칙이 없는 종류(공전)는 발사체로 그리고 부채꼴로 그리지 않는다.
+            // 행동 규칙이 없는 종류는 발사체로 그리고 부채꼴로 그리지 않는다.
             bool hasRules = SpellBehaviorRuleRegistry.TryGetByKind(spell.Kind, out SpellBehaviorRules rules);
             bool isArea = hasRules && rules.DisplayType != SpellDisplayType.Projectile;
-            bool isCone = spell.IsCone && hasRules && (isArea || rules.IsTravelling);
+            bool isCone = spell.IsCone && hasRules && (isArea || rules.MotionKind == SpellMotionKind.Moving);
             MissionWorldSpace.SetVisible(_trail, !isArea);
             MissionWorldSpace.SetVisible(_shape, !isArea && !isCone);
             MissionWorldSpace.SetVisible(_fill, isArea && !isCone);

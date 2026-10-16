@@ -7,5 +7,7 @@ namespace RuneCode
         public override string FormValue => "explosion";
         public override string Kind => SpellGrammar.FORM_BURST;
         public override SpellDisplayType DisplayType => SpellDisplayType.InstantArea;
+        public override SpellSpawnOrigin SpawnOrigin => SpellSpawnOrigin.Ground;
+        public override SpellMotionKind MotionKind => SpellMotionKind.Stationary;
     }
 }

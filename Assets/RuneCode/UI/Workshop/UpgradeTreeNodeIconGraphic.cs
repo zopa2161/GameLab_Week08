@@ -171,7 +171,7 @@ namespace RuneCode
                     Path(mesh,c,s,t,-16,2,16,2);
                     Path(mesh,c,s,t,-13,-7,-13,7);
                     break;
-                case "behavior.orbit":
+                case "mod.orbit":
                     Ring(mesh,c,s,t,0,0,12); Dot(mesh,c,s,t,0,0,4);
                     Dot(mesh,c,s,t,10,7,4);
                     Path(mesh,c,s,t,-15,-2,-11,-7,-6,-4);

@@ -132,14 +132,13 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// Form에 맞는 다중 개수 등급 값을 읽는다. 행동 규칙이 발사 전용 값을 쓰고 그 값이 있으면 그 값을, 아니면 공용 등급 값을 쓴다.
+        /// 다중 개수 등급 값을 읽는다. usesLaunchValues이고 발사 전용 값이 있으면 그 값을, 아니면 공용 등급 값을 쓴다.
         /// 숫자가 아니거나 null이면 false를 반환한다.
         /// </summary>
-        public bool TryGetCountValue(string modifierId, string grade, string form, out int value)
+        public bool TryGetCountValue(string modifierId, string grade, bool usesLaunchValues, out int value)
         {
             value = 0;
-            if (SpellBehaviorRuleRegistry.TryGetByKind(form, out SpellBehaviorRules rules) && rules.UsesLaunchGradeValues
-                && TryGetLaunchGradeValues(modifierId, out IReadOnlyDictionary<string, object> launchValues))
+            if (usesLaunchValues && TryGetLaunchGradeValues(modifierId, out IReadOnlyDictionary<string, object> launchValues))
             {
                 if (string.IsNullOrEmpty(grade) || !launchValues.TryGetValue(grade, out object launchValue) || !(launchValue is double launchNumber)) return false;
                 value = (int)launchNumber;
@@ -344,7 +343,7 @@ namespace RuneCode
         {
             bool isKnownEffect = effectType == "effectMultiplier" || effectType == "multipleCount" || effectType == "pierceCount"
                 || effectType == "radiusMultiplier" || effectType == "durationMultiplier" || effectType == "speedMultiplier"
-                || effectType == "homingTier";
+                || effectType == "homingTier" || effectType == "orbitPath";
             if (!isKnownEffect) log.Add(modifierId, "_effectType", "지원하지 않는 효과 종류입니다: " + effectType);
             foreach (KeyValuePair<string, object> pair in values)
             {
@@ -374,6 +373,12 @@ namespace RuneCode
                 {
                     if (!(pair.Value is string tier) || rune == null || rune.FindHomingTier(tier) == null)
                         log.Add(modifierId, field, "runes.json _homingTiers에 정의된 유도 단계 문자열이어야 합니다.");
+                }
+                else if (effectType == "orbitPath")
+                {
+                    // 공전은 등급별 수치 변화가 없어 값은 그 등급이 있다는 표시(1)로만 쓴다.
+                    if (!(pair.Value is double number) || number != 1d)
+                        log.Add(modifierId, field, "등급이 있음을 나타내는 1이어야 합니다.");
                 }
             }
         }

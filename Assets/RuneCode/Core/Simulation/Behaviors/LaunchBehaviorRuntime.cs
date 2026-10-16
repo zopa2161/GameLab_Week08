@@ -4,51 +4,47 @@ using System.Collections.Generic;
 namespace RuneCode
 {
     /// <summary>
-    /// 발사 행동의 실행 동작이다. 여러 발이면 퍼짐 각도로 나눠 쏘고, 매 틱 유도·벽·원형 쉴드·관통 순서로 이동과 적중을 처리한다.
+    /// 발사 행동의 실행 동작이다. 매 틱 직진하고(유도는 이동 모드, 퍼짐은 배치 모드가 처리) 벽·원형 쉴드·적 순서로 적중을 판정한다.
+    /// 적에게 맞으면 기본적으로 소멸하며, 관통은 적중 모드가 처리한다.
     /// 첫 적중·소멸 이벤트를 추적하며 직접 충돌한 발사체는 소멸 이벤트를 내지 않는다.
     /// </summary>
     internal sealed class LaunchBehaviorRuntime : SpellBehaviorRuntime
     {
-        private const double DEGREES_TO_RADIANS = Math.PI / 180;
-
         public override string Kind => SpellGrammar.FORM_BOLT;
         public override bool TracksDirectHit => true;
 
         /// <summary>
-        /// 여러 발이면 index에 따라 좌우 퍼짐 각도 안에서 방향을 나눈다.
         /// 사각형(Beam) 발사체는 뒤쪽 면을 실행 위치에 두도록 길이의 절반만큼 앞으로 옮긴다(백서 v7).
+        /// 여러 발의 퍼짐 방향은 이 처리보다 먼저 다중 모드(MultiModifierRuntime)가 정한다.
         /// </summary>
         public override void PlaceSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
         {
-            if (action.Count > 1) direction = direction.Rotated((index / (double)(action.Count - 1) * 2 - 1) * stats.SpreadAngle * DEGREES_TO_RADIANS);
             if (action.MagicType == SpellGrammar.MAGIC_TYPE_BOX)
                 position += direction.Normalized() * (stats.BoxLength * 0.5);
         }
 
-        /// <summary>볼트의 유도 방향, 벽 충돌 및 가장 가까운 순서의 관통 적중을 처리한다.</summary>
-        public override void Advance(RuneSimulation simulation, SimulationSpellEntity entity)
+        /// <summary>진행 방향으로 이동 속도만큼 직진한다. 유도는 이동 모드(HomingModifierRuntime)가 이동을 맡아 처리한다.</summary>
+        public override void MoveAlongPath(RuneSimulation simulation, SimulationSpellEntity entity)
+            => entity.Move(entity.Position + entity.Direction * (entity.Stats.Speed * RuneSimulation.STEP_SECONDS), entity.Direction);
+
+        /// <summary>
+        /// 이번 틱 이동 구간(PreviousPosition → Position)에서 벽·원형 쉴드 충돌과 가장 가까운 순서의 관통 적중을 처리한다.
+        /// 충돌하면 접촉 위치로 옮기고 소멸 표시한다. 벽을 무시하는 경로로 움직인 틱(IsPassingWalls)은 벽을 판정하지 않는다.
+        /// </summary>
+        public override void Judge(RuneSimulation simulation, SimulationSpellEntity entity)
         {
             IReadOnlyList<SimulationEnemy> enemies = simulation.Enemies;
             SimVector direction = entity.Direction;
             SpellStats stats = entity.Stats;
-            if (stats.HomingTurn > 0)
-            {
-                SimulationEnemy target = simulation.NearestEnemy(entity.Position, stats.HomingRange, entity.HitTimes);
-                if (target != null)
-                {
-                    double current = Math.Atan2(direction.Y, direction.X); SimVector toTarget = target.Position - entity.Position;
-                    double wanted = Math.Atan2(toTarget.Y, toTarget.X); double delta = Math.Atan2(Math.Sin(wanted - current), Math.Cos(wanted - current));
-                    double turn = stats.HomingTurn * DEGREES_TO_RADIANS * RuneSimulation.STEP_SECONDS;
-                    direction = direction.Rotated(Math.Max(-turn, Math.Min(turn, delta)));
-                }
-            }
-            SimVector previous = entity.Position;
-            SimVector next = previous + direction * (stats.Speed * RuneSimulation.STEP_SECONDS);
+            SimVector previous = entity.PreviousPosition;
+            SimVector next = entity.Position;
             // 사각형 발사체는 앞면 중심과 폭으로 벽을 검사하고 보호막은 전체 모양의 이동 경로로 검사한다.
             SimVector front = entity.IsBox ? direction.Normalized() * (stats.BoxLength * 0.5) : SimVector.Zero;
             double collisionRadius = entity.IsBox ? stats.BoxWidth * 0.5 : entity.Radius;
-            double wallFraction = simulation.FirstWallFraction(previous + front, next + front, collisionRadius);
+            // 공전 궤도·진입처럼 벽을 무시하는 경로로 움직인 틱에는 벽 충돌을 판정하지 않는다.
+            double wallFraction = entity.IsPassingWalls ? double.PositiveInfinity
+                : simulation.FirstWallFraction(previous + front, next + front, collisionRadius);
             double shieldFraction = double.PositiveInfinity;
             SimulationEnemy shieldOwner = null;
             for (int index = 0; index < enemies.Count; index++)
@@ -61,7 +57,6 @@ namespace RuneCode
                 if (fraction < shieldFraction) { shieldFraction = fraction; shieldOwner = shield; }
             }
             double stopFraction = Math.Min(wallFraction, shieldFraction);
-            entity.Move(next, direction);
             var targets = new List<SimulationEnemy>();
             for (int index = 0; index < enemies.Count; index++)
             {
@@ -84,10 +79,13 @@ namespace RuneCode
             {
                 if (!enemy.IsAlive) continue;
                 if (SpellGeometry.SpellContactFraction(entity, previous, next, direction, enemy.Position, enemy.Radius) + RuneSimulation.COLLISION_EPSILON >= stopFraction) break;
-                double multiplier = Math.Max(0, 1 - entity.Hits * stats.PierceLoss);
-                entity.HitTimes[enemy.Id] = simulation.Time; simulation.Hit(entity, enemy, stats.Damage * multiplier, false); entity.Hits++;
+                // 발사체는 기본적으로 첫 적중에 소멸한다. 관통 등 적중 모드가 피해와 소멸 여부를 고친다.
+                double damage = stats.Damage;
+                bool isConsumed = true;
+                entity.ApplyHitModifiers(simulation, enemy, ref damage, ref isConsumed);
+                entity.HitTimes[enemy.Id] = simulation.Time; simulation.Hit(entity, enemy, damage, false); entity.Hits++;
                 simulation.RaiseHitEvent(entity, enemy.Position, enemy);
-                if (entity.Hits > stats.Pierce) { entity.Move(enemy.Position, direction); entity.HasExpired = true; break; }
+                if (isConsumed) { entity.Move(enemy.Position, direction); entity.HasExpired = true; break; }
             }
             if (!entity.HasExpired && !double.IsPositiveInfinity(stopFraction))
             {

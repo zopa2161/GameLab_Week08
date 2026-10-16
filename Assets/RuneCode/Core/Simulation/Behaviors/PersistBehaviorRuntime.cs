@@ -4,7 +4,7 @@ namespace RuneCode
 {
     /// <summary>
     /// 잔류 행동의 실행 동작이다. 예고 시간 뒤 생성 위치에 남아 TickInterval마다 지속 피해를 주고 적중은 OnHit을 만들지 않는다.
-    /// 유도 수식이 있으면 가장 가까운 적 쪽으로 이동하며 실제 피해는 잔류 피해 통계에 누적한다.
+    /// 기본 경로는 제자리이며(유도 이동은 이동 모드가 처리) 실제 피해는 잔류 피해 통계에 누적한다.
     /// </summary>
     internal sealed class PersistBehaviorRuntime : SpellBehaviorRuntime
     {
@@ -31,26 +31,11 @@ namespace RuneCode
             if (entity.Action.SourceElement != "protection" && !entity.IsWarning) simulation.HitArea(entity, false);
         }
 
-        /// <summary>예고가 끝난 뒤 유도 이동과 범위 판정을 매 틱 처리한다.</summary>
-        public override void Advance(RuneSimulation simulation, SimulationSpellEntity entity)
+        /// <summary>예고가 끝난 뒤 매 틱 범위 판정을 처리한다.</summary>
+        public override void Judge(RuneSimulation simulation, SimulationSpellEntity entity)
         {
             if (entity.IsWarning) return;
-            if (entity.Stats.HomingRange > 0) AdvanceHoming(simulation, entity);
             simulation.HitArea(entity, false);
-        }
-
-        /// <summary>
-        /// 유도 범위 안의 가장 가까운 적 쪽으로 이동 속도만큼 옮긴다. 대상에 닿으면 멈추고 벽은 통과하지 않는다.
-        /// 모양의 방향은 유지한다.
-        /// </summary>
-        private static void AdvanceHoming(RuneSimulation simulation, SimulationSpellEntity entity)
-        {
-            SimulationEnemy target = simulation.NearestEnemy(entity.Position, entity.Stats.HomingRange, RuneSimulation.NoExcludedTargets);
-            if (target == null) return;
-            SimVector offset = target.Position - entity.Position;
-            double step = Math.Min(entity.Stats.Speed * RuneSimulation.STEP_SECONDS, offset.Length);
-            if (step <= RuneSimulation.COLLISION_EPSILON) return;
-            entity.Move(simulation.Map.Move(entity.Position, offset.Normalized() * step, entity.Radius), entity.Direction);
         }
 
         /// <summary>예고 시간 안이면 true를 반환한다.</summary>

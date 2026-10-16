@@ -4,7 +4,6 @@ namespace RuneCode
 {
     /// <summary>
     /// 행동 규칙 등록 목록이다. 새 행동은 RULES에 한 줄 추가한다. 실행 동작은 SpellBehaviorRuntimeRegistry에 같은 Kind로 등록한다.
-    /// 공전(behavior.orbit)은 이후 수식으로 바뀔 예정이라 등록하지 않고 기존 분기로 처리한다.
     /// </summary>
     public static class SpellBehaviorRuleRegistry
     {
@@ -58,7 +57,7 @@ namespace RuneCode
             return false;
         }
 
-        /// <summary>런타임 종류의 표시 방식을 반환한다. 등록되지 않은 종류(공전 등)는 발사체로 그린다.</summary>
+        /// <summary>런타임 종류의 표시 방식을 반환한다. 등록되지 않은 종류는 발사체로 그린다.</summary>
         public static SpellDisplayType GetDisplayType(string kind)
             => TryGetByKind(kind, out SpellBehaviorRules rules) ? rules.DisplayType : SpellDisplayType.Projectile;
     }

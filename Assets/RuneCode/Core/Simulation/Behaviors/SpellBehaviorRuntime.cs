@@ -1,4 +1,3 @@
-using System;
 using System.Text;
 
 namespace RuneCode
@@ -33,8 +32,19 @@ namespace RuneCode
         /// <summary>개체 생성 시 행동 전용 상태 객체를 만든다. 개체의 BehaviorState에 보관된다. 기본은 null이다.</summary>
         public virtual object CreateState(SimulationSpellEntity entity) => null;
 
-        /// <summary>수명이 늘기 전 매 틱 이동·판정을 처리한다. 기본은 없다.</summary>
-        public virtual void Advance(RuneSimulation simulation, SimulationSpellEntity entity)
+        /// <summary>
+        /// 이동 모드가 이번 틱 이동을 맡지 않았을 때 행동의 기본 경로로 개체를 옮긴다(발사 = 직진, 잔류 = 유도 이동).
+        /// 이동 전 위치는 개체의 PreviousPosition에 남아 있다. 기본은 제자리다.
+        /// </summary>
+        public virtual void MoveAlongPath(RuneSimulation simulation, SimulationSpellEntity entity)
+        {
+        }
+
+        /// <summary>
+        /// 이동이 끝난 뒤 수명이 늘기 전 매 틱 판정을 처리한다. 어떤 경로로 움직였든 PreviousPosition에서 Position까지를
+        /// 이번 틱 이동 구간으로 보고 행동의 판정 방식(스윕·범위)을 적용한다. 기본은 없다.
+        /// </summary>
+        public virtual void Judge(RuneSimulation simulation, SimulationSpellEntity entity)
         {
         }
 
@@ -98,7 +108,7 @@ namespace RuneCode
 
         /// <summary>
         /// 범위형 행동의 생성 위치를 정한다. 직접 시전한 일반 범위는 진행 방향으로 생성 거리만큼, 부채꼴·사각형은 실행 위치에 두고,
-        /// 직접 시전한 회복·보호 사각형은 시전자 중심에 둔다. 개체가 여럿이면 원형으로 흩어 놓는다.
+        /// 직접 시전한 회복·보호 사각형은 시전자 중심에 둔다. 개체가 여럿일 때의 원형 배치는 이 처리 다음에 다중 모드가 정한다.
         /// </summary>
         protected static void PlaceAreaSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, SimVector direction)
@@ -110,9 +120,6 @@ namespace RuneCode
             if (!isFromEvent && !isFunctional && !isAnchored) position += direction * stats.Offset;
             // 지팡이 끝은 시전자 몸 밖이므로 직접 시전한 회복·보호 Beam은 뒤쪽 면을 시전자 중심에 둬 자신을 포함한다.
             if (!isFromEvent && isFunctional && action.MagicType == SpellGrammar.MAGIC_TYPE_BOX) position = caster.Position;
-            if (action.Count > 1)
-                position += new SimVector(Math.Cos(index * 2 * Math.PI / action.Count), Math.Sin(index * 2 * Math.PI / action.Count))
-                    * simulation.Balance.Sim.MultiOffset;
         }
     }
 }

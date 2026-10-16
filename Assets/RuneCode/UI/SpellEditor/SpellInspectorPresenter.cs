@@ -46,12 +46,12 @@ namespace RuneCode
                 case "mod.multi": effect = "생성 개수를 늘립니다. 발사는 전용 개수와 퍼짐을 사용합니다."; break;
                 case "mod.pierce": effect = "적을 관통해 뒤쪽 대상도 타격합니다."; break;
                 case "mod.homing": effect = "탐색 범위 안의 적을 향해 방향을 조정합니다."; break;
+                case "mod.orbit": effect = "생성된 개체가 시전자 주위 궤도를 돕니다."; break;
                 case "mod.expand": effect = "효과 범위를 넓힙니다."; break;
                 case "mod.speed": effect = "이동 속도를 높입니다."; break;
                 case "mod.duration": effect = "효과의 지속시간을 늘립니다."; break;
                 case "behavior.launch": effect = "마법을 발사합니다."; break;
                 case "behavior.burst": effect = "범위에 폭발 효과를 줍니다."; break;
-                case "behavior.orbit": effect = "시전자 주변을 공전하며 효과를 줍니다."; break;
                 case "behavior.persist": effect = "효과를 남겨 일정 시간 유지합니다."; break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
                 case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
@@ -76,10 +76,12 @@ namespace RuneCode
                         case "radiusMultiplier": label = " 범위 배율 ×"; break;
                         case "durationMultiplier": label = " 지속시간 배율 ×"; break;
                         case "speedMultiplier": label = " 속도 배율 ×"; break;
+                        case "orbitPath": label = null; break;
                         default: label = " 등급 효과: "; break;
                     }
-                    effect += label + value;
-                    if (rune.Id == "mod.multi" && GameData.ModifierGrades.TryGetCountValue(rune.Id, grade, SpellGrammar.FORM_BOLT, out int launchCount))
+                    // 공전은 등급별 수치가 없어 등급 값(존재 표시)을 보이지 않는다.
+                    if (label != null) effect += label + value;
+                    if (rune.Id == "mod.multi" && GameData.ModifierGrades.TryGetCountValue(rune.Id, grade, true, out int launchCount))
                         effect += " · 발사 " + launchCount + "개";
                 }
             }
@@ -241,7 +243,6 @@ namespace RuneCode
             {
                 case "behavior.launch": return "form.bolt";
                 case "behavior.burst": return "form.burst";
-                case "behavior.orbit": return "form.orbit";
                 case "behavior.persist":
                 case "behavior.apply": return "form.zone";
                 default: return null;
@@ -394,7 +395,6 @@ namespace RuneCode
             var impact = new List<string>();
             if (stats.Damage > 0f) impact.Add(GameData.L("ui.runeDamage") + " " + stats.Damage.ToString("0.##"));
             if (stats.Count > 0) impact.Add(GameData.L("ui.runeCount") + " " + stats.Count);
-            if (stats.OrbitCount > 0) impact.Add(GameData.L("ui.gradeOrbitCount") + " " + stats.OrbitCount);
             if (impact.Count > 0) lines.Add(string.Join(" · ", impact));
 
             if (stats.BeamWidth > 0f || stats.BeamLength > 0f)
@@ -469,19 +469,19 @@ namespace RuneCode
                     lines.Add(GameData.L("ui.spellRadius") + " " + stats.Radius.ToString("0.#") + "px");
 
                 var movement = new List<string>();
-                bool isTravelling = action.Rules != null && action.Rules.IsTravelling;
+                bool isTravelling = action.Rules != null && action.Rules.MotionKind == SpellMotionKind.Moving;
                 if (isTravelling)
                 {
                     if (stats.Speed > 0f) movement.Add(GameData.L("ui.spellSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
                     if (stats.Lifetime > 0f)
-                        movement.Add(GameData.L("ui.runeRange") + " " + action.Rules.GetReach(stats).ToString("0.#") + "px"
+                        movement.Add(GameData.L("ui.runeRange") + " " + action.GetReach(stats).ToString("0.#") + "px"
                             + " · " + GameData.L("ui.runeLifetime") + " " + stats.Lifetime.ToString("0.##") + "s");
                 }
-                else if (action.Form == "orbit" && stats.AngularSpeed > 0f)
-                    movement.Add(GameData.L("ui.spellSpeed") + " " + stats.AngularSpeed.ToString("0.#") + "°/s");
 
                 if (stats.Offset > 0f) movement.Add(GameData.L("ui.runeOffset") + " " + stats.Offset.ToString("0.#") + "px");
-                if (stats.OrbitRadius > 0f) movement.Add(GameData.L("ui.runeOrbitRadius") + " " + stats.OrbitRadius.ToString("0.#") + "px");
+                // 궤도 반경은 행동마다 있으므로 공전 모드가 장착된 경우에만 표시한다.
+                bool isOrbiting = action.Mods.Contains(OrbitModifierRules.RUNE_ID);
+                if (isOrbiting && stats.OrbitRadius > 0f) movement.Add(GameData.L("ui.runeOrbitRadius") + " " + stats.OrbitRadius.ToString("0.#") + "px");
                 if (!isTravelling && stats.Lifetime > 0f)
                     movement.Add(GameData.L("ui.runeLifetime") + " " + stats.Lifetime.ToString("0.##") + "s");
                 if (movement.Count > 0) lines.Add(string.Join(" · ", movement));
@@ -611,15 +611,18 @@ namespace RuneCode
                         values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
                     }
                     break;
+                case "orbitPath":
+                    values.Add(GameData.L("ui.gradeAngularSpeed") + " " + rune.Stats.AngularSpeed.ToString("0.#") + "°/s");
+                    values.Add(GameData.L("ui.gradeEntrySpeed") + " " + rune.Stats.EntrySpeed.ToString("0.#") + "px/s");
+                    break;
             }
             RuneStats stats = rune.Stats;
             values.Add(GameData.L("ui.costMultiplier") + " ×" + rune.EnergyMult.ToString("0.##"));
             if (rune.Id == "mod.multi")
             {
-                if (grades.TryGetCountValue(rune.Id, grade, SpellGrammar.FORM_BOLT, out int launchCount)
+                if (grades.TryGetCountValue(rune.Id, grade, true, out int launchCount)
                     && grades.TryGetLaunchGradeValues(rune.Id, out _))
                     values.Add(GameData.L("ui.gradeLaunchCount") + " " + launchCount);
-                if (stats.OrbitCount > 0) values.Add(GameData.L("ui.gradeOrbitCount") + " " + stats.OrbitCount);
                 if (stats.DamageMultiplier != 1f) values.Add(GameData.L("ui.gradeDamage") + " ×" + stats.DamageMultiplier.ToString("0.##"));
                 if (stats.SpreadAngle > 0f) values.Add(GameData.L("ui.gradeSpread") + " " + stats.SpreadAngle.ToString("0.#") + "°");
                 if (grades.TryGetLaunchSpreadAngle(rune.Id, grade, out float launchSpread))
@@ -684,8 +687,7 @@ namespace RuneCode
             else if (isArea && isAnchored) lines.Add(GameData.L("ui.spellSpawnAtCaster"));
             else
             {
-                float reach = action.Form == SpellGrammar.FORM_ORBIT ? stats.OrbitRadius
-                    : action.Rules != null ? action.Rules.GetReach(stats) : stats.Offset;
+                float reach = action.GetReach(stats);
                 if (reach > 0f) lines.Add(GameData.L("ui.spellRange") + " " + reach.ToString("0.#") + "px");
             }
 
@@ -697,14 +699,9 @@ namespace RuneCode
                 if (radius > 0f) lines.Add(GameData.L("ui.spellRadius") + " " + radius.ToString("0.#") + "px");
             }
 
-            if (action.Form == SpellGrammar.FORM_ORBIT)
-            {
-                lines.Add(GameData.L("ui.spellSpeed") + " " + stats.AngularSpeed.ToString("0.#") + "°/s");
-                if (stats.HomingRange > 0f && action.SourceElement != "protection")
-                    lines.Add(GameData.L("ui.spellTrackSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
-            }
-            else if (action.Rules != null && action.Rules.IsTravelling) lines.Add(GameData.L("ui.spellSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
-            else if (action.Rules != null && action.Rules.UsesHoming && stats.HomingRange > 0f)
+            if (action.Rules != null && action.Rules.MotionKind == SpellMotionKind.Moving)
+                lines.Add(GameData.L("ui.spellSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
+            else if (stats.HomingRange > 0f)
                 lines.Add(GameData.L("ui.spellTrackSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
 
             if (lines.Count > 0) _view.AddNote(string.Join("\n", lines), 18 * lines.Count + 16, 6);

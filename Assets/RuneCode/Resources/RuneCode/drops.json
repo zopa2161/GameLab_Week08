@@ -47,12 +47,6 @@
         },
         {
           "_type": "behavior",
-          "_id": "behavior.orbit",
-          "_count": 1,
-          "_weight": 3
-        },
-        {
-          "_type": "behavior",
           "_id": "behavior.persist",
           "_count": 1,
           "_weight": 3

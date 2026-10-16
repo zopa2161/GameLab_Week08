@@ -96,6 +96,17 @@
         "A": "상급",
         "S": null
       }
+    },
+    {
+      "_modifierId": "mod.orbit",
+      "_name": "공전",
+      "_effectType": "orbitPath",
+      "_gradeValues": {
+        "C": 1,
+        "B": null,
+        "A": null,
+        "S": null
+      }
     }
   ],
   "_stageDropTables": [
@@ -271,7 +282,7 @@
     "5·10스테이지는 보스 처치 드롭 없이, 스테이지 클리어 보상 화면에서 S급 MODIFIER 3종 중 1종을 선택합니다.",
     "multipleCount의 _launchGradeValues는 발사 Behavior에만 쓰는 개수입니다. 생략하면 발사도 _gradeValues를 쓰며, 값이 있는 등급은 _gradeValues와 같아야 합니다.",
     "multipleCount의 _launchSpreadAngles는 발사 Behavior 다중 탄의 좌우 최대 퍼짐 각도(도)입니다. 생략하면 runes.json mod.multi의 _spreadAngle을 씁니다.",
-    "공전에 다중을 연결하면 _gradeValues 등급값은 기본 궤도 수에 추가되는 궤도 수로 적용됩니다.",
+    "공전 모드와 다중을 함께 장착하면 궤도를 개수만큼 등각으로 나눕니다. 개수는 발사가 _launchGradeValues, 잔류가 _gradeValues를 씁니다.",
     "_behaviorGradeChancesPercent는 drops.json에서 등급을 지정하지 않은 행동 항목의 등급 판정 1회에 적용됩니다. 일반 스테이지는 필수이고 보스 스테이지에는 두지 않습니다. 1스테이지 C80/B15/A4/S1에서 시작해 후반으로 갈수록 상위 등급을 조금씩 올렸습니다."
   ]
 }

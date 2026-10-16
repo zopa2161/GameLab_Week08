@@ -41,7 +41,6 @@ namespace RuneCode
 
         public const string FORM_BOLT = "bolt";
         public const string FORM_BURST = "burst";
-        public const string FORM_ORBIT = "orbit";
         public const string FORM_ZONE = "zone";
 
         public const string MAGIC_TYPE_SPHERE = "sphere";
@@ -54,8 +53,6 @@ namespace RuneCode
         public const string CALL_RUNE = "spell.call";
         public const string CORE_RUNE = "core.cast";
         public const string APPLY_RUNE = "behavior.apply";
-        public const string ORBIT_RUNE = "behavior.orbit";
-        public const string FORM_VALUE_ORBIT = "orbit";
         public const string FORM_VALUE_REMAIN = "remain";
 
         public const string ELEMENT_PARAM = "element";
@@ -100,9 +97,7 @@ namespace RuneCode
         /// <summary>Inline Magic의 form 값에 해당하는 Behavior 룬 ID를 행동 규칙 등록 목록에서 찾아 반환한다. 없으면 빈 문자열이다.</summary>
         public static string BehaviorRune(string form)
         {
-            if (SpellBehaviorRuleRegistry.TryGetByFormValue(form, out SpellBehaviorRules rules)) return rules.RuneId;
-            // 공전은 수식으로 바뀔 예정이라 행동 규칙으로 옮기지 않았다.
-            return form == FORM_VALUE_ORBIT ? ORBIT_RUNE : "";
+            return SpellBehaviorRuleRegistry.TryGetByFormValue(form, out SpellBehaviorRules rules) ? rules.RuneId : "";
         }
 
         /// <summary>Shape 블록(shape.sphere 등)이면 Inline Magic의 magicType 값(sphere 등)을, 아니면 null을 반환한다.</summary>
@@ -110,13 +105,12 @@ namespace RuneCode
 
         /// <summary>
         /// Behavior 블록이면 Inline Magic의 form 값을 반환한다. 내부 값은 이전 문법을 유지한다
-        /// (Launch=launch, Burst=explosion, Orbit=orbit, Persist·Apply=remain). Behavior가 아니면 null을 반환한다.
+        /// (Launch=launch, Burst=explosion, Persist·Apply=remain). Behavior가 아니면 null을 반환한다.
         /// </summary>
         public static string FormOf(string runeId)
         {
             if (SpellBehaviorRuleRegistry.TryGetByRuneId(runeId, out SpellBehaviorRules rules)) return rules.FormValue;
-            // 공전은 수식으로 바뀔 예정이라 행동 규칙으로 옮기지 않았다. Apply는 비활성 룬이며 버프로 처리한다.
-            if (runeId == ORBIT_RUNE) return FORM_VALUE_ORBIT;
+            // Apply는 비활성 룬이며 버프로 처리한다.
             if (runeId == APPLY_RUNE) return FORM_VALUE_REMAIN;
             return null;
         }
@@ -124,8 +118,7 @@ namespace RuneCode
         /// <summary>Inline Magic의 form 값에 해당하는 런타임 종류(bolt 등)를 반환한다. 알 수 없는 값은 빈 문자열이다.</summary>
         public static string KindOf(string form)
         {
-            if (SpellBehaviorRuleRegistry.TryGetByFormValue(form, out SpellBehaviorRules rules)) return rules.Kind;
-            return form == FORM_VALUE_ORBIT ? FORM_ORBIT : "";
+            return SpellBehaviorRuleRegistry.TryGetByFormValue(form, out SpellBehaviorRules rules) ? rules.Kind : "";
         }
 
         /// <summary>속성 식별자(neutral, fire 등)에 해당하는 속성 정의 룬 ID(element.neutral 등)를 반환한다.</summary>

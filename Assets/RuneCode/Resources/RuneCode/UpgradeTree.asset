@@ -360,20 +360,6 @@ MonoBehaviour:
       _amount: 2
     - _cost: 200
       _amount: 2
-  - _id: unlock.behavior.orbit
-    _requiredStage: 1
-    _titleKey: ui.tree.unlockRune
-    _descriptionKey: ui.tree.unlockRuneDescription
-    _icon: {fileID: 0}
-    _effectType: 8
-    _runeId: behavior.orbit
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.mainboard.final
-      _requiredLevel: 1
-    _levels:
-    - _cost: 0
-      _amount: 0
   - _id: upgrade.gpu.final
     _requiredStage: 1
     _titleKey: ui.tree.gpu
@@ -2414,6 +2400,18 @@ MonoBehaviour:
     _icon: {fileID: 0}
     _effectType: 8
     _runeId: mod.homing
+    _initialLevel: 0
+    _prerequisites: []
+    _levels:
+    - _cost: 50
+      _amount: 0
+  - _id: unlock.mod.orbit
+    _requiredStage: 1
+    _titleKey: ui.tree.unlockRune
+    _descriptionKey: ui.tree.unlockRuneDescription
+    _icon: {fileID: 0}
+    _effectType: 8
+    _runeId: mod.orbit
     _initialLevel: 0
     _prerequisites: []
     _levels:
