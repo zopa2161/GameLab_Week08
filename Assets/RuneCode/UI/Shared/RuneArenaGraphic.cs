@@ -293,8 +293,11 @@ namespace RuneCode
                     RuneMesh.Line(mesh, start, end, thickness, arcColor);
                     start = end;
                 }
-                RuneMesh.Polygon(mesh, Point(spell.GetArcPoint(0)), thickness * 0.5f, arcColor);
-                RuneMesh.Polygon(mesh, Point(spell.GetArcPoint(1)), thickness * 0.5f, arcColor);
+                if (spell.ArcAngle < 360)
+                {
+                    RuneMesh.Polygon(mesh, Point(spell.GetArcPoint(0)), thickness * 0.5f, arcColor);
+                    RuneMesh.Polygon(mesh, Point(spell.GetArcPoint(1)), thickness * 0.5f, arcColor);
+                }
                 return;
             }
             if (SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)

@@ -681,7 +681,7 @@ namespace RuneCode
             SpellStats stats = action.Stats;
             if (action.Rules?.DisplayType == SpellDisplayType.ArcProjectile)
             {
-                float angle = Math.Min(360, action.ConeAngle * stats.RadiusMultiplier);
+                float angle = action.ConeAngle;
                 _view.AddNote(GameData.L("ui.spellRange") + " " + action.GetReach(stats).ToString("0.#") + "px\n"
                     + GameData.L("ui.radiateAngle") + " " + angle.ToString("0.#") + "°\n"
                     + GameData.L("ui.radiateThickness") + " " + (stats.Radius * 2).ToString("0.#") + "px\n"

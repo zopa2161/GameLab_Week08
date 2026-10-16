@@ -172,8 +172,8 @@ namespace RuneCode
                     Path(mesh,c,s,t,-13,-7,-13,7);
                     break;
                 case "behavior.radiate":
-                    Arc(mesh,c,s,t,-8,0,22,-35,35);
-                    Path(mesh,c,s,t,-12,0,3,0);
+                    Arc(mesh,c,s,t,0,0,14,0,360);
+                    Path(mesh,c,s,t,-3,0,3,0);
                     break;
                 case "mod.orbit":
                     Ring(mesh,c,s,t,0,0,12); Dot(mesh,c,s,t,0,0,4);

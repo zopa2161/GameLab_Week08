@@ -97,7 +97,6 @@ namespace RuneCode
         private readonly float _arcMultiplier;
         private readonly float _learningMultiplier;
         private readonly float _spreadAngle;
-        private readonly float _multiSpreadMultiplier;
         private readonly float _shieldAmount;
         private readonly float _shieldSeconds;
         private readonly float _coneAngle;
@@ -142,7 +141,6 @@ namespace RuneCode
         public float ArcMultiplier => _arcMultiplier;
         public float LearningMultiplier => _learningMultiplier;
         public float SpreadAngle => _spreadAngle;
-        public float MultiSpreadMultiplier => _multiSpreadMultiplier;
         public float ShieldAmount => _shieldAmount;
         public float ShieldSeconds => _shieldSeconds;
 
@@ -194,7 +192,6 @@ namespace RuneCode
             _arcMultiplier = row._arcMultiplier;
             _learningMultiplier = row._learningMultiplier;
             _spreadAngle = row._spreadAngle;
-            _multiSpreadMultiplier = row._multiSpreadMultiplier;
             _shieldAmount = row._shieldAmount;
             _shieldSeconds = row._shieldSeconds;
             _coneAngle = row._coneAngle;
@@ -962,7 +959,7 @@ namespace RuneCode
             float[] numbers = { stats.Damage, stats.Speed, stats.Radius, stats.Lifetime, stats.Offset, stats.OrbitRadius,
                 stats.AngularSpeed, stats.StationaryAngularSpeed, stats.EntrySpeed, stats.MovingLifetimeBonus, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
-                stats.LearningMultiplier, stats.SpreadAngle, stats.MultiSpreadMultiplier, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
+                stats.LearningMultiplier, stats.SpreadAngle, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
                 stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds };
             foreach (float value in numbers)
             {

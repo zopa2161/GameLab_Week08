@@ -194,7 +194,7 @@ namespace RuneCode
             _coneMesh.SetTriangles(_coneTriangles, 0);
         }
 
-        /// <summary>속이 빈 호를 실제 반경·각도·두께의 띠와 둥근 양 끝으로 표시한다.</summary>
+        /// <summary>실제 파동 반경·두께로 띠를 표시하고 완전한 원은 끝점 마감 없이 닫는다.</summary>
         private void ApplyArc(SimulationSpellEntity spell, Color tint, SimVector origin)
         {
             _coneVertices.Clear(); _coneColors.Clear(); _coneTriangles.Clear();
@@ -215,8 +215,11 @@ namespace RuneCode
                 _coneTriangles.Add(vertex - 2); _coneTriangles.Add(vertex - 1); _coneTriangles.Add(vertex + 1);
                 _coneTriangles.Add(vertex - 2); _coneTriangles.Add(vertex + 1); _coneTriangles.Add(vertex);
             }
-            AddArcCap(MissionWorldSpace.ToWorld(spell.GetArcPoint(0), origin) - offset, halfWidth, tint);
-            AddArcCap(MissionWorldSpace.ToWorld(spell.GetArcPoint(1), origin) - offset, halfWidth, tint);
+            if (spell.ArcAngle < 360)
+            {
+                AddArcCap(MissionWorldSpace.ToWorld(spell.GetArcPoint(0), origin) - offset, halfWidth, tint);
+                AddArcCap(MissionWorldSpace.ToWorld(spell.GetArcPoint(1), origin) - offset, halfWidth, tint);
+            }
             _coneMesh.Clear();
             _coneMesh.SetVertices(_coneVertices);
             _coneMesh.SetColors(_coneColors);

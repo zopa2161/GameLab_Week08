@@ -175,21 +175,20 @@
       "_name": "방사 수치",
       "_category": "internal",
       "_ram": 1,
-      "_energy": 6,
+      "_energy": 10,
       "_energyMult": 1,
       "_unlockType": "start",
       "_stats": {
-        "_damage": 15,
-        "_speed": 1440,
+        "_damage": 10,
+        "_speed": 280,
         "_radius": 6,
-        "_lifetime": 0.308,
+        "_lifetime": 0.5,
         "_count": 1,
         "_orbitRadius": 70,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1,
-        "_coneAngle": 20,
-        "_multiSpreadMultiplier": 3
+        "_coneAngle": 360
       },
       "_ports": [
         {
@@ -582,8 +581,7 @@
         "behavior.burst",
         "behavior.persist",
         "spell.call",
-        "behavior.beam",
-        "behavior.radiate"
+        "behavior.beam"
       ]
     },
     {
@@ -614,8 +612,7 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "spell.call",
-        "behavior.radiate"
+        "spell.call"
       ]
     },
     {
@@ -665,8 +662,7 @@
         "behavior.launch",
         "behavior.persist",
         "spell.call",
-        "behavior.beam",
-        "behavior.radiate"
+        "behavior.beam"
       ]
     },
     {
@@ -701,8 +697,7 @@
       "_modifierTargets": [
         "behavior.launch",
         "behavior.persist",
-        "behavior.beam",
-        "behavior.radiate"
+        "behavior.beam"
       ]
     },
     {

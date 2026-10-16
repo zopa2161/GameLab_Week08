@@ -18,6 +18,17 @@ namespace RuneCode
             SimVector target, double targetRadius)
         {
             double thickness = entity.Radius + targetRadius;
+            if (entity.ArcAngle >= 360)
+            {
+                double radius = entity.ArcRadius;
+                SimVector center = start - entity.PreviousDirection * radius;
+                double distance = (target - center).Length;
+                double growth = entity.Stats.Speed * RuneSimulation.STEP_SECONDS;
+                if (distance + thickness < radius - EPSILON || distance - thickness > radius + growth + EPSILON)
+                    return double.PositiveInfinity;
+                if (growth <= EPSILON) return 0;
+                return Math.Max(0, Math.Min(1, (distance - thickness - radius) / growth));
+            }
             double first = (ClosestArcPoint(entity, start, end, 0, target) - target).Length - thickness;
             if (first <= EPSILON) return 0;
             double last = (ClosestArcPoint(entity, start, end, 1, target) - target).Length - thickness;

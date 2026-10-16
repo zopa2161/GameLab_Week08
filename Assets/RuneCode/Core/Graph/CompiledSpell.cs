@@ -332,7 +332,6 @@ namespace RuneCode
                     && modifierGrades.TryGetLaunchSpreadAngle(mod.Id, grade, out float launchSpread)) _spreadAngle = launchSpread;
                 else if (stats.SpreadAngle > 0f) _spreadAngle = stats.SpreadAngle;
             }
-            _spreadAngle *= form.MultiSpreadMultiplier;
             _damage = form.Damage * damageMult;
             _speed = form.Speed * speedMult;
             if (_isArc) _speed *= radiusMult;
@@ -648,7 +647,7 @@ namespace RuneCode
             foreach (SpellModifierRules modifierRules in _modifierRules) reach = modifierRules.ModifyReach(_rules, stats, reach);
             if (_rules.DisplayType == SpellDisplayType.ArcProjectile && _spawnOrigin == SpellSpawnOrigin.Orbit)
             {
-                double angle = Math.Min(360, _coneAngle * stats.RadiusMultiplier);
+                double angle = _coneAngle;
                 reach += (float)(2 * stats.Speed * stats.Lifetime * Math.Sin(angle * Math.PI / 720));
             }
             return reach;

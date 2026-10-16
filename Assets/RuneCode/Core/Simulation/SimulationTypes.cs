@@ -514,14 +514,14 @@ namespace RuneCode
         /// <summary>부채꼴인지 나타낸다. 판정·그리기는 꼭짓점(ConeApex)에서 진행 방향으로 펼친 부채꼴이다.</summary>
         public bool IsCone => _action.MagicType == SpellGrammar.MAGIC_TYPE_CONE;
 
-        /// <summary>속이 빈 호 모양으로 이동하는 방사 투사체인지 반환한다.</summary>
+        /// <summary>생성 위치를 중심으로 원형 파동이 확장하는 방사 투사체인지 반환한다.</summary>
         public bool IsArc => _action.Rules?.DisplayType == SpellDisplayType.ArcProjectile;
 
-        /// <summary>방사의 생성 후 시간에 따른 호 반경이다. 유도·공전의 실제 이동 거리와 독립적으로 증가한다.</summary>
+        /// <summary>방사의 생성 후 시간과 확장·속도 배율을 반영한 파동 반경이다.</summary>
         public double ArcRadius => _stats.Speed * _age;
 
-        /// <summary>확장 배율을 적용한 방사의 전체 각도다. 한 바퀴를 넘지 않는다.</summary>
-        public double ArcAngle => Math.Min(360, _action.ConeAngle * _stats.RadiusMultiplier);
+        /// <summary>확장 배율에 영향받지 않는 방사의 고정 전체 각도다.</summary>
+        public double ArcAngle => _action.ConeAngle;
 
         /// <summary>호 중심선의 두께다. 기본 발사체 지름에 기존 확장 배율을 적용한다.</summary>
         public double ArcThickness => _stats.Radius * 2;
