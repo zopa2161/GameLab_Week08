@@ -113,6 +113,12 @@
         "A": 2,
         "S": 1
       }
+    },
+    {
+      "_modifierId": "mod.sequence",
+      "_name": "연속",
+      "_effectType": "waveCount",
+      "_gradeValues": { "C": 2, "B": 2, "A": 3, "S": 4 }
     }
   ],
   "_stageDropTables": [

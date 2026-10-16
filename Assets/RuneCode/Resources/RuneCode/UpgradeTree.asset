@@ -2417,6 +2417,18 @@ MonoBehaviour:
     _levels:
     - _cost: 50
       _amount: 0
+  - _id: unlock.mod.sequence
+    _requiredStage: 1
+    _titleKey: ui.tree.unlockRune
+    _descriptionKey: ui.tree.unlockRuneDescription
+    _icon: {fileID: 0}
+    _effectType: 8
+    _runeId: mod.sequence
+    _initialLevel: 0
+    _prerequisites: []
+    _levels:
+    - _cost: 50
+      _amount: 0
   - _id: unlock.mod.orbit
     _requiredStage: 1
     _titleKey: ui.tree.unlockRune

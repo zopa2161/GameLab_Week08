@@ -104,6 +104,8 @@ namespace RuneCode
         private readonly float _warnSeconds;
         private readonly float _beamWidth;
         private readonly float _beamLength;
+        private readonly int _waveCount;
+        private readonly float _waveInterval;
 
         public float Damage => _damage;
         public float Speed => _speed;
@@ -159,6 +161,12 @@ namespace RuneCode
         /// <summary>Beam Shape의 고정 길이(px)다. Beam Shape가 아닌 룬은 0이다.</summary>
         public float BeamLength => _beamLength;
 
+        /// <summary>연속 모드가 행동을 반복하는 회차 수다. 데이터가 없으면 0이다.</summary>
+        public int WaveCount => _waveCount;
+
+        /// <summary>연속 모드의 회차 사이 간격(초)이다. 데이터가 없으면 0이다.</summary>
+        public float WaveInterval => _waveInterval;
+
         /// <summary>룬 데이터의 수치 항목으로 효과 수치를 만든다. JSON에 없는 필드는 배율이면 1, 그 외는 0이다.</summary>
         internal RuneStats(RuneStatsData row)
         {
@@ -199,6 +207,8 @@ namespace RuneCode
             _warnSeconds = row._warnSeconds;
             _beamWidth = row._beamWidth;
             _beamLength = row._beamLength;
+            _waveCount = row._waveCount;
+            _waveInterval = row._waveInterval;
         }
     }
 
@@ -969,7 +979,7 @@ namespace RuneCode
                 stats.AngularSpeed, stats.StationaryAngularSpeed, stats.EntrySpeed, stats.MovingLifetimeBonus, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
                 stats.LearningMultiplier, stats.SpreadAngle, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
-                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds };
+                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds, stats.WaveInterval };
             foreach (float value in numbers)
             {
                 if (value < 0f)
@@ -985,7 +995,7 @@ namespace RuneCode
             if (rune.Id == "mod.knockback" && (stats.KnockbackReferenceDamage <= 0f
                 || float.IsNaN(stats.KnockbackReferenceDamage) || float.IsInfinity(stats.KnockbackReferenceDamage)))
                 log.Add(rune.Id, field, "밀어내기 기준 피해는 유한한 양수여야 합니다.");
-            if (stats.Count < 0 || stats.Pierce < 0 || stats.ArcTargets < 0
+            if (stats.Count < 0 || stats.Pierce < 0 || stats.ArcTargets < 0 || stats.WaveCount < 0
                 || (rune.Category == "form" && (stats.Count <= 0 || stats.Damage <= 0f || stats.Radius <= 0f)))
                 log.Add(rune.Id, field, "유효하지 않은 형태 룬 수치입니다 (form은 count·damage·radius가 0보다 커야 함).");
             if (rune.Id == SpellGrammar.CONE_RUNE && (stats.ConeAngle <= 0f || stats.ConeAngle > 360f))

@@ -17,7 +17,7 @@ const VOCAB = {
   stageType: ["normal", "boss"],
   dropType: ["fragments", "modifier", "none"],
   ramMode: ["shared", "perSpell"],
-  effectType: ["effectMultiplier", "multipleCount", "pierceCount", "radiusMultiplier", "durationMultiplier", "speedMultiplier", "homingTier"],
+  effectType: ["effectMultiplier", "multipleCount", "pierceCount", "radiusMultiplier", "durationMultiplier", "speedMultiplier", "homingTier", "waveCount"],
   grade: ["C", "B", "A", "S"],
 };
 
@@ -44,6 +44,7 @@ const LABELS = {
   _angularSpeed: "각속도", _hitInterval: "재적중 간격", _tickInterval: "틱 간격",
   _damageMultiplier: "피해 배율", _radiusMultiplier: "반경 배율", _pierce: "관통", _pierceLoss: "관통 감소",
   _homingTurn: "유도 회전", _homingRange: "유도 거리", _orbitTargetCount: "공전 대상 수", _arcRange: "연쇄 거리", _arcTargets: "연쇄 대상",
+  _waveCount: "회차 수", _waveInterval: "회차 간격",
   _arcMultiplier: "연쇄 배율", _learningMultiplier: "학습 배율", _spreadAngle: "발사 각도",
   _shieldAmount: "보호막량", _shieldSeconds: "보호막 지속", _coneAngle: "부채꼴 각도",
   _expandSeconds: "확장 시간", _warnSeconds: "예고 시간",
@@ -169,6 +170,7 @@ const SCHEMAS = {
     { k: "_expandSeconds", label: "확장 시간", type: "number" }, { k: "_warnSeconds", label: "예고 시간", type: "number" },
     { k: "_speedMultiplier", label: "속도 배율", type: "number" }, { k: "_durationMultiplier", label: "지속 배율", type: "number" },
     { k: "_beamWidth", label: "빔 폭(Beam Shape)", type: "number" }, { k: "_beamLength", label: "빔 길이(Beam Shape)", type: "number" },
+    { k: "_waveCount", label: "회차 수", type: "number" }, { k: "_waveInterval", label: "회차 간격", type: "number" },
   ],
   enemies: {
     columns: ["_id", "_movement", "_attack", "_hp", "_damage", "_reward"],

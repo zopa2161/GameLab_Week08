@@ -13,7 +13,8 @@ namespace RuneCode
             new MultiModifierRuntime(),
             new HomingModifierRuntime(),
             new PierceModifierRuntime(),
-            new OrbitModifierRuntime()
+            new OrbitModifierRuntime(),
+            new SequenceModifierRuntime()
         };
         private static readonly SpellModifierRuntime[] NONE = Array.Empty<SpellModifierRuntime>();
 

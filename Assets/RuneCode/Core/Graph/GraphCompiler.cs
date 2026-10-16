@@ -633,6 +633,10 @@ namespace RuneCode
         private static ResourceCostSet UnboundedCost(ResourceCostSet chainCost)
             => HasCosts(chainCost) ? chainCost.MarkUnbounded() : ResourceCostSet.Empty;
 
+        /// <summary>연속 모드 회차를 포함한 spawn 동작의 총 생성 수를 반환한다. 호출·적용 동작은 쓰지 않는다.</summary>
+        private static long SpawnInstanceCount(SpellAction action)
+            => (long)action.Count * action.WaveCount;
+
         /// <summary>
         /// 최악 분기와 이벤트 횟수를 포함한 에너지 비용을 합산한다. 발사체는 명중 경로(OnHit)와 미명중 소멸 경로(OnExpire)가
         /// 서로 배타적이라 큰 쪽만 더하고, OnFirstHitOrExpire는 개체당 한 번 더한다. OnHit 횟수에 상한이 없으면 후속 비용을 산정 불가로 표시한다.
@@ -665,7 +669,7 @@ namespace RuneCode
                         ResourceCostSet eventCost = HasExclusiveHitAndExpire(action)
                             ? ResourceCostSet.Max(hitCost, expireCost) : hitCost.Add(expireCost);
                         sum = sum.Add(ownCosts).Add(eventCost.Add(Cost(action.OnFirstHitOrExpire,
-                            inheritedModifiers, costMultiplier)).Multiply(action.Count));
+                            inheritedModifiers, costMultiplier)).Multiply(SpawnInstanceCount(action)));
                         break;
                     case "buff": sum = sum.Add(ownCosts).Add(Cost(action.OnFirstHitOrExpire,
                         inheritedModifiers, costMultiplier).Multiply(action.Count)); break;
@@ -720,7 +724,7 @@ namespace RuneCode
                         long pathWork = HasExclusiveHitAndExpire(action) ? Math.Max(hitWork, expireWork) : AddBounded(hitWork, expireWork, limit);
                         long eventWork = AddBounded(pathWork, EntityCount(action.OnFirstHitOrExpire), limit);
                         long perEntityWork = AddBounded(1L, eventWork, limit);
-                        count = MultiplyBounded(action.Count, perEntityWork, limit);
+                        count = MultiplyBounded(SpawnInstanceCount(action), perEntityWork, limit);
                         break;
                     case "buff": count = MultiplyBounded(action.Count, EntityCount(action.OnFirstHitOrExpire), limit); break;
                     case "call":
@@ -757,7 +761,7 @@ namespace RuneCode
                         long expireWork = ActionCount(action.OnExpire, saturation);
                         long pathWork = HasExclusiveHitAndExpire(action) ? Math.Max(hitWork, expireWork) : AddBounded(hitWork, expireWork, saturation);
                         long eventWork = AddBounded(pathWork, ActionCount(action.OnFirstHitOrExpire, saturation), saturation);
-                        count = AddBounded(count, MultiplyBounded(action.Count, eventWork, saturation), saturation);
+                        count = AddBounded(count, MultiplyBounded(SpawnInstanceCount(action), eventWork, saturation), saturation);
                         break;
                     case "buff": count = AddBounded(count, MultiplyBounded(action.Count,
                         ActionCount(action.OnFirstHitOrExpire, saturation), saturation), saturation); break;

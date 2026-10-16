@@ -583,6 +583,8 @@ namespace RuneCode
                     state.Append("|iteration");
                     foreach (SpellAction action in pending.Actions) state.Append('|').Append(action.NodeId);
                 }
+                else if (pending.Wave > 0)
+                    state.Append("|wave:").Append(pending.Action.NodeId).Append(':').Append(pending.Wave);
                 else state.Append("|finish:").Append(pending.Action.NodeId);
                 AppendNumber(state, pending.Context.Origin.X); AppendNumber(state, pending.Context.Origin.Y);
                 AppendNumber(state, pending.Context.Direction.X); AppendNumber(state, pending.Context.Direction.Y);
@@ -654,7 +656,7 @@ namespace RuneCode
             for (int slot = 0; slot < _loadout.Length; slot++) TryCastTriggered(_loadout[slot], trigger, slot);
         }
 
-        /// <summary>현재 틱에 도달한 노드 완료와 Repeat 회차 예약을 등록 순서대로 적용한다.</summary>
+        /// <summary>현재 틱에 도달한 노드 완료, Repeat 회차와 연속 회차 예약을 등록 순서대로 적용한다.</summary>
         private void RunScheduled()
         {
             for (int i = 0; i < _scheduled.Count;)
@@ -674,7 +676,24 @@ namespace RuneCode
                     if (scope.IsFailed) ReleaseRepeat(scope);
                     else StartRepeatIteration(pending.Actions, pending.Context, scope);
                 }
+                else if (pending.Wave > 0) RunSequenceWave(pending);
                 else CompleteAction(pending.Action, pending.Context, pending.Tracker);
+            }
+        }
+
+        /// <summary>연속 회차 예약을 위치·조준 재계산과 함께 비용 없이 실행하고 완료 추적을 해제한다.</summary>
+        private void RunSequenceWave(ScheduledExecution pending)
+        {
+            pending.Tracker.BeginDispatch();
+            try
+            {
+                SpellContext context = GetEffectContext(pending.Context, pending.Tracker);
+                SpawnForm(pending.Action, context, pending.Tracker, pending.Wave);
+            }
+            finally
+            {
+                pending.Tracker.Release();
+                pending.Tracker.EndDispatch();
             }
         }
 
@@ -948,10 +967,15 @@ namespace RuneCode
         /// <summary>
         /// 행동 실행 동작에 따라 개체 수만큼 배치·예열 시간을 정해 마법 개체를 생성하고 생성 직후 처리를 실행한다.
         /// 배치는 배치 모드(행동 배치 전) → 행동 PlaceSpawn → 배치 모드(행동 배치 후) 순서다. 이벤트 앵커와 노이즈 속성을 반영한다.
+        /// wave가 0이면 첫 회차로 부착 노드를 기록하고 연속의 남은 회차를 예약하며, 0보다 크면 기록·재예약 없이 개체만 다시 만든다.
         /// </summary>
-        private void SpawnForm(SpellAction action, SpellContext context, ExecutionTracker tracker)
+        private void SpawnForm(SpellAction action, SpellContext context, ExecutionTracker tracker, int wave = 0)
         {
-            foreach (string attachedNodeId in action.AttachedNodeIds) RecordNode(attachedNodeId);
+            if (wave == 0)
+            {
+                foreach (string attachedNodeId in action.AttachedNodeIds) RecordNode(attachedNodeId);
+                ScheduleSequenceWaves(action, context, tracker);
+            }
             string element = action.Noise ? ChooseNoiseElement(context) : action.Element;
             SpellStats stats = action.Stats.Apply(context.Modifiers);
             SpellBehaviorRuntime behavior = SpellBehaviorRuntimeRegistry.Get(action.Form);
@@ -992,6 +1016,26 @@ namespace RuneCode
                 _spellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _spellEntities.Count);
                 if (channel != null) ((BeamBehaviorRuntime.BeamState)entity.BehaviorState).Attach(channel);
                 behavior.OnSpawned(this, entity);
+            }
+        }
+
+        /// <summary>
+        /// 연속 모드가 붙은 spawn의 남은 회차를 회차 간격 뒤로 예약한다. 빔에는 적용하지 않으며,
+        /// 예약 상한을 넘은 회차는 추적을 걸지 않고 버리고 dropped 실행 수만 센다.
+        /// </summary>
+        private void ScheduleSequenceWaves(SpellAction action, SpellContext context, ExecutionTracker tracker)
+        {
+            if (action.WaveCount <= 1 || action.Form == BeamBehaviorRules.BEAM_KIND) return;
+            int waveTicks = Math.Max(1, GetExecutionDelayTicks(action.WaveInterval * _balance.Sim.ExecutionTimeScale));
+            for (int wave = 1; wave < action.WaveCount; wave++)
+            {
+                if (_scheduled.Count >= _balance.Limits.MaxScheduledExecutions)
+                {
+                    _droppedExecutions++;
+                    continue;
+                }
+                tracker.Acquire();
+                _scheduled.Add(new ScheduledExecution(_tick + waveTicks * wave, action, context, tracker, wave));
             }
         }
 
@@ -2352,6 +2396,7 @@ namespace RuneCode
             private readonly SpellContext _context;
             private readonly bool _isIteration;
             private readonly bool _isBranchStart;
+            private readonly int _wave;
             private readonly ExecutionTracker _tracker;
             public int Tick => _tick;
             public IReadOnlyList<SpellAction> Actions => _actions;
@@ -2363,17 +2408,24 @@ namespace RuneCode
             public bool IsIteration => _isIteration;
             public bool IsBranchStart => _isBranchStart;
 
+            /// <summary>연속 모드가 다시 생성할 회차 번호다. 0이면 회차 예약이 아니다.</summary>
+            public int Wave => _wave;
+
             /// <summary>목표 틱, Repeat 실행 목록, 컨텍스트와 회차 여부를 예약 실행 데이터에 보관한다.</summary>
             public ScheduledExecution(int tick, IReadOnlyList<SpellAction> actions, SpellContext context, bool isIteration)
-            { _tick = tick; _actions = actions; _action = null; _context = context; _isIteration = isIteration; _isBranchStart = false; _tracker = null; }
+            { _tick = tick; _actions = actions; _action = null; _context = context; _isIteration = isIteration; _isBranchStart = false; _wave = 0; _tracker = null; }
 
             /// <summary>목표 틱, 완료할 노드, 문맥과 실행 추적기를 저장한다.</summary>
             public ScheduledExecution(int tick, SpellAction action, SpellContext context, ExecutionTracker tracker)
-            { _tick = tick; _actions = null; _action = action; _context = context; _isIteration = false; _isBranchStart = false; _tracker = tracker; }
+            { _tick = tick; _actions = null; _action = action; _context = context; _isIteration = false; _isBranchStart = false; _wave = 0; _tracker = tracker; }
 
             /// <summary>Stores a root branch scheduled to start after the other root branches.</summary>
             public ScheduledExecution(int tick, SpellAction action, SpellContext context, ExecutionTracker tracker, bool isBranchStart)
-            { _tick = tick; _actions = null; _action = action; _context = context; _isIteration = false; _isBranchStart = isBranchStart; _tracker = tracker; }
+            { _tick = tick; _actions = null; _action = action; _context = context; _isIteration = false; _isBranchStart = isBranchStart; _wave = 0; _tracker = tracker; }
+
+            /// <summary>목표 틱, 다시 생성할 노드, 문맥, 실행 추적기와 회차 번호를 연속 회차 예약 데이터에 보관한다.</summary>
+            public ScheduledExecution(int tick, SpellAction action, SpellContext context, ExecutionTracker tracker, int wave)
+            { _tick = tick; _actions = null; _action = action; _context = context; _isIteration = false; _isBranchStart = false; _wave = wave; _tracker = tracker; }
         }
 
         private readonly struct DamageSample

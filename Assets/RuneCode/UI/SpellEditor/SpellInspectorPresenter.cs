@@ -47,6 +47,7 @@ namespace RuneCode
                 case "mod.pierce": effect = "적을 관통해 뒤쪽 대상도 타격합니다."; break;
                 case "mod.homing": effect = "탐색 범위 안의 적을 향해 방향을 조정합니다."; break;
                 case "mod.orbit": effect = "생성된 개체가 시전자 주위 궤도를 돕니다."; break;
+                case "mod.sequence": effect = "약간의 간격을 두고 같은 행동을 반복 실행합니다."; break;
                 case "mod.expand": effect = "효과 범위를 넓힙니다."; break;
                 case "mod.speed": effect = "이동 속도를 높입니다."; break;
                 case "mod.duration": effect = "효과의 지속시간을 늘립니다."; break;
@@ -73,6 +74,7 @@ namespace RuneCode
                     {
                         case "effectMultiplier": label = " 효과 배율 ×"; break;
                         case "multipleCount": label = " 생성 개수 "; break;
+                        case "waveCount": label = " 실행 회차 "; break;
                         case "pierceCount": label = " 관통 횟수 "; break;
                         case "radiusMultiplier": label = " 범위 배율 ×"; break;
                         case "durationMultiplier": label = " 지속시간 배율 ×"; break;
@@ -456,7 +458,9 @@ namespace RuneCode
             {
                 var impact = new List<string>();
                 if (stats.Damage > 0f) impact.Add(GameData.L("ui.runeDamage") + " " + stats.Damage.ToString("0.##"));
-                if (action.Kind == "spawn" && action.Count > 0) impact.Add(GameData.L("ui.runeCount") + " " + action.Count);
+                if (action.Kind == "spawn" && action.Count > 0)
+                    impact.Add(GameData.L("ui.runeCount") + " " + action.Count
+                        + (action.WaveCount > 1 ? " × " + action.WaveCount : string.Empty));
                 if (impact.Count > 0) lines.Add(string.Join(" · ", impact));
 
                 if (action.MagicType == SpellGrammar.MAGIC_TYPE_BOX)
@@ -600,6 +604,7 @@ namespace RuneCode
             {
                 case "effectMultiplier": AddMultiplier(values, "ui.gradeDamage", gradeValue); break;
                 case "multipleCount": values.Add(GameData.L("ui.gradeCount") + " " + gradeValue); break;
+                case "waveCount": values.Add(GameData.L("ui.gradeWaveCount") + " " + gradeValue); break;
                 case "pierceCount": values.Add(GameData.L("ui.gradePierce") + " " + gradeValue); break;
                 case "radiusMultiplier": AddMultiplier(values, "ui.gradeRadius", gradeValue); break;
                 case "durationMultiplier": AddMultiplier(values, "ui.gradeDuration", gradeValue); break;
@@ -636,6 +641,11 @@ namespace RuneCode
                 if (stats.SpreadAngle > 0f) values.Add(GameData.L("ui.gradeSpread") + " " + stats.SpreadAngle.ToString("0.#") + "°");
                 if (grades.TryGetLaunchSpreadAngle(rune.Id, grade, out float launchSpread))
                     values.Add(GameData.L("ui.gradeLaunchSpread") + " " + launchSpread.ToString("0.#") + "°");
+            }
+            if (rune.Id == "mod.sequence")
+            {
+                if (stats.DamageMultiplier != 1f) values.Add(GameData.L("ui.gradeDamage") + " ×" + stats.DamageMultiplier.ToString("0.##"));
+                if (stats.WaveInterval > 0f) values.Add(GameData.L("ui.gradeWaveInterval") + " " + stats.WaveInterval.ToString("0.##") + "s");
             }
             if (rune.Id == "mod.expand" && stats.DamageMultiplier != 1f)
                 values.Add(GameData.L("ui.gradeDamage") + " ×" + stats.DamageMultiplier.ToString("0.##"));
