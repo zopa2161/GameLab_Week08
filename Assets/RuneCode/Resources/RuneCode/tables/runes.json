@@ -617,7 +617,6 @@
       "_category": "modifier",
       "_ram": 1,
       "_energy": 0,
-      "_energyMult": 1.5,
       "_executionSeconds": 0,
       "_unlockType": "bench",
       "_unlockCost": 50,
