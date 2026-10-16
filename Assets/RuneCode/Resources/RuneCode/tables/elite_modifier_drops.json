@@ -108,10 +108,10 @@
       "_name": "공전",
       "_effectType": "orbitPath",
       "_gradeValues": {
-        "C": 4,
-        "B": 3,
-        "A": 2,
-        "S": 1
+        "C": 1,
+        "B": 2,
+        "A": 3,
+        "S": 4
       }
     }
   ],
