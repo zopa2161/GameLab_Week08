@@ -8,7 +8,7 @@ namespace RuneCode
     /// 적에게 맞으면 기본적으로 소멸하며, 관통은 적중 모드가 처리한다.
     /// 첫 적중·소멸 이벤트를 추적하며 직접 충돌한 발사체는 소멸 이벤트를 내지 않는다.
     /// </summary>
-    internal sealed class LaunchBehaviorRuntime : SpellBehaviorRuntime
+    internal class LaunchBehaviorRuntime : SpellBehaviorRuntime
     {
         public override string Kind => SpellGrammar.FORM_BOLT;
         public override bool TracksDirectHit => true;
@@ -40,59 +40,55 @@ namespace RuneCode
             SimVector previous = entity.PreviousPosition;
             SimVector next = entity.Position;
             // 사각형 발사체는 앞면 중심과 폭으로 벽을 검사하고 보호막은 전체 모양의 이동 경로로 검사한다.
-            SimVector front = entity.IsBox ? direction.Normalized() * (stats.BoxLength * 0.5) : SimVector.Zero;
-            double collisionRadius = entity.IsBox ? stats.BoxWidth * 0.5 : entity.Radius;
             // 공전 궤도·진입처럼 벽을 무시하는 경로로 움직인 틱에는 벽 충돌을 판정하지 않는다.
             double wallFraction = entity.IsPassingWalls ? double.PositiveInfinity
-                : simulation.FirstWallFraction(previous + front, next + front, collisionRadius);
+                : GetWallContactFraction(simulation, entity, previous, next, direction);
             double shieldFraction = double.PositiveInfinity;
             SimulationEnemy shieldOwner = null;
             for (int index = 0; index < enemies.Count; index++)
             {
                 SimulationEnemy shield = enemies[index];
                 if (!shield.IsAlive || !shield.Definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD)) continue;
-                SimVector fromShield = previous - shield.Position;
-                if (fromShield.Length < shield.Definition.ShieldRadius - RuneSimulation.COLLISION_EPSILON || SimVector.Dot(next - previous, fromShield) >= 0) continue;
-                double fraction = SpellGeometry.SpellContactFraction(entity, previous, next, direction, shield.Position, shield.Definition.ShieldRadius);
+                if (!CanHitShield(entity, previous, next, shield)) continue;
+                double fraction = GetContactFraction(entity, previous, next, direction, shield.Position, shield.Definition.ShieldRadius);
                 if (fraction < shieldFraction) { shieldFraction = fraction; shieldOwner = shield; }
             }
             double stopFraction = Math.Min(wallFraction, shieldFraction);
-            var targets = new List<SimulationEnemy>();
+            var targets = new List<ProjectileContact>();
             for (int index = 0; index < enemies.Count; index++)
             {
                 SimulationEnemy enemy = enemies[index];
-                bool isInside = entity.IsCone
-                    ? SpellGeometry.IntersectsConeSweep(previous, next, direction, entity.Radius, entity.ConeAngle, enemy.Position, enemy.Radius)
-                    : entity.IsBox
-                    ? SpellGeometry.IntersectsBoxSweep(previous, next, direction, entity.Stats.BoxWidth * 0.5,
-                        entity.Stats.BoxLength * 0.5, enemy.Position, enemy.Radius)
-                    : SpellGeometry.SegmentDistance(previous, next, enemy.Position) <= entity.Radius + enemy.Radius;
-                if (enemy.IsAlive && !entity.HitTimes.ContainsKey(enemy.Id) && isInside) targets.Add(enemy);
+                if (!enemy.IsAlive || entity.HitTimes.ContainsKey(enemy.Id)) continue;
+                double fraction = GetContactFraction(entity, previous, next, direction, enemy.Position, enemy.Radius);
+                if (!double.IsPositiveInfinity(fraction)) targets.Add(new ProjectileContact(enemy, fraction));
             }
             targets.Sort((a, b) =>
             {
-                int distanceOrder = SpellGeometry.SpellContactFraction(entity, previous, next, direction, a.Position, a.Radius)
-                    .CompareTo(SpellGeometry.SpellContactFraction(entity, previous, next, direction, b.Position, b.Radius));
-                return distanceOrder != 0 ? distanceOrder : a.Id.CompareTo(b.Id);
+                int distanceOrder = a.Fraction.CompareTo(b.Fraction);
+                return distanceOrder != 0 ? distanceOrder : a.Enemy.Id.CompareTo(b.Enemy.Id);
             });
-            foreach (SimulationEnemy enemy in targets)
+            foreach (ProjectileContact target in targets)
             {
+                SimulationEnemy enemy = target.Enemy;
                 if (!enemy.IsAlive) continue;
-                if (SpellGeometry.SpellContactFraction(entity, previous, next, direction, enemy.Position, enemy.Radius) + RuneSimulation.COLLISION_EPSILON >= stopFraction) break;
+                if (target.Fraction + RuneSimulation.COLLISION_EPSILON >= stopFraction) break;
                 // 발사체는 기본적으로 첫 적중에 소멸한다. 관통 등 적중 모드가 피해와 소멸 여부를 고친다.
                 double damage = stats.Damage;
                 bool isConsumed = true;
                 entity.ApplyHitModifiers(simulation, enemy, ref damage, ref isConsumed);
                 entity.HitTimes[enemy.Id] = simulation.Time; simulation.Hit(entity, enemy, damage, false); entity.Hits++;
-                simulation.RaiseHitEvent(entity, enemy.Position, enemy);
-                if (isConsumed) { entity.Move(enemy.Position, direction); entity.HasExpired = true; break; }
+                SimVector contact = GetContactPoint(entity, previous, next, direction, target.Fraction, enemy.Position);
+                simulation.RaiseHitEvent(entity, contact, enemy);
+                if (isConsumed) { entity.Move(contact, direction); entity.HasExpired = true; break; }
             }
             if (!entity.HasExpired && !double.IsPositiveInfinity(stopFraction))
             {
                 SimVector contact = previous + (next - previous) * stopFraction;
                 entity.Move(contact, direction); entity.HasDirectHit = true; entity.HasExpired = true;
-                if (wallFraction < shieldFraction) simulation.RaiseHitEvent(entity, contact + front, null);
-                else simulation.RaiseShieldHitEvent(entity, contact, shieldOwner);
+                SimVector eventPoint = GetObstacleContactPoint(simulation, entity, previous, next, direction, stopFraction,
+                    wallFraction < shieldFraction ? null : shieldOwner);
+                if (wallFraction < shieldFraction) simulation.RaiseHitEvent(entity, eventPoint, null);
+                else simulation.RaiseShieldHitEvent(entity, eventPoint, shieldOwner);
             }
         }
 
@@ -102,5 +98,51 @@ namespace RuneCode
 
         /// <summary>발사체 부채꼴의 반경이다. 중심 앞뒤로 반경씩인 지름이다.</summary>
         public override double GetConeReach(SimulationSpellEntity entity) => entity.Stats.Radius * 2;
+
+        /// <summary>투사체의 기본 원형 반폭 또는 사각 앞면으로 첫 벽 접촉 비율을 반환한다.</summary>
+        protected virtual double GetWallContactFraction(RuneSimulation simulation, SimulationSpellEntity entity,
+            SimVector previous, SimVector next, SimVector direction)
+        {
+            SimVector front = entity.IsBox ? direction.Normalized() * (entity.Stats.BoxLength * 0.5) : SimVector.Zero;
+            double radius = entity.IsBox ? entity.Stats.BoxWidth * 0.5 : entity.Radius;
+            return simulation.FirstWallFraction(previous + front, next + front, radius);
+        }
+
+        /// <summary>기존 투사체 모양과 대상 원의 첫 접촉 비율을 반환한다.</summary>
+        protected virtual double GetContactFraction(SimulationSpellEntity entity, SimVector previous,
+            SimVector next, SimVector direction, SimVector target, double targetRadius)
+            => SpellGeometry.SpellContactFraction(entity, previous, next, direction, target, targetRadius);
+
+        /// <summary>기존 발사체는 적 중심을 적중 사건 위치로 사용한다.</summary>
+        protected virtual SimVector GetContactPoint(SimulationSpellEntity entity, SimVector previous,
+            SimVector next, SimVector direction, double fraction, SimVector target) => target;
+
+        /// <summary>보호막 밖에서 보호막을 향해 이동하는 경우에만 차단을 검사한다.</summary>
+        protected virtual bool CanHitShield(SimulationSpellEntity entity, SimVector previous, SimVector next, SimulationEnemy shield)
+        {
+            SimVector offset = previous - shield.Position;
+            return offset.Length >= shield.Definition.ShieldRadius - RuneSimulation.COLLISION_EPSILON
+                && SimVector.Dot(next - previous, offset) < 0;
+        }
+
+        /// <summary>기존 발사체는 벽에서 사각 앞면, 보호막에서 투사체 중심을 사건 위치로 사용한다.</summary>
+        protected virtual SimVector GetObstacleContactPoint(RuneSimulation simulation, SimulationSpellEntity entity,
+            SimVector previous, SimVector next, SimVector direction, double fraction, SimulationEnemy shield)
+        {
+            SimVector contact = previous + (next - previous) * fraction;
+            return shield == null && entity.IsBox ? contact + direction.Normalized() * (entity.Stats.BoxLength * 0.5) : contact;
+        }
+
+        /// <summary>이번 틱에 한 번 계산한 적 접촉 비율을 정렬과 피해 처리에서 공유한다.</summary>
+        private readonly struct ProjectileContact
+        {
+            private readonly SimulationEnemy _enemy;
+            private readonly double _fraction;
+            public SimulationEnemy Enemy => _enemy;
+            public double Fraction => _fraction;
+
+            /// <summary>대상 적과 이동 구간의 최초 접촉 비율을 보관한다.</summary>
+            public ProjectileContact(SimulationEnemy enemy, double fraction) { _enemy = enemy; _fraction = fraction; }
+        }
     }
 }

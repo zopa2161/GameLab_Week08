@@ -54,6 +54,7 @@ namespace RuneCode
                 case "behavior.burst": effect = "범위에 폭발 효과를 줍니다."; break;
                 case "behavior.persist": effect = "효과를 남겨 일정 시간 유지합니다."; break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
+                case "behavior.radiate": effect = GameData.L("ui.radiateHint"); break;
                 case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
                 default: effect = string.Empty; break;
             }
@@ -673,6 +674,15 @@ namespace RuneCode
         {
             if (action?.Stats == null) return;
             SpellStats stats = action.Stats;
+            if (action.Rules?.DisplayType == SpellDisplayType.ArcProjectile)
+            {
+                float angle = Math.Min(360, action.ConeAngle * stats.RadiusMultiplier);
+                _view.AddNote(GameData.L("ui.spellRange") + " " + action.GetReach(stats).ToString("0.#") + "px\n"
+                    + GameData.L("ui.radiateAngle") + " " + angle.ToString("0.#") + "°\n"
+                    + GameData.L("ui.radiateThickness") + " " + (stats.Radius * 2).ToString("0.#") + "px\n"
+                    + GameData.L("ui.spellSpeed") + " " + stats.Speed.ToString("0.#") + "px/s", 90, 6);
+                return;
+            }
             if (action.Form == BeamBehaviorRules.BEAM_KIND)
             {
                 _view.AddNote(GameData.L("ui.beamMapRange") + "\n" + GameData.L("ui.beamCurveLength") + " "

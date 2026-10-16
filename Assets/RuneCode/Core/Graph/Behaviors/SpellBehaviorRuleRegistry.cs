@@ -12,7 +12,8 @@ namespace RuneCode
             new LaunchBehaviorRules(),
             new BurstBehaviorRules(),
             new PersistBehaviorRules(),
-            new BeamBehaviorRules()
+            new BeamBehaviorRules(),
+            new RadiateBehaviorRules()
         };
 
         /// <summary>등록된 모든 행동 규칙이다.</summary>

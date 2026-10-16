@@ -1,5 +1,10 @@
 {
   "_entries": [
+    {"_key": "tag.radiate", "_value": "방사"},
+    {"_key": "form.radiate", "_value": "방사"},
+    {"_key": "ui.radiateHint", "_value": "속이 빈 호 모양의 투사체를 발사합니다. 시간에 따라 호가 커지며, 투사체 하나가 관통 횟수를 공유합니다."},
+    {"_key": "ui.radiateAngle", "_value": "호 전체 각도"},
+    {"_key": "ui.radiateThickness", "_value": "호 두께"},
     { "_key": "tag.beam", "_value": "빔" },
     { "_key": "form.beam", "_value": "빔" },
     { "_key": "ui.beamInitialCost", "_value": "최소 유지 마나" },
