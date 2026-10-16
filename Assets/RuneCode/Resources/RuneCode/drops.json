@@ -58,6 +58,12 @@
           "_weight": 3
         },
         {
+          "_type": "behavior",
+          "_id": "behavior.radiate",
+          "_count": 1,
+          "_weight": 3
+        },
+        {
           "_type": "none",
           "_weight": 49
         }

@@ -1,7 +1,7 @@
         namespace RuneCode
 {
     /// <summary>발사 행동 규칙이다. 지팡이 앞에서 진행 방향으로 날아가는 이동형 발사체이며 첫 적중에 소멸한다.</summary>
-    public sealed class LaunchBehaviorRules : SpellBehaviorRules
+    public class LaunchBehaviorRules : SpellBehaviorRules
     {
         public override string RuneId => "behavior.launch";
         public override string FormValue => "launch";

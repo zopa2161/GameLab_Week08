@@ -6,6 +6,7 @@ namespace RuneCode
         Projectile,
         InstantArea,
         LastingArea,
-        Beam
+        Beam,
+        ArcProjectile
     }
 }

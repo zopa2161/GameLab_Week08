@@ -76,8 +76,8 @@ namespace RuneCode
             bool canReadInput = Application.isFocused && !isTyping && !isInputBlocked;
             SimVector point = SimVector.Zero;
             bool isPointerInside = !isInputBlocked && _view.TryGetPointer(out point);
-            SimVector aim = isPointerInside ? point - _run.Dock.Player.Position
-                : isInputBlocked ? _run.Dock.Player.AimDirection : new SimVector(1, 0);
+            // 포인터가 도크 밖이면 마지막 조준을 유지해 홀드 중인 빔이 튀지 않게 한다.
+            SimVector aim = isPointerInside ? point - _run.Dock.Player.Position : _run.Dock.Player.AimDirection;
             Mouse mouse = Mouse.current;
             bool isClicking = canReadInput && isPointerInside && mouse != null && mouse.leftButton.isPressed;
             if (LocalTelemetry.IsUsabilityTestActive && isClicking && !_wasClicking)

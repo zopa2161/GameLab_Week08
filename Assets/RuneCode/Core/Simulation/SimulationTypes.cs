@@ -476,6 +476,7 @@ namespace RuneCode
         private readonly Dictionary<int, double> _hitTimes = new Dictionary<int, double>();
         private SimVector _position;
         private SimVector _previousPosition;
+        private SimVector _previousDirection;
         private bool _isPassingWalls;
         private SimVector _direction;
         private double _age;
@@ -513,6 +514,25 @@ namespace RuneCode
         /// <summary>부채꼴인지 나타낸다. 판정·그리기는 꼭짓점(ConeApex)에서 진행 방향으로 펼친 부채꼴이다.</summary>
         public bool IsCone => _action.MagicType == SpellGrammar.MAGIC_TYPE_CONE;
 
+        /// <summary>속이 빈 호 모양으로 이동하는 방사 투사체인지 반환한다.</summary>
+        public bool IsArc => _action.Rules?.DisplayType == SpellDisplayType.ArcProjectile;
+
+        /// <summary>방사의 생성 후 시간에 따른 호 반경이다. 유도·공전의 실제 이동 거리와 독립적으로 증가한다.</summary>
+        public double ArcRadius => _stats.Speed * _age;
+
+        /// <summary>확장 배율을 적용한 방사의 전체 각도다. 한 바퀴를 넘지 않는다.</summary>
+        public double ArcAngle => Math.Min(360, _action.ConeAngle * _stats.RadiusMultiplier);
+
+        /// <summary>호 중심선의 두께다. 기본 발사체 지름에 기존 확장 배율을 적용한다.</summary>
+        public double ArcThickness => _stats.Radius * 2;
+
+        /// <summary>현재 호의 원 중심이다. 투사체 위치는 호의 정면 중앙점이다.</summary>
+        public SimVector ArcCenter => _position - _direction * ArcRadius;
+
+        /// <summary>호의 왼쪽 끝 0부터 오른쪽 끝 1까지의 중심선 위치를 현재 표시 시점 기준으로 반환한다.</summary>
+        public SimVector GetArcPoint(double fraction)
+            => ArcCenter + _direction.Rotated((Math.Max(0, Math.Min(1, fraction)) - 0.5) * ArcAngle * Math.PI / 180) * ArcRadius;
+
         /// <summary>부채꼴의 전체 각도(도)다.</summary>
         public double ConeAngle => _action.ConeAngle;
 
@@ -544,6 +564,7 @@ namespace RuneCode
 
         /// <summary>이번 틱 이동 전 위치다. 매 틱 이동 단계 직전에 기록하며 판정이 이동 구간의 시작점으로 쓴다.</summary>
         internal SimVector PreviousPosition => _previousPosition;
+        internal SimVector PreviousDirection => _previousDirection;
 
         /// <summary>이번 틱 이동이 벽을 무시하는 경로(공전 궤도·진입)였는지 나타낸다. 발사 판정이 벽 충돌을 건너뛴다. 매 틱 이동 전에 꺼진다.</summary>
         internal bool IsPassingWalls => _isPassingWalls;
@@ -615,13 +636,14 @@ namespace RuneCode
             _motionOrder = BuildMotionOrder(action.ModifierRules);
             foreach (int index in _motionOrder) _hasModifierPath |= _modifierRuntimes[index].ReplacesBasePath;
             _previousPosition = position;
+            _previousDirection = direction;
         }
 
         /// <summary>스펠 개체의 위치와 진행 방향을 갱신한다.</summary>
         internal void Move(SimVector position, SimVector direction) { _position = position; _direction = direction; }
 
         /// <summary>이번 틱 이동 전 위치를 현재 위치로 기록하고 벽 무시 표시를 끈다. 이동 단계 직전에 한 번 호출한다.</summary>
-        internal void MarkPreviousPosition() { _previousPosition = _position; _isPassingWalls = false; }
+        internal void MarkPreviousPosition() { _previousPosition = _position; _previousDirection = _direction; _isPassingWalls = false; }
 
         /// <summary>이번 틱 이동이 벽을 무시하는 경로였음을 표시한다. 이동 모드가 이동할 때 호출한다.</summary>
         internal void MarkPassingWalls() { _isPassingWalls = true; }
@@ -731,6 +753,7 @@ namespace RuneCode
             var ids = new List<int>(_hitTimes.Keys); ids.Sort();
             foreach (int id in ids) state.Append(FormattableString.Invariant($"|{id}:{_hitTimes[id]:R}"));
             _behavior.WriteState(this, state);
+            if (IsArc) state.Append(FormattableString.Invariant($"|arcPrevious:{_previousPosition.X:R}:{_previousPosition.Y:R}:{_previousDirection.X:R}:{_previousDirection.Y:R}:{ArcAngle:R}:{_stats.RadiusMultiplier:R}"));
             for (int index = 0; index < _modifierRuntimes.Length; index++) _modifierRuntimes[index].WriteState(this, _modifierStates[index], state);
         }
     }

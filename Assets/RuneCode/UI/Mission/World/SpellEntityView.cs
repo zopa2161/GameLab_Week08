@@ -71,7 +71,7 @@ namespace RuneCode
         {
             transform.localPosition = MissionWorldSpace.ToWorld(spell.Position, origin);
             Color tint = RuneMesh.ElementColor(spell.Element);
-            if (SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
+            if (spell.IsArc || SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
             {
                 MissionWorldSpace.SetVisible(_trail, false);
                 MissionWorldSpace.SetVisible(_shape, false);
@@ -79,7 +79,8 @@ namespace RuneCode
                 MissionWorldSpace.SetVisible(_outline, false);
                 MissionWorldSpace.SetVisible(_inner, false);
                 MissionWorldSpace.SetVisible(_coneRenderer, true);
-                ApplyBeam(spell, tint, origin);
+                if (spell.IsArc) ApplyArc(spell, tint, origin);
+                else ApplyBeam(spell, tint, origin);
                 return;
             }
             float radius = (float)spell.Radius;
@@ -191,6 +192,50 @@ namespace RuneCode
             _coneMesh.SetVertices(_coneVertices);
             _coneMesh.SetColors(_coneColors);
             _coneMesh.SetTriangles(_coneTriangles, 0);
+        }
+
+        /// <summary>속이 빈 호를 실제 반경·각도·두께의 띠와 둥근 양 끝으로 표시한다.</summary>
+        private void ApplyArc(SimulationSpellEntity spell, Color tint, SimVector origin)
+        {
+            _coneVertices.Clear(); _coneColors.Clear(); _coneTriangles.Clear();
+            Vector2 offset = MissionWorldSpace.ToWorld(spell.Position, origin);
+            float halfWidth = MissionWorldSpace.ToWorldLength(spell.ArcThickness * 0.5);
+            int segments = RuneMesh.ArcSegmentCount(spell.ArcAngle);
+            Vector3 center = MissionWorldSpace.ToWorld(spell.ArcCenter, origin) - offset;
+            for (int index = 0; index <= segments; index++)
+            {
+                Vector3 point = MissionWorldSpace.ToWorld(spell.GetArcPoint(index / (double)segments), origin) - offset;
+                Vector3 radial = point - center;
+                Vector3 normal = radial.sqrMagnitude > 0 ? radial.normalized : (Vector3)MissionWorldSpace.ToWorldDirection(spell.Direction);
+                _coneVertices.Add(point - normal * Mathf.Min(halfWidth, radial.magnitude));
+                _coneVertices.Add(point + normal * halfWidth);
+                _coneColors.Add(tint); _coneColors.Add(tint);
+                if (index == 0) continue;
+                int vertex = index * 2;
+                _coneTriangles.Add(vertex - 2); _coneTriangles.Add(vertex - 1); _coneTriangles.Add(vertex + 1);
+                _coneTriangles.Add(vertex - 2); _coneTriangles.Add(vertex + 1); _coneTriangles.Add(vertex);
+            }
+            AddArcCap(MissionWorldSpace.ToWorld(spell.GetArcPoint(0), origin) - offset, halfWidth, tint);
+            AddArcCap(MissionWorldSpace.ToWorld(spell.GetArcPoint(1), origin) - offset, halfWidth, tint);
+            _coneMesh.Clear();
+            _coneMesh.SetVertices(_coneVertices);
+            _coneMesh.SetColors(_coneColors);
+            _coneMesh.SetTriangles(_coneTriangles, 0);
+        }
+
+        /// <summary>호 끝점에 판정 반폭과 같은 반경의 원형 마감을 메시로 추가한다.</summary>
+        private void AddArcCap(Vector3 center, float radius, Color tint)
+        {
+            int vertex = _coneVertices.Count;
+            _coneVertices.Add(center); _coneColors.Add(tint);
+            for (int index = 0; index <= CONE_SEGMENTS; index++)
+            {
+                float angle = index * 2 * Mathf.PI / CONE_SEGMENTS;
+                _coneVertices.Add(center + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0) * radius);
+                _coneColors.Add(tint);
+                if (index == 0) continue;
+                _coneTriangles.Add(vertex); _coneTriangles.Add(vertex + index); _coneTriangles.Add(vertex + index + 1);
+            }
         }
 
         /// <summary>발사·공전을 진행 방향의 속성별 도형(Beam이면 진행 방향으로 긴 사각형)으로 표시한다.</summary>
