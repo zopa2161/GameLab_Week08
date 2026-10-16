@@ -21,6 +21,7 @@ namespace RuneCode
         private readonly UIManager _ui;
         private readonly SpellEditorPanel _view;
         private string _category = "all";
+        private string _grade;
 
         /// <summary>편집 세션·UI 관리자·편집 View를 받아 검색어·분류 이벤트를 연결한다.</summary>
         public SpellPalettePresenter(ISpellEditor editor, UIManager ui, SpellEditorPanel view)
@@ -34,12 +35,18 @@ namespace RuneCode
                 _category = category;
                 Refresh();
             };
+            _view.GradeClicked += grade =>
+            {
+                _grade = _grade == grade ? null : grade;
+                Refresh();
+            };
         }
 
         /// <summary>현재 분류·검색어에 맞는 보유 행동(등급별)·속성·모디(등급별)를 이름·등급과 남은/보유 수로 표시한다.</summary>
         public void Refresh()
         {
             _view.ShowCategory(_category);
+            _view.ShowGrade(_grade);
             _view.ClearPalette();
             string query = _view.SearchQuery;
             foreach (RuneDefinition rune in GameData.Runes.All)
@@ -48,6 +55,7 @@ namespace RuneCode
                     || (_category != "all" && rune.Category != _category) || !MatchesSearch(rune, query)) continue;
                 foreach (string grade in StockGrades(rune))
                 {
+                    if (_grade != null && grade != _grade) continue;
                     if (!TryGetStock(rune.Id, grade, out int remaining, out int owned)) continue;
                     AddPaletteRune(rune, grade, StockLabel(rune, grade, remaining, owned), remaining > 0);
                 }
