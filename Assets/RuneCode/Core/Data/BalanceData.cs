@@ -194,6 +194,7 @@ namespace RuneCode
         [SerializeField] private float _damageNumberSeconds;
         [SerializeField] private float _wandOffset;
         [SerializeField] private float _areaPlacementRange;
+        [SerializeField] private float _beamCooldownSeconds;
         [SerializeField] private float _executionTimeScale = 1f;
         public int TickRate => _tickRate;
         public float MultiOffset => _multiOffset;
@@ -219,6 +220,9 @@ namespace RuneCode
 
         /// <summary>플레이어 중심에서 폭발·잔류를 배치할 수 있는 공통 최대 거리(px)다.</summary>
         public float AreaPlacementRange => _areaPlacementRange;
+
+        /// <summary>공격 시작에 직접 연결한 빔이 종료된 뒤 적용하는 재시전 쿨다운(초)이다.</summary>
+        public float BeamCooldownSeconds => _beamCooldownSeconds;
 
         /// <summary>룬 실행 시간 기여분의 전역 배율이며 0이면 Shape·Behavior 노드 시간 기여를 끈다.</summary>
         public float ExecutionTimeScale => _executionTimeScale;
@@ -273,7 +277,7 @@ namespace RuneCode
                 data.Sim.TelemetryHighlightSeconds, data.Sim.BenchPlayerX, data.Sim.BenchPlayerY, data.Sim.BenchDummyX,
                 data.Sim.BenchDummyY, data.Sim.BenchHp, data.Sim.BenchLineStartX, data.Sim.BenchLineGap, data.Sim.BenchSwarmX,
                 data.Sim.BenchSwarmY, data.Sim.BenchSwarmGapX, data.Sim.BenchSwarmGapY, data.Sim.SpellVisualSeconds,
-                data.Sim.HitFlashSeconds, data.Sim.DamageNumberSeconds, data.Sim.WandOffset, data.Sim.AreaPlacementRange,
+                data.Sim.HitFlashSeconds, data.Sim.DamageNumberSeconds, data.Sim.WandOffset, data.Sim.AreaPlacementRange, data.Sim.BeamCooldownSeconds,
                 data.Sim.ExecutionTimeScale, data.Combat.SeparationAllowance, data.Combat.SeparationStrength,
                 data.Combat.SeparationMaxStep };
             foreach (float value in values)

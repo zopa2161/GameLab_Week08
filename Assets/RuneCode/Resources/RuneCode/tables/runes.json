@@ -373,7 +373,7 @@
       "_stats": {
         "_damage": 3,
         "_radius": 3,
-        "_lifetime": 3,
+        "_lifetime": 0,
         "_minimumLifetime": 0.5,
         "_speed": 480,
         "_count": 1,

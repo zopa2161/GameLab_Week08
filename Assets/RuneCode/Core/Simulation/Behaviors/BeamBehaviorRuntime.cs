@@ -191,43 +191,38 @@ namespace RuneCode
             private readonly int _pressSerial;
             private readonly int _startedTick;
             private readonly int _minimumTicks;
-            private readonly int _maximumTicks;
             private readonly int _paymentTicks;
             private readonly ResourceCostSet _paymentCosts;
             private readonly Action _complete;
             private readonly bool _canExtend;
             private readonly bool _followsPlayer;
-            private int _endTick;
             private int _paidUntilTick;
             private int _lastTick = -1;
-            private bool _hasReleased;
             private bool _isStopped;
 
             public bool FollowsPlayer => _followsPlayer;
             public bool IsStopped => _isStopped;
+            public int Slot => _slot;
 
-            /// <summary>최소 구간을 선결제한 빔 그룹의 수명과 추가 피해 주기별 비용을 초기화한다.</summary>
+            /// <summary>초기 구간을 선결제한 빔의 홀드 상태와 추가 피해 주기별 비용을 초기화한다. 홀드하지 않는 빔은 초기 구간만 유지한다.</summary>
             internal BeamChannel(int tick, SpellStats stats, int slot, int pressSerial, bool canExtend,
                 bool followsPlayer, ResourceCostSet minimumCosts, Action complete)
             {
                 _slot = slot; _pressSerial = pressSerial; _startedTick = tick;
                 _minimumTicks = Math.Max(1, (int)Math.Round(stats.MinimumLifetime * RuneSimulation.TICK_RATE));
-                _maximumTicks = Math.Max(_minimumTicks, (int)Math.Round(stats.Lifetime * RuneSimulation.TICK_RATE));
                 _paymentTicks = Math.Max(1, (int)Math.Round(stats.TickInterval * RuneSimulation.TICK_RATE));
                 _paymentCosts = minimumCosts.Multiply(_paymentTicks / (double)_minimumTicks);
                 _canExtend = canExtend; _followsPlayer = followsPlayer; _complete = complete;
-                _endTick = tick + _minimumTicks; _paidUntilTick = _endTick;
+                _paidUntilTick = tick + _minimumTicks;
             }
 
-            /// <summary>한 틱에 한 번 홀드 해제·최대 시간·지속 비용을 검사하고 종료 시 루트 추적기를 해제한다.</summary>
+            /// <summary>홀드 빔은 시간 상한 없이 결제를 이어가고 입력 해제나 자원 부족 시 즉시 종료한다. 비홀드 빔은 초기 구간 뒤 종료한다.</summary>
             internal void Advance(RuneSimulation simulation)
             {
                 if (_isStopped || _lastTick == simulation.Tick) return;
                 _lastTick = simulation.Tick;
-                if (!_canExtend || !simulation.IsBeamHeld(_slot, _pressSerial)) _hasReleased = true;
                 int age = simulation.Tick - _startedTick;
-                if (age >= _maximumTicks || (age >= _minimumTicks && _hasReleased)) { Stop(); return; }
-                if (simulation.Tick >= _endTick) _endTick = Math.Min(_startedTick + _maximumTicks, _endTick + _minimumTicks);
+                if (_canExtend ? !simulation.IsBeamHeld(_slot, _pressSerial) : age >= _minimumTicks) { Stop(); return; }
                 if (simulation.Tick < _paidUntilTick) return;
                 if (!simulation.TrySpendBeamCosts(_paymentCosts)) { Stop(); return; }
                 _paidUntilTick += _paymentTicks;
@@ -244,8 +239,8 @@ namespace RuneCode
             /// <summary>공유 홀드·예약·결제 상태를 결정성 해시에 기록한다.</summary>
             internal void WriteState(StringBuilder state)
                 => state.Append("|channel:").Append(_slot).Append(':').Append(_pressSerial).Append(':')
-                    .Append(_startedTick).Append(':').Append(_endTick).Append(':').Append(_paidUntilTick).Append(':')
-                    .Append(_lastTick).Append(':').Append(_hasReleased).Append(':').Append(_isStopped)
+                    .Append(_startedTick).Append(':').Append(_paidUntilTick).Append(':')
+                    .Append(_lastTick).Append(':').Append(_isStopped)
                     .Append(':').Append(_canExtend).Append(':').Append(_followsPlayer);
         }
 

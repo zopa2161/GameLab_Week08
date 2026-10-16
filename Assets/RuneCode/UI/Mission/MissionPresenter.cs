@@ -333,7 +333,7 @@ namespace RuneCode
                 : GameData.L("ui.killProgress") + " " + sim.TargetKills + " / " + sim.KillTarget;
             _hud.SetTimer(objective,
                 sim.IsBossStage && sim.RemainingTime <= TIMER_WARNING_SECONDS);
-            string executionState = sim.Player.IsSpellRunning(0)
+            string executionState = sim.HasActiveBeam(0) ? GameData.L("ui.beamActive") : sim.Player.IsSpellRunning(0)
                 ? GameData.L("ui.executing") + " " + sim.Player.ExecutionRemaining(0).ToString("0.0") + "s " + GameData.L("ui.remaining")
                 : GameData.L("ui.cooldown") + " " + sim.Player.Cooldowns[0].ToString("0.0") + "s";
             _hud.SetSpellLine(GameData.L("ui.singleSpell") + "  " + _run.SpellName + "  ·  " + executionState
