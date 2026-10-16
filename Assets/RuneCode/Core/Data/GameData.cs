@@ -98,9 +98,9 @@ namespace RuneCode
             RuneStats beam = runes.Get("form.beam").Stats;
             if (beam.MinimumLifetime <= 0 || beam.TickInterval <= 0 || beam.BeamLength <= 0 || beam.Speed <= 0)
                 throw new FormatException("빔의 초기 결제 구간, 피해 간격, 곡선 길이와 경로 속도는 양수여야 합니다.");
-            RuneStats radiate = runes.Get("form.radiate").Stats;
-            if (radiate.Speed <= 0 || radiate.Lifetime <= 0 || radiate.Radius <= 0 || radiate.ConeAngle <= 0 || radiate.ConeAngle > 360)
-                throw new FormatException("방사의 속도·수명·두께 반경은 양수, 호 각도는 0보다 크고 360 이하여야 합니다.");
+            RuneStats burst = runes.Get("form.burst").Stats;
+            if (burst.Speed <= 0 || burst.Lifetime <= 0 || burst.Radius <= 0 || burst.ConeAngle != 360)
+                throw new FormatException("폭발의 속도·수명·두께 반경은 양수, 파동 각도는 360이어야 합니다.");
         }
 
         /// <summary>

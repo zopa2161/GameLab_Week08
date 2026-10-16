@@ -100,7 +100,6 @@ namespace RuneCode
         public float _arcMultiplier;
         public float _learningMultiplier = 1f;
         public float _spreadAngle;
-        public float _multiSpreadMultiplier = 1f;
         public float _shieldAmount;
         public float _shieldSeconds;
         public float _coneAngle;
@@ -108,6 +107,8 @@ namespace RuneCode
         public float _warnSeconds;
         public float _beamWidth;
         public float _beamLength;
+        public int _waveCount;
+        public float _waveInterval;
     }
 
     /// <summary>유도 Modifier의 하위 유도 단계와 적용 수치다.</summary>
@@ -117,6 +118,7 @@ namespace RuneCode
         public string _tier;
         public float _homingTurn;
         public float _homingRange;
+        public int _orbitTargetCount;
     }
 
     /// <summary>룬 포트 하나의 데이터다. status는 빈 문자열이면 active다.</summary>

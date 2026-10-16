@@ -163,7 +163,7 @@ namespace RuneCode
                     Path(mesh,c,s,t,-14,7,-5,7);
                     Path(mesh,c,s,t,-14,-7,-5,-7);
                     break;
-                case "behavior.burst":
+                case "behavior.legacy_burst":
                     Path(mesh,c,s,t,0,16,4,7,13,11,9,2,16,-3,6,-5,5,-15,-2,-8,-12,-13,-8,-3,-16,3,-6,5,-7,14,0,16);
                     break;
                 case "behavior.beam":
@@ -171,9 +171,9 @@ namespace RuneCode
                     Path(mesh,c,s,t,-16,2,16,2);
                     Path(mesh,c,s,t,-13,-7,-13,7);
                     break;
-                case "behavior.radiate":
-                    Arc(mesh,c,s,t,-8,0,22,-35,35);
-                    Path(mesh,c,s,t,-12,0,3,0);
+                case "behavior.burst":
+                    Arc(mesh,c,s,t,0,0,14,0,360);
+                    Path(mesh,c,s,t,-3,0,3,0);
                     break;
                 case "mod.orbit":
                     Ring(mesh,c,s,t,0,0,12); Dot(mesh,c,s,t,0,0,4);
@@ -233,6 +233,9 @@ namespace RuneCode
                     Path(mesh,c,s,t,9,-3,4,2);
                     Path(mesh,c,s,t,9,-3,14,2);
                     Dot(mesh,c,s,t,9,-13,3);
+                    break;
+                case "mod.sequence":
+                    Dot(mesh,c,s,t,-10,0,4); Dot(mesh,c,s,t,0,0,4); Dot(mesh,c,s,t,10,0,4);
                     break;
                 case "mod.expand":
                     Path(mesh,c,s,t,-12,4,-12,12,-4,12);

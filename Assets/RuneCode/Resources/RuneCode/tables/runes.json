@@ -32,7 +32,7 @@
       "_unlockType": "start",
       "_unlockCost": 0,
       "_stats": {
-        "_knockbackDistance": 60,
+        "_knockbackDistance": 30,
         "_knockbackSeconds": 0.2,
         "_knockbackReferenceDamage": 15
       },
@@ -41,8 +41,8 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.radiate",
         "behavior.burst",
+        "behavior.legacy_burst",
         "behavior.persist",
         "behavior.beam",
         "spell.call"
@@ -170,25 +170,24 @@
       ]
     },
     {
-      "_id": "form.radiate",
-      "_name": "방사 수치",
+      "_id": "form.burst",
+      "_name": "폭발 수치",
       "_category": "internal",
       "_ram": 1,
-      "_energy": 6,
+      "_energy": 10,
       "_energyMult": 1,
       "_unlockType": "start",
       "_stats": {
-        "_damage": 15,
-        "_speed": 1440,
+        "_damage": 10,
+        "_speed": 280,
         "_radius": 6,
-        "_lifetime": 0.308,
+        "_lifetime": 0.5,
         "_count": 1,
         "_orbitRadius": 70,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1,
-        "_coneAngle": 20,
-        "_multiSpreadMultiplier": 3
+        "_coneAngle": 360
       },
       "_ports": [
         {
@@ -230,13 +229,13 @@
       "_tags": [
         {
           "_order": 0,
-          "_tag": "radiate"
+          "_tag": "burst"
         }
       ]
     },
     {
-      "_id": "form.burst",
-      "_name": "버스트",
+      "_id": "form.legacy_burst",
+      "_name": "레거시 폭발 수치",
       "_category": "internal",
       "_ram": 1,
       "_energy": 12,
@@ -292,7 +291,7 @@
       "_tags": [
         {
           "_order": 0,
-          "_tag": "burst"
+          "_tag": "legacy_burst"
         }
       ]
     },
@@ -541,12 +540,12 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.burst",
+        "behavior.legacy_burst",
         "behavior.persist",
         "behavior.apply",
         "spell.call",
         "behavior.beam",
-        "behavior.radiate"
+        "behavior.burst"
       ]
     },
     {
@@ -576,11 +575,10 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.burst",
+        "behavior.legacy_burst",
         "behavior.persist",
         "spell.call",
-        "behavior.beam",
-        "behavior.radiate"
+        "behavior.beam"
       ]
     },
     {
@@ -610,8 +608,38 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "spell.call",
-        "behavior.radiate"
+        "spell.call"
+      ]
+    },
+    {
+      "_id": "mod.sequence",
+      "_name": "연속",
+      "_category": "modifier",
+      "_ram": 1,
+      "_energy": 0,
+      "_energyMult": 1.5,
+      "_executionSeconds": 0,
+      "_unlockType": "bench",
+      "_unlockCost": 50,
+      "_stats": {
+        "_damageMultiplier": 0.8,
+        "_radiusMultiplier": 1,
+        "_learningMultiplier": 1,
+        "_waveCount": 2,
+        "_waveInterval": 0.2
+      },
+      "_ports": [
+        {
+          "_order": 0,
+          "_portId": "mod",
+          "_kind": "mod",
+          "_direction": "out",
+          "_max": 1
+        }
+      ],
+      "_modifierTargets": [
+        "behavior.launch",
+        "behavior.burst"
       ]
     },
     {
@@ -634,17 +662,20 @@
         {
           "_tier": "하급",
           "_homingTurn": 100,
-          "_homingRange": 220
+          "_homingRange": 220,
+          "_orbitTargetCount": 3
         },
         {
           "_tier": "중급",
           "_homingTurn": 140,
-          "_homingRange": 300
+          "_homingRange": 300,
+          "_orbitTargetCount": 5
         },
         {
           "_tier": "상급",
           "_homingTurn": 220,
-          "_homingRange": 420
+          "_homingRange": 420,
+          "_orbitTargetCount": 9
         }
       ],
       "_ports": [
@@ -660,8 +691,7 @@
         "behavior.launch",
         "behavior.persist",
         "spell.call",
-        "behavior.beam",
-        "behavior.radiate"
+        "behavior.beam"
       ]
     },
     {
@@ -695,8 +725,7 @@
       "_modifierTargets": [
         "behavior.launch",
         "behavior.persist",
-        "behavior.beam",
-        "behavior.radiate"
+        "behavior.beam"
       ]
     },
     {
@@ -724,11 +753,11 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.burst",
+        "behavior.legacy_burst",
         "behavior.persist",
         "spell.call",
         "behavior.beam",
-        "behavior.radiate"
+        "behavior.burst"
       ]
     },
     {
@@ -759,7 +788,7 @@
         "behavior.launch",
         "behavior.persist",
         "spell.call",
-        "behavior.radiate"
+        "behavior.burst"
       ]
     },
     {
@@ -1135,10 +1164,6 @@
             {
               "_order": 3,
               "_option": "beam"
-            },
-            {
-              "_order": 4,
-              "_option": "radiate"
             }
           ]
         },
@@ -1283,7 +1308,7 @@
         "behavior.persist",
         "behavior.apply",
         "spell.call",
-        "behavior.radiate"
+        "behavior.burst"
       ]
     },
     {
@@ -1624,8 +1649,8 @@
 
     },
     {
-      "_id": "behavior.radiate",
-      "_name": "방사",
+      "_id": "behavior.burst",
+      "_name": "폭발",
       "_category": "behavior",
       "_shape": "cone",
       "_ram": 1,
@@ -1766,9 +1791,10 @@
       ]
     },
     {
-      "_id": "behavior.burst",
-      "_name": "폭발",
+      "_id": "behavior.legacy_burst",
+      "_name": "레거시 폭발",
       "_category": "behavior",
+      "_disabled": true,
       "_shape": "sphere",
       "_ram": 1,
       "_energy": 0,

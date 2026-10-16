@@ -159,6 +159,14 @@ namespace RuneCode
             return TryGetIntegerValue(modifierId, grade, out value);
         }
 
+        /// <summary>연속 회차 수 등급 값을 읽는다. 효과 종류가 waveCount가 아니거나 값이 없으면 false를 반환한다.</summary>
+        public bool TryGetWaveCount(string modifierId, string grade, out int value)
+        {
+            value = 0;
+            if (GetEffectType(modifierId) != "waveCount") return false;
+            return TryGetIntegerValue(modifierId, grade, out value);
+        }
+
         /// <summary>발사 Behavior 전용 등급 값이 있으면 반환한다. 없으면 false를 반환한다.</summary>
         public bool TryGetLaunchGradeValues(string modifierId, out IReadOnlyDictionary<string, object> values)
         {
@@ -384,7 +392,8 @@ namespace RuneCode
         {
             bool isKnownEffect = effectType == "effectMultiplier" || effectType == "multipleCount" || effectType == "pierceCount"
                 || effectType == "radiusMultiplier" || effectType == "durationMultiplier" || effectType == "speedMultiplier"
-                || effectType == "homingTier" || effectType == "orbitPath" || effectType == "knockbackDistance";
+                || effectType == "homingTier" || effectType == "orbitPath" || effectType == "knockbackDistance"
+                || effectType == "waveCount";
             if (!isKnownEffect) log.Add(modifierId, "_effectType", "지원하지 않는 효과 종류입니다: " + effectType);
             foreach (KeyValuePair<string, object> pair in values)
             {
@@ -396,7 +405,7 @@ namespace RuneCode
                     if (!(pair.Value is double number) || number <= 0d || number > float.MaxValue)
                         log.Add(modifierId, field, "float 범위의 양수 숫자여야 합니다.");
                 }
-                else if (effectType == "multipleCount")
+                else if (effectType == "multipleCount" || effectType == "waveCount")
                 {
                     if (!(pair.Value is double number) || number < 1d || number > int.MaxValue || number != Math.Truncate(number))
                         log.Add(modifierId, field, "양의 정수여야 합니다.");

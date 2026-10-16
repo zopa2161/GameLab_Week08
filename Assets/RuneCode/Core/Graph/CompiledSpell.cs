@@ -32,7 +32,7 @@ namespace RuneCode
 
     public sealed class SpellModifierValues
     {
-        private static readonly SpellModifierValues _none = new SpellModifierValues(1f, 1f, 1f, 1f, 1f, 0, 0f, 0f, 0f);
+        private static readonly SpellModifierValues _none = new SpellModifierValues(1f, 1f, 1f, 1f, 1f, 0, 0f, 0f, 0, 0f);
         private readonly float _damageMultiplier;
         private readonly float _radiusMultiplier;
         private readonly float _speedMultiplier;
@@ -41,6 +41,7 @@ namespace RuneCode
         private readonly int _pierce;
         private readonly float _homingTurn;
         private readonly float _homingRange;
+        private readonly int _orbitTargetCount;
         private readonly float _spreadAngle;
         private readonly float _knockbackDistance;
         private readonly float _knockbackSeconds;
@@ -53,14 +54,17 @@ namespace RuneCode
         public int Pierce => _pierce;
         public float HomingTurn => _homingTurn;
         public float HomingRange => _homingRange;
+
+        /// <summary>유도 단계가 공전 경로에 함께 돌 대상 수다. 유도 단계가 없으면 0이다.</summary>
+        public int OrbitTargetCount => _orbitTargetCount;
         public float SpreadAngle => _spreadAngle;
         public float KnockbackDistance => _knockbackDistance;
         public float KnockbackSeconds => _knockbackSeconds;
 
         /// <summary>시전 시 적용할 수식 배율과 관통·유도 값을 보관한다.</summary>
         public SpellModifierValues(float damageMultiplier, float radiusMultiplier, float speedMultiplier,
-            float durationMultiplier, float rangeMultiplier, int pierce, float homingTurn, float homingRange, float spreadAngle,
-            float knockbackDistance = 0f, float knockbackSeconds = 0f)
+            float durationMultiplier, float rangeMultiplier, int pierce, float homingTurn, float homingRange,
+            int orbitTargetCount, float spreadAngle, float knockbackDistance = 0f, float knockbackSeconds = 0f)
         {
             _damageMultiplier = damageMultiplier;
             _radiusMultiplier = radiusMultiplier;
@@ -70,6 +74,7 @@ namespace RuneCode
             _pierce = pierce;
             _homingTurn = homingTurn;
             _homingRange = homingRange;
+            _orbitTargetCount = orbitTargetCount;
             _spreadAngle = spreadAngle;
             _knockbackDistance = knockbackDistance;
             _knockbackSeconds = knockbackSeconds;
@@ -85,6 +90,7 @@ namespace RuneCode
                 .Append(_rangeMultiplier.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
                 .Append(_pierce).Append('|').Append(_homingTurn.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
                 .Append(_homingRange.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
+                .Append(_orbitTargetCount).Append('|')
                 .Append(_spreadAngle.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
             if (_knockbackDistance > 0f)
                 state.Append(FormattableString.Invariant($"|knockback:{_knockbackDistance:R}:{_knockbackSeconds:R}"));
@@ -97,8 +103,8 @@ namespace RuneCode
                 _radiusMultiplier * other._radiusMultiplier, _speedMultiplier * other._speedMultiplier,
                 _durationMultiplier * other._durationMultiplier, _rangeMultiplier * other._rangeMultiplier,
                 AddPierce(_pierce, other._pierce), Math.Max(_homingTurn, other._homingTurn), Math.Max(_homingRange, other._homingRange),
-                Math.Max(_spreadAngle, other._spreadAngle), Math.Max(_knockbackDistance, other._knockbackDistance),
-                Math.Max(_knockbackSeconds, other._knockbackSeconds));
+                Math.Max(_orbitTargetCount, other._orbitTargetCount), Math.Max(_spreadAngle, other._spreadAngle),
+                Math.Max(_knockbackDistance, other._knockbackDistance), Math.Max(_knockbackSeconds, other._knockbackSeconds));
         }
 
         /// <summary>연결된 Modifier와 문자열 등급 수치로 호출부 수식 효과를 계산한다.</summary>
@@ -113,6 +119,7 @@ namespace RuneCode
             int pierce = 0;
             float homingTurn = 0f;
             float homingRange = 0f;
+            int orbitTargetCount = 0;
             float spreadAngle = 0f;
             float knockbackDistance = 0f;
             float knockbackSeconds = 0f;
@@ -137,6 +144,7 @@ namespace RuneCode
                     {
                         homingTurn = Math.Max(homingTurn, homing.HomingTurn);
                         homingRange = Math.Max(homingRange, homing.HomingRange);
+                        orbitTargetCount = Math.Max(orbitTargetCount, homing.OrbitTargetCount);
                     }
                 }
                 else
@@ -150,7 +158,7 @@ namespace RuneCode
                 knockbackSeconds = Math.Max(knockbackSeconds, stats.KnockbackSeconds);
             }
             return new SpellModifierValues(damage, radius, speed, duration, range, pierce, homingTurn, homingRange,
-                spreadAngle, knockbackDistance, knockbackSeconds);
+                orbitTargetCount, spreadAngle, knockbackDistance, knockbackSeconds);
         }
 
         /// <summary>해당 효과 종류의 등급 숫자를 가져오거나 Modifier의 고정 기본값을 반환한다.</summary>
@@ -222,7 +230,7 @@ namespace RuneCode
         private readonly float _speed;
         private readonly float _speedMultiplier;
         private readonly float _radiusMultiplier;
-        private readonly bool _isArc;
+        private readonly bool _isExpandingRing;
         private readonly float _radius;
         private readonly float _shapeRadius;
         private readonly float _boxWidth;
@@ -237,6 +245,7 @@ namespace RuneCode
         private readonly float _pierceLoss;
         private readonly float _homingTurn;
         private readonly float _homingRange;
+        private readonly int _orbitTargetCount;
         private readonly float _arcRange;
         private readonly int _arcTargets;
         private readonly float _arcMultiplier;
@@ -264,6 +273,9 @@ namespace RuneCode
         public float PierceLoss => _pierceLoss;
         public float HomingTurn => _homingTurn;
         public float HomingRange => _homingRange;
+
+        /// <summary>유도 단계가 공전 경로에 함께 돌 대상 수다. 유도 단계가 없으면 0이다.</summary>
+        public int OrbitTargetCount => _orbitTargetCount;
         public float ArcRange => _arcRange;
         public int ArcTargets => _arcTargets;
         public float ArcMultiplier => _arcMultiplier;
@@ -287,7 +299,7 @@ namespace RuneCode
             float durationMult = 1f;
             _learningMultiplier = 1f;
             SpellBehaviorRuleRegistry.TryGetByKind(formKind, out SpellBehaviorRules rules);
-            _isArc = rules?.DisplayType == SpellDisplayType.ArcProjectile;
+            _isExpandingRing = rules?.DisplayType == SpellDisplayType.ExpandingRing;
             // 다중의 발사 전용 개수·퍼짐 값은 지팡이 앞에서 생성되는 행동(발사·빔)이 쓴다.
             bool usesLaunchGradeValues = rules != null && rules.SpawnOrigin == SpellSpawnOrigin.Wand;
             for (int index = 0; index < mods.Count; index++)
@@ -316,6 +328,7 @@ namespace RuneCode
                     {
                         _homingTurn = homing.HomingTurn;
                         _homingRange = homing.HomingRange;
+                        _orbitTargetCount = homing.OrbitTargetCount;
                     }
                 }
                 else
@@ -332,10 +345,9 @@ namespace RuneCode
                     && modifierGrades.TryGetLaunchSpreadAngle(mod.Id, grade, out float launchSpread)) _spreadAngle = launchSpread;
                 else if (stats.SpreadAngle > 0f) _spreadAngle = stats.SpreadAngle;
             }
-            _spreadAngle *= form.MultiSpreadMultiplier;
             _damage = form.Damage * damageMult;
             _speed = form.Speed * speedMult;
-            if (_isArc) _speed *= radiusMult;
+            if (_isExpandingRing) _speed *= radiusMult;
             _speedMultiplier = speedMult;
             _radiusMultiplier = radiusMult;
             _shapeRadius = (shapeRadius >= 0f ? shapeRadius : form.Radius) * radiusMult;
@@ -373,9 +385,9 @@ namespace RuneCode
         private SpellStats(SpellStats source, SpellModifierValues modifiers)
         {
             _damage = source._damage * modifiers.DamageMultiplier;
-            _isArc = source._isArc;
+            _isExpandingRing = source._isExpandingRing;
             _speed = source._speed * modifiers.SpeedMultiplier;
-            if (_isArc) _speed *= modifiers.RadiusMultiplier;
+            if (_isExpandingRing) _speed *= modifiers.RadiusMultiplier;
             _speedMultiplier = source._speedMultiplier * modifiers.SpeedMultiplier;
             _radiusMultiplier = source._radiusMultiplier * modifiers.RadiusMultiplier;
             _shapeRadius = source._shapeRadius * modifiers.RadiusMultiplier;
@@ -383,7 +395,7 @@ namespace RuneCode
             _boxLength = source._boxLength * modifiers.RadiusMultiplier;
             _radius = source._radius * modifiers.RadiusMultiplier;
             _lifetime = source._lifetime * modifiers.DurationMultiplier * modifiers.RangeMultiplier;
-            if (_isArc) _lifetime /= modifiers.SpeedMultiplier;
+            if (_isExpandingRing) _lifetime /= modifiers.SpeedMultiplier;
             _minimumLifetime = source._minimumLifetime;
             if (_minimumLifetime > 0)
             {
@@ -398,6 +410,7 @@ namespace RuneCode
             _pierceLoss = source._pierceLoss;
             _homingTurn = Math.Max(source._homingTurn, modifiers.HomingTurn);
             _homingRange = Math.Max(source._homingRange, modifiers.HomingRange);
+            _orbitTargetCount = Math.Max(source._orbitTargetCount, modifiers.OrbitTargetCount);
             _arcRange = source._arcRange;
             _arcTargets = source._arcTargets;
             _arcMultiplier = source._arcMultiplier;
@@ -447,6 +460,8 @@ namespace RuneCode
         private readonly string _calledSpellId;
         private readonly bool _isNoise;
         private readonly int _count;
+        private readonly int _waveCount = 1;
+        private readonly float _waveInterval;
         private readonly SpellStats _stats;
         private readonly IReadOnlyList<string> _mods;
         private readonly IReadOnlyList<SpellModifierRules> _modifierRules;
@@ -489,6 +504,13 @@ namespace RuneCode
         public string CalledSpellId => _calledSpellId;
         public bool Noise => _isNoise;
         public int Count => _count;
+
+        /// <summary>연속 모드의 실행 회차 수다. 연속 모드가 없으면 1이다.</summary>
+        public int WaveCount => _waveCount;
+
+        /// <summary>연속 모드의 회차 사이 간격(초)이다. 회차가 하나면 0이다.</summary>
+        public float WaveInterval => _waveInterval;
+
         public SpellStats Stats => _stats;
         public IReadOnlyList<string> Mods => _mods;
 
@@ -571,7 +593,7 @@ namespace RuneCode
             _form = rune.Id == "magic.inline" ? SpellGrammar.KindOf(node.GetText("form", "launch")) : rune.Category == "form" ? rune.Id.Substring(5) : "";
             SpellBehaviorRuleRegistry.TryGetByKind(_form, out _rules);
             _coneAngle = _magicType == SpellGrammar.MAGIC_TYPE_CONE ? shape?.Stats.ConeAngle ?? coneAngle : 0f;
-            if (_rules?.DisplayType == SpellDisplayType.ArcProjectile) _coneAngle = effectForm.Stats.ConeAngle;
+            if (_rules?.DisplayType == SpellDisplayType.ExpandingRing) _coneAngle = effectForm.Stats.ConeAngle;
             _sourceElement = rune.Id == "magic.inline" ? node.GetText("element", "normal") : element == null ? "normal" : SourceElementFromRune(element.Id);
             _element = rune.Id == "magic.inline" ? RuntimeElement(_sourceElement) : element == null ? "raw" : element.Id.Substring(5);
             _calledSpellId = rune.Id == "spell.call" ? node.GetText("spellId").Trim() : "";
@@ -592,9 +614,15 @@ namespace RuneCode
                     ? ModifierGradeTable.DEFAULT_ENERGY_MULTIPLIER
                     : modifierGrades.GetEnergyMultiplier(mod.Id, grade);
                 if (SpellModifierRuleRegistry.TryGetByRuneId(mod.Id, out SpellModifierRules modifierRules))
+                {
                     _count = modifierRules.ModifyCount(_count, _rules, grade, modifierStats, modifierGrades);
+                    _waveCount = modifierRules.ModifyWaveCount(_waveCount, _rules, grade, modifierStats, modifierGrades);
+                }
+                if (mod.Id == SequenceModifierRules.RUNE_ID) _waveInterval = modifierStats.WaveInterval;
                 if (mod.Id == "mod.noise") _isNoise = true;
             }
+            if (_waveCount < 1) _waveCount = 1;
+            if (_waveCount == 1) _waveInterval = 0f;
             _mods = ids;
             _modifierRules = SpellModifierRuleRegistry.SelectInRegistryOrder(ids);
             _spawnOrigin = _rules != null ? _rules.SpawnOrigin : SpellSpawnOrigin.Wand;
@@ -608,7 +636,7 @@ namespace RuneCode
                 float behaviorRadius = effectForm.Stats.Radius;
                 float coneRadius = _magicType == SpellGrammar.MAGIC_TYPE_CONE && shape != null
                     ? behaviorRadius * shape.Stats.RadiusMultiplier : behaviorRadius;
-                if (_rules?.DisplayType == SpellDisplayType.ArcProjectile) coneRadius = behaviorRadius;
+                if (_rules?.DisplayType == SpellDisplayType.ExpandingRing) coneRadius = behaviorRadius;
                 float boxWidth = shape != null && shape.Stats.BeamWidth > 0f ? shape.Stats.BeamWidth : behaviorRadius * 2f;
                 float boxLength = shape != null && shape.Stats.BeamLength > 0f ? shape.Stats.BeamLength : behaviorRadius * 2f;
                 if (_form == BeamBehaviorRules.BEAM_KIND)
@@ -648,9 +676,9 @@ namespace RuneCode
             if (_rules == null) return stats.Offset;
             float reach = _rules.GetReach(stats);
             foreach (SpellModifierRules modifierRules in _modifierRules) reach = modifierRules.ModifyReach(_rules, stats, reach);
-            if (_rules.DisplayType == SpellDisplayType.ArcProjectile && _spawnOrigin == SpellSpawnOrigin.Orbit)
+            if (_rules.DisplayType == SpellDisplayType.ExpandingRing && _spawnOrigin == SpellSpawnOrigin.Orbit)
             {
-                double angle = Math.Min(360, _coneAngle * stats.RadiusMultiplier);
+                double angle = _coneAngle;
                 reach += (float)(2 * stats.Speed * stats.Lifetime * Math.Sin(angle * Math.PI / 720));
             }
             return reach;
@@ -852,6 +880,10 @@ namespace RuneCode
         {
             double nodeSeconds = action.Kind == "delay" ? action.Seconds : action.GetExecutionSeconds(inheritedModifiers);
             int nodeTicks = GetExecutionDelayTicks(nodeSeconds * executionTimeScale);
+            // 연속 모드의 회차 사이 간격을 노드 실행 시간에 더한다. 마지막 회차 뒤에는 간격이 없다.
+            if (action.Kind == "spawn" && action.WaveCount > 1)
+                nodeTicks = AddTicks(nodeTicks,
+                    MultiplyTicks(GetExecutionDelayTicks(action.WaveInterval * executionTimeScale), action.WaveCount - 1));
             int nextTicks;
             switch (action.Kind)
             {

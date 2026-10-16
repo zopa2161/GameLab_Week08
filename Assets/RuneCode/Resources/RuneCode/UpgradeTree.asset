@@ -2345,13 +2345,13 @@ MonoBehaviour:
     - _cost: 0
       _amount: 0
   _unplacedNodes:
-  - _id: unlock.behavior.radiate
+  - _id: unlock.behavior.legacy_burst
     _requiredStage: 1
     _titleKey: ui.tree.unlockRune
     _descriptionKey: ui.tree.unlockRuneDescription
     _icon: {fileID: 0}
     _effectType: 8
-    _runeId: behavior.radiate
+    _runeId: behavior.legacy_burst
     _initialLevel: 0
     _prerequisites: []
     _levels:
@@ -2412,6 +2412,18 @@ MonoBehaviour:
     _icon: {fileID: 0}
     _effectType: 8
     _runeId: mod.homing
+    _initialLevel: 0
+    _prerequisites: []
+    _levels:
+    - _cost: 50
+      _amount: 0
+  - _id: unlock.mod.sequence
+    _requiredStage: 1
+    _titleKey: ui.tree.unlockRune
+    _descriptionKey: ui.tree.unlockRuneDescription
+    _icon: {fileID: 0}
+    _effectType: 8
+    _runeId: mod.sequence
     _initialLevel: 0
     _prerequisites: []
     _levels:

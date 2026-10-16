@@ -235,6 +235,9 @@ namespace RuneCode
                 case "multipleCount":
                     values.Add(GameData.L("ui.gradeCount") + " " + gradeValue);
                     break;
+                case "waveCount":
+                    values.Add(GameData.L("ui.gradeWaveCount") + " " + gradeValue);
+                    break;
                 case "pierceCount":
                     values.Add(GameData.L("ui.gradePierce") + " " + gradeValue);
                     break;
@@ -254,6 +257,7 @@ namespace RuneCode
                     {
                         values.Add(GameData.L("ui.gradeHomingTurn") + " " + homing.HomingTurn.ToString("0.#") + "°");
                         values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
+                        values.Add(GameData.L("ui.gradeOrbitTargetCount") + " " + homing.OrbitTargetCount);
                     }
                     break;
             }

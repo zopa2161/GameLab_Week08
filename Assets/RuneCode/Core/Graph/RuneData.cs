@@ -97,7 +97,6 @@ namespace RuneCode
         private readonly float _arcMultiplier;
         private readonly float _learningMultiplier;
         private readonly float _spreadAngle;
-        private readonly float _multiSpreadMultiplier;
         private readonly float _shieldAmount;
         private readonly float _shieldSeconds;
         private readonly float _coneAngle;
@@ -105,6 +104,8 @@ namespace RuneCode
         private readonly float _warnSeconds;
         private readonly float _beamWidth;
         private readonly float _beamLength;
+        private readonly int _waveCount;
+        private readonly float _waveInterval;
 
         public float Damage => _damage;
         public float Speed => _speed;
@@ -142,7 +143,6 @@ namespace RuneCode
         public float ArcMultiplier => _arcMultiplier;
         public float LearningMultiplier => _learningMultiplier;
         public float SpreadAngle => _spreadAngle;
-        public float MultiSpreadMultiplier => _multiSpreadMultiplier;
         public float ShieldAmount => _shieldAmount;
         public float ShieldSeconds => _shieldSeconds;
 
@@ -160,6 +160,12 @@ namespace RuneCode
 
         /// <summary>Beam Shape의 고정 길이(px)다. Beam Shape가 아닌 룬은 0이다.</summary>
         public float BeamLength => _beamLength;
+
+        /// <summary>연속 모드가 행동을 반복하는 회차 수다. 데이터가 없으면 0이다.</summary>
+        public int WaveCount => _waveCount;
+
+        /// <summary>연속 모드의 회차 사이 간격(초)이다. 데이터가 없으면 0이다.</summary>
+        public float WaveInterval => _waveInterval;
 
         /// <summary>룬 데이터의 수치 항목으로 효과 수치를 만든다. JSON에 없는 필드는 배율이면 1, 그 외는 0이다.</summary>
         internal RuneStats(RuneStatsData row)
@@ -194,7 +200,6 @@ namespace RuneCode
             _arcMultiplier = row._arcMultiplier;
             _learningMultiplier = row._learningMultiplier;
             _spreadAngle = row._spreadAngle;
-            _multiSpreadMultiplier = row._multiSpreadMultiplier;
             _shieldAmount = row._shieldAmount;
             _shieldSeconds = row._shieldSeconds;
             _coneAngle = row._coneAngle;
@@ -202,6 +207,8 @@ namespace RuneCode
             _warnSeconds = row._warnSeconds;
             _beamWidth = row._beamWidth;
             _beamLength = row._beamLength;
+            _waveCount = row._waveCount;
+            _waveInterval = row._waveInterval;
         }
     }
 
@@ -228,10 +235,14 @@ namespace RuneCode
         private readonly string _tier;
         private readonly float _homingTurn;
         private readonly float _homingRange;
+        private readonly int _orbitTargetCount;
 
         public string Tier => _tier;
         public float HomingTurn => _homingTurn;
         public float HomingRange => _homingRange;
+
+        /// <summary>이 단계를 공전 경로에 적용할 때 함께 돌 대상 수다.</summary>
+        public int OrbitTargetCount => _orbitTargetCount;
 
         /// <summary>runes.json의 유도 단계 설정으로 실행 수치를 만든다.</summary>
         internal HomingTierDefinition(RuneHomingTierData row)
@@ -239,6 +250,7 @@ namespace RuneCode
             _tier = row._tier;
             _homingTurn = row._homingTurn;
             _homingRange = row._homingRange;
+            _orbitTargetCount = row._orbitTargetCount;
         }
     }
 
@@ -774,6 +786,10 @@ namespace RuneCode
                 {
                     log.Add(row._id, "homingTiers:" + tierRow._tier, "유도 회전과 사거리는 양수여야 합니다.");
                 }
+                if (tierRow._orbitTargetCount < 1)
+                {
+                    log.Add(row._id, "homingTiers:" + tierRow._tier, "공전 대상 수는 1 이상이어야 합니다.");
+                }
                 result.Add(new HomingTierDefinition(tierRow));
             }
             return result;
@@ -958,8 +974,8 @@ namespace RuneCode
             float[] numbers = { stats.Damage, stats.Speed, stats.Radius, stats.Lifetime, stats.Offset, stats.OrbitRadius,
                 stats.AngularSpeed, stats.StationaryAngularSpeed, stats.EntrySpeed, stats.MovingLifetimeBonus, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
-                stats.LearningMultiplier, stats.SpreadAngle, stats.MultiSpreadMultiplier, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
-                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds };
+                stats.LearningMultiplier, stats.SpreadAngle, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
+                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds, stats.WaveInterval };
             foreach (float value in numbers)
             {
                 if (value < 0f)
@@ -975,7 +991,7 @@ namespace RuneCode
             if (rune.Id == "mod.knockback" && (stats.KnockbackReferenceDamage <= 0f
                 || float.IsNaN(stats.KnockbackReferenceDamage) || float.IsInfinity(stats.KnockbackReferenceDamage)))
                 log.Add(rune.Id, field, "밀어내기 기준 피해는 유한한 양수여야 합니다.");
-            if (stats.Count < 0 || stats.Pierce < 0 || stats.ArcTargets < 0
+            if (stats.Count < 0 || stats.Pierce < 0 || stats.ArcTargets < 0 || stats.WaveCount < 0
                 || (rune.Category == "form" && (stats.Count <= 0 || stats.Damage <= 0f || stats.Radius <= 0f)))
                 log.Add(rune.Id, field, "유효하지 않은 형태 룬 수치입니다 (form은 count·damage·radius가 0보다 커야 함).");
             if (rune.Id == SpellGrammar.CONE_RUNE && (stats.ConeAngle <= 0f || stats.ConeAngle > 360f))
