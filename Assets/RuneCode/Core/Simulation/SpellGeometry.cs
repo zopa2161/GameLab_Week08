@@ -11,6 +11,77 @@ namespace RuneCode
         private const double DEGREES_TO_RADIANS = Math.PI / 180;
         private const double EPSILON = 0.000001;
         private const int SHAPE_CONTACT_REFINEMENT_STEPS = 16;
+        private const int ARC_CONTACT_REFINEMENT_STEPS = 16;
+
+        /// <summary>이동 구간 중 반경·방향이 달라지는 호와 대상 원의 최초 접촉 비율을 반환한다.</summary>
+        internal static double ArcContactFraction(SimulationSpellEntity entity, SimVector start, SimVector end,
+            SimVector target, double targetRadius)
+        {
+            double thickness = entity.Radius + targetRadius;
+            double first = (ClosestArcPoint(entity, start, end, 0, target) - target).Length - thickness;
+            if (first <= EPSILON) return 0;
+            double last = (ClosestArcPoint(entity, start, end, 1, target) - target).Length - thickness;
+            return FindArcContact(entity, start, end, target, thickness, 0, 1, first, last,
+                ArcMotionBound(entity, start, end), ARC_CONTACT_REFINEMENT_STEPS);
+        }
+
+        /// <summary>호와 원 사이 거리의 이동 상한을 사용해 충돌 불가능한 구간을 제외하고 첫 접촉을 찾는다.</summary>
+        private static double FindArcContact(SimulationSpellEntity entity, SimVector start, SimVector end, SimVector target,
+            double thickness, double low, double high, double lowGap, double highGap, double motionBound, int remaining)
+        {
+            if (lowGap <= EPSILON) return low;
+            double middle = (low + high) * 0.5;
+            double middleGap = (ClosestArcPoint(entity, start, end, middle, target) - target).Length - thickness;
+            if (Math.Min(lowGap, Math.Min(middleGap, highGap)) > motionBound * (high - low) * 0.25 + EPSILON)
+                return double.PositiveInfinity;
+            if (remaining == 0) return low;
+            double left = FindArcContact(entity, start, end, target, thickness, low, middle, lowGap, middleGap, motionBound, remaining - 1);
+            if (!double.IsPositiveInfinity(left)) return left;
+            return FindArcContact(entity, start, end, target, thickness, middle, high, middleGap, highGap, motionBound, remaining - 1);
+        }
+
+        /// <summary>지정 시점의 호 중심선에서 대상에 가장 가까운 점을 반환한다. 부채꼴 내부는 채우지 않는다.</summary>
+        internal static SimVector ClosestArcPoint(SimulationSpellEntity entity, SimVector start, SimVector end,
+            double fraction, SimVector target)
+        {
+            GetArcPose(entity, start, end, fraction, out SimVector tip, out SimVector direction, out double radius);
+            SimVector center = tip - direction * radius;
+            SimVector offset = target - center;
+            double angle = Math.Atan2(direction.X * offset.Y - direction.Y * offset.X, SimVector.Dot(direction, offset));
+            double halfAngle = entity.ArcAngle * DEGREES_TO_RADIANS * 0.5;
+            angle = Math.Max(-halfAngle, Math.Min(halfAngle, angle));
+            return center + direction.Rotated(angle) * radius;
+        }
+
+        /// <summary>이동 구간의 시점과 호 위의 비율로 중심선 점을 반환한다. 표시·벽 판정이 같은 호를 사용한다.</summary>
+        internal static SimVector ArcPoint(SimulationSpellEntity entity, SimVector start, SimVector end,
+            double fraction, double arcFraction)
+        {
+            GetArcPose(entity, start, end, fraction, out SimVector tip, out SimVector direction, out double radius);
+            double angle = (arcFraction - 0.5) * entity.ArcAngle * DEGREES_TO_RADIANS;
+            return tip + (direction.Rotated(angle) - direction) * radius;
+        }
+
+        /// <summary>호의 모든 점이 한 틱 동안 움직일 수 있는 최대 거리의 보수적 상한을 반환한다.</summary>
+        internal static double ArcMotionBound(SimulationSpellEntity entity, SimVector start, SimVector end)
+        {
+            double angle = DirectionDelta(entity.PreviousDirection, entity.Direction);
+            double radius = entity.Stats.Speed * (entity.Age + RuneSimulation.STEP_SECONDS);
+            return (end - start).Length + 2 * entity.Stats.Speed * RuneSimulation.STEP_SECONDS + 2 * radius * Math.Abs(angle);
+        }
+
+        /// <summary>호 정면 위치·방향·반경을 이동 전후 상태와 경과 시간으로 보간한다.</summary>
+        private static void GetArcPose(SimulationSpellEntity entity, SimVector start, SimVector end, double fraction,
+            out SimVector tip, out SimVector direction, out double radius)
+        {
+            tip = start + (end - start) * fraction;
+            direction = entity.PreviousDirection.Rotated(DirectionDelta(entity.PreviousDirection, entity.Direction) * fraction);
+            radius = entity.Stats.Speed * (entity.Age + RuneSimulation.STEP_SECONDS * fraction);
+        }
+
+        /// <summary>두 정규화 방향 사이의 가장 짧은 부호 있는 회전각을 라디안으로 반환한다.</summary>
+        private static double DirectionDelta(SimVector previous, SimVector next)
+            => Math.Atan2(previous.X * next.Y - previous.Y * next.X, SimVector.Dot(previous, next));
 
         /// <summary>발사체 모양의 경로가 대상 원에 처음 닿는 비율을 반환하며 미충돌이면 양의 무한대를 반환한다.</summary>
 

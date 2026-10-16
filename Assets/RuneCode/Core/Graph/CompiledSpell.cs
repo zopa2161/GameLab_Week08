@@ -221,6 +221,8 @@ namespace RuneCode
         private readonly float _damage;
         private readonly float _speed;
         private readonly float _speedMultiplier;
+        private readonly float _radiusMultiplier;
+        private readonly bool _isArc;
         private readonly float _radius;
         private readonly float _shapeRadius;
         private readonly float _boxWidth;
@@ -247,6 +249,7 @@ namespace RuneCode
 
         /// <summary>속도 수식의 누적 배율이다. 잔류는 예고 시간을 이 배율로 나눈다.</summary>
         public float SpeedMultiplier => _speedMultiplier;
+        public float RadiusMultiplier => _radiusMultiplier;
         public float Radius => _radius;
         public float ShapeRadius => _shapeRadius;
         public float BoxWidth => _boxWidth;
@@ -284,6 +287,7 @@ namespace RuneCode
             float durationMult = 1f;
             _learningMultiplier = 1f;
             SpellBehaviorRuleRegistry.TryGetByKind(formKind, out SpellBehaviorRules rules);
+            _isArc = rules?.DisplayType == SpellDisplayType.ArcProjectile;
             // 다중의 발사 전용 개수·퍼짐 값은 지팡이 앞에서 생성되는 행동(발사·빔)이 쓴다.
             bool usesLaunchGradeValues = rules != null && rules.SpawnOrigin == SpellSpawnOrigin.Wand;
             for (int index = 0; index < mods.Count; index++)
@@ -328,9 +332,12 @@ namespace RuneCode
                     && modifierGrades.TryGetLaunchSpreadAngle(mod.Id, grade, out float launchSpread)) _spreadAngle = launchSpread;
                 else if (stats.SpreadAngle > 0f) _spreadAngle = stats.SpreadAngle;
             }
+            _spreadAngle *= form.MultiSpreadMultiplier;
             _damage = form.Damage * damageMult;
             _speed = form.Speed * speedMult;
+            if (_isArc) _speed *= radiusMult;
             _speedMultiplier = speedMult;
+            _radiusMultiplier = radiusMult;
             _shapeRadius = (shapeRadius >= 0f ? shapeRadius : form.Radius) * radiusMult;
             _boxWidth = (boxWidth >= 0f ? boxWidth : form.Radius * 2f) * radiusMult;
             _boxLength = (boxLength >= 0f ? boxLength : form.Radius * 2f) * radiusMult;
@@ -366,13 +373,17 @@ namespace RuneCode
         private SpellStats(SpellStats source, SpellModifierValues modifiers)
         {
             _damage = source._damage * modifiers.DamageMultiplier;
+            _isArc = source._isArc;
             _speed = source._speed * modifiers.SpeedMultiplier;
+            if (_isArc) _speed *= modifiers.RadiusMultiplier;
             _speedMultiplier = source._speedMultiplier * modifiers.SpeedMultiplier;
+            _radiusMultiplier = source._radiusMultiplier * modifiers.RadiusMultiplier;
             _shapeRadius = source._shapeRadius * modifiers.RadiusMultiplier;
             _boxWidth = source._boxWidth * modifiers.RadiusMultiplier;
             _boxLength = source._boxLength * modifiers.RadiusMultiplier;
             _radius = source._radius * modifiers.RadiusMultiplier;
             _lifetime = source._lifetime * modifiers.DurationMultiplier * modifiers.RangeMultiplier;
+            if (_isArc) _lifetime /= modifiers.SpeedMultiplier;
             _minimumLifetime = source._minimumLifetime;
             if (_minimumLifetime > 0)
             {
@@ -560,6 +571,7 @@ namespace RuneCode
             _form = rune.Id == "magic.inline" ? SpellGrammar.KindOf(node.GetText("form", "launch")) : rune.Category == "form" ? rune.Id.Substring(5) : "";
             SpellBehaviorRuleRegistry.TryGetByKind(_form, out _rules);
             _coneAngle = _magicType == SpellGrammar.MAGIC_TYPE_CONE ? shape?.Stats.ConeAngle ?? coneAngle : 0f;
+            if (_rules?.DisplayType == SpellDisplayType.ArcProjectile) _coneAngle = effectForm.Stats.ConeAngle;
             _sourceElement = rune.Id == "magic.inline" ? node.GetText("element", "normal") : element == null ? "normal" : SourceElementFromRune(element.Id);
             _element = rune.Id == "magic.inline" ? RuntimeElement(_sourceElement) : element == null ? "raw" : element.Id.Substring(5);
             _calledSpellId = rune.Id == "spell.call" ? node.GetText("spellId").Trim() : "";
@@ -594,6 +606,7 @@ namespace RuneCode
                 float behaviorRadius = effectForm.Stats.Radius;
                 float coneRadius = _magicType == SpellGrammar.MAGIC_TYPE_CONE && shape != null
                     ? behaviorRadius * shape.Stats.RadiusMultiplier : behaviorRadius;
+                if (_rules?.DisplayType == SpellDisplayType.ArcProjectile) coneRadius = behaviorRadius;
                 float boxWidth = shape != null && shape.Stats.BeamWidth > 0f ? shape.Stats.BeamWidth : behaviorRadius * 2f;
                 float boxLength = shape != null && shape.Stats.BeamLength > 0f ? shape.Stats.BeamLength : behaviorRadius * 2f;
                 if (_form == BeamBehaviorRules.BEAM_KIND)
@@ -633,6 +646,11 @@ namespace RuneCode
             if (_rules == null) return stats.Offset;
             float reach = _rules.GetReach(stats);
             foreach (SpellModifierRules modifierRules in _modifierRules) reach = modifierRules.ModifyReach(_rules, stats, reach);
+            if (_rules.DisplayType == SpellDisplayType.ArcProjectile && _spawnOrigin == SpellSpawnOrigin.Orbit)
+            {
+                double angle = Math.Min(360, _coneAngle * stats.RadiusMultiplier);
+                reach += (float)(2 * stats.Speed * stats.Lifetime * Math.Sin(angle * Math.PI / 720));
+            }
             return reach;
         }
 

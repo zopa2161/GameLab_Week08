@@ -11,7 +11,8 @@ namespace RuneCode
             new LaunchBehaviorRuntime(),
             new BurstBehaviorRuntime(),
             new PersistBehaviorRuntime(),
-            new BeamBehaviorRuntime()
+            new BeamBehaviorRuntime(),
+            new RadiateBehaviorRuntime()
         };
 
         private static readonly SpellBehaviorRuntime UNREGISTERED = new UnregisteredBehaviorRuntime();
