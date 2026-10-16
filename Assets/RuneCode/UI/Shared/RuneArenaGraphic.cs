@@ -281,22 +281,22 @@ namespace RuneCode
         /// <summary>마법 개체를 범위형(폭발·잔류)과 이동형(발사·공전)으로 나눠 그린다.</summary>
         private void DrawSpell(UnityEngine.UI.VertexHelper mesh, SimulationSpellEntity spell)
         {
-            if (spell.IsArc)
+            if (spell.IsExpandingRing)
             {
-                Color arcColor = RuneMesh.ElementColor(spell.Element);
-                float thickness = (float)spell.ArcThickness * _scale;
-                int segments = RuneMesh.ArcSegmentCount(spell.ArcAngle);
-                Vector2 start = Point(spell.GetArcPoint(0));
+                Color explosionColor = RuneMesh.ElementColor(spell.Element);
+                float thickness = (float)spell.ExplosionThickness * _scale;
+                int segments = RuneMesh.ExplosionSegmentCount(spell.ExplosionAngle);
+                Vector2 start = Point(spell.GetExplosionPoint(0));
                 for (int index = 1; index <= segments; index++)
                 {
-                    Vector2 end = Point(spell.GetArcPoint(index / (double)segments));
-                    RuneMesh.Line(mesh, start, end, thickness, arcColor);
+                    Vector2 end = Point(spell.GetExplosionPoint(index / (double)segments));
+                    RuneMesh.Line(mesh, start, end, thickness, explosionColor);
                     start = end;
                 }
-                if (spell.ArcAngle < 360)
+                if (spell.ExplosionAngle < 360)
                 {
-                    RuneMesh.Polygon(mesh, Point(spell.GetArcPoint(0)), thickness * 0.5f, arcColor);
-                    RuneMesh.Polygon(mesh, Point(spell.GetArcPoint(1)), thickness * 0.5f, arcColor);
+                    RuneMesh.Polygon(mesh, Point(spell.GetExplosionPoint(0)), thickness * 0.5f, explosionColor);
+                    RuneMesh.Polygon(mesh, Point(spell.GetExplosionPoint(1)), thickness * 0.5f, explosionColor);
                 }
                 return;
             }

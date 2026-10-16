@@ -6,7 +6,7 @@ namespace RuneCode
 {
     public sealed class AdaptationNet
     {
-        private static readonly string[] _tagNames = { "fire", "ice", "arc", "raw", "bolt", "burst", "zone", "beam", "radiate" };
+        private static readonly string[] _tagNames = { "fire", "ice", "arc", "raw", "bolt", "burst", "zone", "beam", "legacy_burst" };
         private readonly BalanceData _balance;
         private readonly double[] _values = new double[_tagNames.Length];
         private readonly double[] _lastUsed = new double[_tagNames.Length];

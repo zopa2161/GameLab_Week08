@@ -41,6 +41,7 @@ namespace RuneCode
 
         public const string FORM_BOLT = "bolt";
         public const string FORM_BURST = "burst";
+        public const string FORM_LEGACY_BURST = "legacy_burst";
         public const string FORM_ZONE = "zone";
 
         public const string MAGIC_TYPE_SPHERE = "sphere";

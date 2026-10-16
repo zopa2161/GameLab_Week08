@@ -9,10 +9,10 @@ namespace RuneCode
         private static readonly SpellBehaviorRuntime[] RUNTIMES =
         {
             new LaunchBehaviorRuntime(),
-            new BurstBehaviorRuntime(),
+            new LegacyBurstBehaviorRuntime(),
             new PersistBehaviorRuntime(),
             new BeamBehaviorRuntime(),
-            new RadiateBehaviorRuntime()
+            new BurstBehaviorRuntime()
         };
 
         private static readonly SpellBehaviorRuntime UNREGISTERED = new UnregisteredBehaviorRuntime();

@@ -42,8 +42,8 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.radiate",
         "behavior.burst",
+        "behavior.legacy_burst",
         "behavior.persist",
         "behavior.beam",
         "spell.call"
@@ -171,8 +171,8 @@
       ]
     },
     {
-      "_id": "form.radiate",
-      "_name": "방사 수치",
+      "_id": "form.burst",
+      "_name": "폭발 수치",
       "_category": "internal",
       "_ram": 1,
       "_energy": 10,
@@ -230,13 +230,13 @@
       "_tags": [
         {
           "_order": 0,
-          "_tag": "radiate"
+          "_tag": "burst"
         }
       ]
     },
     {
-      "_id": "form.burst",
-      "_name": "버스트",
+      "_id": "form.legacy_burst",
+      "_name": "레거시 폭발 수치",
       "_category": "internal",
       "_ram": 1,
       "_energy": 12,
@@ -292,7 +292,7 @@
       "_tags": [
         {
           "_order": 0,
-          "_tag": "burst"
+          "_tag": "legacy_burst"
         }
       ]
     },
@@ -542,12 +542,12 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.burst",
+        "behavior.legacy_burst",
         "behavior.persist",
         "behavior.apply",
         "spell.call",
         "behavior.beam",
-        "behavior.radiate"
+        "behavior.burst"
       ]
     },
     {
@@ -578,7 +578,7 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.burst",
+        "behavior.legacy_burst",
         "behavior.persist",
         "spell.call",
         "behavior.beam"
@@ -726,11 +726,11 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.burst",
+        "behavior.legacy_burst",
         "behavior.persist",
         "spell.call",
         "behavior.beam",
-        "behavior.radiate"
+        "behavior.burst"
       ]
     },
     {
@@ -762,7 +762,7 @@
         "behavior.launch",
         "behavior.persist",
         "spell.call",
-        "behavior.radiate"
+        "behavior.burst"
       ]
     },
     {
@@ -1138,10 +1138,6 @@
             {
               "_order": 3,
               "_option": "beam"
-            },
-            {
-              "_order": 4,
-              "_option": "radiate"
             }
           ]
         },
@@ -1287,7 +1283,7 @@
         "behavior.persist",
         "behavior.apply",
         "spell.call",
-        "behavior.radiate"
+        "behavior.burst"
       ]
     },
     {
@@ -1628,8 +1624,8 @@
 
     },
     {
-      "_id": "behavior.radiate",
-      "_name": "방사",
+      "_id": "behavior.burst",
+      "_name": "폭발",
       "_category": "behavior",
       "_shape": "cone",
       "_ram": 1,
@@ -1770,9 +1766,10 @@
       ]
     },
     {
-      "_id": "behavior.burst",
-      "_name": "폭발",
+      "_id": "behavior.legacy_burst",
+      "_name": "레거시 폭발",
       "_category": "behavior",
+      "_disabled": true,
       "_shape": "sphere",
       "_ram": 1,
       "_energy": 0,

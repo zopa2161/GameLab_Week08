@@ -514,24 +514,24 @@ namespace RuneCode
         /// <summary>부채꼴인지 나타낸다. 판정·그리기는 꼭짓점(ConeApex)에서 진행 방향으로 펼친 부채꼴이다.</summary>
         public bool IsCone => _action.MagicType == SpellGrammar.MAGIC_TYPE_CONE;
 
-        /// <summary>생성 위치를 중심으로 원형 파동이 확장하는 방사 투사체인지 반환한다.</summary>
-        public bool IsArc => _action.Rules?.DisplayType == SpellDisplayType.ArcProjectile;
+        /// <summary>생성 위치를 중심으로 원형 파동이 확장하는 폭발 투사체인지 반환한다.</summary>
+        public bool IsExpandingRing => _action.Rules?.DisplayType == SpellDisplayType.ExpandingRing;
 
-        /// <summary>방사의 생성 후 시간과 확장·속도 배율을 반영한 파동 반경이다.</summary>
-        public double ArcRadius => _stats.Speed * _age;
+        /// <summary>폭발의 생성 후 시간과 확장·속도 배율을 반영한 파동 반경이다.</summary>
+        public double ExplosionRadius => _stats.Speed * _age;
 
-        /// <summary>확장 배율에 영향받지 않는 방사의 고정 전체 각도다.</summary>
-        public double ArcAngle => _action.ConeAngle;
+        /// <summary>확장 배율에 영향받지 않는 폭발의 고정 전체 각도다.</summary>
+        public double ExplosionAngle => _action.ConeAngle;
 
         /// <summary>호 중심선의 두께다. 기본 발사체 지름에 기존 확장 배율을 적용한다.</summary>
-        public double ArcThickness => _stats.Radius * 2;
+        public double ExplosionThickness => _stats.Radius * 2;
 
         /// <summary>현재 호의 원 중심이다. 투사체 위치는 호의 정면 중앙점이다.</summary>
-        public SimVector ArcCenter => _position - _direction * ArcRadius;
+        public SimVector ExplosionCenter => _position - _direction * ExplosionRadius;
 
         /// <summary>호의 왼쪽 끝 0부터 오른쪽 끝 1까지의 중심선 위치를 현재 표시 시점 기준으로 반환한다.</summary>
-        public SimVector GetArcPoint(double fraction)
-            => ArcCenter + _direction.Rotated((Math.Max(0, Math.Min(1, fraction)) - 0.5) * ArcAngle * Math.PI / 180) * ArcRadius;
+        public SimVector GetExplosionPoint(double fraction)
+            => ExplosionCenter + _direction.Rotated((Math.Max(0, Math.Min(1, fraction)) - 0.5) * ExplosionAngle * Math.PI / 180) * ExplosionRadius;
 
         /// <summary>부채꼴의 전체 각도(도)다.</summary>
         public double ConeAngle => _action.ConeAngle;
@@ -753,7 +753,7 @@ namespace RuneCode
             var ids = new List<int>(_hitTimes.Keys); ids.Sort();
             foreach (int id in ids) state.Append(FormattableString.Invariant($"|{id}:{_hitTimes[id]:R}"));
             _behavior.WriteState(this, state);
-            if (IsArc) state.Append(FormattableString.Invariant($"|arcPrevious:{_previousPosition.X:R}:{_previousPosition.Y:R}:{_previousDirection.X:R}:{_previousDirection.Y:R}:{ArcAngle:R}:{_stats.RadiusMultiplier:R}"));
+            if (IsExpandingRing) state.Append(FormattableString.Invariant($"|explosionPrevious:{_previousPosition.X:R}:{_previousPosition.Y:R}:{_previousDirection.X:R}:{_previousDirection.Y:R}:{ExplosionAngle:R}:{_stats.RadiusMultiplier:R}"));
             for (int index = 0; index < _modifierRuntimes.Length; index++) _modifierRuntimes[index].WriteState(this, _modifierStates[index], state);
         }
     }

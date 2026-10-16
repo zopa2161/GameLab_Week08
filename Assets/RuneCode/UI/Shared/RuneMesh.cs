@@ -4,10 +4,10 @@ namespace RuneCode
 {
     internal static class RuneMesh
     {
-        private const float ARC_SEGMENT_ANGLE = 2f;
+        private const float EXPLOSION_SEGMENT_ANGLE = 2f;
 
         /// <summary>전투와 도크에서 같은 각도 간격으로 호를 표시할 선분 수를 반환한다.</summary>
-        internal static int ArcSegmentCount(double angle) => Mathf.Max(1, Mathf.CeilToInt((float)angle / ARC_SEGMENT_ANGLE));
+        internal static int ExplosionSegmentCount(double angle) => Mathf.Max(1, Mathf.CeilToInt((float)angle / EXPLOSION_SEGMENT_ANGLE));
 
         /// <summary>사각형의 위치와 색상으로 UI 메시의 네 꼭짓점과 삼각형을 추가한다.</summary>
         internal static void Rect(UnityEngine.UI.VertexHelper mesh, Rect rect, Color color)

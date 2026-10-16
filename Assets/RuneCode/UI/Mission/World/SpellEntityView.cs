@@ -71,7 +71,7 @@ namespace RuneCode
         {
             transform.localPosition = MissionWorldSpace.ToWorld(spell.Position, origin);
             Color tint = RuneMesh.ElementColor(spell.Element);
-            if (spell.IsArc || SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
+            if (spell.IsExpandingRing || SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
             {
                 MissionWorldSpace.SetVisible(_trail, false);
                 MissionWorldSpace.SetVisible(_shape, false);
@@ -79,7 +79,7 @@ namespace RuneCode
                 MissionWorldSpace.SetVisible(_outline, false);
                 MissionWorldSpace.SetVisible(_inner, false);
                 MissionWorldSpace.SetVisible(_coneRenderer, true);
-                if (spell.IsArc) ApplyArc(spell, tint, origin);
+                if (spell.IsExpandingRing) ApplyExplosionRing(spell, tint, origin);
                 else ApplyBeam(spell, tint, origin);
                 return;
             }
@@ -195,16 +195,16 @@ namespace RuneCode
         }
 
         /// <summary>실제 파동 반경·두께로 띠를 표시하고 완전한 원은 끝점 마감 없이 닫는다.</summary>
-        private void ApplyArc(SimulationSpellEntity spell, Color tint, SimVector origin)
+        private void ApplyExplosionRing(SimulationSpellEntity spell, Color tint, SimVector origin)
         {
             _coneVertices.Clear(); _coneColors.Clear(); _coneTriangles.Clear();
             Vector2 offset = MissionWorldSpace.ToWorld(spell.Position, origin);
-            float halfWidth = MissionWorldSpace.ToWorldLength(spell.ArcThickness * 0.5);
-            int segments = RuneMesh.ArcSegmentCount(spell.ArcAngle);
-            Vector3 center = MissionWorldSpace.ToWorld(spell.ArcCenter, origin) - offset;
+            float halfWidth = MissionWorldSpace.ToWorldLength(spell.ExplosionThickness * 0.5);
+            int segments = RuneMesh.ExplosionSegmentCount(spell.ExplosionAngle);
+            Vector3 center = MissionWorldSpace.ToWorld(spell.ExplosionCenter, origin) - offset;
             for (int index = 0; index <= segments; index++)
             {
-                Vector3 point = MissionWorldSpace.ToWorld(spell.GetArcPoint(index / (double)segments), origin) - offset;
+                Vector3 point = MissionWorldSpace.ToWorld(spell.GetExplosionPoint(index / (double)segments), origin) - offset;
                 Vector3 radial = point - center;
                 Vector3 normal = radial.sqrMagnitude > 0 ? radial.normalized : (Vector3)MissionWorldSpace.ToWorldDirection(spell.Direction);
                 _coneVertices.Add(point - normal * Mathf.Min(halfWidth, radial.magnitude));
@@ -215,10 +215,10 @@ namespace RuneCode
                 _coneTriangles.Add(vertex - 2); _coneTriangles.Add(vertex - 1); _coneTriangles.Add(vertex + 1);
                 _coneTriangles.Add(vertex - 2); _coneTriangles.Add(vertex + 1); _coneTriangles.Add(vertex);
             }
-            if (spell.ArcAngle < 360)
+            if (spell.ExplosionAngle < 360)
             {
-                AddArcCap(MissionWorldSpace.ToWorld(spell.GetArcPoint(0), origin) - offset, halfWidth, tint);
-                AddArcCap(MissionWorldSpace.ToWorld(spell.GetArcPoint(1), origin) - offset, halfWidth, tint);
+                AddExplosionCap(MissionWorldSpace.ToWorld(spell.GetExplosionPoint(0), origin) - offset, halfWidth, tint);
+                AddExplosionCap(MissionWorldSpace.ToWorld(spell.GetExplosionPoint(1), origin) - offset, halfWidth, tint);
             }
             _coneMesh.Clear();
             _coneMesh.SetVertices(_coneVertices);
@@ -227,7 +227,7 @@ namespace RuneCode
         }
 
         /// <summary>호 끝점에 판정 반폭과 같은 반경의 원형 마감을 메시로 추가한다.</summary>
-        private void AddArcCap(Vector3 center, float radius, Color tint)
+        private void AddExplosionCap(Vector3 center, float radius, Color tint)
         {
             int vertex = _coneVertices.Count;
             _coneVertices.Add(center); _coneColors.Add(tint);

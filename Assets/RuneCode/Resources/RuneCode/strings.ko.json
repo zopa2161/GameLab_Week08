@@ -1,13 +1,13 @@
 {
   "_entries": [
-    {"_key": "tag.radiate", "_value": "방사"},
-    {"_key": "form.radiate", "_value": "방사"},
-    {"_key": "ui.radiateHint", "_value": "생성 위치에서 원형 파동이 확장됩니다. 적마다 한 번 타격하고 수명까지 유지되며 벽과 보호막을 통과합니다. 다중·관통·유도·공전은 지원하지 않습니다."},
-    {"_key": "ui.radiateAngle", "_value": "파동 전체 각도"},
-    {"_key": "ui.radiateThickness", "_value": "파동 두께"},
+    {"_key": "tag.legacy_burst", "_value": "레거시 폭발"},
+    {"_key": "form.legacy_burst", "_value": "레거시 폭발"},
+    {"_key": "ui.burstHint", "_value": "생성 위치에서 원형 파동이 확장됩니다. 적마다 한 번 타격하고 수명까지 유지되며 벽과 보호막을 통과합니다. 다중·관통·유도·공전은 지원하지 않습니다."},
+    {"_key": "ui.burstAngle", "_value": "파동 전체 각도"},
+    {"_key": "ui.burstThickness", "_value": "파동 두께"},
     {
       "_key": "ui.mod.knockbackHint",
-      "_value": "이번 타격에서 실제로 준 직접 피해에 비례해 적을 밀어냅니다. 작은 지속 피해는 짧게 밀어냅니다. 발사는 진행 방향, 방사·폭발·잔류는 중심에서 바깥 방향, 빔은 맞은 구간의 진행 방향을 사용합니다. 보스·빙결·돌진 중인 적에게는 적용되지 않습니다."
+      "_value": "이번 타격에서 실제로 준 직접 피해에 비례해 적을 밀어냅니다. 작은 지속 피해는 짧게 밀어냅니다. 발사는 진행 방향, 폭발·레거시 폭발·잔류는 중심에서 바깥 방향, 빔은 맞은 구간의 진행 방향을 사용합니다. 보스·빙결·돌진 중인 적에게는 적용되지 않습니다."
     },
     { "_key": "tag.beam", "_value": "빔" },
     { "_key": "form.beam", "_value": "빔" },
@@ -895,7 +895,7 @@
     },
     {
       "_key": "form.burst",
-      "_value": "버스트"
+      "_value": "폭발"
     },
     {
       "_key": "form.zone",
@@ -923,7 +923,7 @@
     },
     {
       "_key": "tag.burst",
-      "_value": "버스트"
+      "_value": "폭발"
     },
     {
       "_key": "tag.zone",
