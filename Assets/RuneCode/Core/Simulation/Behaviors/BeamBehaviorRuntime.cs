@@ -17,22 +17,34 @@ namespace RuneCode
         /// <summary>빔별 경로·적중 횟수·피해 예약을 보관할 상태를 생성한다.</summary>
         public override object CreateState(SimulationSpellEntity entity) => new BeamState();
 
-        /// <summary>생성 틱에 발사 지점을 정하고(이동 단계) 경로를 만들어 최초 피해를 한 번 판정한다.</summary>
+        /// <summary>
+        /// 생성 틱에 시전자를 따라가는 빔이면 생성 방향의 조준 대비 각도를 저장하고, 발사 지점을 정한 뒤(이동 단계) 경로를 만들어 최초 피해를 한 번 판정한다.
+        /// </summary>
         public override void OnSpawned(RuneSimulation simulation, SimulationSpellEntity entity)
         {
+            var state = (BeamState)entity.BehaviorState;
+            if (state.Channel.FollowsPlayer)
+            {
+                // 다중·호출 퍼짐이 반영된 생성 방향을 조준 기준 각도로 보관한다. 공전 접선이 덮어쓰기 전에 한 번만 계산한다.
+                SimVector aim = simulation.Player.AimDirection;
+                SimVector direction = entity.Direction;
+                state.SetAimOffset(Math.Atan2(aim.X * direction.Y - aim.Y * direction.X, SimVector.Dot(aim, direction)));
+            }
             MoveAlongPath(simulation, entity);
             Judge(simulation, entity);
         }
 
         /// <summary>
-        /// 직접 시전해 시전자를 따라가는 빔이면 발사 지점을 시전자 앞 지팡이 끝으로 옮긴다. 이동 모드가 이동을 맡으면 호출되지 않는다.
+        /// 직접 시전해 시전자를 따라가는 빔이면 방향을 현재 조준에 생성 시 조준 대비 각도를 더한 값으로 바꾸고
+        /// 발사 지점을 그 방향의 지팡이 끝으로 옮긴다. 이동 모드가 이동을 맡으면 호출되지 않는다.
         /// </summary>
         public override void MoveAlongPath(RuneSimulation simulation, SimulationSpellEntity entity)
         {
             var state = (BeamState)entity.BehaviorState;
             if (!state.Channel.FollowsPlayer) return;
-            entity.Move(simulation.Player.Position + entity.Direction *
-                (simulation.PlayerRadius + simulation.Balance.Sim.WandOffset), entity.Direction);
+            SimVector direction = simulation.Player.AimDirection.Rotated(state.AimOffset);
+            entity.Move(simulation.Player.Position + direction *
+                (simulation.PlayerRadius + simulation.Balance.Sim.WandOffset), direction);
         }
 
         /// <summary>
@@ -56,12 +68,17 @@ namespace RuneCode
 
         /// <summary>
         /// 맵 경계·벽을 반영한 중심선 경로를 빔 상태에 재사용해 저장한다. 각 칸의 방향은 장착된 이동 모드(유도 등)가 경로 개입으로 고친다.
-        /// 유도 수치가 있으면 경로 길이를 빔 길이로, 없으면 맵 대각선으로 둔다.
+        /// 공전은 현재 공전 중심의 원 한 바퀴, 그 외에는 유도 수치가 있으면 빔 길이, 없으면 맵 대각선을 경로 길이로 쓴다.
         /// </summary>
         private static void BuildPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
         {
             state.ClearPath();
             entity.BeginPath(simulation);
+            if (entity.HasModifierPath && entity.Stats.OrbitRadius > 0)
+            {
+                BuildOrbitPath(simulation, entity, state);
+                return;
+            }
             SimVector point = entity.Position;
             SimVector direction = entity.Direction;
             double halfWidth = entity.Stats.BoxWidth * 0.5;
@@ -88,6 +105,34 @@ namespace RuneCode
             }
         }
 
+        /// <summary>현재 공전 중심의 원을 독립된 각도 표본으로 만들고 유도 구간만 변형한다. 벽이 없으면 마지막 점을 첫 점과 정확히 연결한다.</summary>
+        private static void BuildOrbitPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
+        {
+            double radius = entity.Stats.OrbitRadius;
+            bool isHoming = entity.Stats.HomingRange > 0 && entity.Stats.HomingTurn > 0;
+            double extent = radius + (isHoming ? entity.Stats.HomingRange : 0);
+            int segments = Math.Max(3, (int)Math.Ceiling(2 * Math.PI * extent / PATH_STEP));
+            SimVector radial = (entity.Position - OrbitModifierRuntime.GetCenter(entity)).Normalized();
+            double halfWidth = entity.Stats.BoxWidth * 0.5;
+            SimVector first = HomingModifierRuntime.GetOrbitPathPoint(simulation, entity, radial, 0, segments);
+            SimVector point = first;
+            state.AddPoint(first);
+            if (!simulation.Map.CanOccupy(first, halfWidth)) return;
+            for (int index = 1; index <= segments; index++)
+            {
+                SimVector next = index == segments ? first : HomingModifierRuntime.GetOrbitPathPoint(
+                    simulation, entity, radial, index, segments);
+                double wall = simulation.FirstWallFraction(point, next, halfWidth);
+                if (!double.IsPositiveInfinity(wall))
+                {
+                    state.AddPoint(point + (next - point) * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON));
+                    return;
+                }
+                state.AddPoint(next);
+                point = next;
+            }
+        }
+
         /// <summary>경로에 겹친 적을 경로 거리·ID 순으로 한 번씩 타격하고 대상별 두 번째 피해마다 onHit을 발생시킨다.</summary>
         private static void HitPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
         {
@@ -109,7 +154,7 @@ namespace RuneCode
                                 ? Math.Max(0, Math.Min(1, SimVector.Dot(enemy.Position - start, segment) / segment.LengthSquared)) : 0;
                         }
                         state.AddTarget(enemy, distance + (end - start).Length * fraction,
-                            start + (end - start) * fraction);
+                            start + (end - start) * fraction, end - start);
                         break;
                     }
                     distance += (end - start).Length;
@@ -121,7 +166,7 @@ namespace RuneCode
                 SimulationEnemy enemy = target.Enemy;
                 if (!enemy.IsAlive) continue;
                 double previousHp = enemy.Hp;
-                simulation.Hit(entity, enemy, entity.Stats.Damage, true);
+                simulation.Hit(entity, enemy, entity.Stats.Damage, true, target.Direction);
                 if (enemy.Hp >= previousHp) continue;
                 entity.HitTimes[enemy.Id] = simulation.Time;
                 if (state.RecordHit(enemy.Id) % HITS_PER_EVENT == 0)
@@ -129,12 +174,13 @@ namespace RuneCode
             }
         }
 
-        /// <summary>채널 상태와 대상별 누적 적중 수를 고정 순서·불변 형식으로 결정성 해시에 기록한다.</summary>
+        /// <summary>채널 상태, 조준 대비 각도와 대상별 누적 적중 수를 고정 순서·불변 형식으로 결정성 해시에 기록한다.</summary>
         public override void WriteState(SimulationSpellEntity entity, StringBuilder state)
         {
             var beam = (BeamState)entity.BehaviorState;
             beam.Channel.WriteState(state);
-            state.Append("|beam:").Append(beam.NextDamageTick).Append(':').Append(beam.LastAdvanceTick);
+            state.Append("|beam:").Append(beam.NextDamageTick).Append(':').Append(beam.LastAdvanceTick)
+                .Append(':').Append(beam.AimOffset.ToString("R", CultureInfo.InvariantCulture));
             beam.WriteHits(state);
         }
 
@@ -203,7 +249,7 @@ namespace RuneCode
                     .Append(':').Append(_canExtend).Append(':').Append(_followsPlayer);
         }
 
-        /// <summary>빔 개체별 재사용 경로·피해 예약·대상 적중 이력이다.</summary>
+        /// <summary>빔 개체별 재사용 경로·피해 예약·조준 대비 각도·대상 적중 이력이다.</summary>
         internal sealed class BeamState
         {
             private readonly List<SimVector> _path = new List<SimVector>();
@@ -212,12 +258,15 @@ namespace RuneCode
             private BeamChannel _channel;
             private int _lastAdvanceTick = -1;
             private int _nextDamageTick;
+            private double _aimOffset;
 
             public IReadOnlyList<SimVector> Path => _path;
             internal IReadOnlyList<BeamTarget> Targets => _targets;
             internal BeamChannel Channel => _channel;
             internal int LastAdvanceTick => _lastAdvanceTick;
             internal int NextDamageTick => _nextDamageTick;
+            /// <summary>시전자를 따라가는 빔의 생성 방향이 조준 방향에서 벗어난 각도(라디안, 반시계 양수)다.</summary>
+            internal double AimOffset => _aimOffset;
 
             /// <summary>생성한 개체를 동일 행동의 공유 채널에 연결한다.</summary>
             internal void Attach(BeamChannel channel) => _channel = channel;
@@ -225,15 +274,17 @@ namespace RuneCode
             internal void SetAdvanceTick(int tick) => _lastAdvanceTick = tick;
             /// <summary>다음 피해 판정 틱을 예약한다.</summary>
             internal void ScheduleDamage(int tick) => _nextDamageTick = tick;
+            /// <summary>생성 방향의 조준 대비 각도를 기록한다.</summary>
+            internal void SetAimOffset(double offset) => _aimOffset = offset;
             /// <summary>이전 중심선을 비운다. 경로 유도의 지나친 대상 기록은 유도 모드가 BeginPath에서 비운다.</summary>
             internal void ClearPath() => _path.Clear();
             /// <summary>공유 표시·판정 중심선에 점을 추가한다.</summary>
             internal void AddPoint(SimVector point) => _path.Add(point);
             /// <summary>이전 피해 후보 목록을 비운다.</summary>
             internal void ClearTargets() => _targets.Clear();
-            /// <summary>중심선에 겹친 적과 최초 접촉 거리를 피해 후보에 추가한다.</summary>
-            internal void AddTarget(SimulationEnemy enemy, double distance, SimVector contact)
-                => _targets.Add(new BeamTarget(enemy, distance, contact));
+            /// <summary>중심선에 겹친 적의 최초 접촉 거리·접점·구간 진행 방향을 피해 후보에 추가한다.</summary>
+            internal void AddTarget(SimulationEnemy enemy, double distance, SimVector contact, SimVector direction)
+                => _targets.Add(new BeamTarget(enemy, distance, contact, direction));
             /// <summary>경로 거리와 적 ID 순서로 피해 후보를 정렬한다.</summary>
             internal void SortTargets() => _targets.Sort(CompareTargets);
             /// <summary>후보의 경로 거리를 비교하고 동률이면 적 ID로 순서를 정한다.</summary>
@@ -263,13 +314,15 @@ namespace RuneCode
             private readonly SimulationEnemy _enemy;
             private readonly double _distance;
             private readonly SimVector _contact;
+            private readonly SimVector _direction;
             internal SimulationEnemy Enemy => _enemy;
             internal double Distance => _distance;
             internal SimVector Contact => _contact;
+            internal SimVector Direction => _direction;
 
-            /// <summary>경로상의 적·거리·접점을 피해 처리용으로 보관한다.</summary>
-            internal BeamTarget(SimulationEnemy enemy, double distance, SimVector contact)
-            { _enemy = enemy; _distance = distance; _contact = contact; }
+            /// <summary>경로상의 적·거리·접점·구간 진행 방향을 피해와 밀어내기 처리용으로 보관한다.</summary>
+            internal BeamTarget(SimulationEnemy enemy, double distance, SimVector contact, SimVector direction)
+            { _enemy = enemy; _distance = distance; _contact = contact; _direction = direction; }
         }
     }
 }

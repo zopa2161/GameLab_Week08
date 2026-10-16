@@ -300,6 +300,14 @@ namespace RuneCode
         private int _spawnCursor;
         private int _spawnRemaining;
         private double _spawnRemainingSeconds;
+
+        private SimVector _pendingDisplacement;
+        private double _pendingDisplacementLimit;
+        private double _pendingDisplacementSeconds;
+        private int _pendingDisplacementTick = -1;
+        private SimVector _displacementVelocity;
+        private double _displacementRemaining;
+
         public int Id => _id;
         public string Kind => _definition.Id;
         public SimVector Position => _position;
@@ -357,6 +365,60 @@ namespace RuneCode
         /// <summary>적 위치 및 플레이어를 향한 방향을 갱신한다.</summary>
         internal void Move(SimVector position, SimVector facing) { _position = position; if (facing.LengthSquared > 0.000001) _facing = facing.Normalized(); }
 
+        /// <summary>지정 틱의 강제 이동 벡터를 합산하고 최대 단일 거리와 유지 시간을 저장한다. 실제 위치는 변경하지 않는다.</summary>
+        internal void QueueDisplacement(SimVector direction, double distance, double seconds, int tick)
+        {
+            if (direction.Length <= RuneSimulation.COLLISION_EPSILON || distance <= 0 || seconds <= 0) return;
+            if (_pendingDisplacementTick != tick)
+            {
+                if (_pendingDisplacementTick >= 0) CommitDisplacement();
+                _pendingDisplacement = SimVector.Zero;
+                _pendingDisplacementLimit = 0;
+                _pendingDisplacementSeconds = 0;
+                _pendingDisplacementTick = tick;
+            }
+            _pendingDisplacement += direction.Normalized() * distance;
+            _pendingDisplacementLimit = Math.Max(_pendingDisplacementLimit, distance);
+            _pendingDisplacementSeconds = Math.Max(_pendingDisplacementSeconds, seconds);
+        }
+
+        /// <summary>지난 틱의 합성 벡터로 기존 밀기를 교체하고 이번 시간 간격의 이동량을 반환한다. 같은 틱의 예약은 이동시키지 않는다.</summary>
+        internal bool TryAdvanceDisplacement(int tick, double seconds, out SimVector displacement)
+        {
+            if (_pendingDisplacementTick >= 0 && _pendingDisplacementTick < tick)
+                CommitDisplacement();
+            displacement = _displacementVelocity * Math.Min(seconds, _displacementRemaining);
+            bool hasDisplacement = _displacementRemaining > 0;
+            _displacementRemaining = Math.Max(0, _displacementRemaining - seconds);
+            if (_displacementRemaining == 0) _displacementVelocity = SimVector.Zero;
+            return hasDisplacement;
+        }
+
+        /// <summary>예약 벡터를 최대 단일 거리로 제한해 현재 강제 이동을 교체하고 예약을 비운다.</summary>
+        private void CommitDisplacement()
+        {
+            double length = _pendingDisplacement.Length;
+            SimVector vector = length > _pendingDisplacementLimit
+                ? _pendingDisplacement / length * _pendingDisplacementLimit : _pendingDisplacement;
+            _displacementVelocity = vector / _pendingDisplacementSeconds;
+            _displacementRemaining = length > RuneSimulation.COLLISION_EPSILON ? _pendingDisplacementSeconds : 0;
+            _pendingDisplacementTick = -1;
+            _pendingDisplacement = SimVector.Zero;
+            _pendingDisplacementLimit = 0;
+            _pendingDisplacementSeconds = 0;
+        }
+
+        /// <summary>진행 중인 강제 이동과 아직 적용하지 않은 합성 예약을 모두 취소한다.</summary>
+        internal void CancelDisplacement()
+        {
+            _pendingDisplacement = SimVector.Zero;
+            _pendingDisplacementLimit = 0;
+            _pendingDisplacementSeconds = 0;
+            _pendingDisplacementTick = -1;
+            _displacementVelocity = SimVector.Zero;
+            _displacementRemaining = 0;
+        }
+
         /// <summary>피해를 체력에 적용하고 실제 감소량을 반환하며 피격 표시 시간을 설정한다.</summary>
         internal double Hurt(double damage, double time) { double actual = Math.Min(_hp, Math.Max(0, damage)); _hp -= actual; _flashUntil = time + _hitFlashSeconds; return actual; }
 
@@ -373,6 +435,8 @@ namespace RuneCode
         internal void WriteState(StringBuilder state)
         {
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
+            if (_pendingDisplacementTick >= 0 || _displacementRemaining > 0)
+                state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));
             state.Append(FormattableString.Invariant($"|{_damage:R}|{_damageMultiplier:R}|{_reward}"));
             state.Append('|').Append(_lastDamageElement).Append('|').Append(_lastDamageForm);
             state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_facing.X:R}|{_facing.Y:R}|{_hp:R}|{_maxHp:R}|{_attackAt:R}|{_warningUntil:R}|{_dashUntil:R}|{_attackDirection.X:R}|{_attackDirection.Y:R}|{_flashUntil:R}|{_phase}|{_patchUntil:R}|{_reinforcementAt:R}|{_hazardAt:R}|{_observedTime:R}"));
@@ -679,6 +743,8 @@ namespace RuneCode
             state.Append(_id).Append('|').Append(_action.NodeId).Append('|').Append(_element).Append('|').Append(_castNoiseElement).Append('|').Append(_fromEvent);
             state.Append(FormattableString.Invariant($"|{_anchor.X:R}|{_anchor.Y:R}|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_age:R}|{_angle:R}|{_hits}|{_hasExpired}|{_hasFiredFirstEvent}|{_hasDirectHit}|{_costMultiplier:R}"));
             state.Append(FormattableString.Invariant($"|{_stats.Damage:R}|{_stats.Speed:R}|{_stats.Radius:R}|{_stats.Lifetime:R}|{_stats.Pierce}|{_stats.HomingTurn:R}|{_stats.HomingRange:R}"));
+            if (_stats.KnockbackDistance > 0)
+                state.Append(FormattableString.Invariant($"|knockback:{_stats.KnockbackDistance:R}:{_stats.KnockbackSeconds:R}"));
             _modifiers.AppendState(state);
             _callEvents?.AppendState(state);
             var ids = new List<int>(_hitTimes.Keys); ids.Sort();

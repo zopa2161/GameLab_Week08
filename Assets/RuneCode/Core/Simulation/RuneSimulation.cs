@@ -1017,7 +1017,9 @@ namespace RuneCode
                 if (!hasHit || (!isBurst && Time - lastTime + 0.000001 >= interval))
                 {
                     entity.HitTimes[enemy.Id] = Time;
-                    Hit(entity, enemy, entity.Stats.Damage, entity.Behavior.IsDamageOverTime);
+                    SimVector pushDirection = enemy.Position - entity.Position;
+                    if (pushDirection.Length <= COLLISION_EPSILON) pushDirection = entity.Direction;
+                    Hit(entity, enemy, entity.Stats.Damage, entity.Behavior.IsDamageOverTime, pushDirection);
                     // Burst.OnHit은 확장 범위가 대상과 처음 겹칠 때 대상별 한 번, 접촉 위치로 낸다.
                     if (isBurst) RaiseHitEvent(entity, SpellGeometry.GetContactPoint(entity, enemy.Position), enemy);
                 }
@@ -1040,10 +1042,17 @@ namespace RuneCode
             else _player.GiveShield(amount, action.BuffDuration * action.ModifierValues.DurationMultiplier * entity.Modifiers.DurationMultiplier, Time);
         }
 
-        /// <summary>스펠 피해와 상태를 적용하고 전격 연쇄를 처리한다. 잔류 피해를 누적하는 행동은 실제 피해를 PersistDamage에도 누적한다. 이벤트 실행은 호출부가 RaiseHitEvent로 따로 처리한다.</summary>
-        internal void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot)
+        /// <summary>스펠 피해·상태와 전격 연쇄를 처리하고 직접 실제 피해에 비례한 밀어내기를 pushDirection으로 예약한다. 잔류 피해는 PersistDamage에 누적하며 이벤트는 호출부가 처리한다.</summary>
+        internal void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot, SimVector pushDirection)
         {
             double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true);
+            if (IsSeparationFixed(enemy)) enemy.CancelDisplacement();
+            else if (actual > 0 && enemy.IsAlive && entity.Stats.KnockbackDistance > 0)
+            {
+                double referenceDamage = GameData.Runes.Get("mod.knockback").Stats.KnockbackReferenceDamage;
+                double distance = entity.Stats.KnockbackDistance * actual / referenceDamage;
+                enemy.QueueDisplacement(pushDirection, distance, entity.Stats.KnockbackSeconds, _tick);
+            }
             if (entity.Element == "arc")
             {
                 RuneStats arc = GameData.Runes.Get("elem.arc").Stats;
@@ -1292,6 +1301,7 @@ namespace RuneCode
             {
                 SimulationEnemy enemy = _enemies[i]; if (!enemy.IsAlive) continue;
                 enemy.Observe(Time);
+                bool hasDisplacement = AdvanceEnemyDisplacement(enemy);
                 if (enemy.IsDummy) continue;
                 if (HasEnemyStatus(enemy, EnemyStatusType.Freeze))
                 {
@@ -1305,11 +1315,28 @@ namespace RuneCode
                 if (isBoss) { CheckBossPatch(enemy, bossPattern); if (enemy.IsPatching) continue; }
                 double speedMultiplier = isBoss && enemy.Phase == 3 ? bossPattern.PhaseThreeMultiplier : 1;
                 var context = new EnemyMoveContext(offset, direction, Time, _isMission, _stages.StationaryAdvanceSpeed, isBoss ? bossPattern.PreferredDistance : 0, speedMultiplier);
-                ApplyMove(enemy, EnemyMovements.Decide(enemy, context));
+                if (!hasDisplacement) ApplyMove(enemy, EnemyMovements.Decide(enemy, context));
                 if (isBoss) AdvanceBoss(enemy, bossPattern, direction);
                 else AdvanceEnemyAttack(enemy, offset, direction);
+                if (IsSeparationFixed(enemy)) enemy.CancelDisplacement();
                 if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) AdvanceCarrier(enemy);
             }
+        }
+
+        /// <summary>면역을 확인하고 적의 강제 이동을 진행한다. 벽 앞에서 멈추며 이번 틱에 자발적 이동을 보류할지 반환한다.</summary>
+        private bool AdvanceEnemyDisplacement(SimulationEnemy enemy)
+        {
+            if (IsSeparationFixed(enemy)) { enemy.CancelDisplacement(); return false; }
+            if (!enemy.TryAdvanceDisplacement(_tick, STEP_SECONDS, out SimVector displacement)) return false;
+            SimVector next = enemy.Position + displacement;
+            double wall = FirstWallFraction(enemy.Position, next, enemy.Radius);
+            if (!double.IsPositiveInfinity(wall))
+            {
+                next = enemy.Position + displacement * Math.Max(0, wall - COLLISION_EPSILON);
+                enemy.CancelDisplacement();
+            }
+            enemy.Move(next, enemy.Facing);
+            return true;
         }
 
         /// <summary>이동 판단 결과에 따라 정지, 방향 전환 또는 감속·벽 충돌을 반영한 이동을 적용한다.</summary>
@@ -1963,6 +1990,7 @@ namespace RuneCode
         private void CancelCombat()
         {
             CancelBeamChannels();
+            foreach (SimulationEnemy enemy in _enemies) enemy.CancelDisplacement();
             _spellEntities.Clear(); _enemyProjectiles.Clear(); _scheduled.Clear(); _pendingEnemyShots.Clear(); _pendingSplits.Clear(); _deadEnemies.Clear();
             if (_player != null) _player.CancelSpellExecutions();
         }

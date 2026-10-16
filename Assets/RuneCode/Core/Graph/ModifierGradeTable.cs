@@ -343,14 +343,14 @@ namespace RuneCode
         {
             bool isKnownEffect = effectType == "effectMultiplier" || effectType == "multipleCount" || effectType == "pierceCount"
                 || effectType == "radiusMultiplier" || effectType == "durationMultiplier" || effectType == "speedMultiplier"
-                || effectType == "homingTier" || effectType == "orbitPath";
+                || effectType == "homingTier" || effectType == "orbitPath" || effectType == "knockbackDistance";
             if (!isKnownEffect) log.Add(modifierId, "_effectType", "지원하지 않는 효과 종류입니다: " + effectType);
             foreach (KeyValuePair<string, object> pair in values)
             {
                 if (pair.Value == null) continue;
                 string field = key + "." + pair.Key;
                 if (effectType == "effectMultiplier" || effectType == "radiusMultiplier" || effectType == "durationMultiplier"
-                    || effectType == "speedMultiplier")
+                    || effectType == "speedMultiplier" || effectType == "orbitPath" || effectType == "knockbackDistance")
                 {
                     if (!(pair.Value is double number) || number <= 0d || number > float.MaxValue)
                         log.Add(modifierId, field, "float 범위의 양수 숫자여야 합니다.");
@@ -373,12 +373,6 @@ namespace RuneCode
                 {
                     if (!(pair.Value is string tier) || rune == null || rune.FindHomingTier(tier) == null)
                         log.Add(modifierId, field, "runes.json _homingTiers에 정의된 유도 단계 문자열이어야 합니다.");
-                }
-                else if (effectType == "orbitPath")
-                {
-                    // 공전은 등급별 수치 변화가 없어 값은 그 등급이 있다는 표시(1)로만 쓴다.
-                    if (!(pair.Value is double number) || number != 1d)
-                        log.Add(modifierId, field, "등급이 있음을 나타내는 1이어야 합니다.");
                 }
             }
         }

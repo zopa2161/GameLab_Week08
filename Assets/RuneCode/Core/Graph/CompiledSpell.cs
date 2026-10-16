@@ -42,6 +42,8 @@ namespace RuneCode
         private readonly float _homingTurn;
         private readonly float _homingRange;
         private readonly float _spreadAngle;
+        private readonly float _knockbackDistance;
+        private readonly float _knockbackSeconds;
         public static SpellModifierValues None => _none;
         public float DamageMultiplier => _damageMultiplier;
         public float RadiusMultiplier => _radiusMultiplier;
@@ -52,10 +54,13 @@ namespace RuneCode
         public float HomingTurn => _homingTurn;
         public float HomingRange => _homingRange;
         public float SpreadAngle => _spreadAngle;
+        public float KnockbackDistance => _knockbackDistance;
+        public float KnockbackSeconds => _knockbackSeconds;
 
         /// <summary>시전 시 적용할 수식 배율과 관통·유도 값을 보관한다.</summary>
         public SpellModifierValues(float damageMultiplier, float radiusMultiplier, float speedMultiplier,
-            float durationMultiplier, float rangeMultiplier, int pierce, float homingTurn, float homingRange, float spreadAngle)
+            float durationMultiplier, float rangeMultiplier, int pierce, float homingTurn, float homingRange, float spreadAngle,
+            float knockbackDistance = 0f, float knockbackSeconds = 0f)
         {
             _damageMultiplier = damageMultiplier;
             _radiusMultiplier = radiusMultiplier;
@@ -66,6 +71,8 @@ namespace RuneCode
             _homingTurn = homingTurn;
             _homingRange = homingRange;
             _spreadAngle = spreadAngle;
+            _knockbackDistance = knockbackDistance;
+            _knockbackSeconds = knockbackSeconds;
         }
 
         /// <summary>수식 컨텍스트의 수치 값을 결정성 상태 해시에 기록한다.</summary>
@@ -79,6 +86,8 @@ namespace RuneCode
                 .Append(_pierce).Append('|').Append(_homingTurn.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
                 .Append(_homingRange.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
                 .Append(_spreadAngle.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+            if (_knockbackDistance > 0f)
+                state.Append(FormattableString.Invariant($"|knockback:{_knockbackDistance:R}:{_knockbackSeconds:R}"));
         }
 
         /// <summary>중첩 SpellCall의 수식 효과를 곱셈·가산 규칙에 따라 결합한다.</summary>
@@ -88,7 +97,8 @@ namespace RuneCode
                 _radiusMultiplier * other._radiusMultiplier, _speedMultiplier * other._speedMultiplier,
                 _durationMultiplier * other._durationMultiplier, _rangeMultiplier * other._rangeMultiplier,
                 AddPierce(_pierce, other._pierce), Math.Max(_homingTurn, other._homingTurn), Math.Max(_homingRange, other._homingRange),
-                Math.Max(_spreadAngle, other._spreadAngle));
+                Math.Max(_spreadAngle, other._spreadAngle), Math.Max(_knockbackDistance, other._knockbackDistance),
+                Math.Max(_knockbackSeconds, other._knockbackSeconds));
         }
 
         /// <summary>연결된 Modifier와 문자열 등급 수치로 호출부 수식 효과를 계산한다.</summary>
@@ -104,6 +114,8 @@ namespace RuneCode
             float homingTurn = 0f;
             float homingRange = 0f;
             float spreadAngle = 0f;
+            float knockbackDistance = 0f;
+            float knockbackSeconds = 0f;
             for (int index = 0; index < modifiers.Count; index++)
             {
                 RuneDefinition modifier = modifiers[index];
@@ -133,8 +145,12 @@ namespace RuneCode
                     homingRange = Math.Max(homingRange, stats.HomingRange);
                 }
                 spreadAngle = Math.Max(spreadAngle, stats.SpreadAngle);
+                knockbackDistance = Math.Max(knockbackDistance,
+                    GradeNumber(modifierGrades, modifier.Id, grade, "knockbackDistance", stats.KnockbackDistance));
+                knockbackSeconds = Math.Max(knockbackSeconds, stats.KnockbackSeconds);
             }
-            return new SpellModifierValues(damage, radius, speed, duration, range, pierce, homingTurn, homingRange, spreadAngle);
+            return new SpellModifierValues(damage, radius, speed, duration, range, pierce, homingTurn, homingRange,
+                spreadAngle, knockbackDistance, knockbackSeconds);
         }
 
         /// <summary>해당 효과 종류의 등급 숫자를 가져오거나 Modifier의 고정 기본값을 반환한다.</summary>
@@ -226,6 +242,8 @@ namespace RuneCode
         private readonly float _arcMultiplier;
         private readonly float _learningMultiplier;
         private readonly float _spreadAngle;
+        private readonly float _knockbackDistance;
+        private readonly float _knockbackSeconds;
         public float Damage => _damage;
         public float Speed => _speed;
 
@@ -251,6 +269,8 @@ namespace RuneCode
         public float ArcMultiplier => _arcMultiplier;
         public float LearningMultiplier => _learningMultiplier;
         public float SpreadAngle => _spreadAngle;
+        public float KnockbackDistance => _knockbackDistance;
+        public float KnockbackSeconds => _knockbackSeconds;
 
         /// <summary>형태·속성·수식 정의와 개별 수식 노드의 배율을 결합하여 읽기 전용 효과 수치를 만든다.</summary>
         public SpellStats(RuneStats form, RuneStats element, IReadOnlyList<RuneDefinition> mods, string formKind,
@@ -261,6 +281,8 @@ namespace RuneCode
             float damageMult = 1f;
             float radiusMult = 1f;
             float rangeMult = 1f;
+            float orbitRadiusMult = 1f;
+            float orbitRadius = 0f;
             float speedMult = 1f;
             float durationMult = 1f;
             _learningMultiplier = 1f;
@@ -274,6 +296,8 @@ namespace RuneCode
                 GraphNode modifierNode = modifierNodes == null ? null : modifierNodes[index];
                 RuneStats stats = mod.Stats;
                 string grade = SpellGrammar.GetModifierGrade(mod, modifierNode, modifierGrades);
+                if (mod.Id == OrbitModifierRules.RUNE_ID) orbitRadius = stats.OrbitRadius;
+                orbitRadiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "orbitPath", 1f);
                 damageMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "effectMultiplier", stats.DamageMultiplier);
                 radiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "radiusMultiplier", stats.RadiusMultiplier);
                 speedMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "speedMultiplier", stats.SpeedMultiplier);
@@ -300,6 +324,9 @@ namespace RuneCode
                     if (stats.HomingRange > 0f) _homingRange = stats.HomingRange;
                 }
                 _learningMultiplier *= stats.LearningMultiplier;
+                _knockbackDistance = Math.Max(_knockbackDistance,
+                    SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "knockbackDistance", stats.KnockbackDistance));
+                _knockbackSeconds = Math.Max(_knockbackSeconds, stats.KnockbackSeconds);
                 // 지팡이 앞 행동(발사·빔)은 등급표의 발사 전용 퍼짐 각도가 있으면 그 값을 쓴다.
                 if (usesLaunchGradeValues && modifierGrades != null
                     && modifierGrades.TryGetLaunchSpreadAngle(mod.Id, grade, out float launchSpread)) _spreadAngle = launchSpread;
@@ -323,12 +350,12 @@ namespace RuneCode
                 // 동작 모드가 행동의 수명 규칙을 바꿀 수 있다(발사 + 공전은 사거리 대신 기본 수명).
                 for (int index = 0; index < mods.Count; index++)
                     if (SpellModifierRuleRegistry.TryGetByRuneId(mods[index].Id, out SpellModifierRules modifierRules))
-                        _lifetime = modifierRules.ModifyLifetime(rules, _lifetime, form.Lifetime, durationMult);
+                        _lifetime = modifierRules.ModifyLifetime(mods[index], rules, _lifetime, form.Lifetime, durationMult);
             }
             _minimumLifetime = form.MinimumLifetime;
             _offset = form.Offset * rangeMult;
-            // 공전 모드의 궤도 반경은 행동별 값이며 확장 배율을 적용하지 않는다.
-            _orbitRadius = form.OrbitRadius * rangeMult;
+            // 공전 룬의 공통 반경에 등급 배율을 적용한다. 확장 배율은 적용하지 않는다.
+            _orbitRadius = orbitRadius * rangeMult * orbitRadiusMult;
             _hitInterval = form.HitInterval;
             _tickInterval = form.TickInterval;
             if (element != null)
@@ -376,6 +403,8 @@ namespace RuneCode
             _arcMultiplier = source._arcMultiplier;
             _learningMultiplier = source._learningMultiplier;
             _spreadAngle = source._spreadAngle;
+            _knockbackDistance = Math.Max(source._knockbackDistance, modifiers.KnockbackDistance);
+            _knockbackSeconds = Math.Max(source._knockbackSeconds, modifiers.KnockbackSeconds);
         }
 
     }

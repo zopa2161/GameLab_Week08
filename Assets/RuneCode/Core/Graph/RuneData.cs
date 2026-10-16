@@ -76,7 +76,9 @@ namespace RuneCode
         private readonly int _count;
         private readonly float _orbitRadius;
         private readonly float _angularSpeed;
+        private readonly float _stationaryAngularSpeed;
         private readonly float _entrySpeed;
+        private readonly float _movingLifetimeBonus;
         private readonly float _hitInterval;
         private readonly float _tickInterval;
         private readonly float _damageMultiplier;
@@ -85,6 +87,9 @@ namespace RuneCode
         private readonly float _durationMultiplier;
         private readonly int _pierce;
         private readonly float _pierceLoss;
+        private readonly float _knockbackDistance;
+        private readonly float _knockbackSeconds;
+        private readonly float _knockbackReferenceDamage;
         private readonly float _homingTurn;
         private readonly float _homingRange;
         private readonly float _arcRange;
@@ -111,8 +116,14 @@ namespace RuneCode
         public float OrbitRadius => _orbitRadius;
         public float AngularSpeed => _angularSpeed;
 
+        /// <summary>정지형 행동(잔류)의 공전 회전 속도(도/초)다. 데이터가 없으면 0이며 실행이 AngularSpeed로 대체한다.</summary>
+        public float StationaryAngularSpeed => _stationaryAngularSpeed;
+
         /// <summary>공전 모드가 생성 위치에서 궤도 자리로 날아가 진입하는 속도(px/s)다. 개체를 직접 옮기지 않는 행동(잔류)에 쓴다.</summary>
         public float EntrySpeed => _entrySpeed;
+
+        /// <summary>공전 모드가 이동형 행동(발사)의 수명에 곱하는 보너스 배율이다. 기본 수명 × 지속 배율에 곱해진다.</summary>
+        public float MovingLifetimeBonus => _movingLifetimeBonus;
         public float HitInterval => _hitInterval;
         public float TickInterval => _tickInterval;
         public float DamageMultiplier => _damageMultiplier;
@@ -121,6 +132,9 @@ namespace RuneCode
         public float DurationMultiplier => _durationMultiplier;
         public int Pierce => _pierce;
         public float PierceLoss => _pierceLoss;
+        public float KnockbackDistance => _knockbackDistance;
+        public float KnockbackSeconds => _knockbackSeconds;
+        public float KnockbackReferenceDamage => _knockbackReferenceDamage;
         public float HomingTurn => _homingTurn;
         public float HomingRange => _homingRange;
         public float ArcRange => _arcRange;
@@ -159,7 +173,9 @@ namespace RuneCode
             _count = row._count;
             _orbitRadius = row._orbitRadius;
             _angularSpeed = row._angularSpeed;
+            _stationaryAngularSpeed = row._stationaryAngularSpeed;
             _entrySpeed = row._entrySpeed;
+            _movingLifetimeBonus = row._movingLifetimeBonus;
             _hitInterval = row._hitInterval;
             _tickInterval = row._tickInterval;
             _damageMultiplier = row._damageMultiplier;
@@ -168,6 +184,9 @@ namespace RuneCode
             _durationMultiplier = row._durationMultiplier;
             _pierce = row._pierce;
             _pierceLoss = row._pierceLoss;
+            _knockbackDistance = row._knockbackDistance;
+            _knockbackSeconds = row._knockbackSeconds;
+            _knockbackReferenceDamage = row._knockbackReferenceDamage;
             _homingTurn = row._homingTurn;
             _homingRange = row._homingRange;
             _arcRange = row._arcRange;
@@ -360,7 +379,7 @@ namespace RuneCode
         };
         private static readonly HashSet<string> STARTER_RUNE_IDS = new HashSet<string>(StringComparer.Ordinal)
         {
-            "shape.sphere", "behavior.launch", "element.neutral"
+            "shape.sphere", "behavior.launch", "element.neutral", "mod.knockback"
         };
         private static readonly HashSet<string> UNLOCK_TYPES = new HashSet<string>(StringComparer.Ordinal) { "start", "tree", "bench" };
 
@@ -941,10 +960,10 @@ namespace RuneCode
         private static void ValidateStats(RuneDefinition rune, RuneStats stats, TableErrorLog log, string field)
         {
             float[] numbers = { stats.Damage, stats.Speed, stats.Radius, stats.Lifetime, stats.Offset, stats.OrbitRadius,
-                stats.AngularSpeed, stats.EntrySpeed, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
+                stats.AngularSpeed, stats.StationaryAngularSpeed, stats.EntrySpeed, stats.MovingLifetimeBonus, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
                 stats.LearningMultiplier, stats.SpreadAngle, stats.MultiSpreadMultiplier, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
-                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime };
+                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds };
             foreach (float value in numbers)
             {
                 if (value < 0f)
@@ -953,6 +972,13 @@ namespace RuneCode
                     break;
                 }
             }
+            if (float.IsNaN(stats.KnockbackDistance) || float.IsInfinity(stats.KnockbackDistance)
+                || float.IsNaN(stats.KnockbackSeconds) || float.IsInfinity(stats.KnockbackSeconds)
+                || (stats.KnockbackDistance > 0f && stats.KnockbackSeconds <= 0f))
+                log.Add(rune.Id, field, "밀어내기 거리는 유한한 0 이상, 거리가 있으면 시간은 유한한 양수여야 합니다.");
+            if (rune.Id == "mod.knockback" && (stats.KnockbackReferenceDamage <= 0f
+                || float.IsNaN(stats.KnockbackReferenceDamage) || float.IsInfinity(stats.KnockbackReferenceDamage)))
+                log.Add(rune.Id, field, "밀어내기 기준 피해는 유한한 양수여야 합니다.");
             if (stats.Count < 0 || stats.Pierce < 0 || stats.ArcTargets < 0
                 || (rune.Category == "form" && (stats.Count <= 0 || stats.Damage <= 0f || stats.Radius <= 0f)))
                 log.Add(rune.Id, field, "유효하지 않은 형태 룬 수치입니다 (form은 count·damage·radius가 0보다 커야 함).");

@@ -77,10 +77,10 @@ namespace RuneCode
                         case "radiusMultiplier": label = " 범위 배율 ×"; break;
                         case "durationMultiplier": label = " 지속시간 배율 ×"; break;
                         case "speedMultiplier": label = " 속도 배율 ×"; break;
-                        case "orbitPath": label = null; break;
+                        case "orbitPath": label = " 궤도 반경 배율 ×"; break;
+                        case "knockbackDistance": label = " 기준 피해당 밀어내기 거리(px) "; break;
                         default: label = " 등급 효과: "; break;
                     }
-                    // 공전은 등급별 수치가 없어 등급 값(존재 표시)을 보이지 않는다.
                     if (label != null) effect += label + value;
                     if (rune.Id == "mod.multi" && GameData.ModifierGrades.TryGetCountValue(rune.Id, grade, true, out int launchCount))
                         effect += " · 발사 " + launchCount + "개";
@@ -612,7 +612,12 @@ namespace RuneCode
                         values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
                     }
                     break;
+                case "knockbackDistance":
+                    values.Add("피해 " + rune.Stats.KnockbackReferenceDamage.ToString("0.##") + "당 밀어내기 " + gradeValue + "px");
+                    values.Add("밀어내기 시간 " + rune.Stats.KnockbackSeconds.ToString("0.##") + "s");
+                    break;
                 case "orbitPath":
+                    values.Add(GameData.L("ui.runeOrbitRadius") + " ×" + gradeValue);
                     values.Add(GameData.L("ui.gradeAngularSpeed") + " " + rune.Stats.AngularSpeed.ToString("0.#") + "°/s");
                     values.Add(GameData.L("ui.gradeEntrySpeed") + " " + rune.Stats.EntrySpeed.ToString("0.#") + "px/s");
                     break;
