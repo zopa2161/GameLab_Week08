@@ -12,7 +12,7 @@
       "_modifierId": "mod.knockback",
       "_name": "밀어내기",
       "_effectType": "knockbackDistance",
-      "_gradeValues": { "C": 60, "B": 90, "A": 120, "S": 180 }
+      "_gradeValues": { "C": 30, "B": 45, "A": 60, "S": 90 }
     },
     {
       "_modifierId": "mod.amplify",
