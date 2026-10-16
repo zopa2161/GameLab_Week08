@@ -97,10 +97,10 @@
       "_name": "유도",
       "_effectType": "homingTier",
       "_gradeValues": {
-        "C": "하급",
-        "B": "중급",
-        "A": "상급",
-        "S": null
+        "C": null,
+        "B": "하급",
+        "A": "중급",
+        "S": "상급"
       }
     },
     {

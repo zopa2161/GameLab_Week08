@@ -64,7 +64,7 @@ namespace RuneCode
                 if (GameData.ModifierGrades.GetEffectType(rune.Id) == "homingTier")
                 {
                     HomingTierDefinition homing = rune.FindHomingTier(value as string);
-                    if (homing != null) effect += " 회전 " + homing.HomingTurn.ToString("0.#") + "° · 탐색 범위 " + homing.HomingRange.ToString("0.#");
+                    if (homing != null) effect += " 회전 " + homing.HomingTurn.ToString("0.#") + "° · 탐색 범위 " + homing.HomingRange.ToString("0.#") + " · 공전 대상 " + homing.OrbitTargetCount + "개";
                 }
                 else
                 {
@@ -491,6 +491,8 @@ namespace RuneCode
                 if (stats.Pierce > 0) secondary.Add(GameData.L("ui.runePierce") + " " + stats.Pierce);
                 if (stats.HomingTurn > 0f || stats.HomingRange > 0f)
                     secondary.Add(GameData.L("ui.runeHoming") + " " + stats.HomingTurn.ToString("0.#") + "° / " + stats.HomingRange.ToString("0.#") + "px");
+                if (stats.OrbitTargetCount > 0)
+                    secondary.Add(GameData.L("ui.gradeOrbitTargetCount") + " " + stats.OrbitTargetCount);
                 if (stats.HitInterval > 0f) secondary.Add(GameData.L("ui.runeInterval") + " " + stats.HitInterval.ToString("0.##") + "s");
                 if (stats.TickInterval > 0f) secondary.Add(GameData.L("ui.runeInterval") + " " + stats.TickInterval.ToString("0.##") + "s");
                 if (stats.ArcTargets > 0)
@@ -610,6 +612,7 @@ namespace RuneCode
                     {
                         values.Add(GameData.L("ui.gradeHomingTurn") + " " + homing.HomingTurn.ToString("0.#") + "°");
                         values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
+                        values.Add(GameData.L("ui.gradeOrbitTargetCount") + " " + homing.OrbitTargetCount);
                     }
                     break;
                 case "knockbackDistance":

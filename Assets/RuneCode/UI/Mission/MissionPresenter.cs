@@ -254,6 +254,7 @@ namespace RuneCode
                     {
                         values.Add(GameData.L("ui.gradeHomingTurn") + " " + homing.HomingTurn.ToString("0.#") + "°");
                         values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
+                        values.Add(GameData.L("ui.gradeOrbitTargetCount") + " " + homing.OrbitTargetCount);
                     }
                     break;
             }

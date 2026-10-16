@@ -1645,6 +1645,10 @@
       "_value": "유도 거리"
     },
     {
+      "_key": "ui.gradeOrbitTargetCount",
+      "_value": "공전 대상"
+    },
+    {
       "_key": "ui.gradeAngularSpeed",
       "_value": "회전 속도"
     },

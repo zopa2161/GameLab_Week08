@@ -9,6 +9,10 @@ namespace RuneCode
     internal sealed class BeamBehaviorRuntime : SpellBehaviorRuntime
     {
         private const double PATH_STEP = 12;
+        private const double ORBIT_PATH_STEP = 16;
+        private const int ORBIT_MIN_SEGMENTS = 32;
+        private const int ORBIT_MAX_SEGMENTS = 64;
+        private const double ORBIT_RADIUS_STEP = 0.04;
         private const int HITS_PER_EVENT = 2;
 
         public override string Kind => BeamBehaviorRules.BEAM_KIND;
@@ -68,7 +72,7 @@ namespace RuneCode
 
         /// <summary>
         /// 맵 경계·벽을 반영한 중심선 경로를 빔 상태에 재사용해 저장한다. 각 칸의 방향은 장착된 이동 모드(유도 등)가 경로 개입으로 고친다.
-        /// 공전은 현재 공전 중심의 원 한 바퀴, 그 외에는 유도 수치가 있으면 빔 길이, 없으면 맵 대각선을 경로 길이로 쓴다.
+        /// 공전은 현재 공전 중심의 원 한 바퀴(유도가 있으면 고른 대상 쪽으로 휜 원), 그 외에는 유도 수치가 있으면 빔 길이, 없으면 맵 대각선을 경로 길이로 쓴다.
         /// </summary>
         private static void BuildPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
         {
@@ -105,32 +109,66 @@ namespace RuneCode
             }
         }
 
-        /// <summary>현재 공전 중심의 원을 독립된 각도 표본으로 만들고 유도 구간만 변형한다. 벽이 없으면 마지막 점을 첫 점과 정확히 연결한다.</summary>
+        /// <summary>
+        /// 현재 공전 중심의 원을 반경에 비례한 등각 표본(ORBIT_MIN_SEGMENTS~ORBIT_MAX_SEGMENTS개)으로 만들고, 유도가 고른 대상 각도에도
+        /// 표본을 끼워 넣어 휜 원이 대상 위치를 정확히 지나게 한다. 벽에 닿으면 그 앞에서 멈추고, 벽이 없으면 마지막 점을 첫 점과 정확히 연결한다.
+        /// 다중 빔은 순번마다 반경을 조금씩 달리해 겹치지 않게 한다.
+        /// </summary>
         private static void BuildOrbitPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
         {
-            double radius = entity.Stats.OrbitRadius;
-            bool isHoming = entity.Stats.HomingRange > 0 && entity.Stats.HomingTurn > 0;
-            double extent = radius + (isHoming ? entity.Stats.HomingRange : 0);
-            int segments = Math.Max(3, (int)Math.Ceiling(2 * Math.PI * extent / PATH_STEP));
+            double radius = GetOrbitPathRadius(entity);
+            int segments = Math.Max(ORBIT_MIN_SEGMENTS, Math.Min(ORBIT_MAX_SEGMENTS, (int)Math.Ceiling(2 * Math.PI * radius / ORBIT_PATH_STEP)));
+            double angleStep = 2 * Math.PI / segments;
             SimVector radial = (entity.Position - OrbitModifierRuntime.GetCenter(entity)).Normalized();
             double halfWidth = entity.Stats.BoxWidth * 0.5;
-            SimVector first = HomingModifierRuntime.GetOrbitPathPoint(simulation, entity, radial, 0, segments);
+            List<HomingModifierRuntime.OrbitBend> bends = state.Bends;
+            double bendWidth = HomingModifierRuntime.SelectOrbitBends(simulation, entity, radial, radius, bends);
+            SimVector first = HomingModifierRuntime.GetOrbitPathPoint(entity, radial, radius, 0, bends, bendWidth);
             SimVector point = first;
             state.AddPoint(first);
             if (!simulation.Map.CanOccupy(first, halfWidth)) return;
+            int bendIndex = 0;
             for (int index = 1; index <= segments; index++)
             {
-                SimVector next = index == segments ? first : HomingModifierRuntime.GetOrbitPathPoint(
-                    simulation, entity, radial, index, segments);
-                double wall = simulation.FirstWallFraction(point, next, halfWidth);
-                if (!double.IsPositiveInfinity(wall))
+                double sampleAngle = index * angleStep;
+                // 이번 표본 전에 놓인 대상 각도를 먼저 넣는다. 첫 점이나 이번 표본과 겹치는 대상 각도는 그 점이 대신한다.
+                while (bendIndex < bends.Count && bends[bendIndex].Angle <= sampleAngle + RuneSimulation.COLLISION_EPSILON)
                 {
-                    state.AddPoint(point + (next - point) * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON));
-                    return;
+                    double bendAngle = bends[bendIndex++].Angle;
+                    if (bendAngle <= RuneSimulation.COLLISION_EPSILON || bendAngle >= sampleAngle - RuneSimulation.COLLISION_EPSILON) continue;
+                    if (!TryAddOrbitPoint(simulation, state, ref point,
+                        HomingModifierRuntime.GetOrbitPathPoint(entity, radial, radius, bendAngle, bends, bendWidth), halfWidth)) return;
                 }
-                state.AddPoint(next);
-                point = next;
+                SimVector next = index == segments ? first : HomingModifierRuntime.GetOrbitPathPoint(entity, radial, radius, sampleAngle, bends, bendWidth);
+                if (!TryAddOrbitPoint(simulation, state, ref point, next, halfWidth)) return;
             }
+        }
+
+        /// <summary>
+        /// 이 빔의 공전 경로 반경을 반환한다. 다중 빔이면 순번 각도에서 복원한 순번 i(0~개수-1)로 공전 반경 × (1 + ORBIT_RADIUS_STEP × (i - (개수-1)/2))를,
+        /// 단일 빔이면 공전 반경을 그대로 쓴다.
+        /// </summary>
+        private static double GetOrbitPathRadius(SimulationSpellEntity entity)
+        {
+            double radius = entity.Stats.OrbitRadius;
+            int count = entity.Action.Count;
+            if (count <= 1) return radius;
+            int index = (int)Math.Round(entity.Angle * count / (2 * Math.PI)) % count;
+            return radius * (1 + ORBIT_RADIUS_STEP * (index - (count - 1) * 0.5));
+        }
+
+        /// <summary>point에서 next까지 벽을 검사해 막히지 않으면 next를 경로에 추가하고 point를 옮긴 뒤 true를 반환한다. 막히면 벽 앞 점을 추가하고 false를 반환한다.</summary>
+        private static bool TryAddOrbitPoint(RuneSimulation simulation, BeamState state, ref SimVector point, SimVector next, double halfWidth)
+        {
+            double wall = simulation.FirstWallFraction(point, next, halfWidth);
+            if (!double.IsPositiveInfinity(wall))
+            {
+                state.AddPoint(point + (next - point) * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON));
+                return false;
+            }
+            state.AddPoint(next);
+            point = next;
+            return true;
         }
 
         /// <summary>경로에 겹친 적을 경로 거리·ID 순으로 한 번씩 타격하고 대상별 두 번째 피해마다 onHit을 발생시킨다.</summary>
@@ -244,10 +282,11 @@ namespace RuneCode
                     .Append(':').Append(_canExtend).Append(':').Append(_followsPlayer);
         }
 
-        /// <summary>빔 개체별 재사용 경로·피해 예약·조준 대비 각도·대상 적중 이력이다.</summary>
+        /// <summary>빔 개체별 재사용 경로·공전 휨 대상·피해 예약·조준 대비 각도·대상 적중 이력이다.</summary>
         internal sealed class BeamState
         {
             private readonly List<SimVector> _path = new List<SimVector>();
+            private readonly List<HomingModifierRuntime.OrbitBend> _bends = new List<HomingModifierRuntime.OrbitBend>();
             private readonly List<BeamTarget> _targets = new List<BeamTarget>();
             private readonly SortedDictionary<int, int> _hitCounts = new SortedDictionary<int, int>();
             private BeamChannel _channel;
@@ -256,6 +295,8 @@ namespace RuneCode
             private double _aimOffset;
 
             public IReadOnlyList<SimVector> Path => _path;
+            /// <summary>공전 경로를 휘게 할 이번 틱 대상 목록이다. 경로를 만들 때마다 유도 모드가 다시 채운다.</summary>
+            internal List<HomingModifierRuntime.OrbitBend> Bends => _bends;
             internal IReadOnlyList<BeamTarget> Targets => _targets;
             internal BeamChannel Channel => _channel;
             internal int LastAdvanceTick => _lastAdvanceTick;

@@ -752,7 +752,7 @@ namespace RuneCode
         {
             state.Append(_id).Append('|').Append(_action.NodeId).Append('|').Append(_element).Append('|').Append(_castNoiseElement).Append('|').Append(_fromEvent);
             state.Append(FormattableString.Invariant($"|{_anchor.X:R}|{_anchor.Y:R}|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_age:R}|{_angle:R}|{_hits}|{_hasExpired}|{_hasFiredFirstEvent}|{_hasDirectHit}|{_costMultiplier:R}"));
-            state.Append(FormattableString.Invariant($"|{_stats.Damage:R}|{_stats.Speed:R}|{_stats.Radius:R}|{_stats.Lifetime:R}|{_stats.Pierce}|{_stats.HomingTurn:R}|{_stats.HomingRange:R}"));
+            state.Append(FormattableString.Invariant($"|{_stats.Damage:R}|{_stats.Speed:R}|{_stats.Radius:R}|{_stats.Lifetime:R}|{_stats.Pierce}|{_stats.HomingTurn:R}|{_stats.HomingRange:R}|{_stats.OrbitTargetCount}"));
             if (_stats.KnockbackDistance > 0)
                 state.Append(FormattableString.Invariant($"|knockback:{_stats.KnockbackDistance:R}:{_stats.KnockbackSeconds:R}"));
             _modifiers.AppendState(state);
