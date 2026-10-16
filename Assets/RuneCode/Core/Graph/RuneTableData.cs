@@ -96,6 +96,7 @@ namespace RuneCode
         public float _arcMultiplier;
         public float _learningMultiplier = 1f;
         public float _spreadAngle;
+        public float _multiSpreadMultiplier = 1f;
         public float _shieldAmount;
         public float _shieldSeconds;
         public float _coneAngle;

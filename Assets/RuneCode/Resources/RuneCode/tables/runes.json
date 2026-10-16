@@ -154,15 +154,16 @@
       "_unlockType": "start",
       "_stats": {
         "_damage": 15,
-        "_speed": 480,
+        "_speed": 1440,
         "_radius": 6,
-        "_lifetime": 1.4,
+        "_lifetime": 0.308,
         "_count": 1,
         "_orbitRadius": 70,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1,
-        "_coneAngle": 30
+        "_coneAngle": 20,
+        "_multiSpreadMultiplier": 3
       },
       "_ports": [
         {
