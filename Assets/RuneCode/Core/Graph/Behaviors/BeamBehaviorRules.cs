@@ -11,7 +11,7 @@ namespace RuneCode
         public override SpellDisplayType DisplayType => SpellDisplayType.Beam;
         public override SpellMotionKind MotionKind => SpellMotionKind.Path;
 
-        /// <summary>빔의 최대 수명은 속도·사거리·지속 수식과 관계없이 데이터의 고정값을 사용한다.</summary>
+        /// <summary>빔의 기준 수명 수치는 다른 수식으로 바꾸지 않는다. 직접 시전 홀드의 실제 종료는 런타임 채널이 입력·자원으로 정한다.</summary>
         public override float GetLifetime(float lifetime, float rangeMultiplier, float speedMultiplier, float durationMultiplier)
             => lifetime;
 
