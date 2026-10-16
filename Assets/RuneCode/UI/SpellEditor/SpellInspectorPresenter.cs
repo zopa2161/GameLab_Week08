@@ -64,7 +64,7 @@ namespace RuneCode
                 if (GameData.ModifierGrades.GetEffectType(rune.Id) == "homingTier")
                 {
                     HomingTierDefinition homing = rune.FindHomingTier(value as string);
-                    if (homing != null) effect += " 회전 " + homing.HomingTurn.ToString("0.#") + "° · 탐색 범위 " + homing.HomingRange.ToString("0.#");
+                    if (homing != null) effect += " 회전 " + homing.HomingTurn.ToString("0.#") + "° · 탐색 범위 " + homing.HomingRange.ToString("0.#") + " · 공전 대상 " + homing.OrbitTargetCount + "개";
                 }
                 else
                 {
@@ -263,10 +263,8 @@ namespace RuneCode
                 float minimumCost = action?.OwnEnergy ?? form.Energy;
                 lines.Clear();
                 lines.Add(GameData.L("ui.beamInitialCost") + " " + minimumCost.ToString("0.##"));
-                lines.Add(GameData.L("ui.beamMaximumCost") + " "
-                    + (minimumCost * form.Stats.Lifetime / form.Stats.MinimumLifetime).ToString("0.##"));
-                lines.Add(GameData.L("ui.beamDuration") + " " + form.Stats.MinimumLifetime.ToString("0.##")
-                    + "–" + form.Stats.Lifetime.ToString("0.##") + "s");
+                lines.Add(GameData.L("ui.beamDuration") + " " + GameData.L("ui.beamUnlimitedHold"));
+                lines.Add(GameData.L("ui.beamStopCooldown") + " " + GameData.Balance.Sim.BeamCooldownSeconds.ToString("0.##") + "s");
                 lines.Add(GameData.L("ui.runeDamageAmount") + " " + (beam?.Damage ?? form.Stats.Damage).ToString("0.##")
                     + " / " + form.Stats.TickInterval.ToString("0.##") + "s");
                 lines.Add(GameData.L("ui.beamWidth") + " " + (beam?.BoxWidth ?? GameData.Runes.Get("form.bolt").Stats.Radius).ToString("0.##") + "px");
@@ -483,7 +481,9 @@ namespace RuneCode
                 // 궤도 반경은 행동마다 있으므로 공전 모드가 장착된 경우에만 표시한다.
                 bool isOrbiting = action.Mods.Contains(OrbitModifierRules.RUNE_ID);
                 if (isOrbiting && stats.OrbitRadius > 0f) movement.Add(GameData.L("ui.runeOrbitRadius") + " " + stats.OrbitRadius.ToString("0.#") + "px");
-                if (!isTravelling && stats.Lifetime > 0f)
+                if (action.Form == BeamBehaviorRules.BEAM_KIND)
+                    movement.Add(GameData.L("ui.beamDuration") + " " + GameData.L("ui.beamUnlimitedHold"));
+                else if (!isTravelling && stats.Lifetime > 0f)
                     movement.Add(GameData.L("ui.runeLifetime") + " " + stats.Lifetime.ToString("0.##") + "s");
                 if (movement.Count > 0) lines.Add(string.Join(" · ", movement));
 
@@ -491,6 +491,8 @@ namespace RuneCode
                 if (stats.Pierce > 0) secondary.Add(GameData.L("ui.runePierce") + " " + stats.Pierce);
                 if (stats.HomingTurn > 0f || stats.HomingRange > 0f)
                     secondary.Add(GameData.L("ui.runeHoming") + " " + stats.HomingTurn.ToString("0.#") + "° / " + stats.HomingRange.ToString("0.#") + "px");
+                if (stats.OrbitTargetCount > 0)
+                    secondary.Add(GameData.L("ui.gradeOrbitTargetCount") + " " + stats.OrbitTargetCount);
                 if (stats.HitInterval > 0f) secondary.Add(GameData.L("ui.runeInterval") + " " + stats.HitInterval.ToString("0.##") + "s");
                 if (stats.TickInterval > 0f) secondary.Add(GameData.L("ui.runeInterval") + " " + stats.TickInterval.ToString("0.##") + "s");
                 if (stats.ArcTargets > 0)
@@ -610,6 +612,7 @@ namespace RuneCode
                     {
                         values.Add(GameData.L("ui.gradeHomingTurn") + " " + homing.HomingTurn.ToString("0.#") + "°");
                         values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
+                        values.Add(GameData.L("ui.gradeOrbitTargetCount") + " " + homing.OrbitTargetCount);
                     }
                     break;
                 case "knockbackDistance":

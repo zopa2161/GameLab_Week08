@@ -117,6 +117,7 @@ namespace RuneCode
         public string _tier;
         public float _homingTurn;
         public float _homingRange;
+        public int _orbitTargetCount;
     }
 
     /// <summary>룬 포트 하나의 데이터다. status는 빈 문자열이면 active다.</summary>

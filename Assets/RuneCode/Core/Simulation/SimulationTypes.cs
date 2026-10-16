@@ -150,6 +150,13 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>슬롯의 쿨다운을 지정한 초부터 새로 시작한다. 진행 중인 주문 상태는 유지한다.</summary>
+        internal void StartSpellCooldown(int slot, double seconds)
+        {
+            _cooldowns[slot] = Math.Max(0, seconds);
+            _cooldownDurations[slot] = _cooldowns[slot];
+        }
+
         /// <summary>주문 실행 상태를 끝내고 이미 감소 중인 쿨다운은 계속 유지한다.</summary>
         internal void FinishSpell(int slot)
         {
@@ -745,7 +752,7 @@ namespace RuneCode
         {
             state.Append(_id).Append('|').Append(_action.NodeId).Append('|').Append(_element).Append('|').Append(_castNoiseElement).Append('|').Append(_fromEvent);
             state.Append(FormattableString.Invariant($"|{_anchor.X:R}|{_anchor.Y:R}|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_age:R}|{_angle:R}|{_hits}|{_hasExpired}|{_hasFiredFirstEvent}|{_hasDirectHit}|{_costMultiplier:R}"));
-            state.Append(FormattableString.Invariant($"|{_stats.Damage:R}|{_stats.Speed:R}|{_stats.Radius:R}|{_stats.Lifetime:R}|{_stats.Pierce}|{_stats.HomingTurn:R}|{_stats.HomingRange:R}"));
+            state.Append(FormattableString.Invariant($"|{_stats.Damage:R}|{_stats.Speed:R}|{_stats.Radius:R}|{_stats.Lifetime:R}|{_stats.Pierce}|{_stats.HomingTurn:R}|{_stats.HomingRange:R}|{_stats.OrbitTargetCount}"));
             if (_stats.KnockbackDistance > 0)
                 state.Append(FormattableString.Invariant($"|knockback:{_stats.KnockbackDistance:R}:{_stats.KnockbackSeconds:R}"));
             _modifiers.AppendState(state);

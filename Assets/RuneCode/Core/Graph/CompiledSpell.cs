@@ -32,7 +32,7 @@ namespace RuneCode
 
     public sealed class SpellModifierValues
     {
-        private static readonly SpellModifierValues _none = new SpellModifierValues(1f, 1f, 1f, 1f, 1f, 0, 0f, 0f, 0f);
+        private static readonly SpellModifierValues _none = new SpellModifierValues(1f, 1f, 1f, 1f, 1f, 0, 0f, 0f, 0, 0f);
         private readonly float _damageMultiplier;
         private readonly float _radiusMultiplier;
         private readonly float _speedMultiplier;
@@ -41,6 +41,7 @@ namespace RuneCode
         private readonly int _pierce;
         private readonly float _homingTurn;
         private readonly float _homingRange;
+        private readonly int _orbitTargetCount;
         private readonly float _spreadAngle;
         private readonly float _knockbackDistance;
         private readonly float _knockbackSeconds;
@@ -53,14 +54,17 @@ namespace RuneCode
         public int Pierce => _pierce;
         public float HomingTurn => _homingTurn;
         public float HomingRange => _homingRange;
+
+        /// <summary>유도 단계가 공전 경로에 함께 돌 대상 수다. 유도 단계가 없으면 0이다.</summary>
+        public int OrbitTargetCount => _orbitTargetCount;
         public float SpreadAngle => _spreadAngle;
         public float KnockbackDistance => _knockbackDistance;
         public float KnockbackSeconds => _knockbackSeconds;
 
         /// <summary>시전 시 적용할 수식 배율과 관통·유도 값을 보관한다.</summary>
         public SpellModifierValues(float damageMultiplier, float radiusMultiplier, float speedMultiplier,
-            float durationMultiplier, float rangeMultiplier, int pierce, float homingTurn, float homingRange, float spreadAngle,
-            float knockbackDistance = 0f, float knockbackSeconds = 0f)
+            float durationMultiplier, float rangeMultiplier, int pierce, float homingTurn, float homingRange,
+            int orbitTargetCount, float spreadAngle, float knockbackDistance = 0f, float knockbackSeconds = 0f)
         {
             _damageMultiplier = damageMultiplier;
             _radiusMultiplier = radiusMultiplier;
@@ -70,6 +74,7 @@ namespace RuneCode
             _pierce = pierce;
             _homingTurn = homingTurn;
             _homingRange = homingRange;
+            _orbitTargetCount = orbitTargetCount;
             _spreadAngle = spreadAngle;
             _knockbackDistance = knockbackDistance;
             _knockbackSeconds = knockbackSeconds;
@@ -85,6 +90,7 @@ namespace RuneCode
                 .Append(_rangeMultiplier.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
                 .Append(_pierce).Append('|').Append(_homingTurn.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
                 .Append(_homingRange.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).Append('|')
+                .Append(_orbitTargetCount).Append('|')
                 .Append(_spreadAngle.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
             if (_knockbackDistance > 0f)
                 state.Append(FormattableString.Invariant($"|knockback:{_knockbackDistance:R}:{_knockbackSeconds:R}"));
@@ -97,8 +103,8 @@ namespace RuneCode
                 _radiusMultiplier * other._radiusMultiplier, _speedMultiplier * other._speedMultiplier,
                 _durationMultiplier * other._durationMultiplier, _rangeMultiplier * other._rangeMultiplier,
                 AddPierce(_pierce, other._pierce), Math.Max(_homingTurn, other._homingTurn), Math.Max(_homingRange, other._homingRange),
-                Math.Max(_spreadAngle, other._spreadAngle), Math.Max(_knockbackDistance, other._knockbackDistance),
-                Math.Max(_knockbackSeconds, other._knockbackSeconds));
+                Math.Max(_orbitTargetCount, other._orbitTargetCount), Math.Max(_spreadAngle, other._spreadAngle),
+                Math.Max(_knockbackDistance, other._knockbackDistance), Math.Max(_knockbackSeconds, other._knockbackSeconds));
         }
 
         /// <summary>연결된 Modifier와 문자열 등급 수치로 호출부 수식 효과를 계산한다.</summary>
@@ -113,6 +119,7 @@ namespace RuneCode
             int pierce = 0;
             float homingTurn = 0f;
             float homingRange = 0f;
+            int orbitTargetCount = 0;
             float spreadAngle = 0f;
             float knockbackDistance = 0f;
             float knockbackSeconds = 0f;
@@ -137,6 +144,7 @@ namespace RuneCode
                     {
                         homingTurn = Math.Max(homingTurn, homing.HomingTurn);
                         homingRange = Math.Max(homingRange, homing.HomingRange);
+                        orbitTargetCount = Math.Max(orbitTargetCount, homing.OrbitTargetCount);
                     }
                 }
                 else
@@ -150,7 +158,7 @@ namespace RuneCode
                 knockbackSeconds = Math.Max(knockbackSeconds, stats.KnockbackSeconds);
             }
             return new SpellModifierValues(damage, radius, speed, duration, range, pierce, homingTurn, homingRange,
-                spreadAngle, knockbackDistance, knockbackSeconds);
+                orbitTargetCount, spreadAngle, knockbackDistance, knockbackSeconds);
         }
 
         /// <summary>해당 효과 종류의 등급 숫자를 가져오거나 Modifier의 고정 기본값을 반환한다.</summary>
@@ -237,6 +245,7 @@ namespace RuneCode
         private readonly float _pierceLoss;
         private readonly float _homingTurn;
         private readonly float _homingRange;
+        private readonly int _orbitTargetCount;
         private readonly float _arcRange;
         private readonly int _arcTargets;
         private readonly float _arcMultiplier;
@@ -264,6 +273,9 @@ namespace RuneCode
         public float PierceLoss => _pierceLoss;
         public float HomingTurn => _homingTurn;
         public float HomingRange => _homingRange;
+
+        /// <summary>유도 단계가 공전 경로에 함께 돌 대상 수다. 유도 단계가 없으면 0이다.</summary>
+        public int OrbitTargetCount => _orbitTargetCount;
         public float ArcRange => _arcRange;
         public int ArcTargets => _arcTargets;
         public float ArcMultiplier => _arcMultiplier;
@@ -316,6 +328,7 @@ namespace RuneCode
                     {
                         _homingTurn = homing.HomingTurn;
                         _homingRange = homing.HomingRange;
+                        _orbitTargetCount = homing.OrbitTargetCount;
                     }
                 }
                 else
@@ -397,6 +410,7 @@ namespace RuneCode
             _pierceLoss = source._pierceLoss;
             _homingTurn = Math.Max(source._homingTurn, modifiers.HomingTurn);
             _homingRange = Math.Max(source._homingRange, modifiers.HomingRange);
+            _orbitTargetCount = Math.Max(source._orbitTargetCount, modifiers.OrbitTargetCount);
             _arcRange = source._arcRange;
             _arcTargets = source._arcTargets;
             _arcMultiplier = source._arcMultiplier;

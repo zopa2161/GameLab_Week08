@@ -16,7 +16,13 @@ namespace RuneCode
     internal sealed class HomingModifierRuntime : SpellModifierRuntime
     {
         private const double DEGREES_TO_RADIANS = Math.PI / 180;
-        private const int ORBIT_INTERPOLATION_POINTS = 6;
+        private const double FULL_TURN = 2 * Math.PI;
+        private const double ORBIT_RING_SCALE = 0.3;
+        private const double ORBIT_BEND_WIDTH_SCALE = 1.5;
+        private const double ORBIT_MIN_BEND_ANGLE = 20 * DEGREES_TO_RADIANS;
+        private const double ORBIT_MAX_BEND_ANGLE = 60 * DEGREES_TO_RADIANS;
+        private const double ORBIT_BEND_PACKING = 1.5;
+        private const double ORBIT_PREFERENCE_SCALE = 0.5;
 
         public override string RuneId => HomingModifierRules.RUNE_ID;
 
@@ -152,55 +158,128 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>시작 반경 방향과 표본 순번으로 원 위의 점을 구한다. 적에 가장 가까운 표본만 적 위치에 고정하고 양옆 여섯 표본 이내에서 변위 벡터를 보간한다.</summary>
-        internal static SimVector GetOrbitPathPoint(RuneSimulation simulation, SimulationSpellEntity entity,
-            SimVector startRadial, int index, int segments)
+        /// <summary>
+        /// 공전 빔 경로를 휘게 할 대상을 골라 bends에 시작 반경 방향 기준 각도 순으로 채우고 휘는 반폭(라디안)을 반환한다.
+        /// radius는 이 빔의 공전 경로 반경이다. 공전 원에서 반경 방향으로 유도 범위 × ORBIT_RING_SCALE 이내인 적 중 우선 점수가 낮은 순(동률은 ID 순)으로
+        /// 최대 대상 수만큼 고른다. 우선 점수는 원과의 거리이며, 다중 빔이면 빔·적 ID 해시로 만든 고정 선호도를 더해 빔마다 다른 적을 고르게 한다.
+        /// 이미 고른 대상과 각도 차이가 반폭보다 작은 적은 건너뛴다. 반폭은 링 폭 기반 값을 20°~60°로 제한한 뒤 360° ÷ (1.5 × 대상 수) 이하로 줄인다.
+        /// 유도 수치가 없으면 bends를 비우고 0을 반환한다.
+        /// </summary>
+        internal static double SelectOrbitBends(RuneSimulation simulation, SimulationSpellEntity entity, SimVector startRadial,
+            double radius, List<OrbitBend> bends)
         {
+            bends.Clear();
             SpellStats stats = entity.Stats;
-            double radius = stats.OrbitRadius;
-            SimVector center = OrbitModifierRuntime.GetCenter(entity);
-            double angleStep = 2 * Math.PI / segments;
-            SimVector radial = startRadial.Rotated(angleStep * index);
-            SimVector basePoint = OrbitModifierRuntime.GetPoint(entity, radial);
-            if (stats.HomingRange <= 0 || stats.HomingTurn <= 0)
-                return basePoint;
+            if (stats.HomingRange <= 0 || stats.HomingTurn <= 0 || radius <= 0) return 0;
+            double ringWidth = stats.HomingRange * ORBIT_RING_SCALE;
+            int count = Math.Max(1, stats.OrbitTargetCount);
+            // 선호도는 시간과 무관한 해시라 빔이 살아 있는 동안 고르는 적이 바뀌지 않아 경로가 튀지 않는다.
+            double preference = entity.Action.Count > 1 ? ringWidth * ORBIT_PREFERENCE_SCALE : 0;
+            // 대상은 원에 가까운 순으로 고르므로 사이에 빈틈이 남는다. 대상 수만큼 채워지도록 반폭을 360° ÷ (1.5 × 대상 수) 이하로 줄인다.
+            double bendWidth = Math.Min(FULL_TURN / (ORBIT_BEND_PACKING * count),
+                Math.Max(ORBIT_MIN_BEND_ANGLE, Math.Min(ORBIT_MAX_BEND_ANGLE, ORBIT_BEND_WIDTH_SCALE * ringWidth / radius)));
             double startAngle = Math.Atan2(startRadial.Y, startRadial.X);
-            int neighbors = Math.Min(ORBIT_INTERPOLATION_POINTS, Math.Max(1, segments / 4));
-            SimVector displacement = SimVector.Zero;
-            double totalWeight = 0;
-            SimulationEnemy pinnedTarget = null;
-            double bestDistance = double.PositiveInfinity;
-            foreach (SimulationEnemy enemy in simulation.Enemies)
+            SimVector center = OrbitModifierRuntime.GetCenter(entity);
+            for (int pick = 0; pick < count; pick++)
             {
-                if (!enemy.IsAlive) continue;
-                SimVector offset = enemy.Position - center;
-                double distance = offset.Length;
-                if (distance <= RuneSimulation.COLLISION_EPSILON || Math.Abs(distance - radius) > stats.HomingRange) continue;
-                double targetAngle = Math.Atan2(offset.Y, offset.X) - startAngle;
-                int targetIndex = ((int)Math.Round(targetAngle / angleStep) % segments + segments) % segments;
-                int separation = Math.Abs(targetIndex - index);
-                separation = Math.Min(separation, segments - separation);
-                if (separation >= neighbors) continue;
-                SimVector anchor = OrbitModifierRuntime.GetPoint(entity, startRadial.Rotated(angleStep * targetIndex));
-                double targetDistance = (enemy.Position - anchor).LengthSquared;
-                if (targetDistance > stats.HomingRange * stats.HomingRange) continue;
-                if (separation == 0)
+                SimulationEnemy selected = null;
+                double bestScore = 0, selectedAngle = 0, selectedDistance = 0;
+                foreach (SimulationEnemy enemy in simulation.Enemies)
                 {
-                    if (targetDistance < bestDistance || (targetDistance == bestDistance
-                        && (pinnedTarget == null || enemy.Id < pinnedTarget.Id)))
-                    {
-                        pinnedTarget = enemy;
-                        bestDistance = targetDistance;
-                    }
-                    continue;
+                    if (!enemy.IsAlive) continue;
+                    SimVector offset = enemy.Position - center;
+                    double distance = offset.Length;
+                    double gap = Math.Abs(distance - radius);
+                    if (distance <= RuneSimulation.COLLISION_EPSILON || gap > ringWidth) continue;
+                    double score = gap + (preference > 0 ? preference * GetPreferenceNoise(entity.Id, enemy.Id) : 0);
+                    if (selected != null && (score > bestScore || (score == bestScore && enemy.Id > selected.Id))) continue;
+                    double angle = NormalizeAngle(Math.Atan2(offset.Y, offset.X) - startAngle);
+                    if (!IsSeparated(bends, angle, bendWidth)) continue;
+                    selected = enemy;
+                    bestScore = score;
+                    selectedAngle = angle;
+                    selectedDistance = distance;
                 }
-                double t = (double)separation / neighbors;
-                double weight = (1 - t) * (1 - t) / (t * t);
-                displacement += (enemy.Position - anchor) * weight;
-                totalWeight += weight;
+                if (selected == null) break;
+                bends.Add(new OrbitBend(selectedAngle, selectedDistance - radius));
             }
-            if (pinnedTarget != null) return pinnedTarget.Position;
-            return basePoint + displacement / (1 + totalWeight);
+            SortByAngle(bends);
+            return bendWidth;
+        }
+
+        /// <summary>
+        /// 시작 반경 방향에서 angle(라디안)만큼 돈 공전 경로 위의 점을 반환한다. 반경은 이 빔의 공전 경로 반경 radius에 각 대상의 반경 차이를
+        /// 반폭 안에서 0.5·(1 + cos(π·각도차/반폭)) 가중치로 더한 값이며, 가중치 합이 1을 넘으면 합으로 나눈다.
+        /// 대상 각도에서는 가중치가 1이라 대상 위치를 정확히 지난다.
+        /// </summary>
+        internal static SimVector GetOrbitPathPoint(SimulationSpellEntity entity, SimVector startRadial, double radius, double angle,
+            IReadOnlyList<OrbitBend> bends, double bendWidth)
+        {
+            double weightSum = 0, heightSum = 0;
+            for (int index = 0; index < bends.Count; index++)
+            {
+                double distance = AngleDistance(angle, bends[index].Angle);
+                if (distance >= bendWidth) continue;
+                double weight = 0.5 * (1 + Math.Cos(Math.PI * distance / bendWidth));
+                weightSum += weight;
+                heightSum += weight * bends[index].Height;
+            }
+            double pathRadius = radius + heightSum / Math.Max(1, weightSum);
+            return OrbitModifierRuntime.GetCenter(entity) + startRadial.Rotated(angle) * pathRadius;
+        }
+
+        /// <summary>빔 ID와 적 ID로 시간과 무관한 고정 선호도 -1~1을 만든다. 같은 입력이면 항상 같은 값이다.</summary>
+        private static double GetPreferenceNoise(int beamId, int enemyId)
+        {
+            unchecked
+            {
+                uint hash = (uint)beamId * 0x9E3779B1u ^ (uint)enemyId * 0x85EBCA77u;
+                hash ^= hash >> 15;
+                hash *= 0x2C1B3C6Du;
+                hash ^= hash >> 12;
+                hash *= 0x297A2D39u;
+                hash ^= hash >> 15;
+                return hash / (double)uint.MaxValue * 2 - 1;
+            }
+        }
+
+        /// <summary>각도를 [0, 2π) 범위로 맞춘다.</summary>
+        private static double NormalizeAngle(double angle)
+        {
+            angle %= FULL_TURN;
+            if (angle < 0) angle += FULL_TURN;
+            return angle >= FULL_TURN ? 0 : angle;
+        }
+
+        /// <summary>두 각도의 원형 차이(0~π 라디안)를 반환한다.</summary>
+        private static double AngleDistance(double left, double right)
+        {
+            double distance = Math.Abs(left - right) % FULL_TURN;
+            return distance > Math.PI ? FULL_TURN - distance : distance;
+        }
+
+        /// <summary>angle이 이미 고른 모든 대상과 반폭 이상 떨어져 있는지 반환한다.</summary>
+        private static bool IsSeparated(List<OrbitBend> bends, double angle, double bendWidth)
+        {
+            foreach (OrbitBend bend in bends)
+                if (AngleDistance(angle, bend.Angle) < bendWidth) return false;
+            return true;
+        }
+
+        /// <summary>대상 수가 적으므로 삽입 정렬로 bends를 각도 오름차순으로 정렬한다.</summary>
+        private static void SortByAngle(List<OrbitBend> bends)
+        {
+            for (int index = 1; index < bends.Count; index++)
+            {
+                OrbitBend current = bends[index];
+                int target = index - 1;
+                while (target >= 0 && bends[target].Angle > current.Angle)
+                {
+                    bends[target + 1] = bends[target];
+                    target--;
+                }
+                bends[target + 1] = current;
+            }
         }
 
         /// <summary>진행 방향 앞의 유도 범위 안에서 이번 경로에서 지나치지 않은 가장 가까운 적을 고른다. 거리가 같으면 ID가 작은 적이다.</summary>
@@ -249,6 +328,18 @@ namespace RuneCode
 
             /// <summary>이번 경로에서 이미 지나친 대상인지 반환한다.</summary>
             public bool HasPassed(int enemyId) => _passedTargets.Contains(enemyId);
+        }
+
+        /// <summary>공전 빔 경로를 휘게 할 대상 한 명의 시작 반경 방향 기준 각도(라디안)와 공전 반경 대비 반경 차이(px)다.</summary>
+        internal readonly struct OrbitBend
+        {
+            private readonly double _angle;
+            private readonly double _height;
+            internal double Angle => _angle;
+            internal double Height => _height;
+
+            /// <summary>대상 각도와 반경 차이를 보관한다.</summary>
+            internal OrbitBend(double angle, double height) { _angle = angle; _height = height; }
         }
     }
 }

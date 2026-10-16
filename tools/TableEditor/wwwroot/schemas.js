@@ -43,7 +43,7 @@ const LABELS = {
   _damage: "피해", _lifetime: "수명", _offset: "생성 거리", _orbitCount: "궤도 수", _orbitRadius: "궤도 반경",
   _angularSpeed: "각속도", _hitInterval: "재적중 간격", _tickInterval: "틱 간격",
   _damageMultiplier: "피해 배율", _radiusMultiplier: "반경 배율", _pierce: "관통", _pierceLoss: "관통 감소",
-  _homingTurn: "유도 회전", _homingRange: "유도 거리", _arcRange: "연쇄 거리", _arcTargets: "연쇄 대상",
+  _homingTurn: "유도 회전", _homingRange: "유도 거리", _orbitTargetCount: "공전 대상 수", _arcRange: "연쇄 거리", _arcTargets: "연쇄 대상",
   _arcMultiplier: "연쇄 배율", _learningMultiplier: "학습 배율", _spreadAngle: "발사 각도",
   _shieldAmount: "보호막량", _shieldSeconds: "보호막 지속", _coneAngle: "부채꼴 각도",
   _expandSeconds: "확장 시간", _warnSeconds: "예고 시간",
@@ -76,7 +76,7 @@ const LABELS = {
   _benchLineCount: "벤치 열 수", _benchSwarmX: "벤치 군집 X", _benchSwarmY: "벤치 군집 Y",
   _benchSwarmColumns: "벤치 군집 열", _benchSwarmRows: "벤치 군집 행", _benchSwarmGapX: "벤치 군집 간격 X",
   _benchSwarmGapY: "벤치 군집 간격 Y", _spellVisualSeconds: "마법 이펙트 시간", _hitFlashSeconds: "피격 플래시",
-  _damageNumberSeconds: "피해 숫자 시간", _wandOffset: "지팡이 오프셋", _areaPlacementRange: "폭발·잔류 공통 사거리", _executionTimeScale: "실행 시간 배율",
+  _damageNumberSeconds: "피해 숫자 시간", _wandOffset: "지팡이 오프셋", _areaPlacementRange: "폭발·잔류 공통 사거리", _beamCooldownSeconds: "빔 종료 후 쿨타임(초)", _executionTimeScale: "실행 시간 배율",
   // 스테이지
   _roomColumns: "방 열 수", _roomRows: "방 행 수", _roomsX: "가로 방 수", _roomsY: "세로 방 수",
   _hpStageScale: "체력 스케일", _damageStageScale: "피해 스케일", _clearRewardStageScale: "클리어 보상 스케일",
@@ -148,7 +148,8 @@ const SCHEMAS = {
       { k: "_modifierTargets", label: "효과 대상", type: "list", item: [ { k: "", label: "대상 룬", type: "ref", ref: "rune" } ], scalarItem: true },
       { k: "_homingTiers", label: "유도 단계(mod.homing 전용)", type: "list", item: [
         { k: "_tier", label: "단계 이름", type: "text" }, { k: "_homingTurn", label: "유도 회전", type: "number" },
-        { k: "_homingRange", label: "유도 거리", type: "number" } ] },
+        { k: "_homingRange", label: "유도 거리", type: "number" },
+        { k: "_orbitTargetCount", label: "공전 대상 수", type: "number" } ] },
     ],
   },
   runeStats: [
@@ -338,7 +339,7 @@ const SCHEMAS = {
       { title: "적응", keys: ["_elementLearning", "_formLearning", "_elementCap", "_formCap", "_dotWeight", "_noiseMultiplier", "_relayMultiplier", "_decayDelay", "_decayPerSecond", "_resistanceThreshold"] },
       { title: "전투와 방어", keys: ["_burnDps", "_burnInterval", "_burnSeconds", "_chillSlow", "_chillSeconds", "_chillMaxStacks", "_chillImmuneMaxStacks", "_freezeSeconds", "_freezeImmunity", "_empSeconds", "_aegisAngle", "_aegisReduction", "_relayRadius", "_relayReduction", "_separationAllowance", "_separationStrength", "_separationMaxStep"] },
       { title: "성장", keys: ["_slotCost", "_deathRetention", "_baseCapacity", "_maxLibrary", "_modifierStartStock", "_orbAbsorbRadius", "_pickupAttractSpeed", "_terminalHeal"] },
-      { title: "시뮬레이션", keys: ["_tickRate", "_multiOffset", "_telemetryHighlightSeconds", "_benchPlayerX", "_benchPlayerY", "_benchDummyX", "_benchDummyY", "_benchHp", "_benchLineStartX", "_benchLineGap", "_benchLineCount", "_benchSwarmX", "_benchSwarmY", "_benchSwarmColumns", "_benchSwarmRows", "_benchSwarmGapX", "_benchSwarmGapY", "_spellVisualSeconds", "_hitFlashSeconds", "_damageNumberSeconds", "_wandOffset", "_areaPlacementRange", "_executionTimeScale"] },
+      { title: "시뮬레이션", keys: ["_tickRate", "_multiOffset", "_telemetryHighlightSeconds", "_benchPlayerX", "_benchPlayerY", "_benchDummyX", "_benchDummyY", "_benchHp", "_benchLineStartX", "_benchLineGap", "_benchLineCount", "_benchSwarmX", "_benchSwarmY", "_benchSwarmColumns", "_benchSwarmRows", "_benchSwarmGapX", "_benchSwarmGapY", "_spellVisualSeconds", "_hitFlashSeconds", "_damageNumberSeconds", "_wandOffset", "_areaPlacementRange", "_beamCooldownSeconds", "_executionTimeScale"] },
     ],
   },
 };

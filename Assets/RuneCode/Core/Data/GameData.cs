@@ -96,8 +96,8 @@ namespace RuneCode
                     throw new FormatException("행동 규칙에 맞는 실행 동작이 등록되지 않았습니다: " + rules.Kind);
             }
             RuneStats beam = runes.Get("form.beam").Stats;
-            if (beam.MinimumLifetime <= 0 || beam.Lifetime < beam.MinimumLifetime || beam.TickInterval <= 0 || beam.BeamLength <= 0 || beam.Speed <= 0)
-                throw new FormatException("빔의 최소·최대 지속, 피해 간격, 곡선 길이와 경로 속도는 양수여야 합니다.");
+            if (beam.MinimumLifetime <= 0 || beam.TickInterval <= 0 || beam.BeamLength <= 0 || beam.Speed <= 0)
+                throw new FormatException("빔의 초기 결제 구간, 피해 간격, 곡선 길이와 경로 속도는 양수여야 합니다.");
             RuneStats burst = runes.Get("form.burst").Stats;
             if (burst.Speed <= 0 || burst.Lifetime <= 0 || burst.Radius <= 0 || burst.ConeAngle != 360)
                 throw new FormatException("폭발의 속도·수명·두께 반경은 양수, 파동 각도는 360이어야 합니다.");

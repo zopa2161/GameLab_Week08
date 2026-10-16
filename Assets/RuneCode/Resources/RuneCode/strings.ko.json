@@ -11,9 +11,12 @@
     },
     { "_key": "tag.beam", "_value": "빔" },
     { "_key": "form.beam", "_value": "빔" },
-    { "_key": "ui.beamInitialCost", "_value": "최소 유지 마나" },
+    { "_key": "ui.beamInitialCost", "_value": "초기 소모 마나" },
     { "_key": "ui.beamMaximumCost", "_value": "최대 유지 마나" },
-    {"_key": "ui.beamHint", "_value": "공격 시작에 직접 연결하면 클릭 유지로 최대 3초 연장합니다. 대상별 두 번 피해마다 적중 이벤트를 발생시킵니다. 최대 시간 후 새 클릭이 필요합니다."},
+    {"_key": "ui.beamHint", "_value": "공격 시작에 직접 연결하면 버튼을 누르는 동안 시간 제한 없이 유지하며 마나를 계속 소모합니다. 버튼을 놓거나 마나가 부족하면 즉시 종료합니다. 대상별 두 번 피해마다 적중 이벤트를 발생시킵니다. 이벤트·호출·반복 등으로 생성한 빔은 초기 결제 구간만 유지합니다."},
+    {"_key": "ui.beamUnlimitedHold", "_value": "홀드 중 무제한"},
+    {"_key": "ui.beamStopCooldown", "_value": "종료 후 쿨타임"},
+    {"_key": "ui.beamActive", "_value": "빔 유지 중"},
     {"_key": "ui.beamDuration", "_value": "유지 시간"},
     {"_key": "ui.beamWidth", "_value": "빔 폭"},
     {"_key": "ui.beamSustainCost", "_value": "유지 마나"},
@@ -1640,6 +1643,10 @@
     {
       "_key": "ui.gradeHomingRange",
       "_value": "유도 거리"
+    },
+    {
+      "_key": "ui.gradeOrbitTargetCount",
+      "_value": "공전 대상"
     },
     {
       "_key": "ui.gradeAngularSpeed",

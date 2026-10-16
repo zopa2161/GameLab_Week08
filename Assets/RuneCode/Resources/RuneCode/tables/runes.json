@@ -17,7 +17,7 @@
     },
     {
       "_grade": "S",
-      "_elementSlots": 2,
+      "_elementSlots": 1,
       "_modifierSlots": 6
     }
   ],
@@ -33,7 +33,7 @@
       "_unlockType": "start",
       "_unlockCost": 0,
       "_stats": {
-        "_knockbackDistance": 60,
+        "_knockbackDistance": 30,
         "_knockbackSeconds": 0.2,
         "_knockbackReferenceDamage": 15
       },
@@ -372,7 +372,7 @@
       "_stats": {
         "_damage": 3,
         "_radius": 3,
-        "_lifetime": 3,
+        "_lifetime": 0,
         "_minimumLifetime": 0.5,
         "_speed": 480,
         "_count": 1,
@@ -636,17 +636,20 @@
         {
           "_tier": "하급",
           "_homingTurn": 100,
-          "_homingRange": 220
+          "_homingRange": 220,
+          "_orbitTargetCount": 3
         },
         {
           "_tier": "중급",
           "_homingTurn": 140,
-          "_homingRange": 300
+          "_homingRange": 300,
+          "_orbitTargetCount": 5
         },
         {
           "_tier": "상급",
           "_homingTurn": 220,
-          "_homingRange": 420
+          "_homingRange": 420,
+          "_orbitTargetCount": 9
         }
       ],
       "_ports": [

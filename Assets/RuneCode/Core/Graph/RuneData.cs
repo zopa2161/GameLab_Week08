@@ -225,10 +225,14 @@ namespace RuneCode
         private readonly string _tier;
         private readonly float _homingTurn;
         private readonly float _homingRange;
+        private readonly int _orbitTargetCount;
 
         public string Tier => _tier;
         public float HomingTurn => _homingTurn;
         public float HomingRange => _homingRange;
+
+        /// <summary>이 단계를 공전 경로에 적용할 때 함께 돌 대상 수다.</summary>
+        public int OrbitTargetCount => _orbitTargetCount;
 
         /// <summary>runes.json의 유도 단계 설정으로 실행 수치를 만든다.</summary>
         internal HomingTierDefinition(RuneHomingTierData row)
@@ -236,6 +240,7 @@ namespace RuneCode
             _tier = row._tier;
             _homingTurn = row._homingTurn;
             _homingRange = row._homingRange;
+            _orbitTargetCount = row._orbitTargetCount;
         }
     }
 
@@ -773,6 +778,10 @@ namespace RuneCode
                 if (tierRow._homingTurn <= 0f || tierRow._homingRange <= 0f)
                 {
                     log.Add(row._id, "homingTiers:" + tierRow._tier, "유도 회전과 사거리는 양수여야 합니다.");
+                }
+                if (tierRow._orbitTargetCount < 1)
+                {
+                    log.Add(row._id, "homingTiers:" + tierRow._tier, "공전 대상 수는 1 이상이어야 합니다.");
                 }
                 result.Add(new HomingTierDefinition(tierRow));
             }

@@ -12,7 +12,7 @@
       "_modifierId": "mod.knockback",
       "_name": "밀어내기",
       "_effectType": "knockbackDistance",
-      "_gradeValues": { "C": 60, "B": 90, "A": 120, "S": 180 }
+      "_gradeValues": { "C": 30, "B": 45, "A": 60, "S": 90 }
     },
     {
       "_modifierId": "mod.amplify",
@@ -97,10 +97,10 @@
       "_name": "유도",
       "_effectType": "homingTier",
       "_gradeValues": {
-        "C": "하급",
-        "B": "중급",
-        "A": "상급",
-        "S": null
+        "C": null,
+        "B": "하급",
+        "A": "중급",
+        "S": "상급"
       }
     },
     {
