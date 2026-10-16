@@ -241,7 +241,8 @@ namespace RuneCode
             List<SpellAction> root = BuildBranch(graph, cores[0].Id, "exec", nodes, definitions, warnings, errors, runes, limits, context, slotModifiers);
             if (errors.Any(issue => issue.Code == "E11" || issue.Code == "E12" || issue.Code == "E14" || issue.Code == "E15"))
                 return new CompileResult(errors, warnings, null);
-            ResourceCostSet resourceCosts = Cost(root);
+            ResourceCostSet resourceCosts = Cost(root,
+                allowBeamHold: cores[0].GetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK) == SpellGrammar.TRIGGER_ON_ATTACK);
             ResourceCostSet castCosts = Cost(root, includeEvents: false);
             int entities = EntityCount(root);
             long actionCeiling = limits.MaxCompiledActions;
@@ -636,17 +637,18 @@ namespace RuneCode
         /// 최악 분기와 이벤트 횟수를 포함한 에너지 비용을 합산한다. 발사체는 명중 경로(OnHit)와 미명중 소멸 경로(OnExpire)가
         /// 서로 배타적이라 큰 쪽만 더하고, OnFirstHitOrExpire는 개체당 한 번 더한다. OnHit 횟수에 상한이 없으면 후속 비용을 산정 불가로 표시한다.
         /// includeEvents가 false이면 적중·소멸 이벤트 분기를 빼고 시전만으로 차감되는 비용을 합산한다.
+        /// allowBeamHold이면 현재 목록에 직접 연결된 빔의 총 유지 비용에 상한이 없음을 반영한다.
         /// </summary>
         private static ResourceCostSet Cost(IReadOnlyList<SpellAction> actions,
-            SpellModifierValues inheritedModifiers = null, double costMultiplier = 1d, bool includeEvents = true)
+            SpellModifierValues inheritedModifiers = null, double costMultiplier = 1d, bool includeEvents = true, bool allowBeamHold = false)
         {
             ResourceCostSet sum = ResourceCostSet.Empty;
             inheritedModifiers = inheritedModifiers ?? SpellModifierValues.None;
             foreach (SpellAction action in actions)
             {
                 ResourceCostSet ownCosts = action.GetNodeCosts(inheritedModifiers).Multiply(costMultiplier);
-                if (includeEvents && action.Form == BeamBehaviorRules.BEAM_KIND)
-                    ownCosts = ownCosts.Multiply(action.Stats.Lifetime / action.Stats.MinimumLifetime);
+                if (includeEvents && allowBeamHold && action.Form == BeamBehaviorRules.BEAM_KIND)
+                    ownCosts = UnboundedCost(ownCosts);
                 if (!includeEvents && (action.Kind == "spawn" || action.Kind == "buff"))
                 {
                     sum = sum.Add(ownCosts);

@@ -351,7 +351,8 @@ namespace RuneCode
             if (spell == null || slot < 0 || slot >= _loadout.Length || (_stage != MissionStage.Bench && _stage != MissionStage.Combat)) return false;
             if (_isMission && slot != 0) return false;
             double executionSeconds = spell.GetEstimatedExecutionSeconds(_balance.Sim.ExecutionTimeScale);
-            double cooldownSeconds = spell.Cooldown + executionSeconds;
+            bool usesBeamCooldown = spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK && HasDirectBeam(spell);
+            double cooldownSeconds = usesBeamCooldown ? 0 : spell.Cooldown + executionSeconds;
             if (!_player.TryBeginSpell(slot, executionSeconds, cooldownSeconds)) return false;
             RecordNode(spell.CoreNodeId);
             _beamQueued[slot] = false;
@@ -391,7 +392,11 @@ namespace RuneCode
                 bool held = slot == 0 ? input.CastA : slot == 1 ? input.CastB : input.CastC;
                 bool released = _castHeld[slot] && !held || slot == 0 && input.CastReleased;
                 bool pressed = held && !_castHeld[slot] || slot == 0 && input.CastPressed;
-                if (released) _beamPressSerial[slot]++;
+                if (released)
+                {
+                    _beamPressSerial[slot]++;
+                    _beamQueued[slot] = false;
+                }
                 if (pressed)
                 {
                     _beamPressSerial[slot]++;
@@ -406,6 +411,21 @@ namespace RuneCode
         /// <summary>빔이 시작한 클릭과 현재 슬롯 홀드가 같은지 반환한다.</summary>
         internal bool IsBeamHeld(int slot, int pressSerial)
             => slot >= 0 && _castHeld[slot] && _beamPressSerial[slot] == pressSerial;
+
+        /// <summary>지정 슬롯에 아직 종료되지 않은 직접 시전 빔이 있는지 반환한다.</summary>
+        public bool HasActiveBeam(int slot)
+        {
+            foreach (BeamBehaviorRuntime.BeamChannel channel in _beamChannels)
+                if (channel.Slot == slot && channel.FollowsPlayer && !channel.IsStopped) return true;
+            return false;
+        }
+
+        /// <summary>직접 빔 종료 시 해당 슬롯의 전용 쿨다운을 시작하고 채널의 실행 추적 참조를 해제한다.</summary>
+        private void CompleteBeamChannel(RootSpellExecution rootCast, ExecutionTracker tracker)
+        {
+            if (rootCast.UsesBeamCooldown) _player.StartSpellCooldown(rootCast.Slot, _balance.Sim.BeamCooldownSeconds);
+            tracker.Release();
+        }
 
         /// <summary>입력 중단 시 기존 빔 홀드와 예약 클릭을 취소하며 다른 행동의 입력 규칙은 유지한다.</summary>
         public void CancelBeamInput()
@@ -945,7 +965,7 @@ namespace RuneCode
                 if (isDirect) tracker.Acquire();
                 channel = new BeamBehaviorRuntime.BeamChannel(_tick, stats, root?.Slot ?? -1, root?.PressSerial ?? -1,
                     canExtend, isDirect, action.GetNodeCosts(context.Modifiers).Multiply(context.CostMultiplier),
-                    isDirect ? (Action)tracker.Release : null);
+                    isDirect ? (Action)(() => CompleteBeamChannel(root, tracker)) : null);
                 _beamChannels.Add(channel);
             }
             for (int i = 0; i < action.Count; i++)
@@ -2195,12 +2215,14 @@ namespace RuneCode
             private readonly SimVector _playerPosition;
             private readonly SimVector _aimDirection;
             private readonly SimVector? _aimPoint;
+            private readonly bool _usesBeamCooldown;
             public int Slot => _slot;
             public bool CanHold => _canHold;
             public int PressSerial => _pressSerial;
             public SimVector PlayerPosition => _playerPosition;
             public SimVector AimDirection => _aimDirection;
             public SimVector? AimPoint => _aimPoint;
+            public bool UsesBeamCooldown => _usesBeamCooldown;
 
             /// <summary>완료 슬롯·실행 루트·빔 유지 상태와 시전 시작 위치·조준 방향·포인터 좌표를 보관한다.</summary>
             public RootSpellExecution(int slot, CompiledSpell spell, int pressSerial, bool canHold,
@@ -2209,6 +2231,7 @@ namespace RuneCode
                 _slot = slot; _actions = spell.Root; _pressSerial = pressSerial;
                 _canHold = canHold && spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK;
                 _playerPosition = playerPosition; _aimDirection = aimDirection; _aimPoint = aimPoint;
+                _usesBeamCooldown = spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK && HasDirectBeam(spell);
             }
 
             /// <summary>명령이 시작 노드에 직접 연결된 실행 대상인지 반환한다.</summary>
@@ -2223,6 +2246,7 @@ namespace RuneCode
             public void WriteTargetState(StringBuilder state)
             {
                 state.Append('|').Append(_aimPoint.HasValue);
+                state.Append('|').Append(_usesBeamCooldown);
                 AppendNumber(state, _playerPosition.X); AppendNumber(state, _playerPosition.Y);
                 AppendNumber(state, _aimDirection.X); AppendNumber(state, _aimDirection.Y);
                 if (_aimPoint.HasValue) { AppendNumber(state, _aimPoint.Value.X); AppendNumber(state, _aimPoint.Value.Y); }

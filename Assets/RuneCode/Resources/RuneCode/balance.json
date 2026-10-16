@@ -90,6 +90,7 @@
     "_damageNumberSeconds": 1,
     "_wandOffset": 8,
     "_areaPlacementRange": 240,
+    "_beamCooldownSeconds": 0.5,
     "_executionTimeScale": 1
   }
 }
