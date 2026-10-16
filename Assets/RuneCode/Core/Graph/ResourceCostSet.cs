@@ -64,6 +64,17 @@ namespace RuneCode
             return 0;
         }
 
+        /// <summary>지정 자원의 비용만 amount로 교체하고 다른 자원 비용은 유지한 새 묶음을 반환한다.</summary>
+        public ResourceCostSet WithAmount(string resource, double amount)
+        {
+            if (GetAmount(resource) == amount) return this;
+            var values = new List<ResourceAmount>(_amounts.Count + 1);
+            foreach (ResourceAmount current in _amounts)
+                if (current.Resource != resource) values.Add(current);
+            if (amount != 0d) values.Add(new ResourceAmount(resource, amount));
+            return new ResourceCostSet(values);
+        }
+
         /// <summary>비용 목록을 현재 언어의 자원 이름과 한 자리 소수 수치로 표시한다.</summary>
         public string Format(Func<string, string> getResourceName)
         {

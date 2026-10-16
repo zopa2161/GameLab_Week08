@@ -649,8 +649,8 @@ namespace RuneCode
             }
             if (rune.Id == "mod.expand" && stats.DamageMultiplier != 1f)
                 values.Add(GameData.L("ui.gradeDamage") + " ×" + stats.DamageMultiplier.ToString("0.##"));
-            if (rune.Id == "mod.pierce" && stats.PierceLoss > 0f)
-                values.Add(GameData.L("ui.gradePierceLoss") + " " + stats.PierceLoss.ToString("0.##"));
+            if (grades.TryGetPierceDamageMultiplier(rune.Id, grade, out float pierceMultiplier))
+                values.Add("관통 적중당 피해 ×" + pierceMultiplier.ToString("0.##") + " · 최소 피해 1");
             return string.Join(" · ", values);
         }
 

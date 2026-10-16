@@ -11,6 +11,7 @@ namespace RuneCode
         private const string LAUNCH_COUNT_KEY = "_launchGradeValues";
         private const string LAUNCH_SPREAD_KEY = "_launchSpreadAngles";
         private const string ENERGY_MULT_BY_GRADE_KEY = "_energyMultByGrade";
+        private const string PIERCE_DAMAGE_MULTIPLIER_KEY = "_pierceDamageMultiplierByGrade";
         private const string SLOT_GRADE_CHANCES_KEY = "_slotGradeChancesPercent";
         private const string ELITE_GRADE_CHANCES_KEY = "_eliteModifierGradeChancesPercent";
         private const string BEHAVIOR_GRADE_CHANCES_KEY = "_behaviorGradeChancesPercent";
@@ -131,6 +132,19 @@ namespace RuneCode
             value = 0f;
             if (!(GetGradeValue(modifierId, grade) is double number)) return false;
             value = (float)number;
+            return true;
+        }
+
+        /// <summary>Modifier ID와 등급의 관통 적중당 피해 유지 배율을 읽고 정의가 없으면 false를 반환한다.</summary>
+        public bool TryGetPierceDamageMultiplier(string modifierId, string grade, out float value)
+        {
+            value = 1f;
+            if (string.IsNullOrEmpty(modifierId) || string.IsNullOrEmpty(grade)
+                || !_effects.TryGetValue(modifierId, out ModifierGradeEffect effect)
+                || effect.PierceDamageMultipliers == null
+                || !effect.PierceDamageMultipliers.TryGetValue(grade, out object rawValue)
+                || !(rawValue is double multiplier)) return false;
+            value = (float)multiplier;
             return true;
         }
 
@@ -284,7 +298,15 @@ namespace RuneCode
                 if (launchValues != null) ValidateGradeValueTypes(modifierId, effectType, launchValues, rune, log, LAUNCH_COUNT_KEY);
                 Dictionary<string, object> spreadAngles = ReadLaunchGradeValues(row, modifierId, effectType, gradeOrder, values, log, LAUNCH_SPREAD_KEY);
                 if (spreadAngles != null) ValidateSpreadAngles(modifierId, spreadAngles, log);
-                result.Add(modifierId, new ModifierGradeEffect(name, effectType, values, energyMultipliers, launchValues, spreadAngles));
+                Dictionary<string, object> pierceMultipliers = null;
+                if (effectType == "pierceCount")
+                {
+                    pierceMultipliers = ReadGradeValues(row, modifierId, gradeOrder, log, PIERCE_DAMAGE_MULTIPLIER_KEY);
+                    foreach (KeyValuePair<string, object> pair in pierceMultipliers)
+                        if (!(pair.Value is double multiplier) || double.IsNaN(multiplier) || multiplier <= 0d || multiplier > 1d)
+                            log.Add(modifierId, PIERCE_DAMAGE_MULTIPLIER_KEY + "." + pair.Key, "0보다 크고 1 이하인 숫자여야 합니다.");
+                }
+                result.Add(modifierId, new ModifierGradeEffect(name, effectType, values, energyMultipliers, launchValues, spreadAngles, pierceMultipliers));
                 modifierOrder.Add(modifierId);
             }
             return result;
@@ -632,6 +654,7 @@ namespace RuneCode
         public string EffectType { get; }
         public IReadOnlyDictionary<string, object> GradeValues { get; }
         public IReadOnlyDictionary<string, float> EnergyMultipliersByGrade { get; }
+        public IReadOnlyDictionary<string, object> PierceDamageMultipliers { get; }
 
         /// <summary>발사 Behavior에만 쓰는 등급값이다. 없으면 null이며 발사도 GradeValues를 쓴다.</summary>
         public IReadOnlyDictionary<string, object> LaunchGradeValues { get; }
@@ -642,12 +665,14 @@ namespace RuneCode
         /// <summary>검증이 끝난 Modifier 효과 값과 등급 에너지 배율을 보관한다.</summary>
         public ModifierGradeEffect(string name, string effectType, IReadOnlyDictionary<string, object> gradeValues,
             IReadOnlyDictionary<string, float> energyMultipliersByGrade,
-            IReadOnlyDictionary<string, object> launchGradeValues = null, IReadOnlyDictionary<string, object> launchSpreadAngles = null)
+            IReadOnlyDictionary<string, object> launchGradeValues = null, IReadOnlyDictionary<string, object> launchSpreadAngles = null,
+            IReadOnlyDictionary<string, object> pierceDamageMultipliers = null)
         {
             Name = name;
             EffectType = effectType;
             GradeValues = gradeValues;
             EnergyMultipliersByGrade = energyMultipliersByGrade;
+            PierceDamageMultipliers = pierceDamageMultipliers;
             LaunchGradeValues = launchGradeValues;
             LaunchSpreadAngles = launchSpreadAngles;
         }

@@ -319,6 +319,8 @@ namespace RuneCode
                     ? modifierGrades.GetPierceCount(mod.Id, grade, stats.Pierce) : stats.Pierce;
                 _pierce = SpellModifierValues.AddPierce(_pierce, pierceCount);
                 if (stats.PierceLoss > 0f) _pierceLoss = stats.PierceLoss;
+                if (modifierGrades != null && modifierGrades.TryGetPierceDamageMultiplier(mod.Id, grade, out float pierceMultiplier))
+                    _pierceLoss = 1f - pierceMultiplier;
                 // 유도는 발사체의 방향 전환, 잔류의 대상 추적 이동, 빔 경로 휨, 공전 위 직선 추적에 쓴다.
                 if (modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == "homingTier")
                 {
@@ -451,6 +453,8 @@ namespace RuneCode
 
     public sealed class SpellAction
     {
+        private const double ON_HIT_ENERGY_MULTIPLIER = 1.5d;
+
         private readonly string _kind;
         private readonly string _nodeId;
         private readonly string _magicType;
@@ -712,6 +716,61 @@ namespace RuneCode
             return _baseNodeCosts.Add(CalculateShapeCosts(_shapeDefinition, _magicType, effectiveStats, _coneAngle));
         }
 
+        /// <summary>문맥 배율과 onHit 체인 선결제를 반영한 실행 비용을 반환한다. 선결제 문맥에서는 전력만 제외한다.</summary>
+        public ResourceCostSet GetExecutionCosts(SpellModifierValues inheritedModifiers, double costMultiplier = 1d,
+            bool isManaPrepaid = false, SpellEventScope callEvents = null)
+        {
+            ResourceCostSet costs = GetNodeCosts(inheritedModifiers).Multiply(costMultiplier);
+            if (isManaPrepaid) return costs.WithAmount("mana", 0d);
+            if (_kind != "spawn" && _kind != "buff") return costs;
+            if (_onHit.Count == 0 && callEvents == null) return costs;
+            double energy = 0d;
+            int behaviorCount = 0;
+            AccumulateOnHitCosts(this, inheritedModifiers ?? SpellModifierValues.None, costMultiplier, callEvents,
+                new HashSet<SpellEventScope>(), ref energy, ref behaviorCount);
+            return costs.WithAmount("mana", energy * Math.Pow(ON_HIT_ENERGY_MULTIPLIER, Math.Max(0, behaviorCount - 1)));
+        }
+
+        /// <summary>한 명령과 onHit·일반 실행 후속의 전력과 행동 노드 수를 한 번씩 더한다. 생성·적중·반복 횟수는 곱하지 않는다.</summary>
+        private static void AccumulateOnHitCosts(SpellAction action, SpellModifierValues modifiers, double costMultiplier,
+            SpellEventScope callEvents, HashSet<SpellEventScope> visitedScopes, ref double energy, ref int behaviorCount)
+        {
+            energy += action.GetNodeCosts(modifiers).Multiply(costMultiplier).GetAmount("mana");
+            if (action.Kind == "spawn" || action.Kind == "buff") behaviorCount++;
+            if (action.Kind == "call")
+            {
+                var events = new SpellEventScope(action.OnHit, action.OnExpire, action.OnFirstHitOrExpire,
+                    callEvents, modifiers, costMultiplier);
+                AccumulateOnHitBranches(action.CalledSpell.Root, modifiers.Combine(action.ModifierValues),
+                    costMultiplier * action.EnergyMultiplier, events, visitedScopes, ref energy, ref behaviorCount);
+            }
+            else
+            {
+                AccumulateOnHitBranches(action.OnHit, modifiers, costMultiplier, callEvents, visitedScopes, ref energy, ref behaviorCount);
+            }
+            if (action.Kind == "spawn")
+            {
+                for (SpellEventScope scope = callEvents; scope != null; scope = scope.Parent)
+                    if (visitedScopes.Add(scope))
+                        AccumulateOnHitBranches(scope.OnHit, scope.ParentModifiers, scope.ParentCostMultiplier,
+                            scope.Parent, visitedScopes, ref energy, ref behaviorCount);
+            }
+            AccumulateOnHitBranches(action.Then, modifiers, costMultiplier, callEvents, visitedScopes, ref energy, ref behaviorCount);
+            AccumulateOnHitBranches(action.Else, modifiers, costMultiplier, callEvents, visitedScopes, ref energy, ref behaviorCount);
+            AccumulateOnHitBranches(action.Body, modifiers, costMultiplier, callEvents, visitedScopes, ref energy, ref behaviorCount);
+            AccumulateOnHitBranches(action.OnComplete, modifiers, costMultiplier, callEvents, visitedScopes, ref energy, ref behaviorCount);
+            AccumulateOnHitBranches(action.Next, modifiers, costMultiplier, callEvents, visitedScopes, ref energy, ref behaviorCount);
+        }
+
+        /// <summary>연결된 명령 목록을 순회하며 각 노드의 전력과 행동 수를 선결제 합계에 더한다.</summary>
+        private static void AccumulateOnHitBranches(IReadOnlyList<SpellAction> actions, SpellModifierValues modifiers,
+            double costMultiplier, SpellEventScope callEvents, HashSet<SpellEventScope> visitedScopes,
+            ref double energy, ref int behaviorCount)
+        {
+            foreach (SpellAction action in actions)
+                AccumulateOnHitCosts(action, modifiers, costMultiplier, callEvents, visitedScopes, ref energy, ref behaviorCount);
+        }
+
         /// <summary>연결 수식까지 반영한 이 노드의 기본·면적 실행 시간을 반환한다.</summary>
         public double GetExecutionSeconds(SpellModifierValues inheritedModifiers)
         {
@@ -809,7 +868,7 @@ namespace RuneCode
         public int RamUsed => _ramUsed;
         public ResourceCostSet ResourceCosts => _resourceCosts;
 
-        /// <summary>적중·소멸 이벤트 분기를 빼고 시전만으로 차감되는 자원별 비용이다. 조건 분기는 큰 쪽을 더한다.</summary>
+        /// <summary>onHit 직렬 체인 전력 선결제를 포함한 시전 비용이다. 소멸·첫 이벤트의 별도 결제 비용은 제외한다.</summary>
         public ResourceCostSet CastCosts => _castCosts;
         public float EnergyCost => (float)_resourceCosts.GetAmount("mana");
         public float Cooldown => _cooldown;

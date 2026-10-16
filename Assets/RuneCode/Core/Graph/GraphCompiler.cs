@@ -638,19 +638,19 @@ namespace RuneCode
             => (long)action.Count * action.WaveCount;
 
         /// <summary>
-        /// 최악 분기와 이벤트 횟수를 포함한 에너지 비용을 합산한다. 발사체는 명중 경로(OnHit)와 미명중 소멸 경로(OnExpire)가
-        /// 서로 배타적이라 큰 쪽만 더하고, OnFirstHitOrExpire는 개체당 한 번 더한다. OnHit 횟수에 상한이 없으면 후속 비용을 산정 불가로 표시한다.
-        /// includeEvents가 false이면 적중·소멸 이벤트 분기를 빼고 시전만으로 차감되는 비용을 합산한다.
+        /// onHit 전력 선결제와 나머지 자원의 최악 이벤트 비용을 합산한다. 선결제된 후속 전력에는 적중·생성 횟수를 곱하지 않는다.
+        /// includeEvents가 false이면 시전 비용과 onHit 선결제만 포함하고 소멸·첫 이벤트의 별도 비용은 제외한다.
         /// allowBeamHold이면 현재 목록에 직접 연결된 빔의 총 유지 비용에 상한이 없음을 반영한다.
         /// </summary>
         private static ResourceCostSet Cost(IReadOnlyList<SpellAction> actions,
-            SpellModifierValues inheritedModifiers = null, double costMultiplier = 1d, bool includeEvents = true, bool allowBeamHold = false)
+            SpellModifierValues inheritedModifiers = null, double costMultiplier = 1d, bool includeEvents = true, bool allowBeamHold = false,
+            bool isManaPrepaid = false, SpellEventScope callEvents = null)
         {
             ResourceCostSet sum = ResourceCostSet.Empty;
             inheritedModifiers = inheritedModifiers ?? SpellModifierValues.None;
             foreach (SpellAction action in actions)
             {
-                ResourceCostSet ownCosts = action.GetNodeCosts(inheritedModifiers).Multiply(costMultiplier);
+                ResourceCostSet ownCosts = action.GetExecutionCosts(inheritedModifiers, costMultiplier, isManaPrepaid, callEvents);
                 if (includeEvents && allowBeamHold && action.Form == BeamBehaviorRules.BEAM_KIND)
                     ownCosts = UnboundedCost(ownCosts);
                 if (!includeEvents && (action.Kind == "spawn" || action.Kind == "buff"))
@@ -661,40 +661,51 @@ namespace RuneCode
                 switch (action.Kind)
                 {
                     case "spawn":
-                        ResourceCostSet hitChainCost = Cost(action.OnHit, inheritedModifiers, costMultiplier);
+                        ResourceCostSet hitChainCost = Cost(action.OnHit, inheritedModifiers, costMultiplier,
+                            isManaPrepaid: true, callEvents: callEvents);
                         // 대상마다 내는 OnHit은 개체당 상한이 없어 후속 비용이 있으면 최대 비용을 산정할 수 없다(W8).
                         ResourceCostSet hitCost = TryGetMaxHitEvents(action, out int maxHits)
                             ? hitChainCost.Multiply(maxHits) : UnboundedCost(hitChainCost);
-                        ResourceCostSet expireCost = Cost(action.OnExpire, inheritedModifiers, costMultiplier);
+                        ResourceCostSet expireCost = Cost(action.OnExpire, inheritedModifiers, costMultiplier, callEvents: callEvents);
                         ResourceCostSet eventCost = HasExclusiveHitAndExpire(action)
                             ? ResourceCostSet.Max(hitCost, expireCost) : hitCost.Add(expireCost);
                         sum = sum.Add(ownCosts).Add(eventCost.Add(Cost(action.OnFirstHitOrExpire,
-                            inheritedModifiers, costMultiplier)).Multiply(SpawnInstanceCount(action)));
+                            inheritedModifiers, costMultiplier, callEvents: callEvents)).Multiply(SpawnInstanceCount(action)));
                         break;
                     case "buff": sum = sum.Add(ownCosts).Add(Cost(action.OnFirstHitOrExpire,
-                        inheritedModifiers, costMultiplier).Multiply(action.Count)); break;
+                        inheritedModifiers, costMultiplier, callEvents: callEvents).Multiply(action.Count)); break;
                     case "call":
                         long eventCount = (long)action.Count * action.CalledSpell.WorstCaseEntities;
                         SpellModifierValues callModifiers = inheritedModifiers.Combine(action.ModifierValues);
                         double callCostMultiplier = costMultiplier * action.EnergyMultiplier;
-                        ResourceCostSet calledCosts = Cost(action.CalledSpell.Root, callModifiers, callCostMultiplier, includeEvents)
+                        var events = new SpellEventScope(action.OnHit, action.OnExpire, action.OnFirstHitOrExpire,
+                            callEvents, inheritedModifiers, costMultiplier);
+                        ResourceCostSet calledCosts = Cost(action.CalledSpell.Root, callModifiers, callCostMultiplier, includeEvents,
+                            isManaPrepaid: isManaPrepaid, callEvents: events)
                             .Multiply(action.Count);
                         if (!includeEvents)
                         {
                             sum = sum.Add(ownCosts).Add(calledCosts);
                             break;
                         }
-                        ResourceCostSet eventCosts = UnboundedCost(Cost(action.OnHit, inheritedModifiers, costMultiplier))
-                            .Add(Cost(action.OnExpire, inheritedModifiers, costMultiplier))
-                            .Add(Cost(action.OnFirstHitOrExpire, inheritedModifiers, costMultiplier));
+                        ResourceCostSet eventCosts = UnboundedCost(Cost(action.OnHit, inheritedModifiers, costMultiplier,
+                                isManaPrepaid: true, callEvents: callEvents))
+                            .Add(Cost(action.OnExpire, inheritedModifiers, costMultiplier, callEvents: callEvents))
+                            .Add(Cost(action.OnFirstHitOrExpire, inheritedModifiers, costMultiplier, callEvents: callEvents));
                         sum = sum.Add(ownCosts).Add(calledCosts).Add(eventCosts.Multiply(eventCount));
                         break;
-                    case "delay": sum = sum.Add(Cost(action.Then, inheritedModifiers, costMultiplier, includeEvents)); break;
-                    case "repeat": sum = sum.Add(Cost(action.Body, inheritedModifiers, costMultiplier, includeEvents).Multiply(action.Times))
-                        .Add(Cost(action.OnComplete, inheritedModifiers, costMultiplier, includeEvents)); break;
-                    case "if": sum = sum.Add(ResourceCostSet.Max(Cost(action.Then, inheritedModifiers, costMultiplier, includeEvents),
-                        Cost(action.Else, inheritedModifiers, costMultiplier, includeEvents))); break;
-                    default: sum = sum.Add(ownCosts).Add(Cost(action.Next, inheritedModifiers, costMultiplier, includeEvents)); break;
+                    case "delay": sum = sum.Add(Cost(action.Then, inheritedModifiers, costMultiplier, includeEvents,
+                        isManaPrepaid: isManaPrepaid, callEvents: callEvents)); break;
+                    case "repeat": sum = sum.Add(Cost(action.Body, inheritedModifiers, costMultiplier, includeEvents,
+                            isManaPrepaid: isManaPrepaid, callEvents: callEvents).Multiply(action.Times))
+                        .Add(Cost(action.OnComplete, inheritedModifiers, costMultiplier, includeEvents,
+                            isManaPrepaid: isManaPrepaid, callEvents: callEvents)); break;
+                    case "if": sum = sum.Add(ResourceCostSet.Max(Cost(action.Then, inheritedModifiers, costMultiplier, includeEvents,
+                            isManaPrepaid: isManaPrepaid, callEvents: callEvents),
+                        Cost(action.Else, inheritedModifiers, costMultiplier, includeEvents,
+                            isManaPrepaid: isManaPrepaid, callEvents: callEvents))); break;
+                    default: sum = sum.Add(ownCosts).Add(Cost(action.Next, inheritedModifiers, costMultiplier, includeEvents,
+                        isManaPrepaid: isManaPrepaid, callEvents: callEvents)); break;
                 }
             }
             return sum;

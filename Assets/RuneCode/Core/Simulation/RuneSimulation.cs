@@ -344,7 +344,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 시전 가능 상태와 슬롯 쿨다운을 확인하고 루트 실행을 시작한다. 마나는 선지불하지 않고 실행 노드에 도달할 때마다 차감한다(백서 7.1).
+        /// 시전 가능 상태와 슬롯 쿨다운을 확인하고 루트 실행을 시작한다. 각 최초 행동이 시작될 때 onHit 직렬 체인의 전력을 선결제한다.
         /// </summary>
         public bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false)
         {
@@ -592,6 +592,7 @@ namespace RuneCode
                 state.Append(pending.Context.Target?.Id ?? 0).Append('|').Append(pending.Context.FromEvent).Append('|').Append(pending.Context.NoiseElement);
                 state.Append('|').Append(pending.IsIteration);
                 AppendNumber(state, pending.Context.CostMultiplier);
+                if (pending.Context.IsManaPrepaid) state.Append("|manaPrepaid");
                 state.Append(pending.Context.SourceEntityId).Append('|');
                 if (pending.Tracker != null)
                 {
@@ -896,13 +897,14 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 실행 노드에 도달했을 때 자원별 노드 비용 × 문맥 비용 배율을 함께 차감하고 성공 여부를 반환한다.
+        /// 최초 행동의 onHit 전력 선결제와 나머지 노드 자원 비용을 함께 차감하고 성공 여부를 반환한다. 선결제 후속은 전력을 다시 내지 않는다.
         /// 흐름 제어(Delay·Repeat·Condition)는 비용이 없고, 비용이 0이면 항상 성공한다.
         /// </summary>
         private bool TrySpendFor(SpellAction action, SpellContext context)
         {
             if (action.Kind == "delay" || action.Kind == "repeat" || action.Kind == "if") return true;
-            ResourceCostSet costs = action.GetNodeCosts(context.Modifiers).Multiply(context.CostMultiplier);
+            ResourceCostSet costs = action.GetExecutionCosts(context.Modifiers, context.CostMultiplier,
+                context.IsManaPrepaid, context.CallEvents);
             if (costs.Amounts.Count == 0) return true;
             if (!_player.TrySpend(costs)) return false;
             foreach (ResourceAmount amount in costs.Amounts)
@@ -923,7 +925,7 @@ namespace RuneCode
             // 호출 노드에 붙은 효과의 비용 배율은 호출된 마법의 각 노드 비용에 곱한다.
             SpellContext callContext = new SpellContext(context.Origin, context.Direction, context.Target,
                 context.FromEvent, context.NoiseElement, modifiers, events, context.Repeat, context.CostMultiplier * action.EnergyMultiplier,
-                context.Caster, context.SourceEntityId, context.DirectionOffset, context.RandomState);
+                context.Caster, context.SourceEntityId, context.DirectionOffset, context.RandomState, context.IsManaPrepaid);
             for (int instance = 0; instance < action.Count; instance++)
             {
                 double spread = action.Count > 1
@@ -932,7 +934,7 @@ namespace RuneCode
                 SpellContext instanceContext = new SpellContext(callContext.Origin, callContext.Direction.Rotated(spread),
                     callContext.Target, callContext.FromEvent, callContext.NoiseElement, callContext.Modifiers, callContext.CallEvents, callContext.Repeat,
                     callContext.CostMultiplier, callContext.Caster, callContext.SourceEntityId,
-                    callContext.DirectionOffset + spread, callContext.RandomState);
+                    callContext.DirectionOffset + spread, callContext.RandomState, callContext.IsManaPrepaid);
                 ExecuteRootBranches(action.CalledSpell.Root, instanceContext, tracker);
             }
         }
@@ -952,7 +954,8 @@ namespace RuneCode
                 caster.GiveShield(amount, action.BuffDuration * action.ModifierValues.DurationMultiplier
                     * context.Modifiers.DurationMultiplier, Time);
             else if (action.SourceElement == "fire") caster.ApplyBurn(Time, _balance.Combat.BurnInterval, _balance.Combat.BurnSeconds);
-            for (int instance = 0; instance < action.Count; instance++) Execute(action.OnFirstHitOrExpire, context, tracker);
+            for (int instance = 0; instance < action.Count; instance++)
+                Execute(action.OnFirstHitOrExpire, context.WithManaPrepaid(false), tracker);
         }
 
         /// <summary>대상 또는 자신 상태에 따른 조건 분기를 평가하며 대상이 없으면 대상 조건을 false로 반환한다.</summary>
@@ -1165,10 +1168,11 @@ namespace RuneCode
             else _player.GiveShield(amount, action.BuffDuration * action.ModifierValues.DurationMultiplier * entity.Modifiers.DurationMultiplier, Time);
         }
 
-        /// <summary>스펠 피해·상태와 전격 연쇄를 처리하고 직접 실제 피해에 비례한 밀어내기를 pushDirection으로 예약한다. 잔류 피해는 PersistDamage에 누적하며 이벤트는 호출부가 처리한다.</summary>
+        /// <summary>스펠 피해·상태와 전격 연쇄를 처리하며 관통 직접 피해는 보정 후에도 최소 1을 유지한다. 직접 실제 피해에 비례한 밀어내기를 pushDirection으로 예약하고 잔류 피해를 누적한다.</summary>
         internal void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot, SimVector pushDirection)
         {
-            double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true);
+            double minimumDamage = entity.Behavior.TracksDirectHit && entity.Stats.Pierce > 0 && !isDot ? 1d : 0d;
+            double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true, minimumDamage);
             if (IsSeparationFixed(enemy)) enemy.CancelDisplacement();
             else if (actual > 0 && enemy.IsAlive && entity.Stats.KnockbackDistance > 0)
             {
@@ -1207,7 +1211,7 @@ namespace RuneCode
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id);
             bool isFirstEvent = tracksDirectHit && entity.TryMarkFirstEvent();
-            Execute(entity.Action.OnHit, context);
+            Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
             ExecuteCallEvent(entity, true, isFirstEvent, position, target);
         }
@@ -1244,13 +1248,14 @@ namespace RuneCode
                 IReadOnlyList<SpellAction> actions = isHit ? current.OnHit : current.OnExpire;
                 SpellContext context = new SpellContext(origin, GetEventDirection(entity, origin, target), target, true, entity.CastNoiseElement,
                     current.ParentModifiers, current.Parent, null, current.ParentCostMultiplier, entity.Caster, entity.Id);
-                Execute(actions, context);
+                Execute(actions, context.WithManaPrepaid(isHit));
                 if (isFirstEvent) Execute(current.OnFirstHitOrExpire, context);
             }
         }
 
-        /// <summary>피해 파이프라인에 적응, 이지스 방패 및 보스 무적을 반영하고 실제 피해와 학습을 기록한다.</summary>
-        private double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus)
+        /// <summary>피해에 적응·이지스 방패와 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
+        private double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
+            double minimumDamage = 0d)
         {
             if (!enemy.IsAlive || enemy.IsPatching) return 0;
             double actual = damage * _damageMultiplier * Adaptation.GetMultiplier(element, form);
@@ -1262,7 +1267,7 @@ namespace RuneCode
                 relayAlive = true;
                 break;
             }
-            actual = enemy.Hurt(actual, Time);
+            actual = enemy.Hurt(Math.Max(minimumDamage, actual), Time);
             if (applyStatus) ApplyStatus(enemy, element, form, noise);
             if (actual > 0)
             {
@@ -2184,6 +2189,7 @@ namespace RuneCode
             private readonly int _sourceEntityId;
             private readonly double _directionOffset;
             private readonly SpellRandomState _randomState;
+            private readonly bool _isManaPrepaid;
             public SimVector Origin => _origin;
             public SimVector Direction => _direction;
             public SimulationEnemy Target => _target;
@@ -2193,6 +2199,7 @@ namespace RuneCode
             public SpellEventScope CallEvents => _callEvents;
             public double DirectionOffset => _directionOffset;
             public SpellRandomState RandomState => _randomState;
+            public bool IsManaPrepaid => _isManaPrepaid;
 
             /// <summary>이 실행 경로가 속한 가장 안쪽 Repeat다. 개체 이벤트로 시작한 경로는 Repeat에 속하지 않는다.</summary>
             public RepeatScope Repeat => _repeat;
@@ -2212,25 +2219,30 @@ namespace RuneCode
             public SpellContext(SimVector origin, SimVector direction, SimulationEnemy target, bool fromEvent,
                 string noiseElement, SpellModifierValues modifiers = null, SpellEventScope callEvents = null, RepeatScope repeat = null,
                 double costMultiplier = 1d, SimulationPlayer caster = null, int sourceEntityId = 0,
-                double directionOffset = 0, SpellRandomState randomState = null)
+                double directionOffset = 0, SpellRandomState randomState = null, bool isManaPrepaid = false)
             {
                 _origin = origin; _direction = direction; _target = target; _fromEvent = fromEvent; _noiseElement = noiseElement;
                 _modifiers = modifiers ?? SpellModifierValues.None; _callEvents = callEvents; _repeat = repeat; _costMultiplier = costMultiplier;
                 _caster = caster; _sourceEntityId = sourceEntityId; _directionOffset = directionOffset;
                 _randomState = randomState ?? new SpellRandomState(noiseElement);
+                _isManaPrepaid = isManaPrepaid;
             }
 
             /// <summary>소속 Repeat만 바꾼 문맥을 반환한다.</summary>
             public SpellContext WithRepeat(RepeatScope repeat)
-                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState);
+                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid);
 
             /// <summary>실행 위치만 바꾼 문맥을 반환한다.</summary>
             public SpellContext WithOrigin(SimVector origin)
-                => new SpellContext(origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState);
+                => new SpellContext(origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid);
 
             /// <summary>시전 시점 문맥의 원점과 방향을 완료 순간 값으로 바꾼 복사본을 반환한다.</summary>
             public SpellContext WithOriginAndDirection(SimVector origin, SimVector direction)
-                => new SpellContext(origin, direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState);
+                => new SpellContext(origin, direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid);
+
+            /// <summary>위치·예약·호출 문맥을 유지하고 onHit 전력 선결제 여부만 바꾼 복사본을 반환한다.</summary>
+            public SpellContext WithManaPrepaid(bool isManaPrepaid)
+                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, isManaPrepaid);
         }
 
         /// <summary>같은 루트 시전에서 첫 Noise 효과 시 정한 원소를 공유한다.</summary>
