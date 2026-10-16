@@ -18,13 +18,15 @@ namespace RuneCode
 
         /// <summary>
         /// 시작 궤도 각도(조준 방향 + 개체 순번 각도), 회전 속도, 진입 속도와 궤도 중심을 정한 공전 상태를 만든다.
-        /// 회전 속도는 이동형(발사)만 속도 배율을 받고, 진입 속도는 이동형이면 행동 속도, 아니면 모드 수치 _entrySpeed다.
+        /// 회전 속도는 이동형(발사)은 모드 수치 _angularSpeed에 속도 배율을 곱하고, 정지형(잔류)은 _stationaryAngularSpeed를
+        /// 배율 없이 쓴다(데이터가 없으면 _angularSpeed). 진입 속도는 이동형이면 행동 속도, 아니면 모드 수치 _entrySpeed다.
         /// </summary>
         public override object CreateState(SimulationSpellEntity entity)
         {
             RuneStats data = GameData.Runes.Get(OrbitModifierRules.RUNE_ID).Stats;
             bool isMoving = entity.Action.Rules != null && entity.Action.Rules.MotionKind == SpellMotionKind.Moving;
-            double angularSpeed = data.AngularSpeed * DEGREES_TO_RADIANS * (isMoving ? entity.Stats.SpeedMultiplier : 1);
+            double baseAngularSpeed = isMoving || data.StationaryAngularSpeed <= 0f ? data.AngularSpeed : data.StationaryAngularSpeed;
+            double angularSpeed = baseAngularSpeed * DEGREES_TO_RADIANS * (isMoving ? entity.Stats.SpeedMultiplier : 1);
             double entrySpeed = isMoving ? entity.Stats.Speed : data.EntrySpeed;
             double startAngle = Math.Atan2(entity.Direction.Y, entity.Direction.X) + entity.Angle;
             return new OrbitState(startAngle, angularSpeed, entrySpeed);

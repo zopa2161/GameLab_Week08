@@ -76,7 +76,9 @@ namespace RuneCode
         private readonly int _count;
         private readonly float _orbitRadius;
         private readonly float _angularSpeed;
+        private readonly float _stationaryAngularSpeed;
         private readonly float _entrySpeed;
+        private readonly float _movingLifetimeBonus;
         private readonly float _hitInterval;
         private readonly float _tickInterval;
         private readonly float _damageMultiplier;
@@ -113,8 +115,14 @@ namespace RuneCode
         public float OrbitRadius => _orbitRadius;
         public float AngularSpeed => _angularSpeed;
 
+        /// <summary>정지형 행동(잔류)의 공전 회전 속도(도/초)다. 데이터가 없으면 0이며 실행이 AngularSpeed로 대체한다.</summary>
+        public float StationaryAngularSpeed => _stationaryAngularSpeed;
+
         /// <summary>공전 모드가 생성 위치에서 궤도 자리로 날아가 진입하는 속도(px/s)다. 개체를 직접 옮기지 않는 행동(잔류)에 쓴다.</summary>
         public float EntrySpeed => _entrySpeed;
+
+        /// <summary>공전 모드가 이동형 행동(발사)의 수명에 곱하는 보너스 배율이다. 기본 수명 × 지속 배율에 곱해진다.</summary>
+        public float MovingLifetimeBonus => _movingLifetimeBonus;
         public float HitInterval => _hitInterval;
         public float TickInterval => _tickInterval;
         public float DamageMultiplier => _damageMultiplier;
@@ -163,7 +171,9 @@ namespace RuneCode
             _count = row._count;
             _orbitRadius = row._orbitRadius;
             _angularSpeed = row._angularSpeed;
+            _stationaryAngularSpeed = row._stationaryAngularSpeed;
             _entrySpeed = row._entrySpeed;
+            _movingLifetimeBonus = row._movingLifetimeBonus;
             _hitInterval = row._hitInterval;
             _tickInterval = row._tickInterval;
             _damageMultiplier = row._damageMultiplier;
@@ -947,7 +957,7 @@ namespace RuneCode
         private static void ValidateStats(RuneDefinition rune, RuneStats stats, TableErrorLog log, string field)
         {
             float[] numbers = { stats.Damage, stats.Speed, stats.Radius, stats.Lifetime, stats.Offset, stats.OrbitRadius,
-                stats.AngularSpeed, stats.EntrySpeed, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
+                stats.AngularSpeed, stats.StationaryAngularSpeed, stats.EntrySpeed, stats.MovingLifetimeBonus, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
                 stats.LearningMultiplier, stats.SpreadAngle, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
                 stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds };

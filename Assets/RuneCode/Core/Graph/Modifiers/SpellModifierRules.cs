@@ -46,10 +46,10 @@ namespace RuneCode
         public virtual SpellSpawnOrigin ModifySpawnOrigin(SpellBehaviorRules behavior, SpellSpawnOrigin origin) => origin;
 
         /// <summary>
-        /// 행동 규칙이 정한 수명(lifetime)을 이 모드에 맞게 고쳐 반환한다. baseLifetime은 행동 수치의 기본 수명,
-        /// durationMultiplier는 지속 배율이다. 기본은 바꾸지 않는다.
+        /// 행동 규칙이 정한 수명(lifetime)을 이 모드에 맞게 고쳐 반환한다. modifier는 이 모드의 룬 데이터,
+        /// baseLifetime은 행동 수치의 기본 수명, durationMultiplier는 지속 배율이다. 기본은 바꾸지 않는다.
         /// </summary>
-        public virtual float ModifyLifetime(SpellBehaviorRules behavior, float lifetime, float baseLifetime, float durationMultiplier)
+        public virtual float ModifyLifetime(RuneDefinition modifier, SpellBehaviorRules behavior, float lifetime, float baseLifetime, float durationMultiplier)
             => lifetime;
 
         /// <summary>

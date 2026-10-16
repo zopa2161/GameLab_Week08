@@ -17,22 +17,34 @@ namespace RuneCode
         /// <summary>빔별 경로·적중 횟수·피해 예약을 보관할 상태를 생성한다.</summary>
         public override object CreateState(SimulationSpellEntity entity) => new BeamState();
 
-        /// <summary>생성 틱에 발사 지점을 정하고(이동 단계) 경로를 만들어 최초 피해를 한 번 판정한다.</summary>
+        /// <summary>
+        /// 생성 틱에 시전자를 따라가는 빔이면 생성 방향의 조준 대비 각도를 저장하고, 발사 지점을 정한 뒤(이동 단계) 경로를 만들어 최초 피해를 한 번 판정한다.
+        /// </summary>
         public override void OnSpawned(RuneSimulation simulation, SimulationSpellEntity entity)
         {
+            var state = (BeamState)entity.BehaviorState;
+            if (state.Channel.FollowsPlayer)
+            {
+                // 다중·호출 퍼짐이 반영된 생성 방향을 조준 기준 각도로 보관한다. 공전 접선이 덮어쓰기 전에 한 번만 계산한다.
+                SimVector aim = simulation.Player.AimDirection;
+                SimVector direction = entity.Direction;
+                state.SetAimOffset(Math.Atan2(aim.X * direction.Y - aim.Y * direction.X, SimVector.Dot(aim, direction)));
+            }
             MoveAlongPath(simulation, entity);
             Judge(simulation, entity);
         }
 
         /// <summary>
-        /// 직접 시전해 시전자를 따라가는 빔이면 발사 지점을 시전자 앞 지팡이 끝으로 옮긴다. 이동 모드가 이동을 맡으면 호출되지 않는다.
+        /// 직접 시전해 시전자를 따라가는 빔이면 방향을 현재 조준에 생성 시 조준 대비 각도를 더한 값으로 바꾸고
+        /// 발사 지점을 그 방향의 지팡이 끝으로 옮긴다. 이동 모드가 이동을 맡으면 호출되지 않는다.
         /// </summary>
         public override void MoveAlongPath(RuneSimulation simulation, SimulationSpellEntity entity)
         {
             var state = (BeamState)entity.BehaviorState;
             if (!state.Channel.FollowsPlayer) return;
-            entity.Move(simulation.Player.Position + entity.Direction *
-                (simulation.PlayerRadius + simulation.Balance.Sim.WandOffset), entity.Direction);
+            SimVector direction = simulation.Player.AimDirection.Rotated(state.AimOffset);
+            entity.Move(simulation.Player.Position + direction *
+                (simulation.PlayerRadius + simulation.Balance.Sim.WandOffset), direction);
         }
 
         /// <summary>
@@ -162,12 +174,13 @@ namespace RuneCode
             }
         }
 
-        /// <summary>채널 상태와 대상별 누적 적중 수를 고정 순서·불변 형식으로 결정성 해시에 기록한다.</summary>
+        /// <summary>채널 상태, 조준 대비 각도와 대상별 누적 적중 수를 고정 순서·불변 형식으로 결정성 해시에 기록한다.</summary>
         public override void WriteState(SimulationSpellEntity entity, StringBuilder state)
         {
             var beam = (BeamState)entity.BehaviorState;
             beam.Channel.WriteState(state);
-            state.Append("|beam:").Append(beam.NextDamageTick).Append(':').Append(beam.LastAdvanceTick);
+            state.Append("|beam:").Append(beam.NextDamageTick).Append(':').Append(beam.LastAdvanceTick)
+                .Append(':').Append(beam.AimOffset.ToString("R", CultureInfo.InvariantCulture));
             beam.WriteHits(state);
         }
 
@@ -236,7 +249,7 @@ namespace RuneCode
                     .Append(':').Append(_canExtend).Append(':').Append(_followsPlayer);
         }
 
-        /// <summary>빔 개체별 재사용 경로·피해 예약·대상 적중 이력이다.</summary>
+        /// <summary>빔 개체별 재사용 경로·피해 예약·조준 대비 각도·대상 적중 이력이다.</summary>
         internal sealed class BeamState
         {
             private readonly List<SimVector> _path = new List<SimVector>();
@@ -245,12 +258,15 @@ namespace RuneCode
             private BeamChannel _channel;
             private int _lastAdvanceTick = -1;
             private int _nextDamageTick;
+            private double _aimOffset;
 
             public IReadOnlyList<SimVector> Path => _path;
             internal IReadOnlyList<BeamTarget> Targets => _targets;
             internal BeamChannel Channel => _channel;
             internal int LastAdvanceTick => _lastAdvanceTick;
             internal int NextDamageTick => _nextDamageTick;
+            /// <summary>시전자를 따라가는 빔의 생성 방향이 조준 방향에서 벗어난 각도(라디안, 반시계 양수)다.</summary>
+            internal double AimOffset => _aimOffset;
 
             /// <summary>생성한 개체를 동일 행동의 공유 채널에 연결한다.</summary>
             internal void Attach(BeamChannel channel) => _channel = channel;
@@ -258,6 +274,8 @@ namespace RuneCode
             internal void SetAdvanceTick(int tick) => _lastAdvanceTick = tick;
             /// <summary>다음 피해 판정 틱을 예약한다.</summary>
             internal void ScheduleDamage(int tick) => _nextDamageTick = tick;
+            /// <summary>생성 방향의 조준 대비 각도를 기록한다.</summary>
+            internal void SetAimOffset(double offset) => _aimOffset = offset;
             /// <summary>이전 중심선을 비운다. 경로 유도의 지나친 대상 기록은 유도 모드가 BeginPath에서 비운다.</summary>
             internal void ClearPath() => _path.Clear();
             /// <summary>공유 표시·판정 중심선에 점을 추가한다.</summary>
