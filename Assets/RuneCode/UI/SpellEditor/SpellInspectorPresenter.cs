@@ -77,6 +77,7 @@ namespace RuneCode
                         case "durationMultiplier": label = " 지속시간 배율 ×"; break;
                         case "speedMultiplier": label = " 속도 배율 ×"; break;
                         case "orbitPath": label = " 궤도 반경 배율 ×"; break;
+                        case "knockbackDistance": label = " 기준 피해당 밀어내기 거리(px) "; break;
                         default: label = " 등급 효과: "; break;
                     }
                     if (label != null) effect += label + value;
@@ -609,6 +610,10 @@ namespace RuneCode
                         values.Add(GameData.L("ui.gradeHomingTurn") + " " + homing.HomingTurn.ToString("0.#") + "°");
                         values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
                     }
+                    break;
+                case "knockbackDistance":
+                    values.Add("피해 " + rune.Stats.KnockbackReferenceDamage.ToString("0.##") + "당 밀어내기 " + gradeValue + "px");
+                    values.Add("밀어내기 시간 " + rune.Stats.KnockbackSeconds.ToString("0.##") + "s");
                     break;
                 case "orbitPath":
                     values.Add(GameData.L("ui.runeOrbitRadius") + " ×" + gradeValue);

@@ -343,14 +343,14 @@ namespace RuneCode
         {
             bool isKnownEffect = effectType == "effectMultiplier" || effectType == "multipleCount" || effectType == "pierceCount"
                 || effectType == "radiusMultiplier" || effectType == "durationMultiplier" || effectType == "speedMultiplier"
-                || effectType == "homingTier" || effectType == "orbitPath";
+                || effectType == "homingTier" || effectType == "orbitPath" || effectType == "knockbackDistance";
             if (!isKnownEffect) log.Add(modifierId, "_effectType", "지원하지 않는 효과 종류입니다: " + effectType);
             foreach (KeyValuePair<string, object> pair in values)
             {
                 if (pair.Value == null) continue;
                 string field = key + "." + pair.Key;
                 if (effectType == "effectMultiplier" || effectType == "radiusMultiplier" || effectType == "durationMultiplier"
-                    || effectType == "speedMultiplier" || effectType == "orbitPath")
+                    || effectType == "speedMultiplier" || effectType == "orbitPath" || effectType == "knockbackDistance")
                 {
                     if (!(pair.Value is double number) || number <= 0d || number > float.MaxValue)
                         log.Add(modifierId, field, "float 범위의 양수 숫자여야 합니다.");

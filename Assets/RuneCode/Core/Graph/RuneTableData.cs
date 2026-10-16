@@ -89,6 +89,9 @@ namespace RuneCode
         public float _durationMultiplier = 1f;
         public int _pierce;
         public float _pierceLoss;
+        public float _knockbackDistance;
+        public float _knockbackSeconds;
+        public float _knockbackReferenceDamage;
         public float _homingTurn;
         public float _homingRange;
         public float _arcRange;

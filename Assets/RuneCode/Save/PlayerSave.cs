@@ -9,6 +9,8 @@ namespace RuneCode
     [Serializable]
     public sealed class PlayerSave : ISerializationCallbackReceiver
     {
+        private const int STARTER_MODIFIER_STOCK = 1;
+
         private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
         // 기본 마법 메소드 템플릿 ID다. 매직 미사일은 시작 마법 에너지 볼트와 같아 통합했으므로 지금은 비어 있다.
         private static readonly string[] DEFAULT_METHOD_IDS = Array.Empty<string>();
@@ -109,6 +111,13 @@ namespace RuneCode
                 if (rune.Category != SpellGrammar.CATEGORY_MODIFIER
                     || _modifierStock.Exists(stock => stock.RuneId == rune.Id && stock.Grade == grade)) continue;
                 _modifierStock.Add(new ModifierStock(rune.Id, grade, GameData.Balance.Economy.ModifierStartStock));
+            }
+
+            foreach (string runeId in GameData.Runes.StartRunes)
+            {
+                if (GameData.Runes.Get(runeId).Category != SpellGrammar.CATEGORY_MODIFIER) continue;
+                string grade = GameData.ModifierGrades.GetLowestAvailableGrade(runeId);
+                AddModifierStock(runeId, grade, STARTER_MODIFIER_STOCK - GetModifierStock(runeId, grade));
             }
 
             if (_elementStock == null) _elementStock = new List<ModifierStock>();
