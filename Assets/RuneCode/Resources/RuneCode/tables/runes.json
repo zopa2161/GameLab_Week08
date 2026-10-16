@@ -33,7 +33,7 @@
       "_unlockType": "start",
       "_unlockCost": 0,
       "_stats": {
-        "_knockbackDistance": 60,
+        "_knockbackDistance": 30,
         "_knockbackSeconds": 0.2,
         "_knockbackReferenceDamage": 15
       },
