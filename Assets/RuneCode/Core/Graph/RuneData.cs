@@ -262,7 +262,6 @@ namespace RuneCode
         private readonly bool _isDisabled;
         private readonly int _ram;
         private readonly float _energy;
-        private readonly float _energyMult;
         private readonly float _executionSeconds;
         private readonly float _executionSecondsPerArea;
         private readonly string _unlockType;
@@ -285,7 +284,6 @@ namespace RuneCode
 
         public int Ram => _ram;
         public float Energy => _energy;
-        public float EnergyMult => _energyMult;
         public float ExecutionSeconds => _executionSeconds;
         public float ExecutionSecondsPerArea => _executionSecondsPerArea;
         public string UnlockType => _unlockType;
@@ -312,7 +310,6 @@ namespace RuneCode
             _ram = row._ram;
             _costs = costs;
             _energy = (float)costs.GetAmount("mana");
-            _energyMult = row._energyMult;
             _executionSeconds = row._executionSeconds;
             _executionSecondsPerArea = row._executionSecondsPerArea;
             _unlockType = row._unlockType ?? "";
@@ -901,7 +898,6 @@ namespace RuneCode
             if (rune.UnlockCost < 0) log.Add(rune.Id, "unlockCost", "음수일 수 없습니다.");
             foreach (ResourceAmount cost in rune.Costs.Amounts)
                 if (cost.Amount < 0) log.Add(rune.Id, "resourceCosts:" + cost.Resource, "음수일 수 없습니다.");
-            if (rune.EnergyMult <= 0f) log.Add(rune.Id, "energyMult", "0보다 커야 합니다.");
             bool isImplementationRune = rune.Category == SpellGrammar.CATEGORY_CORE || rune.Category == SpellGrammar.CATEGORY_INTERNAL;
             bool isStarterRune = STARTER_RUNE_IDS.Contains(rune.Id);
             bool hasValidUnlockType = isImplementationRune || isStarterRune
