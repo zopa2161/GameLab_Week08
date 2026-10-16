@@ -82,7 +82,8 @@ namespace RuneCode
         /// <summary>
         /// 경로 모드 위에서 추적 대상 쪽으로 직선 이동하고 true를 반환한다. 발사는 이동 속도로 직진하며 맞힌 대상은 놓고 다시 고르지 않는다.
         /// 잔류는 예고가 끝난 뒤 이동 속도로(벽 통과 없음) 대상 위까지 가서 머문다. 대상이 죽거나 유도 범위를 벗어나면 놓는다.
-        /// 새 대상은 경로 모드 진입이 끝났을 때만 고르며, 대상이 없으면 false를 반환해 경로 모드에 이동을 맡긴다.
+        /// 새 대상은 경로 모드 진입이 끝났을 때만 고르고 행동 속도와 공전 이탈 속도 중 큰 값을 추적 속도로 저장한다.
+        /// 대상이 없으면 false를 반환해 경로 모드에 이동을 맡긴다.
         /// </summary>
         private static bool TryChaseOnPath(RuneSimulation simulation, SimulationSpellEntity entity, HomingState homing, bool isMoving)
         {
@@ -102,16 +103,16 @@ namespace RuneCode
                 target = simulation.NearestEnemy(entity.Position, stats.HomingRange,
                     isMoving ? entity.HitTimes : RuneSimulation.NoExcludedTargets);
                 if (target == null) return false;
-                homing.ChaseTargetId = target.Id;
+                homing.StartChase(target.Id, Math.Max(stats.Speed, OrbitModifierRuntime.GetExitSpeed(entity)));
             }
             SimVector offset = target.Position - entity.Position;
             if (isMoving)
             {
                 SimVector heading = offset.LengthSquared > RuneSimulation.COLLISION_EPSILON ? offset.Normalized() : entity.Direction;
-                entity.Move(entity.Position + heading * (stats.Speed * RuneSimulation.STEP_SECONDS), heading);
+                entity.Move(entity.Position + heading * (homing.ChaseSpeed * RuneSimulation.STEP_SECONDS), heading);
                 return true;
             }
-            double step = Math.Min(stats.Speed * RuneSimulation.STEP_SECONDS, offset.Length);
+            double step = Math.Min(homing.ChaseSpeed * RuneSimulation.STEP_SECONDS, offset.Length);
             if (step <= RuneSimulation.COLLISION_EPSILON) return true;
             entity.Move(simulation.Map.Move(entity.Position, offset.Normalized() * step, entity.Radius), entity.Direction);
             return true;
@@ -301,17 +302,32 @@ namespace RuneCode
             return selected;
         }
 
-        /// <summary>경로 모드 위 추적 대상 ID를 결정성 해시에 기록한다. 경로 유도 기록은 매 경로마다 비우므로 기록하지 않는다.</summary>
+        /// <summary>경로 모드의 추적 대상 ID·추적 속도를 결정성 해시에 기록한다. 경로 유도 기록은 매 경로마다 비우므로 기록하지 않는다.</summary>
         public override void WriteState(SimulationSpellEntity entity, object state, StringBuilder buffer)
-            => buffer.Append("|homing:").Append(((HomingState)state).ChaseTargetId);
+        {
+            var homing = (HomingState)state;
+            buffer.Append(FormattableString.Invariant($"|homing:{homing.ChaseTargetId}:{homing.ChaseSpeed:R}"));
+        }
 
         /// <summary>경로 모드(공전) 위에서 직선 추적하는 대상 ID와, 경로 한 번을 그리는 동안의 유도 대상·지나친 대상 기록이다.</summary>
         private sealed class HomingState
         {
             private readonly HashSet<int> _passedTargets = new HashSet<int>();
 
+            private double _chaseSpeed;
+
             /// <summary>경로 모드 위에서 추적 중인 적 ID다. 0이면 추적하지 않는다.</summary>
             public int ChaseTargetId { get; set; }
+
+            /// <summary>현재 추적 대상을 선택할 때 공전에서 넘겨받은 이동 속도를 반환한다.</summary>
+            public double ChaseSpeed => _chaseSpeed;
+
+            /// <summary>새 추적 대상 ID와 공전에서 넘겨받은 이동 속도를 저장한다.</summary>
+            public void StartChase(int targetId, double speed)
+            {
+                ChaseTargetId = targetId;
+                _chaseSpeed = speed;
+            }
 
             /// <summary>지금 따라가는 경로 유도 대상이다. 없으면 null이다.</summary>
             public SimulationEnemy Target { get; set; }
