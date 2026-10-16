@@ -101,6 +101,33 @@ namespace RuneCode
             else ApplyProjectile(spell, tint, radius, angle);
         }
 
+        /// <summary>명령의 최종 모양·크기를 생성 위치와 방향에 반투명 채움만으로 표시한다. 피해 개체는 생성하지 않는다.</summary>
+        public void ApplyPreview(SpellAction action, SimVector position, SimVector direction, SimVector origin)
+        {
+            transform.localPosition = MissionWorldSpace.ToWorld(position, origin);
+            bool isBox = action.MagicType == SpellGrammar.MAGIC_TYPE_BOX;
+            bool isCone = action.MagicType == SpellGrammar.MAGIC_TYPE_CONE;
+            MissionWorldSpace.SetVisible(_trail, false);
+            MissionWorldSpace.SetVisible(_shape, false);
+            MissionWorldSpace.SetVisible(_fill, !isCone);
+            MissionWorldSpace.SetVisible(_outline, false);
+            MissionWorldSpace.SetVisible(_inner, false);
+            MissionWorldSpace.SetVisible(_coneRenderer, isCone);
+            Color fill = RuneMesh.ElementColor(action.Element);
+            fill.a = ZONE_FILL_ALPHA;
+            float angle = MissionWorldSpace.ToWorldAngle(direction);
+            if (isCone)
+            {
+                ApplyConeMesh(Vector2.zero, action.Stats.Radius, action.Stats.Radius, angle, action.ConeAngle, Color.clear, fill);
+                return;
+            }
+            _fill.sprite = isBox ? _squareShape : _defaultShape;
+            Vector2 center = isBox ? MissionWorldSpace.ToWorldDirection(direction).normalized * action.Stats.BoxLength * 0.5f : Vector2.zero;
+            Vector2 dimensions = isBox ? new Vector2(action.Stats.BoxLength, action.Stats.BoxWidth) : Vector2.one * action.Stats.Radius * 2;
+            MissionWorldSpace.Place(_fill, center, dimensions, fill);
+            _fill.transform.localRotation = Quaternion.Euler(0, 0, isBox ? angle : 0);
+        }
+
         /// <summary>
         /// 폭발·잔류를 원 또는 Beam 사각형의 채움, 외곽선, 안쪽 선으로 표시한다. Beam은 진행 방향(angle)으로 길이를 두고 BoxCenter에 둔다.
         /// 예고 중인 잔류는 빨간 외곽선과 진행률만큼의 채움만 그린다.
@@ -238,13 +265,22 @@ namespace RuneCode
             Vector2 apex = MissionWorldSpace.ToWorld(spell.ConeApex, origin) - MissionWorldSpace.ToWorld(spell.Position, origin);
             float reach = MissionWorldSpace.ToWorldLength(spell.ConeReach);
             float fillReach = reach * (float)spell.WarnProgress;
+            ApplyConeMesh(apex, reach * MissionWorldSpace.PIXELS_PER_UNIT, fillReach * MissionWorldSpace.PIXELS_PER_UNIT,
+                angle, (float)spell.ConeAngle, tint, fill);
+        }
+
+        /// <summary>꼭짓점과 픽셀 단위 반경·채움 반경, 방향·각도·색으로 부채꼴 메시를 갱신한다.</summary>
+        private void ApplyConeMesh(Vector2 apex, float radius, float fillRadius, float angle, float coneAngle, Color tint, Color fill)
+        {
+            float reach = MissionWorldSpace.ToWorldLength(radius);
+            float fillReach = MissionWorldSpace.ToWorldLength(fillRadius);
             float edge = Mathf.Min(reach, MissionWorldSpace.ToWorldLength(CONE_EDGE_WIDTH));
-            float half = (float)spell.ConeAngle * 0.5f;
+            float half = coneAngle * 0.5f;
             _coneVertices.Clear(); _coneColors.Clear(); _coneTriangles.Clear();
             _coneVertices.Add(apex); _coneColors.Add(fill);
             for (int i = 0; i <= CONE_SEGMENTS; i++)
             {
-                float radians = (angle - half + (float)spell.ConeAngle * i / CONE_SEGMENTS) * Mathf.Deg2Rad;
+                float radians = (angle - half + coneAngle * i / CONE_SEGMENTS) * Mathf.Deg2Rad;
                 Vector2 unit = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
                 _coneVertices.Add(apex + unit * fillReach); _coneColors.Add(fill);
                 _coneVertices.Add(apex + unit * (reach - edge)); _coneColors.Add(tint);

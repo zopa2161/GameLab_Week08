@@ -46,6 +46,7 @@ namespace RuneCode
     {
         private readonly SimVector _movement;
         private readonly SimVector _aimDirection;
+        private readonly SimVector? _aimPoint;
         private readonly bool _castA;
         private readonly bool _castB;
         private readonly bool _castC;
@@ -56,6 +57,7 @@ namespace RuneCode
         private readonly bool _isAutomatic;
         public SimVector Movement => _movement;
         public SimVector AimDirection => _aimDirection;
+        public SimVector? AimPoint => _aimPoint;
         public bool CastA => _castA;
         public bool CastB => _castB;
         public bool CastC => _castC;
@@ -65,11 +67,12 @@ namespace RuneCode
         public bool CastReleased => _castReleased;
         public bool IsAutomatic => _isAutomatic;
 
-        /// <summary>한 고정 틱의 이동, 조준, 슬롯 시전, 대시, 상호작용 입력을 보관한다.</summary>
+        /// <summary>한 고정 틱의 이동, 조준 방향·선택적 포인터 위치, 슬롯 시전, 대시, 상호작용 입력을 보관한다.</summary>
         public SimulationInput(SimVector movement, SimVector aimDirection, bool castA = false, bool castB = false, bool castC = false, bool dash = false, bool interact = false,
-            bool castPressed = false, bool castReleased = false, bool isAutomatic = false)
+            bool castPressed = false, bool castReleased = false, bool isAutomatic = false, SimVector? aimPoint = null)
         {
             _movement = movement; _aimDirection = aimDirection; _castA = castA; _castB = castB; _castC = castC;
+            _aimPoint = aimPoint;
             _dash = dash; _interact = interact; _castPressed = castPressed; _castReleased = castReleased; _isAutomatic = isAutomatic;
         }
     }

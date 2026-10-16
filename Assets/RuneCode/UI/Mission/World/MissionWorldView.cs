@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 using UnityEngine;
 
+using UnityEngine.InputSystem;
+
 namespace RuneCode
 {
     /// <summary>
@@ -28,6 +30,9 @@ namespace RuneCode
         private const int GRID_ORDER = 0;
         private const int WALL_ORDER = 1;
         private const int WALL_EDGE_ORDER = 2;
+        private const int RANGE_SEGMENTS = 96;
+        private const float RANGE_LINE_WIDTH = 1.8f;
+        private const int RANGE_ORDER = 65;
 
         private static readonly Color WallColor = new Color(0.13f, 0.20f, 0.27f);
         private static readonly Color WallEdgeColor = new Color(0.23f, 0.40f, 0.47f);
@@ -63,6 +68,8 @@ namespace RuneCode
         private readonly List<DamageNumberView> _damageNumberViews = new List<DamageNumberView>();
         private readonly List<HealPulseView> _healPulseViews = new List<HealPulseView>();
         private readonly List<ArcLinkView> _arcLinkViews = new List<ArcLinkView>();
+        private readonly List<SpriteRenderer> _rangeLines = new List<SpriteRenderer>();
+        private readonly List<SpellEntityView> _rangePreviews = new List<SpellEntityView>();
         private Func<RuneSimulation> _simulation;
         private Func<bool> _isShakeEnabled;
         private Func<bool> _isHitStopEnabled;
@@ -90,8 +97,14 @@ namespace RuneCode
         void LateUpdate()
         {
             RuneSimulation sim = _simulation?.Invoke();
-            if (sim == null) return;
+            if (sim == null)
+            {
+                HideFrom(_rangeLines, 0);
+                HideFrom(_rangePreviews, 0);
+                return;
+            }
             if (_observedSimulation != sim) BeginSimulation(sim);
+            UpdateRangePreview(sim);
             DetectImpact(sim);
             if (_hitStopUntil > Time.unscaledTime && (_isHitStopEnabled?.Invoke() ?? false)) return;
             SimVector origin = sim.MapCenter;
@@ -145,6 +158,51 @@ namespace RuneCode
                 GetView(_arcLinkViews, _arcLinkPrefab, count++).Apply(link, sim.Tick - link.Tick, origin);
             }
             HideFrom(_arcLinkViews, count);
+        }
+
+        /// <summary>시작 노드 직결 범위의 최대 사거리를 플레이어 중심 흰 점선으로, 생성 위치와 모양은 반투명 채움으로 표시한다.</summary>
+        private void UpdateRangePreview(RuneSimulation sim)
+        {
+            int lineCount = 0;
+            int previewCount = 0;
+            Mouse mouse = Mouse.current;
+            if (mouse != null && _camera.TryGetSimPoint(mouse.position.ReadValue(), out SimVector pointer))
+            {
+                Vector2 center = MissionWorldSpace.ToWorld(sim.Player.Position, sim.MapCenter) * MissionWorldSpace.PIXELS_PER_UNIT;
+                SimVector delta = pointer - sim.Player.Position;
+                SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : sim.Player.AimDirection;
+                foreach (CompiledSpell spell in sim.Loadout)
+                {
+                    if (spell == null) continue;
+                    foreach (SpellAction action in spell.Root)
+                    {
+                        if (!RuneSimulation.CanShowAreaPreview(action)) continue;
+                        GetView(_rangePreviews, _spellPrefab, previewCount++).ApplyPreview(action,
+                            sim.GetAreaPreviewPosition(pointer), direction, sim.MapCenter);
+                        float radius = (float)sim.GetAreaPlacementRange();
+                        for (int segment = 0; segment < RANGE_SEGMENTS; segment += 2)
+                        {
+                            if (lineCount == _rangeLines.Count)
+                            {
+                                var line = new GameObject("RangePreview", typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
+                                line.transform.SetParent(transform, false);
+                                line.sprite = _squareSprite;
+                                line.sharedMaterial = _spriteMaterial;
+                                line.sortingOrder = RANGE_ORDER;
+                                _rangeLines.Add(line);
+                            }
+                            SpriteRenderer target = _rangeLines[lineCount++];
+                            MissionWorldSpace.SetVisible(target, true);
+                            float from = segment * Mathf.PI * 2 / RANGE_SEGMENTS;
+                            float to = (segment + 1) * Mathf.PI * 2 / RANGE_SEGMENTS;
+                            MissionWorldSpace.PlaceLine(target, center + new Vector2(Mathf.Cos(from), Mathf.Sin(from)) * radius,
+                                center + new Vector2(Mathf.Cos(to), Mathf.Sin(to)) * radius, RANGE_LINE_WIDTH, Color.white);
+                        }
+                    }
+                }
+            }
+            HideFrom(_rangeLines, lineCount);
+            HideFrom(_rangePreviews, previewCount);
         }
 
         /// <summary>새 시뮬레이션의 맵을 다시 만들고 피해 감지 기준값을 현재 값으로 맞춘다.</summary>

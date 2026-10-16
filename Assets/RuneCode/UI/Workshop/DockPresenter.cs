@@ -89,7 +89,8 @@ namespace RuneCode
             _wasClicking = isClicking;
             if (canReadInput && Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame) _run.ResetDock();
             _run.Step(aim, canReadInput && (_run.AutoFire || isClicking), canReadInput && _run.AutoFire,
-                isClicking && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
+                isClicking && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame,
+                isPointerInside ? point : (SimVector?)null);
         }
 
         /// <summary>누적 피해·DPS·에너지·동시 개체 지표와 자동 발사·배속·적응 상태 문구를 표시한다.</summary>
