@@ -56,7 +56,7 @@ namespace RuneCode
 
         /// <summary>
         /// 맵 경계·벽을 반영한 중심선 경로를 빔 상태에 재사용해 저장한다. 각 칸의 방향은 장착된 이동 모드(유도 등)가 경로 개입으로 고친다.
-        /// 유도 수치가 있으면 경로 길이를 빔 길이로, 없으면 맵 대각선으로 둔다.
+        /// 공전은 시전 위치 중심의 원 한 바퀴, 그 외에는 유도 수치가 있으면 빔 길이, 없으면 맵 대각선을 경로 길이로 쓴다.
         /// </summary>
         private static void BuildPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
         {
@@ -71,9 +71,17 @@ namespace RuneCode
             bool isHoming = entity.Stats.HomingRange > 0 && entity.Stats.HomingTurn > 0;
             double pathSpeed = GameData.Runes.Get("form.beam").Stats.Speed;
             double remaining = isHoming ? entity.Stats.BoxLength : diagonal;
+            double pathStep = PATH_STEP;
+            if (entity.HasModifierPath && entity.Stats.OrbitRadius > 0)
+            {
+                double radius = entity.Stats.OrbitRadius;
+                int segments = Math.Max(3, (int)Math.Ceiling(2 * Math.PI * radius / PATH_STEP));
+                pathStep = 2 * radius * Math.Sin(Math.PI / segments);
+                remaining = segments * pathStep;
+            }
             while (remaining > RuneSimulation.COLLISION_EPSILON)
             {
-                double step = Math.Min(PATH_STEP, remaining);
+                double step = Math.Min(pathStep, remaining);
                 entity.SteerPathStep(simulation, point, ref direction, step, pathSpeed, halfWidth);
                 SimVector next = point + direction * step;
                 double wall = simulation.FirstWallFraction(point, next, halfWidth);

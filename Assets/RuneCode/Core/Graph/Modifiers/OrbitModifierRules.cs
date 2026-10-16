@@ -24,8 +24,8 @@ namespace RuneCode
         public override float ModifyLifetime(SpellBehaviorRules behavior, float lifetime, float baseLifetime, float durationMultiplier)
             => behavior.MotionKind == SpellMotionKind.Moving ? baseLifetime * durationMultiplier : lifetime;
 
-        /// <summary>개체를 옮기는 행동(발사·잔류)은 궤도 반경까지만 닿는다. 경로형(빔)은 그대로 둔다.</summary>
+        /// <summary>공전 행동은 시전 기준점에서 궤도 반경까지만 닿으므로 stats의 궤도 반경을 반환한다.</summary>
         public override float ModifyReach(SpellBehaviorRules behavior, SpellStats stats, float reach)
-            => behavior.MotionKind == SpellMotionKind.Path ? reach : stats.OrbitRadius;
+            => stats.OrbitRadius;
     }
 }

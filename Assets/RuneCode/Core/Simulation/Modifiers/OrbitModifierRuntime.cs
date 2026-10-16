@@ -7,7 +7,7 @@ namespace RuneCode
     /// 공전 모드의 이동 동작이다. 개체를 옮기는 행동(발사·잔류)은 생성 위치에서 궤도 자리까지 날아가 진입한 뒤
     /// 행동 기준점(직접 시전은 시전자의 현재 위치, 이벤트 생성은 이벤트 위치) 주위를 반시계로 돈다. 궤도·진입 중에는 벽을 무시한다.
     /// 궤도 자리는 조준 방향에서 시작하고 다중이면 개체 순번(entity.Angle)만큼 등각으로 나뉘며, 다른 모드가 이동을 맡는 동안에도 계속 돈다.
-    /// 경로형(빔)은 개체를 옮기지 않고 경로의 각 칸을 궤도 반경의 원호처럼 반시계로 휜다.
+    /// 경로형(빔)은 시전 위치를 고정 중심으로 궤도 반경의 원을 반시계로 그린다.
     /// </summary>
     internal sealed class OrbitModifierRuntime : SpellModifierRuntime
     {
@@ -75,13 +75,26 @@ namespace RuneCode
         /// <summary>궤도 진입을 마친 뒤에만 반응 모드(유도)에 이동을 넘긴다.</summary>
         public override bool CanYieldMove(SimulationSpellEntity entity, object state) => ((OrbitState)state).IsEntered;
 
-        /// <summary>경로 한 칸의 방향을 칸 길이 ÷ 궤도 반경만큼 반시계로 돌려 경로가 궤도 반경의 원호로 휘게 한다. 궤도 반경이 없으면 맡지 않는다.</summary>
+        /// <summary>빔 경로의 시작 위치를 시전 위치 중심의 궤도 위에 두고 진행 방향을 반시계 접선으로 정한다. 반경이 없으면 유지한다.</summary>
+        public override void BeginPath(RuneSimulation simulation, SimulationSpellEntity entity, object state)
+        {
+            double radius = entity.Stats.OrbitRadius;
+            if (radius <= 0) return;
+            double angle = ((OrbitState)state).Angle;
+            SimVector radial = new SimVector(Math.Cos(angle), Math.Sin(angle));
+            entity.Move(entity.Anchor + radial * radius, new SimVector(-radial.Y, radial.X));
+        }
+
+        /// <summary>시전 위치를 중심으로 현재 점에서 반시계 방향의 다음 궤도 점을 향하게 한다. step은 현 길이이며 반경이 없으면 맡지 않는다.</summary>
         public override bool SteerPathStep(RuneSimulation simulation, SimulationSpellEntity entity, object state,
             SimVector point, ref SimVector direction, double step, double pathSpeed, double halfWidth)
         {
             double radius = entity.Stats.OrbitRadius;
             if (radius <= 0) return false;
-            direction = direction.Rotated(step / radius);
+            SimVector radial = (point - entity.Anchor).Normalized();
+            double angle = 2 * Math.Asin(Math.Min(1, step / (2 * radius)));
+            SimVector next = entity.Anchor + radial.Rotated(angle) * radius;
+            direction = (next - point).Normalized();
             return true;
         }
 
