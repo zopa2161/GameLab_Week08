@@ -110,14 +110,10 @@ namespace RuneCode
                 string grade = GameData.ModifierGrades.GetLowestAvailableGrade(rune.Id);
                 if (rune.Category != SpellGrammar.CATEGORY_MODIFIER
                     || _modifierStock.Exists(stock => stock.RuneId == rune.Id && stock.Grade == grade)) continue;
-                _modifierStock.Add(new ModifierStock(rune.Id, grade, GameData.Balance.Economy.ModifierStartStock));
-            }
-
-            foreach (string runeId in GameData.Runes.StartRunes)
-            {
-                if (GameData.Runes.Get(runeId).Category != SpellGrammar.CATEGORY_MODIFIER) continue;
-                string grade = GameData.ModifierGrades.GetLowestAvailableGrade(runeId);
-                AddModifierStock(runeId, grade, STARTER_MODIFIER_STOCK - GetModifierStock(runeId, grade));
+                int startStock = GameData.Balance.Economy.ModifierStartStock;
+                foreach (string startRune in GameData.Runes.StartRunes)
+                    if (startRune == rune.Id) startStock = Math.Max(startStock, STARTER_MODIFIER_STOCK);
+                _modifierStock.Add(new ModifierStock(rune.Id, grade, startStock));
             }
 
             if (_elementStock == null) _elementStock = new List<ModifierStock>();
@@ -185,6 +181,30 @@ namespace RuneCode
                 if (string.IsNullOrEmpty(grade) || !GameData.Runes.BehaviorGradeOrder.Contains(grade)) return;
                 AddToStockList(_behaviorStock, runeId, grade, amount);
             }
+        }
+
+        /// <summary>모든 요청 수량을 먼저 검사하고 행동·모드 재고에서 함께 차감한다. 부족하거나 잘못된 요청이면 변경하지 않는다.</summary>
+        public bool TryConsumeStock(IReadOnlyDictionary<string, int> materials, string grade)
+        {
+            if (materials == null || materials.Count == 0) return false;
+            foreach (KeyValuePair<string, int> pair in materials)
+                if (pair.Value <= 0 || !GameData.Runes.TryGet(pair.Key, out RuneDefinition rune)
+                    || !RuneSynthesisRules.IsEligible(rune, grade) || GetStock(pair.Key, grade) < pair.Value) return false;
+            foreach (KeyValuePair<string, int> pair in materials)
+            {
+                List<ModifierStock> stocks = GameData.Runes.Get(pair.Key).Category == SpellGrammar.CATEGORY_MODIFIER
+                    ? _modifierStock : _behaviorStock;
+                int remaining = pair.Value;
+                foreach (ModifierStock stock in stocks)
+                {
+                    if (stock == null || stock.RuneId != pair.Key || stock.Grade != grade) continue;
+                    int amount = Math.Min(remaining, stock.Count);
+                    stock.Remove(amount);
+                    remaining -= amount;
+                    if (remaining == 0) break;
+                }
+            }
+            return true;
         }
 
         /// <summary>모디·속성·행동 소지량을 (룬 ID, 등급) 키 하나로 합친 맵을 반환한다. 컴파일·배치 검사에 쓴다.</summary>
@@ -638,6 +658,12 @@ namespace RuneCode
             public void Add(int amount)
             {
                 _count += Math.Max(0, amount);
+            }
+
+            /// <summary>검증된 양수 수량을 차감하고 기록을 유지해 로드 시 시작 재고가 재지급되지 않게 한다.</summary>
+            public void Remove(int amount)
+            {
+                _count = Math.Max(0, _count - Math.Max(0, amount));
             }
         }
 

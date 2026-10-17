@@ -63,7 +63,11 @@ namespace RuneCode
                 _hasCachedLayout = true;
             }
             if (isGradeFilterEnabled && _gradeButtons.Count == 0) CreateGradeFilterButtons();
-            foreach (Button button in _gradeButtons) button.gameObject.SetActive(isGradeFilterEnabled);
+            foreach (Button button in _gradeButtons)
+            {
+                button.gameObject.SetActive(isGradeFilterEnabled);
+                button.interactable = true;
+            }
             float layoutShift = isGradeFilterEnabled ? GRADE_FILTER_LAYOUT_SHIFT : 0f;
             _searchRect.anchoredPosition = _searchDefaultPosition + new Vector2(0f, -layoutShift);
             _scrollRect.anchoredPosition = _scrollDefaultPosition + new Vector2(0f, -layoutShift);
@@ -79,6 +83,14 @@ namespace RuneCode
             IReadOnlyList<string> grades = GameData.ModifierGrades.GradeOrder;
             for (int index = 0; index < _gradeButtons.Count; index++)
                 _gradeButtons[index].GetComponent<TabButton>().SetSelected(grades[index] == grade);
+        }
+
+        /// <summary>합성 재료의 등급이 정해졌으면 필터 변경을 잠그고 빈 상태에서는 S를 포함한 유효 등급을 허용한다.</summary>
+        public void SetSynthesisGradeFilter(string lockedGrade)
+        {
+            IReadOnlyList<string> grades = GameData.ModifierGrades.GradeOrder;
+            for (int index = 0; index < _gradeButtons.Count; index++)
+                _gradeButtons[index].interactable = lockedGrade == null && RuneSynthesisRules.NextGrade(grades[index]) != null;
         }
 
         /// <summary>결과 목록을 비운다.</summary>

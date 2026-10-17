@@ -540,6 +540,11 @@ namespace RuneCode
         public void Undo()
         {
             if (_undo.Count == 0 || !_isEditable) return;
+            if (!_policy.IsWithinModifierStock(_editingGraph, _undo[_undo.Count - 1]))
+            {
+                _policy.ReportStatus("editor.stockBlocked");
+                return;
+            }
             _redo.Add(_editingGraph.Clone()); _editingGraph = _undo[_undo.Count - 1]; _undo.RemoveAt(_undo.Count - 1);
             _previousGraph = _editingGraph.Clone(); Recompile(); Save(); RaiseGraphChanged();
         }
@@ -548,6 +553,11 @@ namespace RuneCode
         public void Redo()
         {
             if (_redo.Count == 0 || !_isEditable) return;
+            if (!_policy.IsWithinModifierStock(_editingGraph, _redo[_redo.Count - 1]))
+            {
+                _policy.ReportStatus("editor.stockBlocked");
+                return;
+            }
             _undo.Add(_editingGraph.Clone()); _editingGraph = _redo[_redo.Count - 1]; _redo.RemoveAt(_redo.Count - 1);
             _previousGraph = _editingGraph.Clone(); Recompile(); Save(); RaiseGraphChanged();
         }
