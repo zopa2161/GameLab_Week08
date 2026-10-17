@@ -463,13 +463,11 @@ namespace RuneCode
             };
         }
 
-        /// <summary>현재 스킬트리의 배치·미배치 노드 레벨과 적용된 주요 능력치를 복사해 전투 결과 로그용 스냅샷을 반환한다.</summary>
+        /// <summary>현재 스킬트리에 등록된 노드 레벨과 적용된 주요 능력치를 복사해 전투 결과 로그용 스냅샷을 반환한다.</summary>
         public Dictionary<string, object> GetSkillTreeLogSnapshot()
         {
             var levels = new Dictionary<string, object>(StringComparer.Ordinal);
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
-                if (node != null) levels[node.Id] = GetUpgradeNodeLevel(node.Id);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
                 if (node != null) levels[node.Id] = GetUpgradeNodeLevel(node.Id);
             return new Dictionary<string, object>
             {

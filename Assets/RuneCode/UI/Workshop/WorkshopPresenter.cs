@@ -60,7 +60,7 @@ namespace RuneCode
         /// <summary>작업실에 들어올 때 도크를 다시 시작하고 에디터 탭으로 전체를 갱신한다.</summary>
         public void Enter()
         {
-            if (_session.IsTestMode) LocalTelemetry.BeginUsabilityEditingEpisode();
+            LocalTelemetry.BeginUsabilityEditingEpisode();
             ShowEditorTab();
             if (_session.ConsumeFirstRunHelpRequest()) OpenHelp();
         }
@@ -68,7 +68,7 @@ namespace RuneCode
         /// <summary>작업실을 떠날 때 편집 패널을 닫고 도크 누적 시간을 버린다.</summary>
         public void Exit()
         {
-            if (_session.IsTestMode) LocalTelemetry.EndUsabilityEditingEpisode("screen_exit");
+            LocalTelemetry.EndUsabilityEditingEpisode("screen_exit");
             _view.SpellEditor.Hide();
             _dock.Suspend();
         }
