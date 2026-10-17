@@ -5,6 +5,7 @@ using UnityEngine;
 
 using TMPro;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace RuneCode
@@ -15,6 +16,10 @@ namespace RuneCode
     /// </summary>
     public sealed class ResultPanel : UiView
     {
+        [Header("보상 공개 연출")]
+        [SerializeField, Min(0.05f)] private float _rewardRevealInterval = 0.3f;
+        [SerializeField, Min(0)] private float _rewardRevealFinishDelay = 0.7f;
+
         [Header("문구")]
         [SerializeField] private TextMeshProUGUI _summaryLabel;
         [SerializeField] private TextMeshProUGUI _stageLabel;
@@ -48,6 +53,17 @@ namespace RuneCode
         private bool _isBound;
         private ResultRewardItemView _hoveredRewardItem;
         private readonly Vector3[] _tooltipCorners = new Vector3[4];
+        private readonly List<ResultRewardItemView> _rewardViews = new List<ResultRewardItemView>();
+        private readonly List<ResultRewardContent> _rewardContents = new List<ResultRewardContent>();
+        private int _revealedCount;
+        private int _revealCompletedFrame;
+        private int _revealStartedFrame;
+        private float _revealElapsed;
+        private float _revealFinishedAt;
+        private bool _isRevealing;
+        private bool _isWaitingForRelease;
+
+        public bool CanContinue => !_isRevealing && !_isWaitingForRelease && Time.frameCount > _revealCompletedFrame;
 
         /// <summary>마법 개선(작업실로 이동)을 눌렀을 때 알린다.</summary>
         public event Action ImproveClicked;
@@ -65,13 +81,13 @@ namespace RuneCode
         public void Bind()
         {
             if (_isBound) return;
-            _nextStageButton.onClick.AddListener(() => NextStageClicked?.Invoke());
-            _improveButton.onClick.AddListener(() => ImproveClicked?.Invoke());
-            _retryButton.onClick.AddListener(() => RetryClicked?.Invoke());
+            _nextStageButton.onClick.AddListener(() => { if (CanContinue) NextStageClicked?.Invoke(); });
+            _improveButton.onClick.AddListener(() => { if (CanContinue) ImproveClicked?.Invoke(); });
+            _retryButton.onClick.AddListener(() => { if (CanContinue) RetryClicked?.Invoke(); });
             for (int i = 0; i < _clearChoiceButtons.Length; i++)
             {
                 int index = i;
-                _clearChoiceButtons[i].onClick.AddListener(() => ClearModifierChoiceClicked?.Invoke(index));
+                _clearChoiceButtons[i].onClick.AddListener(() => { if (CanContinue) ClearModifierChoiceClicked?.Invoke(index); });
             }
             _isBound = true;
         }
@@ -86,17 +102,86 @@ namespace RuneCode
             _winOnlyButtonRoot.SetActive(isVictory);
         }
 
-        /// <summary>이번 미션에서 얻은 조각·Modifier를 중앙 아이콘 목록으로 갱신한다.</summary>
-        public void SetRewards(IReadOnlyList<ResultRewardContent> rewards)
+        /// <summary>정렬된 보상 목록을 만들고 animate이면 순차 공개를 준비하며, 아니면 연출 없이 모두 표시한다.</summary>
+        public void SetRewards(IReadOnlyList<ResultRewardContent> rewards, bool animate = false)
         {
             HideRewardTooltip();
             UiFactory.ClearChildren(_rewardItemsRoot);
+            GridLayoutGroup layout = _rewardItemsRoot.GetComponent<GridLayoutGroup>();
+            layout.cellSize = new Vector2(96f, 72f);
+            layout.constraint = GridLayoutGroup.Constraint.Flexible;
+            _rewardViews.Clear();
+            _rewardContents.Clear();
+            _revealedCount = 0;
+            _revealElapsed = 0;
+            _revealFinishedAt = -1;
+            _isWaitingForRelease = false;
+            _revealStartedFrame = Time.frameCount;
+            _revealCompletedFrame = Time.frameCount;
+            _isRevealing = animate && rewards != null && rewards.Count > 0;
+            SetNavigationEnabled(!_isRevealing);
             if (rewards == null) return;
             foreach (ResultRewardContent reward in rewards)
             {
                 ResultRewardItemView item = Instantiate(_rewardItemPrefab, _rewardItemsRoot, false);
+                ((RectTransform)item.transform).sizeDelta = layout.cellSize;
                 item.SetContent(reward, HandleRewardHover);
+                layout.cellSize = new Vector2(Mathf.Max(layout.cellSize.x, item.PreferredWidth), layout.cellSize.y);
+                _rewardViews.Add(item);
+                _rewardContents.Add(reward);
+                if (_isRevealing) item.Conceal();
             }
+        }
+
+        /// <summary>비전투 시간으로 보상을 순차 공개한다. 화면을 연 클릭은 무시하며 공개 중 클릭은 남은 보상만 즉시 표시한다.</summary>
+        public void AdvanceRewards(float deltaTime)
+        {
+            Mouse mouse = Mouse.current;
+            if (_isWaitingForRelease)
+            {
+                bool hasMouseInput = mouse != null && (mouse.leftButton.isPressed || mouse.rightButton.isPressed || mouse.middleButton.isPressed
+                    || mouse.leftButton.wasReleasedThisFrame || mouse.rightButton.wasReleasedThisFrame || mouse.middleButton.wasReleasedThisFrame);
+                if (Time.frameCount <= _revealCompletedFrame || hasMouseInput) return;
+                _isWaitingForRelease = false;
+                SetNavigationEnabled(!_clearChoicePopup.activeSelf);
+            }
+            if (!_isRevealing || Time.frameCount <= _revealStartedFrame) return;
+            bool skip = mouse != null && (mouse.leftButton.wasPressedThisFrame
+                || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame);
+            _revealElapsed += Mathf.Max(0, deltaTime);
+            while (_revealedCount < _rewardViews.Count && (skip || _revealElapsed >= _revealedCount * _rewardRevealInterval))
+            {
+                _rewardViews[_revealedCount].Reveal(!skip, GetClearModifierGradeColor(_rewardContents[_revealedCount].Grade));
+                _revealedCount++;
+            }
+            if (_revealedCount < _rewardViews.Count) return;
+            if (_revealFinishedAt < 0) _revealFinishedAt = _revealElapsed + _rewardRevealFinishDelay;
+            if (!skip && _revealElapsed < _revealFinishedAt) return;
+            if (!skip)
+                foreach (ResultRewardItemView item in _rewardViews)
+                    if (item.IsEffectPlaying) return;
+            if (skip)
+                foreach (ResultRewardItemView item in _rewardViews) item.CompleteEffect();
+            _isRevealing = false;
+            _isWaitingForRelease = true;
+            _revealCompletedFrame = Time.frameCount;
+            SetNavigationEnabled(false);
+        }
+
+        /// <summary>정산 화면 이동 버튼을 보상 공개 및 보스 선택 상태에 맞게 활성화한다.</summary>
+        private void SetNavigationEnabled(bool isEnabled)
+        {
+            _nextStageButton.interactable = isEnabled;
+            _improveButton.interactable = isEnabled;
+            _retryButton.interactable = isEnabled;
+        }
+
+        /// <summary>화면을 숨길 때 진행 중인 공개 상태와 툴팁을 정리한다.</summary>
+        protected override void OnHidden()
+        {
+            _isRevealing = false;
+            _isWaitingForRelease = false;
+            HideRewardTooltip();
         }
 
         /// <summary>보상 아이콘에 포인터가 올라오면 이름·설명을 보여 주고 벗어나면 닫는다.</summary>
@@ -183,9 +268,7 @@ namespace RuneCode
                 _clearChoiceCards[i].SetActive(false);
                 _clearChoiceButtons[i].interactable = true;
             }
-            _nextStageButton.interactable = true;
-            _improveButton.interactable = true;
-            _retryButton.interactable = true;
+            SetNavigationEnabled(!_isRevealing && !_isWaitingForRelease);
             if (EventSystem.current != null && gameObject.activeInHierarchy)
                 EventSystem.current.SetSelectedGameObject(_improveButton.gameObject);
         }

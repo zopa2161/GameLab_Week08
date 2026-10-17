@@ -41,6 +41,10 @@ namespace RuneCode
             return mouse != null && _worldView.Camera.TryGetSimPoint(mouse.position.ReadValue(), out pointer);
         }
 
+        /// <summary>전투 시간을 진행하지 않고 월드 종료 연출만 갱신하며 완료 여부를 반환한다.</summary>
+        public bool AdvanceEnding(RuneSimulation simulation, float deltaTime)
+            => _worldView.AdvanceEnding(simulation, deltaTime);
+
         /// <summary>Esc 입력을 Presenter에 전달해 일시정지를 연다.</summary>
         public override bool HandleEscape() => _presenter != null && _presenter.HandleEscape();
 

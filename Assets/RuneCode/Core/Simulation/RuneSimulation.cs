@@ -53,6 +53,8 @@ namespace RuneCode
         private readonly List<SimulationProjectile> _enemyProjectiles = new List<SimulationProjectile>();
         private readonly List<FragmentOrb> _orbs = new List<FragmentOrb>();
         private readonly List<SimulationItemDrop> _itemDrops = new List<SimulationItemDrop>();
+        private readonly List<FragmentOrb> _clearOrbs = new List<FragmentOrb>();
+        private readonly List<SimulationItemDrop> _clearItemDrops = new List<SimulationItemDrop>();
         private readonly List<SimulationItemDrop> _pickedUpItems = new List<SimulationItemDrop>();
         private readonly List<SimulationItemDrop> _newPickedItems = new List<SimulationItemDrop>();
         private readonly List<DamageNumber> _damageNumbers = new List<DamageNumber>();
@@ -169,6 +171,10 @@ namespace RuneCode
 
         /// <summary>바닥에 떨어져 줍기를 기다리는 Modifier 드롭 목록이다.</summary>
         public IReadOnlyList<SimulationItemDrop> ItemDrops => _itemDrops;
+        /// <summary>지급과 분리한 승리 흡수 연출용 잔여 스크랩 위치를 반환한다.</summary>
+        public IReadOnlyList<FragmentOrb> ClearOrbs => _clearOrbs;
+        /// <summary>지급과 분리한 승리 흡수 연출용 잔여 룬을 반환한다.</summary>
+        public IReadOnlyList<SimulationItemDrop> ClearItemDrops => _clearItemDrops;
 
         /// <summary>이번 전투에서 주워 확정한 Modifier 드롭의 누적 목록이다.</summary>
         public IReadOnlyList<SimulationItemDrop> PickedUpItems => _pickedUpItems;
@@ -515,6 +521,8 @@ namespace RuneCode
         /// <summary>독립 시험의 시드·상태·통계·시나리오 적을 초기화한다. dummyCount가 0이면 기존 일렬 배치 기본 수를 사용한다.</summary>
         public void ResetBench(string scenario, int dummyCount = 0)
         {
+            _clearOrbs.Clear();
+            _clearItemDrops.Clear();
             if (_isMission) throw new InvalidOperationException("미션은 시험 도크로 초기화할 수 없습니다.");
             if (scenario != "dummy_single" && scenario != "dummy_line" && scenario != "dummy_swarm" && scenario != "aegis" && scenario != "adapt_loop") throw new ArgumentException("알 수 없는 시험 시나리오입니다.", nameof(scenario));
             _scenario = scenario; _stage = MissionStage.Bench; _tick = 0; _nextEntityId = 0; _rngState = (uint)_initialSeed;
@@ -1835,9 +1843,11 @@ namespace RuneCode
         /// <summary>전투 종료 시 획득하지 않은 스크랩 오브를 보상에 더하지 않고 정리한다.</summary>
         private void DiscardUncollectedOrbs() { _orbs.Clear(); }
 
-        /// <summary>클리어 시 남은 스크랩을 획득량에 더하고 Modifier를 누적·미지급 목록으로 옮긴 뒤 바닥 드롭을 비운다.</summary>
+        /// <summary>클리어 시 잔여 드롭을 연출용으로 보존하고 스크랩과 룬을 한 번 회수한 뒤 바닥 드롭 목록을 비운다.</summary>
         private void CollectRemainingDrops()
         {
+            _clearOrbs.AddRange(_orbs);
+            _clearItemDrops.AddRange(_itemDrops);
             foreach (FragmentOrb orb in _orbs) _collectedFragments += orb.Amount;
             _orbs.Clear();
             _pickedUpItems.AddRange(_itemDrops);
@@ -1896,7 +1906,7 @@ namespace RuneCode
 
         /// <summary>
         /// 일반 스테이지는 목표 처치 수, 보스 스테이지는 보스 처치로 클리어하고 남은 스크랩·Modifier를 모두 회수한다.
-        /// 보스 제한시간 초과는 미획득 스크랩을 버리며, 클리어는 남은 적·상태 이상도 정리하고 같은 틱의 시간 초과보다 우선한다.
+        /// 보스 제한시간 초과는 미획득 스크랩을 버린다. 클리어는 남은 적을 정지된 전장 표시용으로 보존하고 상태 이상을 정리하며 같은 틱의 시간 초과보다 우선한다.
         /// </summary>
         private void CheckBattleEnd()
         {
@@ -1907,7 +1917,7 @@ namespace RuneCode
             else DiscardUncollectedOrbs();
             CancelCombat();
             if (_stage != MissionStage.Cleared) return;
-            _enemies.Clear(); _enemyStatuses.Clear(); _statusIndex.Clear();
+            _enemyStatuses.Clear(); _statusIndex.Clear();
         }
 
         /// <summary>
