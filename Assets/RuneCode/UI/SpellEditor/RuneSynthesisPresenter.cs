@@ -13,6 +13,7 @@ namespace RuneCode
     public sealed class RuneSynthesisPresenter : IDisposable
     {
         private const float PALETTE_BUTTON_SPACE = 42f;
+        private const float AUTOMATIC_BUTTON_SPACE = 42f;
         private readonly ISpellEditor _editor;
         private readonly ISpellEditorHost _host;
         private readonly UIManager _ui;
@@ -21,6 +22,7 @@ namespace RuneCode
         private readonly RectTransform _blocker;
         private readonly Button _openButton;
         private readonly Button _synthesizeButton;
+        private readonly Button _autoSelectButton;
         private readonly Button _emptySlotTemplate;
         private readonly Button[] _slotButtons = new Button[RuneSynthesisRules.MATERIAL_COUNT];
         private readonly string[] _materials = new string[RuneSynthesisRules.MATERIAL_COUNT];
@@ -61,26 +63,27 @@ namespace RuneCode
             Image shade = _blocker.gameObject.AddComponent<Image>();
             shade.color = new Color(0f, 0f, 0f, 0.65f);
             shade.raycastTarget = true;
-            RectTransform panel = factory.Panel(_blocker, 0, 40, 400, 400, "RuneSynthesis");
+            RectTransform panel = factory.Panel(_blocker, 0, 40, 400, 400 + AUTOMATIC_BUTTON_SPACE, "RuneSynthesis");
             panel.GetComponent<Image>().raycastTarget = true;
             factory.Text(panel, 16, 16, 270, 26, "룬 합성", 20);
             Button closeButton = factory.Button(panel, 320, 14, 64, 28, "닫기", Close, 12);
             Image closeImage = (Image)closeButton.targetGraphic;
             closeImage.sprite = Resources.Load<Sprite>("RuneCode/UI/Skins/ButtonDestructive");
             factory.Text(panel, 16, 52, 368, 42, "같은 분류·등급 3개로 무작위 룬 1개를 만듭니다.\nC·B·A는 한 등급 위로, S는 S로 합성됩니다.", 12);
+            _autoSelectButton = factory.Button(panel, 145, 100, 110, 30, "자동 선택", AutoSelectMaterials, 13, "AutoSelectMaterials");
             Vector2[] positions = { new Vector2(145, 100), new Vector2(20, 260), new Vector2(270, 260) };
             for (int index = 0; index < _slotButtons.Length; index++)
             {
                 int slot = index;
-                _slotButtons[index] = factory.Button(panel, positions[index].x, positions[index].y,
+                _slotButtons[index] = factory.Button(panel, positions[index].x, positions[index].y + AUTOMATIC_BUTTON_SPACE,
                     110, 58, "비어있음", () => OpenSlotPicker(slot), 12, "SynthesisSlot" + index);
                 EventTrigger trigger = _slotButtons[index].gameObject.AddComponent<EventTrigger>();
                 var entry = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
                 entry.callback.AddListener(data => OnSlotPointerClick(slot, data));
                 trigger.triggers.Add(entry);
             }
-            _synthesizeButton = factory.Button(panel, 145, 216, 110, 40, "합성", Synthesize, 15, "Synthesize");
-            _hint = factory.Text(panel, 16, 336, 368, 56, "", 12);
+            _synthesizeButton = factory.Button(panel, 145, 216 + AUTOMATIC_BUTTON_SPACE, 110, 40, "합성", Synthesize, 15, "Synthesize");
+            _hint = factory.Text(panel, 16, 336 + AUTOMATIC_BUTTON_SPACE, 368, 56, "", 12);
             _hint.richText = true;
 
             Canvas canvas = view.GetComponentInParent<Canvas>().rootCanvas;
@@ -198,6 +201,60 @@ namespace RuneCode
             return count;
         }
 
+        /// <summary>전체 미사용 재고에서 C부터 S 순서로 동일 분류·등급 재료 3개를 찾는다. 기존 슬롯 예약은 교체하므로 차감하지 않는다.</summary>
+        private bool TryFindAutomaticMaterials(out string[] materials, out string grade)
+        {
+            materials = null;
+            grade = null;
+            foreach (string candidateGrade in RuneSynthesisRules.GradeOrder)
+            {
+                var byCategory = new Dictionary<string, List<string>>();
+                var categoryOrder = new List<string>();
+                foreach (RuneDefinition rune in GameData.Runes.All)
+                {
+                    if (!RuneSynthesisRules.IsEligible(rune, candidateGrade)) continue;
+                    if (!byCategory.TryGetValue(rune.Category, out List<string> candidates))
+                    {
+                        candidates = new List<string>(RuneSynthesisRules.MATERIAL_COUNT);
+                        byCategory.Add(rune.Category, candidates);
+                        categoryOrder.Add(rune.Category);
+                    }
+                    if (candidates.Count == RuneSynthesisRules.MATERIAL_COUNT
+                        || !_editor.TryGetModifierUsage(rune.Id, candidateGrade, out int used, out int owned)) continue;
+                    int available = Math.Min(owned - used, RuneSynthesisRules.MATERIAL_COUNT - candidates.Count);
+                    for (int index = 0; index < available; index++) candidates.Add(rune.Id);
+                }
+                foreach (string category in categoryOrder)
+                {
+                    List<string> candidates = byCategory[category];
+                    if (candidates.Count != RuneSynthesisRules.MATERIAL_COUNT
+                        || RuneSynthesisRules.GetResults(category, RuneSynthesisRules.NextGrade(candidateGrade)).Count == 0) continue;
+                    materials = candidates.ToArray();
+                    grade = candidateGrade;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>합성 가능한 최하위 등급 재료를 모두 확보한 뒤 기존 슬롯을 한 번에 교체하고 팔레트·슬롯 표시를 갱신한다.</summary>
+        private void AutoSelectMaterials()
+        {
+            if (!IsOpen || _isProcessing || _resultOverlay.gameObject.activeSelf || _ui.IsPopupOpen || !_host.CanSynthesizeRunes) return;
+            if (!TryFindAutomaticMaterials(out string[] materials, out string grade))
+            {
+                _autoSelectButton.interactable = false;
+                _hint.text = "자동 선택할 수 있는 미사용 재료 3개가 없습니다.";
+                return;
+            }
+            Array.Copy(materials, _materials, _materials.Length);
+            _grade = grade;
+            _category = GameData.Runes.Get(_materials[0]).Category;
+            _view.SetSearchQuery("");
+            _palette.SetSynthesisFilter(_category, _grade);
+            RefreshSlots();
+        }
+
         /// <summary>팔레트에서 선택한 재료를 첫 빈 슬롯에 넣는다. 이미 가득 찼으면 안내한다.</summary>
         private void AddFirstEmpty(string runeId, string grade)
         {
@@ -300,7 +357,12 @@ namespace RuneCode
                     || owned - used < ReservedCount(id, _grade)) canSynthesize = false;
             }
             _synthesizeButton.interactable = canSynthesize;
-            _hint.text = _grade == null ? "사용 중인 룬은 재료에서 제외됩니다.\n팔레트 또는 슬롯을 눌러 선택하세요."
+            bool hasAutomaticMaterials = TryFindAutomaticMaterials(out _, out _);
+            _autoSelectButton.interactable = !_isProcessing && !_resultOverlay.gameObject.activeSelf
+                && _host.CanSynthesizeRunes && hasAutomaticMaterials;
+            _hint.text = _grade == null ? (hasAutomaticMaterials
+                ? "사용 중인 룬은 재료에서 제외됩니다.\n자동 선택 또는 팔레트·슬롯을 눌러 선택하세요."
+                : "자동 선택할 수 있는 미사용 재료 3개가 없습니다.\n같은 분류·등급의 룬을 더 모으세요.")
                 : (_category == SpellGrammar.CATEGORY_BEHAVIOR ? "행동 " : "모드 ") + _grade + "등급만 선택할 수 있습니다.\n좌클릭: 교체 / 우클릭: 비우기";
         }
 
@@ -310,6 +372,7 @@ namespace RuneCode
             if (!IsOpen || _isProcessing || !_synthesizeButton.interactable || _resultOverlay.gameObject.activeSelf) return;
             _isProcessing = true;
             _synthesizeButton.interactable = false;
+            _autoSelectButton.interactable = false;
             string failure = null;
             try
             {
