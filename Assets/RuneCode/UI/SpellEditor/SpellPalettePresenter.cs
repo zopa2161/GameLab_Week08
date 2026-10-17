@@ -55,6 +55,13 @@ namespace RuneCode
             };
         }
 
+        /// <summary>분류를 전체, 등급을 미선택으로 초기화한다. 버튼과 목록은 다음 Refresh에서 갱신한다.</summary>
+        public void ResetFilters()
+        {
+            _category = "all";
+            _grade = null;
+        }
+
         /// <summary>기존 필터·검색을 보관하고 합성 재료 클릭과 예약 수량 조회를 연결한다.</summary>
         public void BeginSynthesis(Action<string, string> selectMaterial, Func<string, string, int> reservedCount)
         {

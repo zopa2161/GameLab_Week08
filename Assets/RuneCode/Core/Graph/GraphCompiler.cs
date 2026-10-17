@@ -12,7 +12,7 @@ namespace RuneCode
 
         /// <summary>
         /// 그래프와 해금·RAM·에너지 조건을 검증하고 최악 비용의 실행 트리를 컴파일한다.
-        /// modifierStock이 있으면 모디파이어·속성·행동의 통합 소지량(보관함 전체 공유)을 넘는 배치를 E21 오류로 낸다. null이면 검사하지 않는다.
+        /// modifierStock이 있으면 현재 프리셋의 모디파이어·속성·행동 배치 수가 소지량을 넘을 때 E21 오류로 낸다. null이면 검사하지 않는다.
         /// </summary>
         public static CompileResult Compile(SpellGraph graph, RuneCatalog runes, GrammarLimits limits,
             IEnumerable<string> unlocked, int capacity = -1, float maxEnergy = -1f, IEnumerable<SpellGraph> library = null,
@@ -221,7 +221,6 @@ namespace RuneCode
                 RuneDefinition rune = definitions[node.Id];
                 if (!reachable.Contains(node.Id))
                 {
-                    warnings.Add(new CompileIssue("W1", node.Id));
                     if (rune.Id == "flow.if" && node.GetText("type", "targetHpBelow") != "selfHpBelow")
                         warnings.Add(new CompileIssue("W3", node.Id));
                 }
