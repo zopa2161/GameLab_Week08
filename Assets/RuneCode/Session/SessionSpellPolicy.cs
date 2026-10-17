@@ -54,7 +54,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 현재 그래프를 후보로 바꿨을 때 수가 늘어나는 소지 키마다, 후보와 보관함의 다른 마법에 배치된 수의 합이 소지량 이하인지 반환한다.
+        /// 현재 그래프를 후보로 바꿨을 때 수가 늘어나는 소지 키마다, 후보 프리셋 안의 배치 수가 소지량 이하인지 반환한다.
         /// 이미 초과한 키라도 늘리지 않는 편집(다른 노드 배치 등)은 막지 않는다.
         /// </summary>
         public bool IsWithinModifierStock(SpellGraph current, SpellGraph candidate)
@@ -67,12 +67,12 @@ namespace RuneCode
                 before.TryGetValue(pair.Key, out int previous);
                 if (pair.Value <= previous) continue;
                 stock.TryGetValue(pair.Key, out int owned);
-                if (pair.Value + CountInOtherSpells(pair.Key, candidate.Id) > owned) return false;
+                if (pair.Value > owned) return false;
             }
             return true;
         }
 
-        /// <summary>편집 그래프를 포함한 보관함 전체에서 지정 (룬 ID, 등급)의 배치 수(used)와 소지량(owned)을 구한다.</summary>
+        /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 배치 수(used)와 소지량(owned)을 구한다.</summary>
         public bool TryGetModifierUsage(string runeId, string grade, SpellGraph editing, out int used, out int owned)
         {
             used = 0;
@@ -94,21 +94,8 @@ namespace RuneCode
             else return false;
             string key = SpellGrammar.ModifierStockKey(runeId, grade);
             GraphCompiler.CountStockUsage(editing, GameData.Runes).TryGetValue(key, out used);
-            used += CountInOtherSpells(key, editing?.Id);
             owned = _session.Save.GetStock(runeId, grade);
             return true;
-        }
-
-        /// <summary>보관함에서 지정 ID를 제외한 마법들에 배치된 소지 키별 수를 반환한다.</summary>
-        private int CountInOtherSpells(string key, string excludedSpellId)
-        {
-            var count = 0;
-            foreach (SpellGraph graph in _session.Save.Library)
-            {
-                if (graph == null || graph.Id == excludedSpellId) continue;
-                if (GraphCompiler.CountStockUsage(graph, GameData.Runes).TryGetValue(key, out int placed)) count += placed;
-            }
-            return count;
         }
 
         /// <summary>룬 배치 후 진행 반응을 처리한다. 튜토리얼은 제외됐다.</summary>

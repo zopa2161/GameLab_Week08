@@ -11,7 +11,7 @@ namespace RuneCode
         public IEnumerable<SpellGraph> Library { get; }
         public IReadOnlyDictionary<string, float> MaxResourceCosts { get; }
 
-        /// <summary>모디·속성·행동의 통합 소지량 맵(보관함 전체 공유)이다. null이면 소지량을 검사하지 않는다.</summary>
+        /// <summary>각 프리셋의 배치 수를 독립적으로 제한하는 모디·속성·행동 소지량 맵이다. null이면 소지량을 검사하지 않는다.</summary>
         public IReadOnlyDictionary<string, int> ModifierStock { get; }
 
         /// <summary>해금 룬, RAM 용량, 최대 에너지, 참조 가능한 마법 보관함과 Modifier 소지량으로 컴파일 문맥을 만든다.</summary>
