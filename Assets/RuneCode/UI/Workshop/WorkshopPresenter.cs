@@ -57,11 +57,10 @@ namespace RuneCode
             _session.Spells.Compiled += RecordCompileResult;
         }
 
-        /// <summary>작업실에 들어올 때 팔레트 분류·등급을 초기화하고 도크를 다시 시작한 뒤 에디터 탭을 갱신한다.</summary>
+        /// <summary>작업실에 들어올 때 도크를 다시 시작한 뒤 에디터 탭을 갱신한다.</summary>
         public void Enter()
         {
             LocalTelemetry.BeginUsabilityEditingEpisode();
-            _view.SpellEditor.ResetPaletteFilters();
             ShowEditorTab();
             if (_session.ConsumeFirstRunHelpRequest()) OpenHelp();
         }
