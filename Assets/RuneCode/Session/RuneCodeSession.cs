@@ -25,6 +25,7 @@ namespace RuneCode
         private PlayerSave _save;
         private PlayerSave _normalSave;
         private readonly StageCatalog _stages;
+        private readonly ModifierGradeDropSource _synthesisGrades;
         private readonly UpgradeTreeDefinition _upgradeTree;
         private bool _isDebugEnabled;
         private bool _isTestMode;
@@ -87,6 +88,7 @@ namespace RuneCode
             _normalSave = save;
             _save = isDebugEnabled ? PlayerSave.CreateNew() : save;
             _stages = stages;
+            _synthesisGrades = new ModifierGradeDropSource(GameData.ModifierGrades);
             _upgradeTree = upgradeTree;
             _isDebugEnabled = isDebugEnabled;
             _statusMessage = initialStatus;
@@ -144,6 +146,7 @@ namespace RuneCode
                     ["selected_stage"] = SelectedStage,
                     ["save_slot"] = SaveStore.ActiveSlot,
                     ["ram_capacity"] = Capacity,
+                    ["inventory"] = GetInventoryLogSnapshot(),
                 };
                 var metadata = new Dictionary<string, object>
                 {
@@ -191,8 +194,6 @@ namespace RuneCode
             var upgrades = new Dictionary<string, object>(StringComparer.Ordinal);
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
                 if (node != null) upgrades[node.Id] = GetUpgradeNodeLevel(node.Id);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
-                if (node != null) upgrades[node.Id] = GetUpgradeNodeLevel(node.Id);
             var startState = new Dictionary<string, object>
             {
                 ["selected_stage"] = SelectedStage,
@@ -204,6 +205,7 @@ namespace RuneCode
                 ["unlocked_runes"] = new List<string>(_save.UnlockedRunes),
                 ["stock"] = stock,
                 ["upgrade_levels"] = upgrades,
+                ["inventory"] = GetInventoryLogSnapshot(),
             };
             var metadata = new Dictionary<string, object>
             {
@@ -439,6 +441,48 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>보유 모듈의 종류·등급·총수량, 해금 목록과 재화를 복사해 로그용 스냅샷을 반환한다.</summary>
+        public Dictionary<string, object> GetInventoryLogSnapshot()
+        {
+            var owned = new List<Dictionary<string, object>>();
+            foreach (KeyValuePair<string, int> stock in _save.CreateStockMap())
+            {
+                if (stock.Value <= 0 || !SpellGrammar.TryParseStockKey(stock.Key, out string runeId, out string grade)) continue;
+                string category = GameData.Runes.TryGet(runeId, out RuneDefinition rune) ? rune.Category : "unknown";
+                owned.Add(new Dictionary<string, object>
+                {
+                    ["rune_id"] = runeId, ["category"] = category,
+                    ["grade"] = string.IsNullOrEmpty(grade) ? null : grade, ["count"] = stock.Value,
+                });
+            }
+            return new Dictionary<string, object>
+            {
+                ["owned_modules"] = owned,
+                ["unlocked_runes"] = new List<string>(_save.UnlockedRunes),
+                ["currency"] = _save.Currency,
+            };
+        }
+
+        /// <summary>현재 스킬트리의 배치·미배치 노드 레벨과 적용된 주요 능력치를 복사해 전투 결과 로그용 스냅샷을 반환한다.</summary>
+        public Dictionary<string, object> GetSkillTreeLogSnapshot()
+        {
+            var levels = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
+                if (node != null) levels[node.Id] = GetUpgradeNodeLevel(node.Id);
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
+                if (node != null) levels[node.Id] = GetUpgradeNodeLevel(node.Id);
+            return new Dictionary<string, object>
+            {
+                ["node_levels"] = levels,
+                ["ram_capacity"] = Capacity,
+                ["max_hp"] = MaxHp,
+                ["max_energy"] = MaxEnergy,
+                ["energy_regen"] = EnergyRegen,
+                ["damage_multiplier"] = DamageMultiplier,
+                ["move_speed_multiplier"] = MoveSpeedMultiplier,
+            };
+        }
+
         /// <summary>선행 조건을 만족하는 트리 노드를 구매하고 효과·룬 해금·저장을 반영한다.</summary>
         public bool BuyUpgradeNode(string nodeId)
         {
@@ -505,14 +549,11 @@ namespace RuneCode
             PersistProgress();
         }
 
-        /// <summary>디버그 진행의 배치·미배치 스탯 구매 기록을 0으로 되돌린다. SO 시작 레벨·룬·일반 저장은 유지한다.</summary>
+        /// <summary>디버그 진행의 스탯 구매 기록을 0으로 되돌린다. SO 시작 레벨·룬·일반 저장은 유지한다.</summary>
         public void ResetDebugTree()
         {
             if (!_isDebugEnabled) return;
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
-                if (node != null && node.EffectType != UpgradeEffectType.RuneUnlock)
-                    _save.SetUpgradeNodeLevel(node.Id, 0);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
                 if (node != null && node.EffectType != UpgradeEffectType.RuneUnlock)
                     _save.SetUpgradeNodeLevel(node.Id, 0);
             _spells.Recompile();
@@ -544,37 +585,15 @@ namespace RuneCode
         /// 일반 모드에서 전투 보상과 처치 기록을 세이브에 반영한다. 테스트 모드에서는 시작 조건 유지를 위해 보상을 반영하지 않는다.
         /// 클리어 때 지급한 룬 보상 목록을 반환한다.
         /// </summary>
-        public IReadOnlyList<ModifierRewardDefinition> SettleMission(int stageNumber, int fragments, bool isCleared, IEnumerable<KeyValuePair<string, int>> killCounts)
+        public IReadOnlyList<ModifierRewardDefinition> SettleMission(int stageNumber, int fragments, bool isCleared, IEnumerable<KeyValuePair<string, int>> killCounts,
+            ModifierRewardDefinition clearRuneReward = null)
         {
             if (_isTestMode) return Array.Empty<ModifierRewardDefinition>();
             var modifierRewards = new List<ModifierRewardDefinition>();
-            if (isCleared && stageNumber > _save.HighestClearedStage)
+            if (isCleared && clearRuneReward != null)
             {
-                foreach (ModifierRewardDefinition reward in _stages.Get(stageNumber).ModifierRewards)
-                {
-                    if (!GameData.Runes.TryGet(reward.RuneId, out RuneDefinition rune))
-                    { Debug.LogWarning("[Stage] 룬이 없는 보상 ID를 건너뜁니다: " + reward.RuneId); continue; }
-                    if (rune.Category == SpellGrammar.CATEGORY_ELEMENT)
-                    {
-                        GrantRune(reward.RuneId, "", reward.Count);
-                    }
-                    else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
-                    {
-                        if (string.IsNullOrEmpty(reward.Grade))
-                        { Debug.LogWarning("[Stage] 등급이 없는 행동 보상을 건너뜁니다: " + reward.RuneId); continue; }
-                        GrantRune(reward.RuneId, reward.Grade, reward.Count);
-                    }
-                    else if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
-                    {
-                        GrantRune(reward.RuneId, string.IsNullOrEmpty(reward.Grade) ? GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId) : reward.Grade, reward.Count);
-                    }
-                    else
-                    {
-                        // 소지 아이템이 아닌 ID는 데이터 오류로 보고 지급하지 않는다.
-                        Debug.LogWarning("[Stage] 소지 아이템이 아닌 보상 ID를 건너뜁니다: " + reward.RuneId); continue;
-                    }
-                    modifierRewards.Add(reward);
-                }
+                GrantRune(clearRuneReward.RuneId, clearRuneReward.Grade, clearRuneReward.Count, "stage_clear");
+                modifierRewards.Add(clearRuneReward);
             }
             if (isCleared) _save.RecordStageClear(stageNumber);
             _save.Settle(fragments, isCleared);
@@ -585,16 +604,26 @@ namespace RuneCode
         }
 
         /// <summary>일반 모드에서 주운·선택·보상받은 룬 소지 아이템을 즉시 반영한다. 테스트 모드는 시작 소지량을 유지한다.</summary>
-        public void GrantRune(string runeId, string grade, int count)
+        public void GrantRune(string runeId, string grade, int count, string reason = "unspecified")
         {
             if (_isTestMode || count <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)
                 || (rune.Category != SpellGrammar.CATEGORY_MODIFIER && rune.Category != SpellGrammar.CATEGORY_ELEMENT
                     && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)) return;
+            int before = _save.GetStock(runeId, grade);
             _save.AddStock(runeId, grade, count);
             PersistProgress();
+            int after = _save.GetStock(runeId, grade);
+            if (after > before)
+                LocalTelemetry.RecordUsabilityEvent("module_acquired", "inventory", new Dictionary<string, object>
+                {
+                    ["rune_id"] = runeId, ["category"] = rune.Category,
+                    ["grade"] = string.IsNullOrEmpty(grade) ? null : grade,
+                    ["count"] = after - before, ["stock_before"] = before, ["stock_after"] = after,
+                    ["reason"] = reason,
+                });
         }
 
-        /// <summary>동일 분류·등급의 미사용 룬 3개를 무작위 룬으로 교환한다. C·B·A는 승급하고 S는 S를 유지하며 저장 실패 시 재고를 복구한다.</summary>
+        /// <summary>미사용 룬 3개를 교환한다. 속성은 선택 스테이지 확률을, S는 행동·모드 교차 추첨을 쓰며 저장 실패 시 모든 재고를 복구한다.</summary>
         public bool TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
             out string resultId, out string resultGrade, out string error)
         {
@@ -606,8 +635,8 @@ namespace RuneCode
                 error = "테스트 모드에서는 시작 지급 수량을 유지하므로 합성을 사용할 수 없습니다.";
                 return false;
             }
-            string nextGrade = RuneSynthesisRules.NextGrade(grade);
-            if (materials == null || materials.Count != RuneSynthesisRules.MATERIAL_COUNT || nextGrade == null) return false;
+            grade = grade ?? "";
+            if (materials == null || materials.Count != RuneSynthesisRules.MATERIAL_COUNT) return false;
             var counts = new Dictionary<string, int>(StringComparer.Ordinal);
             string category = null;
             foreach (string id in materials)
@@ -620,33 +649,42 @@ namespace RuneCode
             }
             foreach (KeyValuePair<string, int> pair in counts)
                 if (!_spells.TryGetModifierUsage(pair.Key, grade, out int used, out int owned) || owned - used < pair.Value) return false;
-            List<string> candidates = RuneSynthesisRules.GetResults(category, nextGrade);
-            if (candidates.Count == 0)
+            string resultCategory = category;
+            if (category == SpellGrammar.CATEGORY_ELEMENT || grade == "S")
+                resultCategory = UnityEngine.Random.Range(0, 2) == 0 ? SpellGrammar.CATEGORY_BEHAVIOR : SpellGrammar.CATEGORY_MODIFIER;
+            string selectedId;
+            string selectedGrade;
+            if (category == SpellGrammar.CATEGORY_ELEMENT)
             {
-                error = "해당 등급에서 얻을 수 있는 룬이 없습니다.";
-                return false;
+                DropRoll roll = RuneRewardRoller.DrawCategory(resultCategory, SelectedStage, _synthesisGrades, () => UnityEngine.Random.value);
+                selectedId = roll.RuneId;
+                selectedGrade = roll.Grade;
             }
-            string selectedId = candidates[UnityEngine.Random.Range(0, candidates.Count)];
+            else
+            {
+                selectedGrade = RuneSynthesisRules.NextGrade(grade);
+                selectedId = RuneRewardRoller.PickRune(resultCategory, selectedGrade, () => UnityEngine.Random.value);
+            }
             if (!_save.TryConsumeStock(counts, grade)) return false;
-            _save.AddStock(selectedId, nextGrade, 1);
+            _save.AddStock(selectedId, selectedGrade, 1);
             if (!PersistSpellStorage(_save))
             {
-                _save.TryConsumeStock(new Dictionary<string, int> { [selectedId] = 1 }, nextGrade);
+                _save.TryConsumeStock(new Dictionary<string, int> { [selectedId] = 1 }, selectedGrade);
                 foreach (KeyValuePair<string, int> pair in counts) _save.AddStock(pair.Key, grade, pair.Value);
                 error = SaveStore.LastWarning;
                 return false;
             }
             resultId = selectedId;
-            resultGrade = nextGrade;
+            resultGrade = selectedGrade;
             error = null;
             _spells.Recompile();
             return true;
         }
 
         /// <summary>주운·선택·보상받은 Modifier를 (종류, 등급) 소지량에 즉시 반영하고 저장한다. 이후 사망·시간 초과·후퇴와 무관하게 유지된다. 그 Modifier에 없는 등급이면 지급하지 않는다.</summary>
-        public void GrantModifier(string runeId, string grade, int count)
+        public void GrantModifier(string runeId, string grade, int count, string reason = "unspecified")
         {
-            GrantRune(runeId, grade, count);
+            GrantRune(runeId, grade, count, reason);
         }
 
         /// <summary>디버그 실행에서만 조각을 지급한다.</summary>
@@ -695,8 +733,6 @@ namespace RuneCode
             bool hasRestoredRune = false;
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
                 hasRestoredRune |= RestorePurchasedRuneUnlock(save, node);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
-                hasRestoredRune |= RestorePurchasedRuneUnlock(save, node);
             return hasRestoredRune;
         }
 
@@ -739,9 +775,6 @@ namespace RuneCode
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
                 if (node != null && node.EffectType == UpgradeEffectType.RuneUnlock)
                     _save.Unlock(node.RuneId);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
-                if (node != null && node.EffectType == UpgradeEffectType.RuneUnlock)
-                    _save.Unlock(node.RuneId);
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
                 if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
@@ -773,7 +806,6 @@ namespace RuneCode
             for (int stage = 1; stage <= TEST_CLEARED_STAGE; stage++) save.RecordStageClear(stage);
             save.SelectStage(TEST_STAGE, false);
             MaxUpgradeNodes(save, _upgradeTree.Nodes);
-            MaxUpgradeNodes(save, _upgradeTree.UnplacedNodes);
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
                 if (rune.IsDisabled) continue;

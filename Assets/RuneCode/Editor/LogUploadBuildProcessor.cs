@@ -9,7 +9,7 @@ using UnityEditor.Build.Reporting;
 
 namespace RuneCode
 {
-    /// <summary>Windows 빌드 결과에 PC 수집기의 최신 전송 설정을 자동으로 포함한다.</summary>
+    /// <summary>Windows 빌드 결과에 로컬 또는 프로젝트 공용 전송 설정을 검증해 포함한다.</summary>
     public sealed class LogUploadBuildProcessor : IPostprocessBuildWithReport
     {
         private const string SETTINGS_FILE_NAME = "LogUploadSettings.json";
@@ -28,7 +28,7 @@ namespace RuneCode
             public string UploadToken => _uploadToken;
         }
 
-        /// <summary>성공한 Windows 빌드의 StreamingAssets에 바탕화면 설정을 복사하고 원본 프로젝트 설정은 유지한다.</summary>
+        /// <summary>Windows 빌드에 바탕화면 설정을 우선 적용하고 없으면 프로젝트 공용 설정을 검증해 복사한다.</summary>
         public void OnPostprocessBuild(BuildReport report)
         {
             if (report.summary.platform != BuildTarget.StandaloneWindows
@@ -36,21 +36,21 @@ namespace RuneCode
 
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             string source = Path.Combine(desktop, "PlayLogWorkbench", "GameConfig", SETTINGS_FILE_NAME);
+            if (!File.Exists(source)) source = Path.Combine(Application.streamingAssetsPath, SETTINGS_FILE_NAME);
             if (!File.Exists(source))
             {
-                Debug.LogWarning("온라인 수집 설정이 없어 기본 설정으로 빌드했습니다. 자동 전송을 사용하려면 바탕화면 PlayLogWorkbench의 SetupCloudCollection.cmd로 무료 수집함을 한 번 연결한 뒤 빌드하세요.");
-                return;
+                throw new BuildFailedException("온라인 수집 설정이 없습니다. 프로젝트의 Assets/StreamingAssets/LogUploadSettings.json을 함께 받아 다시 빌드하세요.");
             }
 
             try
             {
                 string json = File.ReadAllText(source);
                 UploadSettings settings = JsonUtility.FromJson<UploadSettings>(json);
-                if (settings == null || (settings.IsEnabled
-                    && (!Uri.TryCreate(settings.Endpoint, UriKind.Absolute, out Uri endpoint)
+                if (settings == null || !settings.IsEnabled
+                    || (!Uri.TryCreate(settings.Endpoint, UriKind.Absolute, out Uri endpoint)
                         || endpoint.Scheme != "https" || string.IsNullOrEmpty(settings.UploadToken)
-                        || settings.UploadToken.Length < 32)))
-                    throw new InvalidDataException("수집 주소 또는 전송 키가 올바르지 않습니다.");
+                        || settings.UploadToken.Length < 32))
+                    throw new InvalidDataException("자동 수집이 꺼져 있거나 수집 주소·전송 키가 올바르지 않습니다.");
                 if (settings.IsEnabled && new Uri(settings.Endpoint).Host.EndsWith(".trycloudflare.com", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("임시 수집 주소입니다. SetupCloudCollection.cmd로 고정 수집함 연결을 완료한 뒤 빌드하세요.");
 

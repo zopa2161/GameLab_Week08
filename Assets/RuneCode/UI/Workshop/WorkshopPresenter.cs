@@ -117,6 +117,8 @@ namespace RuneCode
 
         bool ISpellEditorHost.CanSynthesizeRunes => !_session.IsTestMode;
 
+        int ISpellEditorHost.SynthesisStage => _session.SelectedStage;
+
         /// <summary>편집 UI의 재료·등급을 세션에 전달하고 합성 결과 또는 오류를 반환한다.</summary>
         bool ISpellEditorHost.TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
             out string resultId, out string resultGrade, out string error)

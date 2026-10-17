@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 
 namespace RuneCode
@@ -15,6 +15,8 @@ namespace RuneCode
         private double _tickDamage;
         private string _sourceForm = "bolt";
         private bool _isNoise;
+        private SpellAction _damageSourceAction;
+        internal SpellAction DamageSourceAction { get => _damageSourceAction; set => _damageSourceAction = value; }
 
         private int _stacks;
 

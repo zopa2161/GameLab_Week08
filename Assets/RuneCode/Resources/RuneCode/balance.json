@@ -62,7 +62,7 @@
     "_baseCapacity": 6,
     "_maxLibrary": 30,
     "_modifierStartStock": 0,
-    "_behaviorStartStock": 2,
+    "_behaviorStartStock": 1,
     "_orbAbsorbRadius": 80,
     "_pickupAttractSpeed": 480,
     "_terminalHeal": 0.3,

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using UnityEngine.InputSystem;
@@ -142,6 +142,7 @@ namespace RuneCode
             {
                 ["stage"] = session.SelectedStage,
                 ["seed"] = seed,
+                ["inventory"] = session.GetInventoryLogSnapshot(),
             });
             LocalTelemetry.Record(0, "mission.start", session.SelectedStage + ":" + spell.Signature + ":seed=" + seed);
         }
@@ -226,7 +227,7 @@ namespace RuneCode
                     });
                     continue;
                 }
-                _session.GrantRune(drop.RuneId, drop.Grade, drop.Count);
+                _session.GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup");
                 _pickedModifiers.Add(drop);
                 AddModifierReward(drop.RuneId, drop.Grade, drop.Count);
             }
@@ -244,6 +245,23 @@ namespace RuneCode
                 return;
             }
             _rewards.Add(new MissionReward(true, runeId, grade, count));
+        }
+
+        /// <summary>현재 전투에서 실제 획득한 모듈 보상을 종류·등급·수량 목록으로 복사한다.</summary>
+        private List<Dictionary<string, object>> GetModuleRewardsLogSnapshot()
+        {
+            var rewards = new List<Dictionary<string, object>>();
+            foreach (MissionReward reward in _rewards)
+            {
+                if (!reward.IsModifier) continue;
+                rewards.Add(new Dictionary<string, object>
+                {
+                    ["rune_id"] = reward.RuneId,
+                    ["grade"] = string.IsNullOrEmpty(reward.Grade) ? null : reward.Grade,
+                    ["count"] = reward.Count,
+                });
+            }
+            return rewards;
         }
 
         /// <summary>이번 미션 정산으로 획득한 조각을 보상 표시 목록에 기록한다.</summary>
@@ -275,7 +293,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>클리어 보상을 포함한 클리어, 사망 또는 보스 제한시간 초과 보상을 한 번만 정산하고 결과 문구(첫 클리어 Modifier 보상 포함)와 텔레메트리를 남긴다. 세이브 반영은 세션의 SettleMission이 한다.</summary>
+        /// <summary>전투를 한 번만 정산하고 성공 시 반복 클리어에도 보장 룬 1개를 추첨해 결과·획득 기록에 넣는다. 보스 선택 보상은 별도로 유지한다.</summary>
         public void FinishMission()
         {
             if (_settled) return;
@@ -284,7 +302,13 @@ namespace RuneCode
             // 첫 클리어만 지급하는 규칙으로 바꿀 때를 대비해 정산 기록 전에 판정한다.
             bool isFirstClear = _session.HighestClearedStage < _simulation.StageNumber;
             var fragments = _simulation.SettlementFragments;
-            var modifierRewards = _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts);
+            ModifierRewardDefinition clearRuneReward = null;
+            if (cleared && !_session.IsTestMode)
+            {
+                DropRoll roll = _simulation.DrawClearRuneReward();
+                clearRuneReward = new ModifierRewardDefinition(roll.RuneId, roll.Grade, roll.Count);
+            }
+            var modifierRewards = _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts, clearRuneReward);
             if (!_session.IsTestMode) AddFragmentReward(fragments);
             foreach (ModifierRewardDefinition reward in modifierRewards)
             {
@@ -318,8 +342,12 @@ namespace RuneCode
                 ["stage"] = _simulation.StageNumber,
                 ["spell_build_id"] = _spellBuildId,
                 ["result"] = result,
+                ["skill_tree"] = _session.GetSkillTreeLogSnapshot(),
+                ["inventory"] = _session.GetInventoryLogSnapshot(),
+                ["module_rewards"] = GetModuleRewardsLogSnapshot(),
                 ["duration_ms"] = (long)(_simulation.Time * 1000),
                 ["damage_dealt"] = _simulation.TotalDamage,
+                ["action_stats"] = _simulation.GetActionCombatLogSnapshot(),
                 ["damage_received"] = _simulation.Player.DamageReceived,
                 ["shield_absorbed"] = _simulation.Player.ShieldAbsorbed,
                 ["energy_spent"] = _simulation.EnergySpent,
@@ -356,6 +384,17 @@ namespace RuneCode
             if (!_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
             _clearModifierChoices = candidates;
             _clearModifierGrades = grades;
+            var choices = new List<Dictionary<string, object>>();
+            for (int index = 0; index < candidates.Count; index++)
+                choices.Add(new Dictionary<string, object>
+                {
+                    ["rune_id"] = candidates[index], ["grade"] = grades[index], ["count"] = 1,
+                });
+            LocalTelemetry.RecordUsabilityEvent("clear_reward_offered", "result", new Dictionary<string, object>
+            {
+                ["combat_id"] = _testCombatId, ["spell_build_id"] = _spellBuildId,
+                ["stage"] = _simulation.StageNumber, ["choices"] = choices,
+            });
             _lastResult += "\n" + GameData.L("result.clearModifierChoice");
         }
 
@@ -364,9 +403,16 @@ namespace RuneCode
         {
             if (_clearModifierChoices == null || _isClearModifierChosen || index < 0 || index >= _clearModifierChoices.Count) return false;
             string grade = _clearModifierGrades[index];
-            _session.GrantModifier(_clearModifierChoices[index], grade, 1);
+            _session.GrantModifier(_clearModifierChoices[index], grade, 1, "clear_choice");
             AddModifierReward(_clearModifierChoices[index], grade, 1);
             _isClearModifierChosen = true;
+            LocalTelemetry.RecordUsabilityEvent("clear_reward_selected", "result", new Dictionary<string, object>
+            {
+                ["combat_id"] = _testCombatId, ["spell_build_id"] = _spellBuildId,
+                ["stage"] = _simulation.StageNumber, ["rune_id"] = _clearModifierChoices[index],
+                ["grade"] = grade, ["count"] = 1,
+                ["inventory"] = _session.GetInventoryLogSnapshot(),
+            });
             _lastResult += "\n" + GameData.L("result.modifierReward") + " "
                 + ModifierGradeText.FormatName(GameData.Runes.Get(_clearModifierChoices[index]).Name, grade) + " +1";
             return true;
@@ -390,8 +436,12 @@ namespace RuneCode
                 ["stage"] = _simulation.StageNumber,
                 ["spell_build_id"] = _spellBuildId,
                 ["result"] = "retreat",
+                ["skill_tree"] = _session.GetSkillTreeLogSnapshot(),
+                ["inventory"] = _session.GetInventoryLogSnapshot(),
+                ["module_rewards"] = GetModuleRewardsLogSnapshot(),
                 ["duration_ms"] = (long)(_simulation.Time * 1000),
                 ["damage_dealt"] = _simulation.TotalDamage,
+                ["action_stats"] = _simulation.GetActionCombatLogSnapshot(),
                 ["damage_received"] = _simulation.Player.DamageReceived,
                 ["shield_absorbed"] = _simulation.Player.ShieldAbsorbed,
                 ["energy_spent"] = _simulation.EnergySpent,

@@ -118,6 +118,8 @@ namespace RuneCode
 
         /// <summary>Modifier 항목의 특수 ID다. 특정 룬 대신 쓰면 엘리트 Modifier 등급표로 등급·종족을 정한다.</summary>
         public const string ELITE_MODIFIER_ENTRY_ID = "eliteModifier";
+        public const string RANDOM_ELEMENT_ENTRY_ID = "randomElement";
+        public const string RANDOM_BEHAVIOR_ENTRY_ID = "randomBehavior";
 
         [Header("드롭 테이블 목록")]
         [SerializeField] private DropTableDefinition[] _dropTables;
@@ -195,14 +197,16 @@ namespace RuneCode
                 }
                 else if (entry.Type == TYPE_ELEMENT)
                 {
-                    if (!GameData.Runes.TryGet(entry.Id, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_ELEMENT || rune.IsDisabled)
+                    if (entry.Id != RANDOM_ELEMENT_ENTRY_ID && (!GameData.Runes.TryGet(entry.Id, out RuneDefinition rune)
+                        || rune.Category != SpellGrammar.CATEGORY_ELEMENT || rune.IsDisabled))
                         errors.Add(path + "._id 비활성이 아니고 element 카테고리인 룬이 없습니다: " + entry.Id);
                     if (!string.IsNullOrEmpty(entry.Grade)) errors.Add(path + "._grade 속성 항목에는 등급을 넣지 않습니다: " + entry.Id + " " + entry.Grade);
                     if (entry.Count < 1) errors.Add(path + "._count 수량은 1 이상이어야 합니다.");
                 }
                 else if (entry.Type == TYPE_BEHAVIOR)
                 {
-                    if (!GameData.Runes.TryGet(entry.Id, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled)
+                    if (entry.Id != RANDOM_BEHAVIOR_ENTRY_ID && (!GameData.Runes.TryGet(entry.Id, out RuneDefinition rune)
+                        || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled))
                         errors.Add(path + "._id 비활성이 아니고 behavior 카테고리인 룬이 없습니다: " + entry.Id);
                     // 등급이 비어 있으면 시뮬레이션이 스테이지 행동 등급 확률로 정한다.
                     if (!string.IsNullOrEmpty(entry.Grade) && !GameData.Runes.BehaviorGradeOrder.Contains(entry.Grade))

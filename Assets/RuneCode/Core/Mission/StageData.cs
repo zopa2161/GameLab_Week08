@@ -258,6 +258,14 @@ namespace RuneCode
         /// <summary>지급할 등급(C·B·A·S)이다. 비어 있으면 지급 시 그 Modifier에서 값이 있는 가장 낮은 등급을 쓴다.</summary>
         public string Grade => _grade;
         public int Count => _count;
+
+        /// <summary>드롭 추첨으로 정한 룬 ID·등급·수량을 결과 화면과 정산에서 사용할 보상으로 만든다.</summary>
+        public ModifierRewardDefinition(string runeId, string grade, int count)
+        {
+            _runeId = runeId;
+            _grade = grade;
+            _count = count;
+        }
     }
 
     [Serializable]

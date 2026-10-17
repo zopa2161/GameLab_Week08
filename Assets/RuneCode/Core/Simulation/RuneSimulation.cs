@@ -65,6 +65,8 @@ namespace RuneCode
         private readonly List<EnemyStatusEffect> _enemyStatuses = new List<EnemyStatusEffect>();
         private readonly Dictionary<int, EnemyStatusEffect> _statusIndex = new Dictionary<int, EnemyStatusEffect>();
         private readonly Queue<DamageSample> _damageWindow = new Queue<DamageSample>();
+        private readonly Dictionary<SpellAction, ActionCombatStats> _actionCombatStats = new Dictionary<SpellAction, ActionCombatStats>();
+        private readonly Dictionary<SpellAction, int> _actionLogSlots = new Dictionary<SpellAction, int>();
         private readonly Dictionary<string, int> _killCounts = new Dictionary<string, int>();
         private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
         private SimVector? _aimPoint;
@@ -930,7 +932,7 @@ namespace RuneCode
             // 호출 노드에 붙은 효과의 비용 배율은 호출된 마법의 각 노드 비용에 곱한다.
             SpellContext callContext = new SpellContext(context.Origin, context.Direction, context.Target,
                 context.FromEvent, context.NoiseElement, modifiers, events, context.Repeat, context.CostMultiplier * action.EnergyMultiplier,
-                context.Caster, context.SourceEntityId, context.DirectionOffset, context.RandomState, context.IsManaPrepaid);
+                context.Caster, context.SourceEntityId, context.DirectionOffset, context.RandomState, context.IsManaPrepaid, context.OnHitSource);
             for (int instance = 0; instance < action.Count; instance++)
             {
                 double spread = action.Count > 1
@@ -939,7 +941,7 @@ namespace RuneCode
                 SpellContext instanceContext = new SpellContext(callContext.Origin, callContext.Direction.Rotated(spread),
                     callContext.Target, callContext.FromEvent, callContext.NoiseElement, callContext.Modifiers, callContext.CallEvents, callContext.Repeat,
                     callContext.CostMultiplier, callContext.Caster, callContext.SourceEntityId,
-                    callContext.DirectionOffset + spread, callContext.RandomState, callContext.IsManaPrepaid);
+                    callContext.DirectionOffset + spread, callContext.RandomState, callContext.IsManaPrepaid, callContext.OnHitSource);
                 ExecuteRootBranches(action.CalledSpell.Root, instanceContext, tracker);
             }
         }
@@ -1022,6 +1024,7 @@ namespace RuneCode
                 var entity = new SimulationSpellEntity(++_nextEntityId, action, stats, element, position, direction,
                     context.FromEvent, context.Origin, angle, context.NoiseElement, _balance.Sim.SpellVisualSeconds, warmup,
                     context.CallEvents, context.Modifiers, context.CostMultiplier, context.Caster);
+                RecordActionSpawn(action, context);
                 _spellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _spellEntities.Count);
                 if (channel != null) ((BeamBehaviorRuntime.BeamState)entity.BehaviorState).Attach(channel);
                 behavior.OnSpawned(this, entity);
@@ -1178,7 +1181,7 @@ namespace RuneCode
         internal void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot, SimVector pushDirection)
         {
             double minimumDamage = entity.Behavior.TracksDirectHit && entity.Stats.Pierce > 0 && !isDot ? 1d : 0d;
-            double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true, minimumDamage);
+            double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true, minimumDamage, entity.Action);
             if (IsSeparationFixed(enemy)) enemy.CancelDisplacement();
             else if (actual > 0 && enemy.IsAlive && entity.Stats.KnockbackDistance > 0)
             {
@@ -1199,7 +1202,7 @@ namespace RuneCode
                 });
                 for (int i = 0; i < Math.Min(arc.ArcTargets, chain.Count); i++)
                 {
-                    actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true);
+                    actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action);
                     _arcLinks.Add(new ArcLink(enemy.Position, chain[i].Position, _tick));
                 }
             }
@@ -1212,10 +1215,11 @@ namespace RuneCode
         /// </summary>
         internal void RaiseHitEvent(SimulationSpellEntity entity, SimVector position, SimulationEnemy target)
         {
+            GetActionCombatStats(entity.Action).RecordOnHit();
             bool tracksDirectHit = entity.Behavior.TracksDirectHit;
             if (tracksDirectHit) entity.HasDirectHit = true;
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
-                entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id);
+                entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action);
             bool isFirstEvent = tracksDirectHit && entity.TryMarkFirstEvent();
             Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
@@ -1253,7 +1257,8 @@ namespace RuneCode
             {
                 IReadOnlyList<SpellAction> actions = isHit ? current.OnHit : current.OnExpire;
                 SpellContext context = new SpellContext(origin, GetEventDirection(entity, origin, target), target, true, entity.CastNoiseElement,
-                    current.ParentModifiers, current.Parent, null, current.ParentCostMultiplier, entity.Caster, entity.Id);
+                    current.ParentModifiers, current.Parent, null, current.ParentCostMultiplier, entity.Caster, entity.Id,
+                    onHitSource: isHit ? entity.Action : null);
                 Execute(actions, context.WithManaPrepaid(isHit));
                 if (isFirstEvent) Execute(current.OnFirstHitOrExpire, context);
             }
@@ -1261,7 +1266,7 @@ namespace RuneCode
 
         /// <summary>피해에 적응·이지스 방패와 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
         private double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
-            double minimumDamage = 0d)
+            double minimumDamage = 0d, SpellAction sourceAction = null)
         {
             if (!enemy.IsAlive || enemy.IsPatching) return 0;
             double actual = damage * _damageMultiplier * Adaptation.GetMultiplier(element, form);
@@ -1277,6 +1282,7 @@ namespace RuneCode
             if (applyStatus) ApplyStatus(enemy, element, form, noise, damage);
             if (actual > 0)
             {
+                if (sourceAction != null) GetActionCombatStats(sourceAction).RecordDamage(actual, !applyStatus);
                 enemy.SetDamageTags(element, form);
                 _totalDamage += actual; _rollingDamage += actual; _damageWindow.Enqueue(new DamageSample(_tick, actual));
                 _damageNumbers.Add(new DamageNumber(enemy.Position, actual, element, _tick));
@@ -1858,64 +1864,17 @@ namespace RuneCode
             return result;
         }
 
-        /// <summary>드롭 테이블을 결정적 난수로 추첨해 스크랩은 배율이 적용된 오브로, 모디·속성·행동은 바닥 드롭 개체로 처치 위치에 떨군다.</summary>
+        /// <summary>처치 드롭과 같은 테이블·결정적 난수로 완료 스테이지의 클리어 룬 1개를 추첨한다.</summary>
+        public DropRoll DrawClearRuneReward()
+        {
+            return RuneRewardRoller.DrawRune(_drops.Get(_drops.NormalEnemyDrop.DropTable), _stageNumber, _eliteDrops, NextRandom);
+        }
+
+        /// <summary>처치 위치에 놓을 룬의 분류·종류·등급을 추첨해 드롭 개체 1개를 생성한다.</summary>
         private void RollDropTable(DropTableDefinition table, SimVector position)
         {
-            foreach (DropRoll roll in table.Roll(NextRandom))
-            {
-                if (roll.Type == DropCatalog.TYPE_FRAGMENTS) _orbs.Add(new FragmentOrb(position, ScaleKillScrap(roll.Fragments)));
-                else if (roll.Type == DropCatalog.TYPE_MODIFIER) DropModifier(roll, position);
-                else if (roll.Type == DropCatalog.TYPE_ELEMENT) _itemDrops.Add(new SimulationItemDrop(roll.RuneId, "", roll.Count, position));
-                else if (roll.Type == DropCatalog.TYPE_BEHAVIOR) DropBehavior(roll, position);
-            }
-        }
-
-        /// <summary>행동 추첨 결과를 바닥 드롭 개체로 만든다. 항목 등급이 비어 있으면 현재 스테이지의 행동 등급 확률로 굴리고, 확률이 없는 스테이지(보스)면 드롭하지 않는다.</summary>
-        private void DropBehavior(DropRoll roll, SimVector position)
-        {
-            string grade = roll.Grade;
-            if (string.IsNullOrEmpty(grade))
-            {
-                IReadOnlyList<EliteModifierGradeChance> chances = _eliteDrops.GetBehaviorGradeChances(_stageNumber);
-                if (chances == null) return;
-                grade = RollSlotGrade(chances);
-                if (grade == null) return;
-            }
-            _itemDrops.Add(new SimulationItemDrop(roll.RuneId, grade, roll.Count, position));
-        }
-
-        /// <summary>Modifier 추첨 결과를 바닥 드롭 개체로 만든다. eliteModifier 항목은 등급과 종류를 등급표로 정하고, 지정 Modifier 항목은 항목 등급(없으면 최저 등급)을 쓴다.</summary>
-        private void DropModifier(DropRoll roll, SimVector position)
-        {
-            bool isEliteEntry = roll.RuneId == DropCatalog.ELITE_MODIFIER_ENTRY_ID;
-            string grade = isEliteEntry ? RollEliteModifierGrade()
-                : string.IsNullOrEmpty(roll.Grade) ? GameData.ModifierGrades.GetLowestAvailableGrade(roll.RuneId) : roll.Grade;
-            if (isEliteEntry && grade == null) return;
-            string runeId = isEliteEntry ? PickEliteModifier(grade) : roll.RuneId;
-            if (runeId == null) return;
-            _itemDrops.Add(new SimulationItemDrop(runeId, grade, roll.Count, position));
-        }
-
-        /// <summary>현재 스테이지의 등급 확률표(C→S 순서)로 엘리트 Modifier 등급을 1회 추첨한다. 보스 스테이지처럼 등급표가 없으면 null을 반환하고 난수를 쓰지 않는다.</summary>
-        private string RollEliteModifierGrade()
-        {
-            IReadOnlyList<EliteModifierGradeChance> chances = _eliteDrops.GetGradeChances(_stageNumber);
-            if (chances == null || chances.Count == 0) return null;
-            double choice = NextRandom() * 100;
-            foreach (EliteModifierGradeChance chance in chances)
-            {
-                choice -= chance.Percent;
-                if (choice <= 0) return chance.Grade;
-            }
-            return chances[chances.Count - 1].Grade;
-        }
-
-        /// <summary>등급 값이 null이 아닌 Modifier 중 균등 추첨으로 하나를 고른다. 후보가 없으면 null을 반환한다.</summary>
-        private string PickEliteModifier(string grade)
-        {
-            IReadOnlyList<string> candidates = _eliteDrops.GetModifiersWithGrade(grade);
-            if (candidates.Count == 0) return null;
-            return candidates[(int)(NextRandom() * candidates.Count)];
+            DropRoll roll = RuneRewardRoller.DrawRune(table, _stageNumber, _eliteDrops, NextRandom);
+            _itemDrops.Add(new SimulationItemDrop(roll.RuneId, roll.Grade, roll.Count, position));
         }
 
         /// <summary>스크랩과 같은 반경에서 Modifier를 끌어당기고 플레이어에게 도착하면 누적 목록과 미지급 목록에 넣는다.</summary>
@@ -2188,6 +2147,129 @@ namespace RuneCode
             return false;
         }
 
+        /// <summary>장착된 행동을 순회하고 노드별 실제 피해와 OnHit 후속 생성 누계를 로그용 복사본으로 반환한다.</summary>
+        public IReadOnlyList<Dictionary<string, object>> GetActionCombatLogSnapshot()
+        {
+            var visited = new HashSet<SpellAction>();
+            for (int slot = 0; slot < _loadout.Length; slot++)
+                if (_loadout[slot] != null) RegisterActionLogNodes(_loadout[slot].Root, slot, visited);
+            var result = new List<Dictionary<string, object>>();
+            foreach (KeyValuePair<SpellAction, ActionCombatStats> entry in _actionCombatStats)
+            {
+                SpellAction action = entry.Key;
+                ActionCombatStats stats = entry.Value;
+                var targets = new List<Dictionary<string, object>>();
+                foreach (KeyValuePair<SpellAction, long> target in stats.OnHitTargets)
+                    targets.Add(new Dictionary<string, object>
+                    {
+                        ["action_key"] = GetActionCombatStats(target.Key).Key,
+                        ["node_id"] = target.Key.NodeId,
+                        ["spawn_count"] = target.Value,
+                    });
+                result.Add(new Dictionary<string, object>
+                {
+                    ["action_key"] = stats.Key,
+                    ["node_id"] = action.NodeId,
+                    ["loadout_slot"] = _actionLogSlots.TryGetValue(action, out int slot) ? slot : -1,
+                    ["action_type"] = action.Form ?? action.Kind,
+                    ["element"] = action.Element,
+                    ["mods"] = action.Mods,
+                    ["attached_node_ids"] = action.AttachedNodeIds,
+                    ["spawn_count"] = stats.SpawnCount,
+                    ["damage_dealt"] = stats.Damage,
+                    ["status_damage"] = stats.StatusDamage,
+                    ["damage_count"] = stats.DamageCount,
+                    ["hit_count"] = stats.HitCount,
+                    ["on_hit_events"] = stats.OnHitEvents,
+                    ["on_hit_spawn_count"] = stats.OnHitSpawnCount,
+                    ["triggered_by_on_hit_count"] = stats.TriggeredByOnHitCount,
+                    ["on_hit_targets"] = targets,
+                });
+            }
+            return result;
+        }
+
+        /// <summary>장착 슬롯의 연결 분기를 순회해 미발동 생성 행동도 0으로 등록하고 노드의 슬롯을 연결한다.</summary>
+        private void RegisterActionLogNodes(IReadOnlyList<SpellAction> actions, int slot, HashSet<SpellAction> visited)
+        {
+            foreach (SpellAction action in actions)
+            {
+                if (!visited.Add(action)) continue;
+                _actionLogSlots[action] = slot;
+                if (action.Kind == "spawn") GetActionCombatStats(action);
+                foreach (IReadOnlyList<SpellAction> branch in action.Branches) RegisterActionLogNodes(branch, slot, visited);
+                if (action.CalledSpell != null) RegisterActionLogNodes(action.CalledSpell.Root, slot, visited);
+            }
+        }
+
+        /// <summary>컴파일 행동 인스턴스의 전투 누계를 반환하고 처음 관측하면 로그 내 고유 키로 생성한다.</summary>
+        private ActionCombatStats GetActionCombatStats(SpellAction action)
+        {
+            if (!_actionCombatStats.TryGetValue(action, out ActionCombatStats stats))
+            {
+                stats = new ActionCombatStats("action-" + (_actionCombatStats.Count + 1).ToString(CultureInfo.InvariantCulture));
+                _actionCombatStats.Add(action, stats);
+            }
+            return stats;
+        }
+
+        /// <summary>실제로 생성된 개체만 세고 OnHit 문맥이면 원본 행동과 후속 행동의 연결 누계를 함께 갱신한다.</summary>
+        private void RecordActionSpawn(SpellAction action, SpellContext context)
+        {
+            ActionCombatStats stats = GetActionCombatStats(action);
+            stats.RecordSpawn(context.OnHitSource != null);
+            if (context.OnHitSource != null) GetActionCombatStats(context.OnHitSource).RecordOnHitTarget(action);
+        }
+
+        private sealed class ActionCombatStats
+        {
+            private readonly string _key;
+            private readonly Dictionary<SpellAction, long> _onHitTargets = new Dictionary<SpellAction, long>();
+            private long _spawnCount;
+            private long _damageCount;
+            private long _hitCount;
+            private long _onHitEvents;
+            private long _onHitSpawnCount;
+            private long _triggeredByOnHitCount;
+            private double _damage;
+            private double _statusDamage;
+            public string Key => _key;
+            public long SpawnCount => _spawnCount;
+            public long DamageCount => _damageCount;
+            public long HitCount => _hitCount;
+            public long OnHitEvents => _onHitEvents;
+            public long OnHitSpawnCount => _onHitSpawnCount;
+            public long TriggeredByOnHitCount => _triggeredByOnHitCount;
+            public double Damage => _damage;
+            public double StatusDamage => _statusDamage;
+            public IReadOnlyDictionary<SpellAction, long> OnHitTargets => _onHitTargets;
+
+            /// <summary>로그 내 행동 키를 저장하고 빈 전투 누계를 만든다.</summary>
+            public ActionCombatStats(string key) { _key = key; }
+
+            /// <summary>실제 생성 수와 OnHit 유래 생성 수를 증가시킨다.</summary>
+            public void RecordSpawn(bool isOnHit) { _spawnCount++; if (isOnHit) _triggeredByOnHitCount++; }
+
+            /// <summary>원본 행동의 실제 OnHit 이벤트 수를 증가시킨다.</summary>
+            public void RecordOnHit() { _onHitEvents++; }
+
+            /// <summary>OnHit으로 실제 생성된 후속 행동 개체 수를 대상별로 증가시킨다.</summary>
+            public void RecordOnHitTarget(SpellAction target)
+            {
+                _onHitSpawnCount++;
+                _onHitTargets.TryGetValue(target, out long count);
+                _onHitTargets[target] = count + 1;
+            }
+
+            /// <summary>적 HP에서 실제 차감된 피해와 양수 피해 횟수를 누적하고 화상 피해를 별도로 구분한다.</summary>
+            public void RecordDamage(double actual, bool isStatus)
+            {
+                _damage += actual; _damageCount++;
+                if (isStatus) _statusDamage += actual;
+                else _hitCount++;
+            }
+        }
+
         private readonly struct SpellContext
         {
             private readonly SimVector _origin;
@@ -2204,6 +2286,8 @@ namespace RuneCode
             private readonly double _directionOffset;
             private readonly SpellRandomState _randomState;
             private readonly bool _isManaPrepaid;
+            private readonly SpellAction _onHitSource;
+            public SpellAction OnHitSource => _onHitSource;
             public SimVector Origin => _origin;
             public SimVector Direction => _direction;
             public SimulationEnemy Target => _target;
@@ -2233,30 +2317,31 @@ namespace RuneCode
             public SpellContext(SimVector origin, SimVector direction, SimulationEnemy target, bool fromEvent,
                 string noiseElement, SpellModifierValues modifiers = null, SpellEventScope callEvents = null, RepeatScope repeat = null,
                 double costMultiplier = 1d, SimulationPlayer caster = null, int sourceEntityId = 0,
-                double directionOffset = 0, SpellRandomState randomState = null, bool isManaPrepaid = false)
+                double directionOffset = 0, SpellRandomState randomState = null, bool isManaPrepaid = false, SpellAction onHitSource = null)
             {
                 _origin = origin; _direction = direction; _target = target; _fromEvent = fromEvent; _noiseElement = noiseElement;
                 _modifiers = modifiers ?? SpellModifierValues.None; _callEvents = callEvents; _repeat = repeat; _costMultiplier = costMultiplier;
                 _caster = caster; _sourceEntityId = sourceEntityId; _directionOffset = directionOffset;
                 _randomState = randomState ?? new SpellRandomState(noiseElement);
                 _isManaPrepaid = isManaPrepaid;
+                _onHitSource = onHitSource;
             }
 
             /// <summary>소속 Repeat만 바꾼 문맥을 반환한다.</summary>
             public SpellContext WithRepeat(RepeatScope repeat)
-                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid);
+                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
 
             /// <summary>실행 위치만 바꾼 문맥을 반환한다.</summary>
             public SpellContext WithOrigin(SimVector origin)
-                => new SpellContext(origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid);
+                => new SpellContext(origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
 
             /// <summary>시전 시점 문맥의 원점과 방향을 완료 순간 값으로 바꾼 복사본을 반환한다.</summary>
             public SpellContext WithOriginAndDirection(SimVector origin, SimVector direction)
-                => new SpellContext(origin, direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid);
+                => new SpellContext(origin, direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
 
             /// <summary>위치·예약·호출 문맥을 유지하고 onHit 전력 선결제 여부만 바꾼 복사본을 반환한다.</summary>
             public SpellContext WithManaPrepaid(bool isManaPrepaid)
-                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, isManaPrepaid);
+                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, isManaPrepaid, _onHitSource);
         }
 
         /// <summary>같은 루트 시전에서 첫 Noise 효과 시 정한 원소를 공유한다.</summary>

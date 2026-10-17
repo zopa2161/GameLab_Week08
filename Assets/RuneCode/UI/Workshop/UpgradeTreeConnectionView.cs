@@ -58,5 +58,13 @@ namespace RuneCode
         {
             _visual.Show(isLearned ? 1 : 0);
         }
+
+        /// <summary>런타임 연결선 생성 시 양 끝 노드를 지정하고 선 위치를 즉시 갱신한다.</summary>
+        public void Configure(UpgradeTreeNodeView source, UpgradeTreeNodeView target)
+        {
+            _source = source;
+            _target = target;
+            RefreshLayout();
+        }
     }
 }
