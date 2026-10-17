@@ -217,16 +217,14 @@ namespace RuneCode
         {
             foreach (SimulationItemDrop drop in _simulation.TakeNewPickedItems())
             {
-                if (_session.IsTestMode)
+                LocalTelemetry.RecordUsabilityEvent("combat_item_pickup", "combat", new Dictionary<string, object>
                 {
-                    LocalTelemetry.RecordUsabilityEvent("combat_item_pickup", "combat", new Dictionary<string, object>
-                    {
-                        ["rune_id"] = drop.RuneId,
-                        ["grade"] = drop.Grade,
-                        ["count"] = drop.Count,
-                    });
-                    continue;
-                }
+                    ["rune_id"] = drop.RuneId,
+                    ["grade"] = drop.Grade,
+                    ["count"] = drop.Count,
+                    ["inventory_grant_enabled"] = !_session.IsTestMode,
+                });
+                if (_session.IsTestMode) continue;
                 _session.GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup");
                 _pickedModifiers.Add(drop);
                 AddModifierReward(drop.RuneId, drop.Grade, drop.Count);

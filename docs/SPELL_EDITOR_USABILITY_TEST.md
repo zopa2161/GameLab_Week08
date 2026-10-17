@@ -325,3 +325,8 @@ on_hit_events는 게임의 실제 RaiseHitEvent 발생 수로 벽·방패 접촉
 
 
 2026-10-17 다른 PC 빌드의 수집 설정: 프로젝트 StreamingAssets의 기본 전송 설정이 비활성이라 바탕화면 PlayLogWorkbench가 없는 팀원 PC의 빌드에서 전송기가 연결되지 않는 경로를 확인했다. 프로젝트 공용 LogUploadSettings.json을 현재 고정 수집함의 전송 전용 설정으로 활성화했다. 관리자 수신·조회 키는 포함하지 않는다. Windows 후처리는 바탕화면 설정이 없으면 프로젝트 공용 설정을 검증·복사하며 누락·비활성·잘못된 설정이면 성공처럼 넘어가지 않고 BuildFailedException으로 안내한다. 다른 PC에는 수정한 설정과 후처리 스크립트를 함께 공유해야 한다. 기존 Windows 빌드는 실행 파일과 같은 위치의 게임명_Data/StreamingAssets/LogUploadSettings.json을 올바른 전송 설정으로 교체하고 다시 실행하면 이전에 로컬 저장된 완료 세션도 재전송 대상이 된다. 현재 세션의 전송은 정상 종료 때 시도한다. 수신기 상태는 ready, 전송 실패·대기 0으로 확인했고 후처리 C# 컴파일은 통과했다. 다른 PC 실행 및 Unity 빌드는 수행하지 않았다.
+
+
+2026-10-17 로그 모드 조건 재점검: WorkshopPresenter의 편집 구간 시작·종료에서 IsTestMode 제한을 제거해 활성 로그 세션이 있는 일반·테스트 모드 모두 editor_enter/editor_exit를 남긴다. MissionRun의 combat_item_pickup을 테스트 분기 앞으로 옮겨 두 모드에서 기록하고 inventory_grant_enabled로 해당 모드의 실제 지급 활성 여부를 구분한다. 테스트의 고정 보유량 유지와 일반 모드의 GrantRune 지급은 그대로다. module_acquired는 실제 소지량 증가, clear_reward_offered/selected는 실제 후보 제시·선택이 있는 경우에만 기록하며 테스트 모드에 없는 보상을 가짜로 생성하지 않는다. 현재 트리에서 없어진 UnplacedNodes를 참조하던 스킬트리 로그를 현재 Nodes 목록으로 수정했다.
+
+점검 결과: 최신 Grammar·Core·게임 소스를 별도 경로에 C# 컴파일해 통과했고 빌드 후처리도 컴파일 확인했다. 기존 입력 26파일의 JSON 파싱 오류·역행 이벤트 순번 0, 전투 종료 105건 중 행동 누계 24건이며 이전 빌드에 누계가 없는 것은 소급 생성하지 않는다. 양쪽 전투 종료 페이로드가 CSV 허용 열과 일치한다. 프로젝트 공용 전송 설정의 활성/HTTPS/전송 키 길이와 PC 수신 ready·실패/대기 0을 확인했다. Unity 플레이·게임 빌드·다른 PC의 새 빌드 수신은 미실행이다. 전투 도중 종료 시 incomplete 최소 기록만 남는 점, 현재 combat_click 전용 발행이 없는 점, 상세 개별 생성·적중 로그가 없는 점은 기존 제한으로 남는다. 최신 변경은 사용자의 새 빌드 이후 검증해야 한다.
