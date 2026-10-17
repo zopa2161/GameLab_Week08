@@ -564,7 +564,7 @@ namespace RuneCode
             PersistProgress();
         }
 
-        /// <summary>마법을 저장·컴파일하고 장착 가능하면 시전할 마법을 반환한다. 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
+        /// <summary>마법을 저장·컴파일하고 RAM과 최대 전력 제한을 만족하면 출격할 마법을 반환한다. 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
         public bool TryPrepareMission(out CompiledSpell spell)
         {
             _spells.Save();
@@ -575,7 +575,14 @@ namespace RuneCode
                 spell = null;
                 return false;
             }
-            spell = _spells.CompileResult.Spell;
+            CompiledSpell preparedSpell = _spells.CompileResult.Spell;
+            if (preparedSpell.EnergyCost > MaxEnergy)
+            {
+                SetStatusText(string.Format(GameData.L("editor.energyBlocked"), preparedSpell.EnergyCost, MaxEnergy));
+                spell = null;
+                return false;
+            }
+            spell = preparedSpell;
             return true;
         }
 
