@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -20,11 +21,13 @@ namespace RuneCode
         private readonly RectTransform _blocker;
         private readonly Button _openButton;
         private readonly Button _synthesizeButton;
+        private readonly Button _emptySlotTemplate;
         private readonly Button[] _slotButtons = new Button[RuneSynthesisRules.MATERIAL_COUNT];
         private readonly string[] _materials = new string[RuneSynthesisRules.MATERIAL_COUNT];
         private readonly TextMeshProUGUI _hint;
         private readonly RectTransform _resultOverlay;
-        private readonly TextMeshProUGUI _resultText;
+        private readonly RectTransform _resultContent;
+        private readonly Dictionary<string, UiRow> _resultRows = new Dictionary<string, UiRow>();
         private string _category;
         private string _grade;
         private bool _isProcessing;
@@ -42,6 +45,7 @@ namespace RuneCode
             _palette = palette;
             _view = view;
             UiFactory factory = view.CreateSynthesisUi(out RectTransform paletteRect, out RectTransform scroll);
+            _emptySlotTemplate = factory.ButtonPrefab.GetComponent<Button>();
             scroll.offsetMin += new Vector2(0f, PALETTE_BUTTON_SPACE);
             _openButton = factory.Button(paletteRect, 10, 0, 170, 30, "룬 합성", Open, 13, "OpenRuneSynthesis");
             RectTransform openRect = (RectTransform)_openButton.transform;
@@ -60,14 +64,20 @@ namespace RuneCode
             RectTransform panel = factory.Panel(_blocker, 0, 40, 400, 400, "RuneSynthesis");
             panel.GetComponent<Image>().raycastTarget = true;
             factory.Text(panel, 16, 16, 270, 26, "룬 합성", 20);
-            factory.Button(panel, 320, 14, 64, 28, "닫기", Close, 12);
-            factory.Text(panel, 16, 52, 368, 42, "같은 분류·등급의 룬 3개로\n한 등급 높은 무작위 룬 1개를 만듭니다.", 12);
+            Button closeButton = factory.Button(panel, 320, 14, 64, 28, "닫기", Close, 12);
+            Image closeImage = (Image)closeButton.targetGraphic;
+            closeImage.sprite = Resources.Load<Sprite>("RuneCode/UI/Skins/ButtonDestructive");
+            factory.Text(panel, 16, 52, 368, 42, "같은 분류·등급 3개로 무작위 룬 1개를 만듭니다.\nC·B·A는 한 등급 위로, S는 S로 합성됩니다.", 12);
             Vector2[] positions = { new Vector2(145, 100), new Vector2(20, 260), new Vector2(270, 260) };
             for (int index = 0; index < _slotButtons.Length; index++)
             {
                 int slot = index;
                 _slotButtons[index] = factory.Button(panel, positions[index].x, positions[index].y,
                     110, 58, "비어있음", () => OpenSlotPicker(slot), 12, "SynthesisSlot" + index);
+                EventTrigger trigger = _slotButtons[index].gameObject.AddComponent<EventTrigger>();
+                var entry = new EventTrigger.Entry { eventID = EventTriggerType.PointerClick };
+                entry.callback.AddListener(data => OnSlotPointerClick(slot, data));
+                trigger.triggers.Add(entry);
             }
             _synthesizeButton = factory.Button(panel, 145, 216, 110, 40, "합성", Synthesize, 15, "Synthesize");
             _hint = factory.Text(panel, 16, 336, 368, 56, "", 12);
@@ -82,11 +92,25 @@ namespace RuneCode
             dismiss.targetGraphic = resultShade;
             dismiss.transition = Selectable.Transition.None;
             dismiss.onClick.AddListener(DismissResult);
-            _resultText = factory.Text(_resultOverlay, 0, 0, 350, 130, "", 18);
-            _resultText.alignment = TextAlignmentOptions.Center;
-            _resultText.richText = true;
-            _resultText.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            _resultText.rectTransform.anchorMin = _resultText.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _resultContent = UiFactory.Rect(_resultOverlay, "SynthesisResultContent", 0, 0, 320, 150);
+            _resultContent.pivot = new Vector2(0.5f, 0.5f);
+            _resultContent.anchorMin = _resultContent.anchorMax = new Vector2(0.5f, 0.5f);
+            factory.Text(_resultContent, 0, 0, 320, 28, "합성 완료", 18).alignment = TextAlignmentOptions.Center;
+            string[] resultCategories = { SpellGrammar.CATEGORY_BEHAVIOR, SpellGrammar.CATEGORY_MODIFIER };
+            foreach (string category in resultCategories)
+            {
+                UiRow row = UnityEngine.Object.Instantiate(view.GetSynthesisRowPrefab(category), _resultContent, false);
+                row.name = "SynthesisResult" + category;
+                RectTransform rect = (RectTransform)row.transform;
+                rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
+                rect.pivot = new Vector2(0f, 1f);
+                rect.anchoredPosition = new Vector2(75f, -40f);
+                rect.sizeDelta = new Vector2(170f, SpellPalettePresenter.ROW_HEIGHT);
+                row.Label.font = view.Font;
+                row.gameObject.SetActive(false);
+                _resultRows.Add(category, row);
+            }
+            factory.Text(_resultContent, 0, 108, 320, 40, "아무 곳이나 클릭하면 닫힙니다.", 14).alignment = TextAlignmentOptions.Center;
             _resultOverlay.gameObject.SetActive(false);
             _blocker.gameObject.SetActive(false);
             RefreshAvailability();
@@ -153,6 +177,18 @@ namespace RuneCode
             rect.offsetMax = Vector2.zero;
         }
 
+        /// <summary>팔레트 또는 빈 슬롯 템플릿의 배경 스프라이트·색·버튼 상태색을 슬롯에 적용한다.</summary>
+        private static void ApplySlotStyle(Button slot, Button template)
+        {
+            Image target = (Image)slot.targetGraphic;
+            Image source = (Image)template.targetGraphic;
+            target.sprite = source.sprite;
+            target.color = source.color;
+            target.type = source.type;
+            target.pixelsPerUnitMultiplier = source.pixelsPerUnitMultiplier;
+            slot.colors = template.colors;
+        }
+
         /// <summary>지정 룬·등급에 대해 현재 슬롯들이 예약한 수량을 반환한다.</summary>
         private int ReservedCount(string runeId, string grade)
         {
@@ -166,7 +202,7 @@ namespace RuneCode
         private void AddFirstEmpty(string runeId, string grade)
         {
             int index = Array.FindIndex(_materials, string.IsNullOrEmpty);
-            if (index < 0) { _hint.text = "슬롯이 가득 찼습니다. 슬롯을 눌러 교체하거나 비우세요."; return; }
+            if (index < 0) { _hint.text = "슬롯이 가득 찼습니다. 좌클릭으로 교체하거나 우클릭으로 비우세요."; return; }
             SelectMaterial(index, runeId, grade);
         }
 
@@ -188,6 +224,14 @@ namespace RuneCode
             if (Array.TrueForAll(_materials, string.IsNullOrEmpty)) { _category = null; _grade = null; }
             _palette.SetSynthesisFilter(_category, _grade);
             RefreshSlots();
+        }
+
+        /// <summary>지정 슬롯의 우클릭이면 선택 팝업 없이 재료 예약을 해제하고 수량·필터·표시를 갱신한다.</summary>
+        private void OnSlotPointerClick(int index, BaseEventData data)
+        {
+            if (data is PointerEventData pointer && pointer.button == PointerEventData.InputButton.Right
+                && !_ui.IsPopupOpen && _materials[index] != null)
+                SelectMaterial(index, null, null);
         }
 
         /// <summary>기존 빠른 룬 선택창에 슬롯 교체와 비우기를 연결하고 현재 선택 제약을 유지한다.</summary>
@@ -248,14 +292,16 @@ namespace RuneCode
             for (int index = 0; index < _materials.Length; index++)
             {
                 string id = _materials[index];
+                ApplySlotStyle(_slotButtons[index], id == null ? _emptySlotTemplate
+                    : _view.GetSynthesisRowPrefab(GameData.Runes.Get(id).Category).Button);
                 _slotButtons[index].GetComponentInChildren<TextMeshProUGUI>().text = id == null ? "비어있음"
                     : ModifierGradeText.FormatName(GameData.Runes.Get(id).Name, _grade);
                 if (id == null || !_editor.TryGetModifierUsage(id, _grade, out int used, out int owned)
                     || owned - used < ReservedCount(id, _grade)) canSynthesize = false;
             }
             _synthesizeButton.interactable = canSynthesize;
-            _hint.text = _grade == null ? "사용 중인 룬과 S등급은 재료에서 제외됩니다.\n팔레트 또는 슬롯을 눌러 선택하세요."
-                : (_category == SpellGrammar.CATEGORY_BEHAVIOR ? "행동 " : "모드 ") + _grade + "등급만 선택할 수 있습니다.\n슬롯을 눌러 교체하거나 비울 수 있습니다.";
+            _hint.text = _grade == null ? "사용 중인 룬은 재료에서 제외됩니다.\n팔레트 또는 슬롯을 눌러 선택하세요."
+                : (_category == SpellGrammar.CATEGORY_BEHAVIOR ? "행동 " : "모드 ") + _grade + "등급만 선택할 수 있습니다.\n좌클릭: 교체 / 우클릭: 비우기";
         }
 
         /// <summary>세션에서 재고를 재검사해 교환·저장을 마치면 결과를 중앙에 표시하고 전체 화면의 다음 클릭을 소비한다.</summary>
@@ -272,12 +318,15 @@ namespace RuneCode
                     failure = error;
                     return;
                 }
-                _resultText.text = "합성 완료\n" + ModifierGradeText.FormatName(GameData.Runes.Get(resultId).Name, resultGrade)
-                    + "\n\n아무 곳이나 클릭하면 닫힙니다.";
+                RuneDefinition resultRune = GameData.Runes.Get(resultId);
+                foreach (KeyValuePair<string, UiRow> pair in _resultRows) pair.Value.gameObject.SetActive(pair.Key == resultRune.Category);
+                _editor.TryGetModifierUsage(resultId, resultGrade, out int used, out int owned);
+                _resultRows[resultRune.Category].Configure(SpellPalettePresenter.StockLabel(resultRune, resultGrade, owned - used, owned),
+                    SpellPalettePresenter.ROW_HEIGHT, DismissResult, 12);
                 _resultOverlay.SetAsLastSibling();
                 _resultOverlay.gameObject.SetActive(true);
                 EventSystem.current.SetSelectedGameObject(_resultOverlay.gameObject);
-                _resultText.rectTransform.position = _synthesizeButton.transform.position
+                _resultContent.position = _synthesizeButton.transform.position
                     + _synthesizeButton.transform.TransformVector(new Vector3(55f, -20f, 0f));
                 _palette.Refresh();
             }

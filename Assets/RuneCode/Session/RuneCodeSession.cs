@@ -586,7 +586,7 @@ namespace RuneCode
             PersistProgress();
         }
 
-        /// <summary>동일 분류·등급의 미사용 룬 3개를 다음 등급 무작위 룬으로 교환한다. 저장 실패 시 재고를 복구하고 오류를 반환한다.</summary>
+        /// <summary>동일 분류·등급의 미사용 룬 3개를 무작위 룬으로 교환한다. C·B·A는 승급하고 S는 S를 유지하며 저장 실패 시 재고를 복구한다.</summary>
         public bool TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
             out string resultId, out string resultGrade, out string error)
         {

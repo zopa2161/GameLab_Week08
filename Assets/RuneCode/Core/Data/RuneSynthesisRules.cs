@@ -9,11 +9,11 @@ namespace RuneCode
         public const int MATERIAL_COUNT = 3;
         private static readonly string[] GRADES = { "C", "B", "A", "S" };
 
-        /// <summary>재료 등급 바로 위 등급을 반환한다. 최고 등급이나 알 수 없는 등급이면 null이다.</summary>
+        /// <summary>재료의 합성 결과 등급을 반환한다. S는 S를 유지하고 알 수 없는 등급이면 null이다.</summary>
         public static string NextGrade(string grade)
         {
             int index = Array.IndexOf(GRADES, grade);
-            return index >= 0 && index < GRADES.Length - 1 ? GRADES[index + 1] : null;
+            return index >= 0 ? GRADES[Math.Min(index + 1, GRADES.Length - 1)] : null;
         }
 
         /// <summary>활성 행동·모드이고 실제로 지정 등급을 제공하는 룬인지 반환한다.</summary>

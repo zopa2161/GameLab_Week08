@@ -198,6 +198,12 @@ namespace RuneCode
             return new UiFactory(_font, _panelPrefab, _buttonPrefab);
         }
 
+        /// <summary>합성 슬롯과 결과 표시에서 재사용할 분류별 팔레트 행 프리팹을 반환한다.</summary>
+        public UiRow GetSynthesisRowPrefab(string category)
+        {
+            return RunePaletteRowBinding.Resolve(_categoryRowPrefabs, category, _runeRowPrefab);
+        }
+
         /// <summary>합성창이 열려 있으면 결과 안내 또는 창을 닫고 입력을 소비한다.</summary>
         public bool HandleSynthesisEscape() => _presenter != null && _presenter.HandleSynthesisEscape();
 

@@ -85,7 +85,7 @@ namespace RuneCode
                 _gradeButtons[index].GetComponent<TabButton>().SetSelected(grades[index] == grade);
         }
 
-        /// <summary>합성 재료 선택에서는 최고 등급을 제외하고 이미 정해진 등급이 있으면 필터 변경을 잠근다.</summary>
+        /// <summary>합성 재료의 등급이 정해졌으면 필터 변경을 잠그고 빈 상태에서는 S를 포함한 유효 등급을 허용한다.</summary>
         public void SetSynthesisGradeFilter(string lockedGrade)
         {
             IReadOnlyList<string> grades = GameData.ModifierGrades.GradeOrder;
