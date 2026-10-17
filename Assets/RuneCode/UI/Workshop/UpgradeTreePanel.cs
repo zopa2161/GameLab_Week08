@@ -4,21 +4,26 @@ using System.Collections.Generic;
 using UnityEngine;
 
 using TMPro;
-using UnityEngine.UI;
 
 namespace RuneCode
 {
     /// <summary>
-    /// 강화 트리 탭 View다. 배치 프리팹의 노드·연결선을 데이터 ID에 연결하고, 노드 클릭·포인터 진입을 알리며
+    /// 강화 트리 탭 View다. SO 배치 노드에서 노드·연결선을 생성해 데이터에 연결하고, 노드 클릭·포인터 진입을 알리며
     /// 요약·노드 상태·연결선 상태·정보 패널을 표시한다. 상태 계산과 구매는 UpgradeTreePresenter가 한다.
     /// </summary>
     public sealed class UpgradeTreePanel : MonoBehaviour
     {
         private const float INITIAL_ZOOM = 0.88f;
         private const float CONTENT_MARGIN = 42;
+        private const float CELL_SIZE = 150;
+        private static readonly Vector2 GRID_ORIGIN = new Vector2(400, -50);
 
         [Header("트리 데이터")]
         [SerializeField] private UpgradeTreeDefinition _definition;
+
+        [Header("생성 프리팹")]
+        [SerializeField] private UpgradeTreeNodeView _nodePrefab;
+        [SerializeField] private UpgradeTreeConnectionView _connectionPrefab;
 
         [Header("트리 화면")]
         [SerializeField] private TextMeshProUGUI _summary;
@@ -46,18 +51,66 @@ namespace RuneCode
         /// <summary>포인터가 노드에 들어오거나(true) 나갈 때(false) 노드 ID와 함께 알린다.</summary>
         public event Action<string, bool> NodeHovered;
 
-        /// <summary>프리팹에 배치한 노드를 SO의 ID에 연결하고 기존 위치를 유지해 화면과 연결선을 준비한다.</summary>
+        /// <summary>SO 배치 노드에서 노드·연결선 뷰를 생성해 데이터에 연결하고 화면과 연결선을 준비한다.</summary>
         public void Build()
         {
             _nodeViews.Clear();
             _hoverPanel.gameObject.SetActive(false);
-            foreach (UpgradeTreeNodeView view in _content.GetComponentsInChildren<UpgradeTreeNodeView>(true)) BindNode(view);
+            ClearGeneratedViews();
             foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
-                if (node != null && !_nodeViews.ContainsKey(node.Id))
-                    Debug.LogError("[UpgradeTree] 배치 프리팹에 노드가 없습니다: " + node.Id, this);
-            _connections = _content.GetComponentsInChildren<UpgradeTreeConnectionView>(true);
+                if (node != null) CreateNodeView(node);
+            CreateConnectionViews();
             ResetContent();
             foreach (UpgradeTreeConnectionView connection in _connections) connection.RefreshLayout();
+        }
+
+        /// <summary>이전 Build에서 생성한 노드·연결선 뷰를 제거해 재진입에 대비한다.</summary>
+        private void ClearGeneratedViews()
+        {
+            for (int index = _content.childCount - 1; index >= 0; index--)
+            {
+                Transform child = _content.GetChild(index);
+                if (child.GetComponent<UpgradeTreeNodeView>() != null || child.GetComponent<UpgradeTreeConnectionView>() != null)
+                    Destroy(child.gameObject);
+            }
+        }
+
+        /// <summary>배치 노드 하나의 뷰를 생성하고 데이터 ID와 격자 셀 좌표를 설정한 뒤 바인딩한다.</summary>
+        private void CreateNodeView(UpgradeTreeNodeDefinition node)
+        {
+            UpgradeTreeNodeView view = Instantiate(_nodePrefab, _content);
+            view.gameObject.name = node.Id;
+            view.ConfigureNodeId(node.Id);
+            ((RectTransform)view.transform).anchoredPosition = CellToAnchoredPosition(node.LayoutCell);
+            BindNode(view);
+        }
+
+        /// <summary>배치 노드의 선행 조건마다 연결선 뷰를 생성해 부모·자식 노드로 연결하고, 노드 뒤에 그려지도록 형제 순서를 맨 앞으로 보낸다.</summary>
+        private void CreateConnectionViews()
+        {
+            List<UpgradeTreeConnectionView> connections = new List<UpgradeTreeConnectionView>();
+            foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
+            {
+                if (node == null || node.Prerequisites.Count == 0 ||
+                    !_nodeViews.TryGetValue(node.Id, out UpgradeTreeNodeView targetView)) continue;
+                foreach (UpgradeTreePrerequisite prerequisite in node.Prerequisites)
+                {
+                    if (prerequisite == null ||
+                        !_nodeViews.TryGetValue(prerequisite.NodeId, out UpgradeTreeNodeView sourceView)) continue;
+                    UpgradeTreeConnectionView connection = Instantiate(_connectionPrefab, _content);
+                    connection.gameObject.name = sourceView.NodeId + " To " + targetView.NodeId;
+                    connection.transform.SetAsFirstSibling();
+                    connection.Configure(sourceView, targetView);
+                    connections.Add(connection);
+                }
+            }
+            _connections = connections.ToArray();
+        }
+
+        /// <summary>SO의 격자 셀을 콘텐츠 로컬 좌표로 변환한다.</summary>
+        private static Vector2 CellToAnchoredPosition(Vector2Int cell)
+        {
+            return GRID_ORIGIN + new Vector2(cell.x * CELL_SIZE, -cell.y * CELL_SIZE);
         }
 
         /// <summary>상단 요약 문구를 표시한다.</summary>
@@ -119,7 +172,7 @@ namespace RuneCode
             _hoverPanel.anchoredPosition = new Vector2(x, Mathf.Max(left.y, right.y) + 8);
         }
 
-        /// <summary>콘텐츠를 좌상단 기준·초기 배율로 되돌리고 모든 노드가 들어가는 크기로 맞춘다.</summary>
+        /// <summary>콘텐츠를 좌상단 기준·초기 배율로 되돌려 루트 노드를 화면 중앙에 두고, 모든 노드가 들어가는 크기로 맞춘다.</summary>
         private void ResetContent()
         {
             _content.anchorMin = _content.anchorMax = new Vector2(0, 1);
@@ -127,9 +180,16 @@ namespace RuneCode
             UpgradeTreeNodeDefinition root = null;
             foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
                 if (node != null && node.Prerequisites.Count == 0) { root = node; break; }
-            float rootCenter = root != null && _nodeViews.TryGetValue(root.Id, out UpgradeTreeNodeView rootView)
-                ? GetNodeBounds(rootView).center.x : 0;
-            _content.anchoredPosition = new Vector2(_viewport.rect.width * 0.5f - rootCenter * INITIAL_ZOOM, 0);
+            if (root != null && _nodeViews.TryGetValue(root.Id, out UpgradeTreeNodeView rootView))
+            {
+                Vector2 rootCenter = GetNodeBounds(rootView).center;
+                _content.anchoredPosition = new Vector2(_viewport.rect.width * 0.5f - rootCenter.x * INITIAL_ZOOM,
+                    -_viewport.rect.height * 0.5f - rootCenter.y * INITIAL_ZOOM);
+            }
+            else
+            {
+                _content.anchoredPosition = Vector2.zero;
+            }
             _content.localScale = Vector3.one * INITIAL_ZOOM;
             float rightEdge = 0;
             float bottomEdge = 0;

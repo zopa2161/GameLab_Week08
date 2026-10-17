@@ -10,11 +10,6 @@ namespace RuneCode
 {
     public sealed class UpgradeTreeNodeView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
-        [Header("트리 데이터 연결")]
-        [SerializeField, Tooltip("UpgradeTree SO에 배치된 노드의 ID와 일치해야 한다.")] private string _nodeId;
-
-        public string NodeId => _nodeId;
-
         [Header("정사각형 노드")]
         [SerializeField] private Image _background;
         [SerializeField] private Outline _outline;
@@ -37,6 +32,15 @@ namespace RuneCode
 
         private Action _purchaseAction;
         private Action<bool> _hoverAction;
+        private string _nodeId;
+
+        public string NodeId => _nodeId;
+
+        /// <summary>런타임 노드 생성 시 데이터 ID를 지정한다. UpgradeTree SO의 노드 ID와 일치해야 한다.</summary>
+        public void ConfigureNodeId(string nodeId)
+        {
+            _nodeId = nodeId;
+        }
 
         /// <summary>정사각형 노드의 클릭을 강화 또는 룬 해금 요청에 연결한다.</summary>
         public void SetPurchaseAction(Action action)

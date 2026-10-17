@@ -49,6 +49,8 @@ namespace RuneCode
         [SerializeField] private string _titleKey;
         [SerializeField] private string _descriptionKey;
         [SerializeField] private Sprite _icon;
+        [SerializeField, Tooltip("트리 편집기와 노드 자동 생성이 사용하는 격자 셀. 미배치 노드는 사용하지 않는다.")]
+        private Vector2Int _layoutCell;
 
         [Header("강화 효과")]
         [SerializeField] private UpgradeEffectType _effectType;
@@ -62,6 +64,7 @@ namespace RuneCode
         public string TitleKey => _titleKey;
         public string DescriptionKey => _descriptionKey;
         public Sprite Icon => _icon;
+        public Vector2Int LayoutCell => _layoutCell;
         public UpgradeEffectType EffectType => _effectType;
         public string RuneId => _runeId;
         public int InitialLevel => _initialLevel;
@@ -102,12 +105,8 @@ namespace RuneCode
         [Header("강화 트리에 배치할 노드")]
         [SerializeField, InspectorName("배치할 노드")] private List<UpgradeTreeNodeDefinition> _nodes = new List<UpgradeTreeNodeDefinition>();
 
-        [Header("강화 트리에 배치하지 않을 노드")]
-        [SerializeField, InspectorName("배치하지 않을 노드")] private List<UpgradeTreeNodeDefinition> _unplacedNodes = new List<UpgradeTreeNodeDefinition>();
-
         public int LayoutVersion => _layoutVersion;
         public IReadOnlyList<UpgradeTreeNodeDefinition> Nodes => _nodes;
-        public IReadOnlyList<UpgradeTreeNodeDefinition> UnplacedNodes => _unplacedNodes;
 
         /// <summary>ID가 일치하는 강화 노드를 반환하고 찾지 못하면 null을 반환한다.</summary>
         public UpgradeTreeNodeDefinition FindNode(string nodeId)
@@ -127,11 +126,11 @@ namespace RuneCode
             return null;
         }
 
-        /// <summary>두 목록의 노드 데이터와 배치 노드의 선행 관계, 플레이어 룬 커버리지를 검사해 오류를 반환한다.</summary>
+        /// <summary>배치 노드의 데이터와 선행 관계를 검사해 오류를 반환한다.</summary>
         public bool Validate(out string error)
         {
             error = null;
-            if (_nodes == null || _nodes.Count == 0 || _unplacedNodes == null)
+            if (_nodes == null || _nodes.Count == 0)
             {
                 error = "배치할 노드가 없거나 노드 목록이 초기화되지 않았습니다.";
                 return false;
@@ -140,8 +139,14 @@ namespace RuneCode
             HashSet<string> runeIds = new HashSet<string>();
             foreach (UpgradeTreeNodeDefinition node in _nodes)
                 if (!ValidateNodeData(node, nodeIds, runeIds, out error)) return false;
-            foreach (UpgradeTreeNodeDefinition node in _unplacedNodes)
-                if (!ValidateNodeData(node, nodeIds, runeIds, out error)) return false;
+
+            HashSet<Vector2Int> layoutCells = new HashSet<Vector2Int>();
+            foreach (UpgradeTreeNodeDefinition node in _nodes)
+                if (node != null && !layoutCells.Add(node.LayoutCell))
+                {
+                    error = "배치 노드의 트리 셀이 중복됩니다: " + node.Id;
+                    return false;
+                }
 
             UpgradeTreeNodeDefinition mainboard = FindNode(MAINBOARD_NODE_ID);
             if (mainboard == null || mainboard.EffectType != UpgradeEffectType.EnergyRegen || mainboard.Prerequisites.Count != 0)
@@ -159,11 +164,6 @@ namespace RuneCode
                     (!isPlayerRune && rune.UnlockType != "start"))
                 {
                     error = "룬 시작·트리·작업대 해금 분류가 지정된 시작 룬과 일치하지 않습니다: " + rune.Id;
-                    return false;
-                }
-                if (isPlayerRune && !isStarterRune && !runeIds.Contains(rune.Id))
-                {
-                    error = "트리에 룬 해금 노드가 없습니다: " + rune.Id;
                     return false;
                 }
             }
@@ -186,12 +186,6 @@ namespace RuneCode
                     }
                 }
             }
-            foreach (UpgradeTreeNodeDefinition node in _unplacedNodes)
-                if (node.Prerequisites.Count != 0)
-                {
-                    error = "배치하지 않을 노드에는 선행 노드를 지정할 수 없습니다: " + node.Id;
-                    return false;
-                }
             HashSet<string> visiting = new HashSet<string>();
             HashSet<string> visited = new HashSet<string>();
             foreach (UpgradeTreeNodeDefinition node in _nodes)
@@ -203,7 +197,7 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>두 목록에서 공통으로 쓰는 노드 ID·효과·시작 레벨·룬 해금 데이터를 검사하고 등록된 ID를 누적한다.</summary>
+        /// <summary>노드 ID·효과·시작 레벨·룬 해금 데이터를 검사하고 등록된 ID를 누적한다.</summary>
         private static bool ValidateNodeData(UpgradeTreeNodeDefinition node, HashSet<string> nodeIds, HashSet<string> runeIds, out string error)
         {
             error = null;
