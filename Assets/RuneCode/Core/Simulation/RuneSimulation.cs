@@ -1345,17 +1345,24 @@ namespace RuneCode
             else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = Time + _balance.Combat.EmpSeconds;
         }
 
-        /// <summary>공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 저장하고 출처·지속시간을 갱신한다. 진행 중인 화상은 다음 틱 시각을 유지한다.</summary>
+        /// <summary>공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 계산하고, 새 화상이거나 기존보다 클 때만 피해·출처를 갱신한다. 재점화 때마다 지속시간은 갱신하며 진행 중인 화상의 다음 틱 시각은 유지한다.</summary>
         private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage)
         {
             EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
-            if (burn == null || Time >= burn.Until)
+            bool isNewBurn = burn == null || Time >= burn.Until;
+            if (isNewBurn)
             {
                 burn ??= AddStatus(enemy.Id, EnemyStatusType.Burn);
                 burn.NextTickTime = Time + _balance.Combat.BurnInterval;
             }
-            burn.Until = Time + _balance.Combat.BurnSeconds; burn.SourceForm = form; burn.IsNoise = noise;
-            burn.TickDamage = sourceDamage * _balance.Combat.BurnDamageRatio;
+            burn.Until = Time + _balance.Combat.BurnSeconds;
+            double tickDamage = sourceDamage * _balance.Combat.BurnDamageRatio;
+            if (isNewBurn || tickDamage > burn.TickDamage)
+            {
+                burn.TickDamage = tickDamage;
+                burn.SourceForm = form;
+                burn.IsNoise = noise;
+            }
         }
 
         /// <summary>
