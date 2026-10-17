@@ -48,7 +48,7 @@ namespace RuneCode
                 case "mod.homing": effect = "탐색 범위 안의 적을 향해 방향을 조정합니다."; break;
                 case "mod.orbit": effect = "생성된 개체가 시전자 주위 궤도를 돕니다."; break;
                 case "mod.sequence": effect = "약간의 간격을 두고 같은 행동을 반복 실행합니다."; break;
-                case "mod.expand": effect = "효과 범위를 넓힙니다."; break;
+                case "mod.expand": effect = "효과 면적을 늘립니다. 일반 형상의 길이는 면적 배율의 제곱근만큼 커집니다."; break;
                 case "mod.speed": effect = "이동 속도를 높입니다."; break;
                 case "mod.duration": effect = "효과의 지속시간을 늘립니다."; break;
                 case "behavior.launch": effect = "마법을 발사합니다."; break;
@@ -76,7 +76,7 @@ namespace RuneCode
                         case "multipleCount": label = " 생성 개수 "; break;
                         case "waveCount": label = " 실행 회차 "; break;
                         case "pierceCount": label = " 관통 횟수 "; break;
-                        case "radiusMultiplier": label = " 범위 배율 ×"; break;
+                        case "radiusMultiplier": label = " 면적 배율 ×"; break;
                         case "durationMultiplier": label = " 지속시간 배율 ×"; break;
                         case "speedMultiplier": label = " 속도 배율 ×"; break;
                         case "orbitPath": label = " 궤도 반경 배율 ×"; break;

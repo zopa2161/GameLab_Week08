@@ -47,6 +47,7 @@ namespace RuneCode
         private readonly float _knockbackSeconds;
         public static SpellModifierValues None => _none;
         public float DamageMultiplier => _damageMultiplier;
+        /// <summary>확장 효과의 면적 배율이다. 실제 길이 배율 변환은 행동 수치를 만들 때 수행한다.</summary>
         public float RadiusMultiplier => _radiusMultiplier;
         public float SpeedMultiplier => _speedMultiplier;
         public float DurationMultiplier => _durationMultiplier;
@@ -258,6 +259,7 @@ namespace RuneCode
 
         /// <summary>속도 수식의 누적 배율이다. 잔류는 예고 시간을 이 배율로 나눈다.</summary>
         public float SpeedMultiplier => _speedMultiplier;
+        /// <summary>면적 배율의 제곱근으로 계산한 실제 길이 배율이다.</summary>
         public float RadiusMultiplier => _radiusMultiplier;
         public float Radius => _radius;
         public float ShapeRadius => _shapeRadius;
@@ -284,7 +286,7 @@ namespace RuneCode
         public float KnockbackDistance => _knockbackDistance;
         public float KnockbackSeconds => _knockbackSeconds;
 
-        /// <summary>형태·속성·수식 정의와 개별 수식 노드의 배율을 결합하여 읽기 전용 효과 수치를 만든다.</summary>
+        /// <summary>형태·속성·수식을 결합하고 확장 면적 배율을 길이 배율로 변환해 효과 수치를 만든다. 고정 길이 빔은 폭만 면적 배율로 늘린다.</summary>
         public SpellStats(RuneStats form, RuneStats element, IReadOnlyList<RuneDefinition> mods, string formKind,
             IReadOnlyList<GraphNode> modifierNodes = null, ModifierGradeTable modifierGrades = null,
             string magicType = SpellGrammar.MAGIC_TYPE_SPHERE, float shapeRadius = -1f, float boxWidth = -1f,
@@ -347,17 +349,19 @@ namespace RuneCode
                     && modifierGrades.TryGetLaunchSpreadAngle(mod.Id, grade, out float launchSpread)) _spreadAngle = launchSpread;
                 else if (stats.SpreadAngle > 0f) _spreadAngle = stats.SpreadAngle;
             }
+            float lengthMult = (float)Math.Sqrt(radiusMult);
             _damage = form.Damage * damageMult;
             _speed = form.Speed * speedMult;
-            if (_isExpandingRing) _speed *= radiusMult;
+            if (_isExpandingRing) _speed *= lengthMult;
             _speedMultiplier = speedMult;
-            _radiusMultiplier = radiusMult;
-            _shapeRadius = (shapeRadius >= 0f ? shapeRadius : form.Radius) * radiusMult;
-            _boxWidth = (boxWidth >= 0f ? boxWidth : form.Radius * 2f) * radiusMult;
-            _boxLength = (boxLength >= 0f ? boxLength : form.Radius * 2f) * radiusMult;
+            _radiusMultiplier = lengthMult;
+            _shapeRadius = (shapeRadius >= 0f ? shapeRadius : form.Radius) * lengthMult;
+            _boxWidth = (boxWidth >= 0f ? boxWidth : form.Radius * 2f)
+                * (formKind == BeamBehaviorRules.BEAM_KIND ? radiusMult : lengthMult);
+            _boxLength = (boxLength >= 0f ? boxLength : form.Radius * 2f) * lengthMult;
             if (formKind == BeamBehaviorRules.BEAM_KIND) _boxLength = form.BeamLength;
             _radius = magicType == SpellGrammar.MAGIC_TYPE_SPHERE || magicType == SpellGrammar.MAGIC_TYPE_CONE
-                ? _shapeRadius : form.Radius * radiusMult;
+                ? _shapeRadius : form.Radius * lengthMult;
             _lifetime = rules != null ? rules.GetLifetime(form.Lifetime, rangeMult, speedMult, durationMult) : form.Lifetime * durationMult;
             if (rules != null)
             {
@@ -383,25 +387,27 @@ namespace RuneCode
         /// <summary>SpellCall의 상속 수식을 기본 효과 수치에 적용한 새 읽기 전용 통계를 반환한다.</summary>
         public SpellStats Apply(SpellModifierValues modifiers) => new SpellStats(this, modifiers);
 
-        /// <summary>기존 효과 수치에 호출부의 배율과 관통·유도 값을 적용한다.</summary>
+        /// <summary>호출부의 확장 면적 배율을 길이로 변환해 기존 수치에 곱하고 관통·유도 값을 적용한다. 고정 길이 빔은 폭만 늘린다.</summary>
         private SpellStats(SpellStats source, SpellModifierValues modifiers)
         {
+            float lengthMult = (float)Math.Sqrt(modifiers.RadiusMultiplier);
             _damage = source._damage * modifiers.DamageMultiplier;
             _isExpandingRing = source._isExpandingRing;
             _speed = source._speed * modifiers.SpeedMultiplier;
-            if (_isExpandingRing) _speed *= modifiers.RadiusMultiplier;
+            if (_isExpandingRing) _speed *= lengthMult;
             _speedMultiplier = source._speedMultiplier * modifiers.SpeedMultiplier;
-            _radiusMultiplier = source._radiusMultiplier * modifiers.RadiusMultiplier;
-            _shapeRadius = source._shapeRadius * modifiers.RadiusMultiplier;
-            _boxWidth = source._boxWidth * modifiers.RadiusMultiplier;
-            _boxLength = source._boxLength * modifiers.RadiusMultiplier;
-            _radius = source._radius * modifiers.RadiusMultiplier;
+            _radiusMultiplier = source._radiusMultiplier * lengthMult;
+            _shapeRadius = source._shapeRadius * lengthMult;
+            _boxWidth = source._boxWidth * lengthMult;
+            _boxLength = source._boxLength * lengthMult;
+            _radius = source._radius * lengthMult;
             _lifetime = source._lifetime * modifiers.DurationMultiplier * modifiers.RangeMultiplier;
             if (_isExpandingRing) _lifetime /= modifiers.SpeedMultiplier;
             _minimumLifetime = source._minimumLifetime;
             if (_minimumLifetime > 0)
             {
                 _lifetime = source._lifetime;
+                _boxWidth = source._boxWidth * modifiers.RadiusMultiplier;
                 _boxLength = source._boxLength;
             }
             _offset = source._offset * modifiers.RangeMultiplier;
