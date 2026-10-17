@@ -39,14 +39,14 @@ namespace RuneCode
 
         /// <summary>
         /// 시작·슬롯 관리·게임 종료 버튼을 연결하고 세션·UI 관리자와 Presenter를 만든다.
-        /// 테스트 모드 시작은 모든 빌드에서 표시하고 디버그 시작만 Development Build로 제한한다.
+        /// 테스트 모드 시작은 모든 빌드에서 표시하고 디버그 시작은 Unity 에디터에서만 표시한다.
         /// </summary>
         public void Initialize(RuneCodeSession session, UIManager ui)
         {
             if (_presenter != null) return;
             _startButton.onClick.AddListener(() => StartClicked?.Invoke());
             _debugStartButton.onClick.AddListener(() => DebugStartClicked?.Invoke());
-            _debugStartButton.gameObject.SetActive(Debug.isDebugBuild);
+            _debugStartButton.gameObject.SetActive(Application.isEditor);
             ((RectTransform)_debugStartButton.transform).anchoredPosition = new Vector2(MENU_BUTTON_X, DEBUG_START_BUTTON_Y);
             _saveManagementButton = CreateMenuButton("SaveManagementButton", GameData.L("save.manage"), -420);
             _saveManagementButton.onClick.AddListener(() => SaveManagementClicked?.Invoke());
