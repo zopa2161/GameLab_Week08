@@ -33,6 +33,8 @@ namespace RuneCode
         private const int RANGE_SEGMENTS = 96;
         private const float RANGE_LINE_WIDTH = 1.8f;
         private const int RANGE_ORDER = 65;
+        private const int DEFEAT_FRAGMENT_COUNT = 24;
+        private const int CLOCK_SEGMENTS = 40;
 
         private static readonly Color WallColor = new Color(0.13f, 0.20f, 0.27f);
         private static readonly Color WallEdgeColor = new Color(0.23f, 0.40f, 0.47f);
@@ -56,6 +58,11 @@ namespace RuneCode
         [SerializeField] private Sprite _squareSprite;
         [SerializeField] private Material _spriteMaterial;
         [SerializeField] private float _gridSpacing = 64f;
+
+        [Header("종료 연출")]
+        [SerializeField, Min(0.1f)] private float _victoryEndingSeconds = 1.2f;
+        [SerializeField, Min(0.1f)] private float _defeatEndingSeconds = 1.2f;
+        [SerializeField, Min(0.1f)] private float _timeoutClockSeconds = 0.65f;
 
         private readonly List<EnemyView> _enemyViews = new List<EnemyView>();
         private readonly Dictionary<string, List<EnemyView>> _additionalEnemyViews = new Dictionary<string, List<EnemyView>>();
@@ -82,6 +89,10 @@ namespace RuneCode
         private double _lastHp;
         private float _hitStopUntil;
         private float _hitStopReadyAt;
+        private readonly List<SpriteRenderer> _endingFragments = new List<SpriteRenderer>();
+        private readonly List<SpriteRenderer> _clockLines = new List<SpriteRenderer>();
+        private float _endingElapsed;
+        private bool _hasRenderedEnding;
 
         /// <summary>월드를 따라가는 미션 카메라다. 화면 View가 조준 좌표 변환에 쓴다.</summary>
         public MissionCamera Camera => _camera;
@@ -94,6 +105,17 @@ namespace RuneCode
             _isHitStopEnabled = isHitStopEnabled;
         }
 
+        /// <summary>시뮬레이션을 진행하지 않고 종료 연출 시간을 늘리며 승리·사망·시간 초과별 완료 여부를 반환한다.</summary>
+        public bool AdvanceEnding(RuneSimulation sim, float deltaTime)
+        {
+            if (!sim.Completed && !sim.IsFailed) return true;
+            if (_observedSimulation != sim) BeginSimulation(sim);
+            _endingElapsed += Mathf.Max(0, deltaTime);
+            float duration = sim.Completed ? _victoryEndingSeconds
+                : _defeatEndingSeconds + (sim.IsTimedOut ? _timeoutClockSeconds : 0);
+            return _endingElapsed >= duration;
+        }
+
         void LateUpdate()
         {
             RuneSimulation sim = _simulation?.Invoke();
@@ -104,9 +126,14 @@ namespace RuneCode
                 return;
             }
             if (_observedSimulation != sim) BeginSimulation(sim);
+            if (_hasRenderedEnding)
+            {
+                RenderEnding(sim);
+                return;
+            }
             UpdateRangePreview(sim);
             DetectImpact(sim);
-            if (_hitStopUntil > Time.unscaledTime && (_isHitStopEnabled?.Invoke() ?? false)) return;
+            if (!sim.Completed && !sim.IsFailed && _hitStopUntil > Time.unscaledTime && (_isHitStopEnabled?.Invoke() ?? false)) return;
             SimVector origin = sim.MapCenter;
             if (_playerView == null) _playerView = Instantiate(_playerPrefab, transform);
             _playerView.Apply(sim.Player, origin);
@@ -158,6 +185,101 @@ namespace RuneCode
                 GetView(_arcLinkViews, _arcLinkPrefab, count++).Apply(link, sim.Tick - link.Tick, origin);
             }
             HideFrom(_arcLinkViews, count);
+            if (sim.Completed || sim.IsFailed)
+            {
+                _hasRenderedEnding = true;
+                RenderEnding(sim);
+            }
+        }
+
+        /// <summary>정지된 전장 위에서 승리 드롭 흡수 또는 패배 시계·붉은 몸체·파편만 표시한다. 보상과 전투 상태는 변경하지 않는다.</summary>
+        private void RenderEnding(RuneSimulation sim)
+        {
+            HideFrom(_rangeLines, 0);
+            HideFrom(_rangePreviews, 0);
+            HideFrom(_spellViews, 0);
+            HideFrom(_projectileViews, 0);
+            HideFrom(_damageNumberViews, 0);
+            HideFrom(_healPulseViews, 0);
+            HideFrom(_arcLinkViews, 0);
+            if (sim.Completed)
+            {
+                float progress = Mathf.Clamp01(_endingElapsed / _victoryEndingSeconds);
+                double blend = progress * progress;
+                int count = 0;
+                foreach (FragmentOrb orb in sim.ClearOrbs)
+                {
+                    OrbView view = GetView(_orbViews, _orbPrefab, count++);
+                    view.Apply(orb, sim.MapCenter);
+                    view.transform.localPosition = MissionWorldSpace.ToWorld(orb.Position + (sim.Player.Position - orb.Position) * blend, sim.MapCenter);
+                    view.transform.localScale = Vector3.one;
+                    MissionWorldSpace.SetVisible(view, progress < 1f);
+                }
+                HideFrom(_orbViews, count);
+                count = 0;
+                foreach (SimulationItemDrop drop in sim.ClearItemDrops)
+                {
+                    ItemDropView view = GetView(_itemDropViews, _itemDropPrefab, count++);
+                    view.Apply(drop, sim.MapCenter);
+                    view.transform.localPosition = MissionWorldSpace.ToWorld(drop.Position + (sim.Player.Position - drop.Position) * blend, sim.MapCenter);
+                    view.transform.localScale = Vector3.one;
+                    MissionWorldSpace.SetVisible(view, progress < 1f);
+                }
+                HideFrom(_itemDropViews, count);
+                return;
+            }
+            HideFrom(_orbViews, 0);
+            HideFrom(_itemDropViews, 0);
+            float delay = sim.IsTimedOut ? _timeoutClockSeconds : 0;
+            RenderTimeoutClock(sim.IsTimedOut && _endingElapsed < delay);
+            float defeat = Mathf.Clamp01((_endingElapsed - delay) / _defeatEndingSeconds);
+            _playerView.ApplyDefeat(defeat);
+            float scatter = Mathf.Clamp01((defeat - 0.35f) / 0.65f);
+            for (int index = 0; index < DEFEAT_FRAGMENT_COUNT; index++)
+            {
+                SpriteRenderer fragment = GetEndingSprite(_endingFragments, index, "DefeatFragment");
+                MissionWorldSpace.SetVisible(fragment, scatter > 0 && scatter < 1);
+                float angle = index * Mathf.PI * 2f / DEFEAT_FRAGMENT_COUNT;
+                Vector2 direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                Vector2 center = MissionWorldSpace.ToWorld(sim.Player.Position, sim.MapCenter) * MissionWorldSpace.PIXELS_PER_UNIT;
+                MissionWorldSpace.Place(fragment, center + direction * (8f + scatter * (28f + index % 4 * 9f)),
+                    4f * (1f - scatter), new Color(1f, 0.12f, 0.15f, 1f - scatter));
+                fragment.transform.localRotation = Quaternion.Euler(0, 0, index * 37f + scatter * 140f);
+            }
+        }
+
+        /// <summary>시간 초과일 때 카메라 중앙에 원형 시계와 두 바늘을 표시하거나 숨긴다.</summary>
+        private void RenderTimeoutClock(bool isVisible)
+        {
+            if (!isVisible) { HideFrom(_clockLines, 0); return; }
+            Vector2 center = transform.InverseTransformPoint(_camera.transform.position);
+            center *= MissionWorldSpace.PIXELS_PER_UNIT;
+            Color tint = new Color(1f, 0.25f, 0.22f);
+            for (int index = 0; index < CLOCK_SEGMENTS + 2; index++)
+            {
+                SpriteRenderer line = GetEndingSprite(_clockLines, index, "TimeoutClock");
+                float angle = index * Mathf.PI * 2 / CLOCK_SEGMENTS;
+                Vector2 from = center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * 46f;
+                Vector2 to = center + new Vector2(Mathf.Cos(angle + Mathf.PI * 2 / CLOCK_SEGMENTS), Mathf.Sin(angle + Mathf.PI * 2 / CLOCK_SEGMENTS)) * 46f;
+                if (index >= CLOCK_SEGMENTS) { from = center; to = center + (index == CLOCK_SEGMENTS ? Vector2.up * 31f : Vector2.right * 23f); }
+                MissionWorldSpace.PlaceLine(line, from, to, 4f, tint);
+            }
+        }
+
+        /// <summary>종료 연출의 index번째 스프라이트를 기존 월드 재질·정사각 자산으로 생성하거나 재사용한다.</summary>
+        private SpriteRenderer GetEndingSprite(List<SpriteRenderer> views, int index, string label)
+        {
+            if (index == views.Count)
+            {
+                var sprite = new GameObject(label, typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
+                sprite.transform.SetParent(transform, false);
+                sprite.sprite = _squareSprite;
+                sprite.sharedMaterial = _spriteMaterial;
+                sprite.sortingOrder = 100;
+                views.Add(sprite);
+            }
+            MissionWorldSpace.SetVisible(views[index], true);
+            return views[index];
         }
 
         /// <summary>시작 노드 직결 범위의 최대 사거리를 플레이어 중심 흰 점선으로, 생성 위치와 모양은 반투명 채움으로 표시한다.</summary>
@@ -208,6 +330,12 @@ namespace RuneCode
         /// <summary>새 시뮬레이션의 맵을 다시 만들고 피해 감지 기준값을 현재 값으로 맞춘다.</summary>
         private void BeginSimulation(RuneSimulation sim)
         {
+            _endingElapsed = 0;
+            _hasRenderedEnding = false;
+            HideFrom(_endingFragments, 0);
+            HideFrom(_clockLines, 0);
+            foreach (OrbView view in _orbViews) view.transform.localScale = Vector3.one;
+            foreach (ItemDropView view in _itemDropViews) view.transform.localScale = Vector3.one;
             _observedSimulation = sim;
             if (_additionalEnemyPrefabs.Count == 0)
             foreach (EnemyView prefab in Resources.LoadAll<EnemyView>("RuneCode/enemies"))

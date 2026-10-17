@@ -25,6 +25,7 @@ namespace RuneCode
 
         private MissionRun _run;
         private bool _isResultShown;
+        private bool _hasPresentedChoices;
         private int _lastFragments;
         private float _toastUntil;
 
@@ -43,7 +44,7 @@ namespace RuneCode
             _hud.PauseClicked += TogglePause;
             _hud.DebugClicked += OpenDebug;
             _result.Bind();
-            _result.ImproveClicked += () => _session.RequestScreen(AppScreen.Workshop);
+            _result.ImproveClicked += ReturnToWorkshop;
             _result.NextStageClicked += SelectNextStageAndReturnToWorkshop;
             _result.RetryClicked += RetryStage;
             _result.ClearModifierChoiceClicked += ChooseClearModifier;
@@ -71,7 +72,15 @@ namespace RuneCode
             if (_run == null) return;
             if (_run.IsFinished)
             {
-                if (!_isResultShown) ShowResult();
+                if (!_isResultShown)
+                {
+                    if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowResult();
+                }
+                else
+                {
+                    _result.AdvanceRewards(unscaledDeltaTime);
+                    if (_result.CanContinue && !_hasPresentedChoices) ShowPendingChoices();
+                }
                 return;
             }
             bool isTyping = UiFactory.IsTyping();
@@ -146,6 +155,7 @@ namespace RuneCode
         /// <summary>디버그 팝업을 열고 디버그 조작을 미션·세션에 연결한다. 디버그 실행이 아니면 무시한다.</summary>
         private void OpenDebug()
         {
+            if (_run == null || _run.IsFinished) return;
             if (!_session.IsDebugEnabled) return;
             MissionDebugPopup popup = _ui.OpenPopup<MissionDebugPopup>();
             popup.Bind();
@@ -182,8 +192,17 @@ namespace RuneCode
         private void RetryStage()
         {
             if (_run == null || !_run.IsFinished) return;
+            if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
             _session.SelectStage(_run.Simulation.StageNumber);
             StartRun();
+        }
+
+        /// <summary>정산과 보스 보상 선택을 마친 경우 작업실로 이동한다.</summary>
+        private void ReturnToWorkshop()
+        {
+            if (_run == null || !_run.IsFinished) return;
+            if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
+            _session.RequestScreen(AppScreen.Workshop);
         }
 
         /// <summary>승리 결과에서 다음 스테이지를 선택하고 노드 강화 작업실로 돌아간다. 클리어나 보상 선택이 끝나지 않았으면 무시한다.</summary>
@@ -198,13 +217,20 @@ namespace RuneCode
             _session.RequestScreen(AppScreen.Workshop);
         }
 
-        /// <summary>정산이 끝난 결과 View를 표시하고 클리어 Modifier 선택 후보가 있으면 모달 팝업을 연다.</summary>
+        /// <summary>월드 종료 연출 후 결과 View를 표시하고 보상 순차 공개를 시작한다.</summary>
         private void ShowResult()
         {
             _isResultShown = true;
             _ui.CloseAllPopups();
-            SetResultSummary();
+            _result.HideClearModifierChoices();
+            SetResultSummary(true);
             _result.Show();
+        }
+
+        /// <summary>일반 보상 공개가 끝난 다음 프레임에 보스 선택 팝업을 한 번만 연다.</summary>
+        private void ShowPendingChoices()
+        {
+            _hasPresentedChoices = true;
             if (_run.HasClearModifierChoices)
             {
                 var names = new List<string>();
@@ -270,20 +296,20 @@ namespace RuneCode
         }
 
         /// <summary>결과 View에 정산 문구와 스테이지·진행 정보를 채운다.</summary>
-        private void SetResultSummary()
+        private void SetResultSummary(bool animateRewards = false)
         {
             RuneSimulation sim = _run.Simulation;
             int elapsedSeconds = (int)sim.Time;
             string playTime = "플레이 타임 " + (elapsedSeconds / 60).ToString("00") + ":" + (elapsedSeconds % 60).ToString("00");
-            _result.SetContent(sim.Completed ? "게임 완료" : "게임 종료",
+            _result.SetContent(sim.Completed ? "스테이지 승리" : sim.IsFailed ? "스테이지 패배" : "스테이지 중단",
                 GameData.L("ui.stage") + " " + sim.StageNumber,
                 playTime,
                 sim.Completed);
-            SetResultRewards();
+            SetResultRewards(animateRewards);
         }
 
         /// <summary>이번 미션에서 획득한 보상을 아이콘 수량과 Modifier 등급 효과 문구로 변환해 결과 View에 전달한다.</summary>
-        private void SetResultRewards()
+        private void SetResultRewards(bool animate)
         {
             var rewards = new List<ResultRewardContent>(_run.Rewards.Count);
             foreach (MissionReward reward in _run.Rewards)
@@ -297,13 +323,43 @@ namespace RuneCode
                 // 속성 보상은 등급이 없으므로 등급 줄을 생략하고, 모디·행동 보상은 등급을 표시한다.
                 string gradeLabel = string.IsNullOrEmpty(reward.Grade) ? "" : reward.Grade + "급\n";
                 string description;
-                if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR || rune.Category == SpellGrammar.CATEGORY_ELEMENT)
-                    description = ModifierGradeText.Colorize(gradeLabel + FormatRuneDescription(rune), reward.Grade);
+                if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
+                    || rune.Category == SpellGrammar.CATEGORY_ELEMENT)
+                {
+                    description = ModifierGradeText.Colorize(
+                        gradeLabel + FormatRuneDescription(rune), reward.Grade);
+                }
                 else
-                    description = ModifierGradeText.Colorize(gradeLabel + FormatClearModifierDescription(rune, reward.Grade), reward.Grade);
-                rewards.Add(new ResultRewardContent(true, reward.Count, ModifierGradeText.FormatName(rune.Name, reward.Grade), description));
+                {
+                    description = ModifierGradeText.Colorize(
+                        gradeLabel + FormatClearModifierDescription(rune, reward.Grade),
+                        reward.Grade);
+                }
+
+                rewards.Add(new ResultRewardContent(
+                    true,
+                    reward.Count,
+                    ModifierGradeText.FormatName(rune.Name, reward.Grade),
+                    description,
+                    reward.RuneId,
+                    reward.Grade));
             }
-            _result.SetRewards(rewards);
+            rewards.Sort((left, right) =>
+            {
+                int order = GetRewardOrder(left).CompareTo(GetRewardOrder(right));
+                return order != 0 ? order : string.CompareOrdinal(left.RuneId, right.RuneId);
+            });
+            _result.SetRewards(rewards, animate);
+        }
+
+        /// <summary>스크랩·속성·등급 오름차순 행동/모드 순서로 공개할 보상의 정렬 키를 반환한다.</summary>
+        private static int GetRewardOrder(ResultRewardContent reward)
+        {
+            if (!reward.IsModifier) return 0;
+            RuneDefinition rune = GameData.Runes.Get(reward.RuneId);
+            if (rune.Category == SpellGrammar.CATEGORY_ELEMENT) return 1;
+            int grade = Math.Max(0, Array.IndexOf(new[] { "C", "B", "A", "S" }, reward.Grade));
+            return 2 + grade * 2 + (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR ? 0 : 1);
         }
 
         /// <summary>클리어 Modifier 후보를 지급하고 선택 확정 상태와 결과 문구를 갱신한다. 유효한 선택이 아니면 무시한다.</summary>
@@ -320,6 +376,7 @@ namespace RuneCode
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
             _isResultShown = false;
+            _hasPresentedChoices = false;
             _ui.CloseAllPopups();
             _result.Hide();
             _lastFragments = _run.Simulation.EarnedFragments;
