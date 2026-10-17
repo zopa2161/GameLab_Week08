@@ -49,15 +49,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 40
-      _amount: 5
+      _amount: 10
     - _cost: 60
-      _amount: 5
+      _amount: 10
     - _cost: 80
-      _amount: 5
+      _amount: 10
     - _cost: 100
-      _amount: 5
+      _amount: 10
     - _cost: 120
-      _amount: 5
+      _amount: 10
   - _id: upgrade.moveSpeed.0
     _requiredStage: 1
     _titleKey: ui.tree.moveSpeed
@@ -95,21 +95,21 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 90
-      _amount: 5
+      _amount: 10
     - _cost: 120
-      _amount: 5
+      _amount: 10
     - _cost: 150
-      _amount: 5
+      _amount: 10
     - _cost: 180
-      _amount: 5
+      _amount: 10
     - _cost: 210
-      _amount: 5
+      _amount: 10
   - _id: upgrade.ram.3
     _requiredStage: 1
     _titleKey: ui.tree.ramCapacity
     _descriptionKey: ui.tree.ramDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 4, y: 1}
+    _layoutCell: {x: 4, y: 0}
     _effectType: 2
     _runeId: 
     _initialLevel: 0
@@ -122,6 +122,10 @@ MonoBehaviour:
     - _cost: 120
       _amount: 1
     - _cost: 150
+      _amount: 1
+    - _cost: 180
+      _amount: 1
+    - _cost: 210
       _amount: 1
   - _id: upgrade.moveSpeed.1
     _requiredStage: 1
@@ -146,75 +150,6 @@ MonoBehaviour:
       _amount: 0.01
     - _cost: 210
       _amount: 0.01
-  - _id: upgrade.maxHp.2
-    _requiredStage: 1
-    _titleKey: ui.tree.maxHp
-    _descriptionKey: ui.tree.maxHpDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 2, y: 0}
-    _effectType: 6
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.maxHp.1
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 5
-    - _cost: 170
-      _amount: 5
-    - _cost: 210
-      _amount: 5
-    - _cost: 250
-      _amount: 5
-    - _cost: 290
-      _amount: 5
-  - _id: upgrade.moveSpeed.2
-    _requiredStage: 1
-    _titleKey: ui.tree.moveSpeed
-    _descriptionKey: ui.tree.moveSpeedDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 4, y: 0}
-    _effectType: 7
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.ram.3
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 0.01
-    - _cost: 170
-      _amount: 0.01
-    - _cost: 210
-      _amount: 0.01
-    - _cost: 250
-      _amount: 0.01
-    - _cost: 290
-      _amount: 0.01
-  - _id: upgrade.maxEnergy.1
-    _requiredStage: 1
-    _titleKey: ui.tree.maxEnergy
-    _descriptionKey: ui.tree.maxEnergyDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 6, y: 0}
-    _effectType: 1
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.moveSpeed.1
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 5
-    - _cost: 170
-      _amount: 5
-    - _cost: 210
-      _amount: 5
-    - _cost: 250
-      _amount: 5
-    - _cost: 290
-      _amount: 5
   - _id: upgrade.mainboard.0
     _requiredStage: 1
     _titleKey: ui.tree.mainboard
@@ -252,15 +187,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 60
-      _amount: 5
+      _amount: 10
     - _cost: 85
-      _amount: 5
+      _amount: 10
     - _cost: 110
-      _amount: 5
+      _amount: 10
     - _cost: 135
-      _amount: 5
+      _amount: 10
     - _cost: 160
-      _amount: 5
+      _amount: 10
   - _id: upgrade.killEnergy.0
     _requiredStage: 1
     _titleKey: ui.tree.killEnergy
@@ -289,7 +224,7 @@ MonoBehaviour:
     _titleKey: ui.tree.mainboard
     _descriptionKey: ui.tree.mainboardDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 7, y: 4}
+    _layoutCell: {x: 8, y: 4}
     _effectType: 0
     _runeId: 
     _initialLevel: 0
@@ -309,11 +244,11 @@ MonoBehaviour:
       _amount: 2
   - _id: upgrade.moveSpeed.4
     _requiredStage: 1
-    _titleKey: ui.tree.moveSpeed
-    _descriptionKey: ui.tree.moveSpeedDescription
+    _titleKey: ui.tree.maxEnergy
+    _descriptionKey: ui.tree.maxEnergyDescription
     _icon: {fileID: 0}
     _layoutCell: {x: 7, y: 5}
-    _effectType: 7
+    _effectType: 1
     _runeId: 
     _initialLevel: 0
     _prerequisites:
@@ -321,84 +256,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 90
-      _amount: 0.01
+      _amount: 10
     - _cost: 120
-      _amount: 0.01
+      _amount: 10
     - _cost: 150
-      _amount: 0.01
+      _amount: 10
     - _cost: 180
-      _amount: 0.01
+      _amount: 10
     - _cost: 210
-      _amount: 0.01
-  - _id: upgrade.scrapGain.2
-    _requiredStage: 1
-    _titleKey: ui.tree.scrapGain
-    _descriptionKey: ui.tree.scrapGainDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 8, y: 2}
-    _effectType: 5
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.killEnergy.0
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 0.05
-    - _cost: 170
-      _amount: 0.05
-    - _cost: 210
-      _amount: 0.05
-    - _cost: 250
-      _amount: 0.05
-    - _cost: 290
-      _amount: 0.05
-  - _id: upgrade.maxEnergy.2
-    _requiredStage: 1
-    _titleKey: ui.tree.maxEnergy
-    _descriptionKey: ui.tree.maxEnergyDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 8, y: 4}
-    _effectType: 1
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.mainboard.1
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 5
-    - _cost: 170
-      _amount: 5
-    - _cost: 210
-      _amount: 5
-    - _cost: 250
-      _amount: 5
-    - _cost: 290
-      _amount: 5
-  - _id: upgrade.mainboard.2
-    _requiredStage: 1
-    _titleKey: ui.tree.mainboard
-    _descriptionKey: ui.tree.mainboardDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 8, y: 6}
-    _effectType: 0
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.moveSpeed.4
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 2
-    - _cost: 170
-      _amount: 2
-    - _cost: 210
-      _amount: 2
-    - _cost: 250
-      _amount: 2
-    - _cost: 290
-      _amount: 2
+      _amount: 10
   - _id: upgrade.ram.0
     _requiredStage: 1
     _titleKey: ui.tree.ramCapacity
@@ -418,6 +284,10 @@ MonoBehaviour:
       _amount: 1
     - _cost: 120
       _amount: 1
+    - _cost: 140
+      _amount: 1
+    - _cost: 160
+      _amount: 1
   - _id: upgrade.gpu.0
     _requiredStage: 1
     _titleKey: ui.tree.gpu
@@ -432,15 +302,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 60
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 85
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 110
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 135
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 160
-      _amount: 0.05
+      _amount: 0.1
   - _id: upgrade.ram.1
     _requiredStage: 1
     _titleKey: ui.tree.ramCapacity
@@ -460,12 +330,16 @@ MonoBehaviour:
       _amount: 1
     - _cost: 210
       _amount: 1
+    - _cost: 240
+      _amount: 1
+    - _cost: 270
+      _amount: 1
   - _id: upgrade.maxEnergy.3
     _requiredStage: 1
     _titleKey: ui.tree.maxEnergy
     _descriptionKey: ui.tree.maxEnergyDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 4, y: 7}
+    _layoutCell: {x: 4, y: 8}
     _effectType: 1
     _runeId: 
     _initialLevel: 0
@@ -474,15 +348,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 90
-      _amount: 5
+      _amount: 10
     - _cost: 120
-      _amount: 5
+      _amount: 10
     - _cost: 150
-      _amount: 5
+      _amount: 10
     - _cost: 180
-      _amount: 5
+      _amount: 10
     - _cost: 210
-      _amount: 5
+      _amount: 10
   - _id: upgrade.gpu.2
     _requiredStage: 1
     _titleKey: ui.tree.gpu
@@ -497,80 +371,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 90
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 120
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 150
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 180
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 210
-      _amount: 0.05
-  - _id: upgrade.gpu.1
-    _requiredStage: 1
-    _titleKey: ui.tree.gpu
-    _descriptionKey: ui.tree.gpuDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 2, y: 8}
-    _effectType: 4
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.ram.1
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 0.05
-    - _cost: 170
-      _amount: 0.05
-    - _cost: 210
-      _amount: 0.05
-    - _cost: 250
-      _amount: 0.05
-    - _cost: 290
-      _amount: 0.05
-  - _id: upgrade.ram.2
-    _requiredStage: 1
-    _titleKey: ui.tree.ramCapacity
-    _descriptionKey: ui.tree.ramDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 4, y: 8}
-    _effectType: 2
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.maxEnergy.3
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 1
-    - _cost: 210
-      _amount: 1
-    - _cost: 290
-      _amount: 1
-  - _id: upgrade.killEnergy.1
-    _requiredStage: 1
-    _titleKey: ui.tree.killEnergy
-    _descriptionKey: ui.tree.killEnergyDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 6, y: 8}
-    _effectType: 10
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.gpu.2
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 3
-    - _cost: 170
-      _amount: 3
-    - _cost: 210
-      _amount: 3
-    - _cost: 250
-      _amount: 3
-    - _cost: 290
-      _amount: 3
+      _amount: 0.1
   - _id: upgrade.scrapGain.0
     _requiredStage: 1
     _titleKey: ui.tree.scrapGain
@@ -585,15 +394,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 40
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 60
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 80
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 100
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 120
-      _amount: 0.05
+      _amount: 0.1
   - _id: upgrade.scrapPickupRange.0
     _requiredStage: 1
     _titleKey: ui.tree.scrapPickupRange
@@ -608,15 +417,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 60
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 85
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 110
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 135
-      _amount: 0.05
+      _amount: 0.1
     - _cost: 160
-      _amount: 0.05
+      _amount: 0.1
   - _id: upgrade.mainboard.3
     _requiredStage: 1
     _titleKey: ui.tree.mainboard
@@ -642,11 +451,11 @@ MonoBehaviour:
       _amount: 2
   - _id: upgrade.moveSpeed.3
     _requiredStage: 1
-    _titleKey: ui.tree.moveSpeed
-    _descriptionKey: ui.tree.moveSpeedDescription
+    _titleKey: ui.tree.scrapGain
+    _descriptionKey: ui.tree.scrapGainDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 1, y: 4}
-    _effectType: 7
+    _layoutCell: {x: 0, y: 4}
+    _effectType: 5
     _runeId: 
     _initialLevel: 0
     _prerequisites:
@@ -654,15 +463,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 90
-      _amount: 0.01
+      _amount: 0.1
     - _cost: 120
-      _amount: 0.01
+      _amount: 0.1
     - _cost: 150
-      _amount: 0.01
+      _amount: 0.1
     - _cost: 180
-      _amount: 0.01
+      _amount: 0.1
     - _cost: 210
-      _amount: 0.01
+      _amount: 0.1
   - _id: upgrade.maxEnergy.4
     _requiredStage: 1
     _titleKey: ui.tree.maxEnergy
@@ -677,81 +486,12 @@ MonoBehaviour:
       _requiredLevel: 1
     _levels:
     - _cost: 90
-      _amount: 5
+      _amount: 10
     - _cost: 120
-      _amount: 5
+      _amount: 10
     - _cost: 150
-      _amount: 5
+      _amount: 10
     - _cost: 180
-      _amount: 5
+      _amount: 10
     - _cost: 210
-      _amount: 5
-  - _id: upgrade.scrapGain.3
-    _requiredStage: 1
-    _titleKey: ui.tree.scrapGain
-    _descriptionKey: ui.tree.scrapGainDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 0, y: 2}
-    _effectType: 5
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.mainboard.3
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 0.05
-    - _cost: 170
-      _amount: 0.05
-    - _cost: 210
-      _amount: 0.05
-    - _cost: 250
-      _amount: 0.05
-    - _cost: 290
-      _amount: 0.05
-  - _id: upgrade.scrapPickupRange.3
-    _requiredStage: 1
-    _titleKey: ui.tree.scrapPickupRange
-    _descriptionKey: ui.tree.scrapPickupRangeDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 0, y: 4}
-    _effectType: 9
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.moveSpeed.3
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 0.05
-    - _cost: 170
-      _amount: 0.05
-    - _cost: 210
-      _amount: 0.05
-    - _cost: 250
-      _amount: 0.05
-    - _cost: 290
-      _amount: 0.05
-  - _id: upgrade.gpu.3
-    _requiredStage: 1
-    _titleKey: ui.tree.gpu
-    _descriptionKey: ui.tree.gpuDescription
-    _icon: {fileID: 0}
-    _layoutCell: {x: 0, y: 6}
-    _effectType: 4
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.maxEnergy.4
-      _requiredLevel: 1
-    _levels:
-    - _cost: 130
-      _amount: 0.05
-    - _cost: 170
-      _amount: 0.05
-    - _cost: 210
-      _amount: 0.05
-    - _cost: 250
-      _amount: 0.05
-    - _cost: 290
-      _amount: 0.05
+      _amount: 10

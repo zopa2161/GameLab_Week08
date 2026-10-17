@@ -52,14 +52,12 @@ namespace RuneCode
             _inspector.PreviewRune(rune, grade);
         }
 
-        /// <summary>다음 진입 갱신에서 전체 분류와 모든 등급을 표시하도록 팔레트 필터 상태를 초기화한다.</summary>
-        public void ResetPaletteFilters() => _palette.ResetFilters();
-
-        /// <summary>패널이 보일 때 편집을 허용하고 전체를 갱신한다.</summary>
+        /// <summary>패널이 보일 때 팔레트 필터를 초기화하고 편집을 허용한 뒤 전체를 갱신한다.</summary>
         public void Enter()
         {
             _synthesis.RefreshAvailability();
             _editor.SetEditable(!_synthesis.IsOpen);
+            _palette.ResetFilters();
             RefreshAll();
         }
 

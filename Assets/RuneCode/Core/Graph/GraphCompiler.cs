@@ -12,7 +12,7 @@ namespace RuneCode
 
         /// <summary>
         /// 그래프와 해금·RAM·에너지 조건을 검증하고 최악 비용의 실행 트리를 컴파일한다.
-        /// modifierStock이 있으면 모디파이어·속성·행동의 통합 소지량(보관함 전체 공유)을 넘는 배치를 E21 오류로 낸다. null이면 검사하지 않는다.
+        /// modifierStock이 있으면 현재 프리셋의 모디파이어·속성·행동 배치 수가 소지량을 넘을 때 E21 오류로 낸다. null이면 검사하지 않는다.
         /// </summary>
         public static CompileResult Compile(SpellGraph graph, RuneCatalog runes, GrammarLimits limits,
             IEnumerable<string> unlocked, int capacity = -1, float maxEnergy = -1f, IEnumerable<SpellGraph> library = null,
@@ -25,7 +25,7 @@ namespace RuneCode
                 new List<string>(), dependencyErrors);
             if (dependencyErrors.Count > 0) return new CompileResult(dependencyErrors, new List<CompileIssue>(), null);
             CompileResult result = CompileGraph(graph, runes, limits, context);
-            List<CompileIssue> stockErrors = modifierStock == null ? null : FindModifierStockIssues(graph, runes, library, modifierStock);
+            List<CompileIssue> stockErrors = modifierStock == null ? null : FindModifierStockIssues(graph, runes, modifierStock);
             if (stockErrors == null || stockErrors.Count == 0) return result;
             return new CompileResult(result.Errors.Concat(stockErrors).ToList(), result.Warnings, result.Spell);
         }
@@ -85,25 +85,13 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 보관함 전체에서 소지량 키(모디·속성·행동)별 사용 수를 세어 소지량을 넘는 키마다 이 그래프의 첫 사용 노드에 E21 오류를 만든다.
-        /// 보관함의 같은 ID 그래프는 이 그래프로 대체해 센다. 소지량에 없는 키의 소지량은 0이다.
+        /// 그래프 자체의 소지량 키(모디·속성·행동)별 사용 수가 소지량을 넘는 키마다 이 그래프의 첫 사용 노드에 E21 오류를 만든다.
+        /// 프리셋별 소지량을 검사하므로 보관함의 다른 마법 배치는 합산하지 않는다. 소지량에 없는 키의 소지량은 0이다.
         /// </summary>
-        private static List<CompileIssue> FindModifierStockIssues(SpellGraph graph, RuneCatalog runes, IEnumerable<SpellGraph> library,
+        private static List<CompileIssue> FindModifierStockIssues(SpellGraph graph, RuneCatalog runes,
             IReadOnlyDictionary<string, int> modifierStock)
         {
             Dictionary<string, int> used = CountStockUsage(graph, runes);
-            if (library != null)
-            {
-                foreach (SpellGraph other in library)
-                {
-                    if (other == null || (!string.IsNullOrEmpty(graph.Id) && other.Id == graph.Id)) continue;
-                    foreach (KeyValuePair<string, int> pair in CountStockUsage(other, runes))
-                    {
-                        used.TryGetValue(pair.Key, out int count);
-                        used[pair.Key] = count + pair.Value;
-                    }
-                }
-            }
             var issues = new List<CompileIssue>();
             foreach (KeyValuePair<string, int> pair in used)
             {
@@ -233,7 +221,6 @@ namespace RuneCode
                 RuneDefinition rune = definitions[node.Id];
                 if (!reachable.Contains(node.Id))
                 {
-                    warnings.Add(new CompileIssue("W1", node.Id));
                     if (rune.Id == "flow.if" && node.GetText("type", "targetHpBelow") != "selfHpBelow")
                         warnings.Add(new CompileIssue("W3", node.Id));
                 }

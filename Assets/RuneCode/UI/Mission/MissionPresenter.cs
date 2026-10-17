@@ -276,18 +276,23 @@ namespace RuneCode
                 case "speedMultiplier":
                     values.Add(GameData.L("ui.gradeSpeed") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
                     break;
+                case "orbitPath":
+                    values.Add(GameData.L("ui.gradeOrbitPath") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
+                    break;
+                case "knockbackDistance":
+                    values.Add(GameData.L("ui.gradeKnockback") + " " + Convert.ToSingle(gradeValue).ToString("0.##") + "px");
+                    break;  
                 case "homingTier":
-                    string tier = gradeValue as string;
-                    HomingTierDefinition homing = rune.FindHomingTier(tier);
-                    if (homing != null)
-                    {
-                        values.Add(GameData.L("ui.gradeHomingTurn") + " " + homing.HomingTurn.ToString("0.#") + "°");
-                        values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
-                        values.Add(GameData.L("ui.gradeOrbitTargetCount") + " " + homing.OrbitTargetCount);
-                    }
+                    values.Add("적을 추적합니다.");
                     break;
             }
             return string.Join("\n", values);
+        }
+
+        /// <summary>행동·속성 룬 보상 카드에 표시할 한 줄 설명을 strings 테이블의 ui.behavior.*·ui.element.* 키에서 반환한다.</summary>
+        private static string FormatRuneDescription(RuneDefinition rune)
+        {
+            return GameData.L("ui." + rune.Category + "." + rune.Id.Substring(rune.Category.Length + 1));
         }
 
         /// <summary>결과 View에 정산 문구와 스테이지·진행 정보를 채운다.</summary>
@@ -317,8 +322,27 @@ namespace RuneCode
                 RuneDefinition rune = GameData.Runes.Get(reward.RuneId);
                 // 속성 보상은 등급이 없으므로 등급 줄을 생략하고, 모디·행동 보상은 등급을 표시한다.
                 string gradeLabel = string.IsNullOrEmpty(reward.Grade) ? "" : reward.Grade + "급\n";
-                string description = ModifierGradeText.Colorize(gradeLabel + FormatClearModifierDescription(rune, reward.Grade), reward.Grade);
-                rewards.Add(new ResultRewardContent(true, reward.Count, ModifierGradeText.FormatName(rune.Name, reward.Grade), description, reward.RuneId, reward.Grade));
+                string description;
+                if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
+                    || rune.Category == SpellGrammar.CATEGORY_ELEMENT)
+                {
+                    description = ModifierGradeText.Colorize(
+                        gradeLabel + FormatRuneDescription(rune), reward.Grade);
+                }
+                else
+                {
+                    description = ModifierGradeText.Colorize(
+                        gradeLabel + FormatClearModifierDescription(rune, reward.Grade),
+                        reward.Grade);
+                }
+
+                rewards.Add(new ResultRewardContent(
+                    true,
+                    reward.Count,
+                    ModifierGradeText.FormatName(rune.Name, reward.Grade),
+                    description,
+                    reward.RuneId,
+                    reward.Grade));
             }
             rewards.Sort((left, right) =>
             {

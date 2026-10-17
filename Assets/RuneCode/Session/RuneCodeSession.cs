@@ -564,7 +564,7 @@ namespace RuneCode
             PersistProgress();
         }
 
-        /// <summary>마법을 저장·컴파일하고 장착 가능하면 시전할 마법을 반환한다. 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
+        /// <summary>마법을 저장·컴파일하고 RAM과 최대 전력 제한을 만족하면 출격할 마법을 반환한다. 유지형 빔은 첫 시전 비용으로 검사하며, 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
         public bool TryPrepareMission(out CompiledSpell spell)
         {
             _spells.Save();
@@ -575,7 +575,17 @@ namespace RuneCode
                 spell = null;
                 return false;
             }
-            spell = _spells.CompileResult.Spell;
+            CompiledSpell preparedSpell = _spells.CompileResult.Spell;
+            bool hasHeldBeam = preparedSpell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK
+                && preparedSpell.Root.Any(action => action.Form == BeamBehaviorRules.BEAM_KIND);
+            double requiredEnergy = hasHeldBeam ? preparedSpell.CastCosts.GetAmount("mana") : preparedSpell.EnergyCost;
+            if (requiredEnergy > MaxEnergy)
+            {
+                SetStatusText(string.Format(GameData.L("editor.energyBlocked"), requiredEnergy, MaxEnergy));
+                spell = null;
+                return false;
+            }
+            spell = preparedSpell;
             return true;
         }
 
@@ -646,7 +656,7 @@ namespace RuneCode
                 counts[id] = count + 1;
             }
             foreach (KeyValuePair<string, int> pair in counts)
-                if (!_spells.TryGetModifierUsage(pair.Key, grade, out int used, out int owned) || owned - used < pair.Value) return false;
+                if (!_spells.TryGetUnusedStock(pair.Key, grade, out int unused, out _) || unused < pair.Value) return false;
             string resultCategory = category;
             if (category == SpellGrammar.CATEGORY_ELEMENT || grade == "S")
                 resultCategory = UnityEngine.Random.Range(0, 2) == 0 ? SpellGrammar.CATEGORY_BEHAVIOR : SpellGrammar.CATEGORY_MODIFIER;

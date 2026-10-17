@@ -107,9 +107,6 @@ namespace RuneCode
             _presenter = new SpellEditorPresenter(editor, host, ui, this);
         }
 
-        /// <summary>작업실 재진입 시 팔레트 분류·등급을 초기화한다. 표시 갱신은 이어지는 Show에서 수행한다.</summary>
-        public void ResetPaletteFilters() => _presenter.ResetPaletteFilters();
-
         /// <summary>패널을 표시하고 편집을 허용한 뒤 전체를 갱신한다.</summary>
         public void Show()
         {
