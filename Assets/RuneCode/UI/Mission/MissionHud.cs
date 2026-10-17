@@ -63,13 +63,14 @@ namespace RuneCode
         /// <summary>스테이지 번호 문구를 표시한다.</summary>
         public void SetStage(string text) => _stageLabel.text = text;
 
-        /// <summary>체력·에너지 막대 길이와 수치 문구를 표시한다.</summary>
-        public void SetBars(double hp, double maxHp, double energy, double maxEnergy)
+        /// <summary>체력·전력 막대와 현재·최대 수치를 표시하고 energyRegen을 초당 전력 회복량으로 안내한다.</summary>
+        public void SetBars(double hp, double maxHp, double energy, double maxEnergy, double energyRegen)
         {
             _hpFill.rectTransform.sizeDelta = new Vector2(BAR_WIDTH * (float)(hp / maxHp), BAR_HEIGHT);
             _energyFill.rectTransform.sizeDelta = new Vector2(BAR_WIDTH * (float)(energy / maxEnergy), BAR_HEIGHT);
             _hpCaption.text = GameData.L("ui.hp") + "  " + hp.ToString("0") + "/" + maxHp.ToString("0");
-            _energyCaption.text = GameData.L("ui.energy") + "  " + energy.ToString("0") + "/" + maxEnergy.ToString("0");
+            _energyCaption.text = GameData.L("ui.energy") + "  " + energy.ToString("0") + "/" + maxEnergy.ToString("0")
+                + "   " + GameData.L("ui.energy") + " 회복 " + energyRegen.ToString("0.#") + "/s";
         }
 
         /// <summary>처치·조각 문구를 표시한다.</summary>

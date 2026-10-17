@@ -996,7 +996,8 @@ namespace RuneCode
                 bool canExtend = isDirect && root.CanHold;
                 if (isDirect) tracker.Acquire();
                 channel = new BeamBehaviorRuntime.BeamChannel(_tick, stats, root?.Slot ?? -1, root?.PressSerial ?? -1,
-                    canExtend, isDirect, action.GetNodeCosts(context.Modifiers).Multiply(context.CostMultiplier),
+                    canExtend, isDirect, action.GetExecutionCosts(context.Modifiers, context.CostMultiplier,
+                        context.IsManaPrepaid, context.CallEvents),
                     isDirect ? (Action)(() => CompleteBeamChannel(root, tracker)) : null);
                 _beamChannels.Add(channel);
             }

@@ -266,15 +266,16 @@ namespace RuneCode
             if (behavior.Id == "behavior.beam")
             {
                 SpellStats beam = action?.Stats;
-                float minimumCost = action?.OwnEnergy ?? form.Energy;
+                double initialCost = action == null
+                    ? form.Energy : action.GetExecutionCosts(SpellModifierValues.None).GetAmount("mana");
                 lines.Clear();
-                lines.Add(GameData.L("ui.beamInitialCost") + " " + minimumCost.ToString("0.##"));
+                lines.Add(GameData.L("ui.beamInitialCost") + " " + initialCost.ToString("0.##"));
                 lines.Add(GameData.L("ui.beamDuration") + " " + GameData.L("ui.beamUnlimitedHold"));
                 lines.Add(GameData.L("ui.beamStopCooldown") + " " + GameData.Balance.Sim.BeamCooldownSeconds.ToString("0.##") + "s");
                 lines.Add(GameData.L("ui.runeDamageAmount") + " " + (beam?.Damage ?? form.Stats.Damage).ToString("0.##")
                     + " / " + form.Stats.TickInterval.ToString("0.##") + "s");
                 lines.Add(GameData.L("ui.beamWidth") + " " + (beam?.BoxWidth ?? GameData.Runes.Get("form.bolt").Stats.Radius).ToString("0.##") + "px");
-                lines.Add(GameData.L("ui.beamSustainCost") + " " + (minimumCost / form.Stats.MinimumLifetime).ToString("0.##") + "/s");
+                lines.Add(GameData.L("ui.beamSustainCost") + " " + (initialCost / form.Stats.MinimumLifetime).ToString("0.##") + "/s");
                 lines.Add(GameData.L("ui.beamHint"));
                 _view.AddNote(string.Join("\n", lines), 150, 6);
                 return;
