@@ -221,7 +221,6 @@ namespace RuneCode
                 RuneDefinition rune = definitions[node.Id];
                 if (!reachable.Contains(node.Id))
                 {
-                    warnings.Add(new CompileIssue("W1", node.Id));
                     if (rune.Id == "flow.if" && node.GetText("type", "targetHpBelow") != "selfHpBelow")
                         warnings.Add(new CompileIssue("W3", node.Id));
                 }
