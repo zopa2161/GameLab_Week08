@@ -65,7 +65,7 @@ namespace RuneCode
         public long EventCount => _eventSequence;
         public long ElapsedMilliseconds => _clock.ElapsedMilliseconds;
 
-        /// <summary>Creates a new unique session below persistentDataPath/UsabilityTests with metadata and ordered combat CSV columns.</summary>
+        /// <summary>Creates a unique session with metadata and ordered combat columns, separating editor and player log folders.</summary>
         public static UsabilityLogWriter StartSession(IDictionary<string, object> metadata, IEnumerable<string> combatColumns)
         {
             return new UsabilityLogWriter(metadata, combatColumns);
@@ -86,7 +86,9 @@ namespace RuneCode
             }
             _combatColumns = columns.ToArray();
             SessionId = Guid.NewGuid().ToString("N");
-            DirectoryPath = Path.Combine(Application.persistentDataPath, "UsabilityTests", SessionId);
+            DirectoryPath = Path.Combine(Application.persistentDataPath,
+                Application.isEditor ? "UsabilityTests_Editor" : "UsabilityTests", SessionId);
+            _session["runtime_environment"] = Application.isEditor ? "editor" : "player";
             _session["schema_version"] = SCHEMA_VERSION;
             _session["test_session_id"] = SessionId;
             _session["started_at"] = Timestamp();
@@ -100,6 +102,8 @@ namespace RuneCode
                 _combats = OpenNew(Path.Combine(DirectoryPath, "combats.csv"));
                 _combats.WriteLine(CsvLine(_combatColumns));
                 WriteSession(sessionJson);
+                if (!Application.isEditor)
+                    File.WriteAllText(Path.Combine(DirectoryPath, "player-session.marker"), Application.buildGUID);
                 Flush();
             }
             catch

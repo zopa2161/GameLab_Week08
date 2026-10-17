@@ -17,6 +17,7 @@ namespace RuneCode
         private const int TEST_CLEARED_STAGE = 10;
         private const int TEST_STAGE = 9;
         private const int TEST_STOCK_COUNT = 2;
+        private const string PLAY_LOG_PARTICIPANT_KEY = "RuneCode.PlayLogParticipantId";
 
         // 이 레벨 상한을 가진 노드는 반복 성장용 endgame 노드로 보고 테스트 프로필에서 구매하지 않는다.
         private const int TEST_ENDGAME_NODE_LEVEL = 99;
@@ -98,10 +99,10 @@ namespace RuneCode
         /// <summary>등록된 전환 콜백으로 지정 화면 전환을 요청한다.</summary>
         public void RequestScreen(AppScreen screen) { ScreenRequested?.Invoke(screen); }
 
-        /// <summary>타이틀에서 선택한 일반 저장 또는 새 메모리 디버그 진행을 열고 작업실로 전환한다.</summary>
+        /// <summary>일반 저장 또는 메모리 디버그 진행을 열고, 빌드의 일반 시작은 로그 회차도 자동 생성해 작업실로 전환한다.</summary>
         public void StartGame(bool isDebug)
         {
-            if (_isTestMode) LocalTelemetry.EndUsabilityTest("mode_changed", _spells.Graph);
+            if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("mode_changed", _spells.Graph);
             bool isFirstGameStart = !isDebug && !SaveStore.HasSlot(SaveStore.ActiveSlot);
             if (isDebug) _hasPendingFirstRunHelp = false;
             else _hasPendingFirstRunHelp |= isFirstGameStart;
@@ -117,7 +118,59 @@ namespace RuneCode
             if (isDebug) UnlockDebugRunes();
             else PersistRestoredRuneUnlocks(restoredRuneUnlocks);
             _spells.Reload();
+            if (!isDebug && !Application.isEditor) BeginNormalPlayLog();
             RequestScreen(AppScreen.Workshop);
+        }
+
+        /// <summary>기기에 저장한 임의 참가자 ID로 일반 플레이 로그를 시작하고 실패해도 게임 진행은 유지한다.</summary>
+        private void BeginNormalPlayLog()
+        {
+            try
+            {
+                string participantId = PlayerPrefs.GetString(PLAY_LOG_PARTICIPANT_KEY, string.Empty);
+                if (!Guid.TryParse(participantId, out Guid parsedId))
+                {
+                    participantId = Guid.NewGuid().ToString("N");
+                    PlayerPrefs.SetString(PLAY_LOG_PARTICIPANT_KEY, participantId);
+                    PlayerPrefs.Save();
+                }
+                else participantId = parsedId.ToString("N");
+
+                var startState = new Dictionary<string, object>
+                {
+                    ["play_mode"] = "normal",
+                    ["selected_stage"] = SelectedStage,
+                    ["save_slot"] = SaveStore.ActiveSlot,
+                    ["ram_capacity"] = Capacity,
+                };
+                var metadata = new Dictionary<string, object>
+                {
+                    ["participant_id"] = "player-" + participantId,
+                    ["app_version"] = Application.version,
+                    ["condition"] = "Develop",
+                    ["editor_model"] = "combined_nodes",
+                    ["test_order"] = null,
+                    ["is_test_mode"] = false,
+                    ["is_debug"] = false,
+                    ["is_practice"] = false,
+                    ["play_mode"] = "normal",
+                    ["starting_state"] = startState,
+                };
+                LocalTelemetry.BeginUsabilityTest(metadata, null);
+                LocalTelemetry.RecordUsabilityEvent("test_start", "session", startState);
+                LocalTelemetry.SaveUsabilityBuild(null, _spells.Graph, new Dictionary<string, object>
+                {
+                    ["reason"] = "normal_play_start",
+                    ["signature"] = GraphCompiler.Signature(_spells.Graph),
+                    ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(_spells.Graph),
+                    ["is_compile_valid"] = _spells.CompileResult.Ok,
+                });
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException || error is PlayerPrefsException)
+            {
+                LocalTelemetry.AbortUsabilityTest();
+                Debug.LogWarning("일반 플레이 로그 기록을 시작하지 못했습니다: " + error.GetType().Name);
+            }
         }
 
         /// <summary>익명 참가자 ID로 테스트 프로필과 로컬 로그 세션을 열고 시작에 성공하면 true를 반환한다.</summary>
