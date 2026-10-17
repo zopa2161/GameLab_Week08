@@ -9,8 +9,8 @@ using UnityEngine.UI;
 namespace RuneCode
 {
     /// <summary>
-    /// 에디터 탭 하단의 시험 도크 View다. 경기장을 표시하고 시나리오·시험·리셋·자동 발사·적응·배속 클릭을 알리며
-    /// 지표·상태 문구를 표시한다. 도크 구동과 입력 해석은 DockPresenter가 한다.
+    /// 에디터 탭 하단의 시험 도크 View다. 경기장·전력 막대를 표시하고 더미 수·시험·리셋·자동 발사·적응·배속 클릭을 알린다.
+    /// 지표·상태 문구를 표시하며 도크 구동과 입력 해석은 DockPresenter가 한다.
     /// </summary>
     public sealed class DockPanel : MonoBehaviour
     {
@@ -27,13 +27,14 @@ namespace RuneCode
         [SerializeField] private Button _speedButton;
 
         [Header("표시")]
+        [SerializeField] private Image _energyFill;
         [SerializeField] private TextMeshProUGUI _metrics;
         [SerializeField] private TextMeshProUGUI _adaptationText;
 
-        private TextMeshProUGUI _scenarioLabel;
+        private TextMeshProUGUI _dummyCountLabel;
 
-        /// <summary>시나리오 버튼을 눌렀을 때 알린다.</summary>
-        public event Action ScenarioClicked;
+        /// <summary>더미 수량 버튼을 눌렀을 때 알린다.</summary>
+        public event Action DummyCountClicked;
 
         /// <summary>시험 버튼을 눌렀을 때 알린다.</summary>
         public event Action TestClicked;
@@ -54,8 +55,8 @@ namespace RuneCode
         public void Bind(Func<RuneSimulation> simulation, Func<bool> screenShake, Func<bool> hitStop)
         {
             _arena.Initialize(simulation, _font, screenShake, hitStop);
-            _scenarioLabel = _scenarioButton.GetComponentInChildren<TextMeshProUGUI>();
-            _scenarioButton.onClick.AddListener(() => ScenarioClicked?.Invoke());
+            _dummyCountLabel = _scenarioButton.GetComponentInChildren<TextMeshProUGUI>();
+            _scenarioButton.onClick.AddListener(() => DummyCountClicked?.Invoke());
             _testButton.onClick.AddListener(() => TestClicked?.Invoke());
             _resetButton.onClick.AddListener(() => ResetClicked?.Invoke());
             _autoFireButton.onClick.AddListener(() => AutoFireClicked?.Invoke());
@@ -63,8 +64,14 @@ namespace RuneCode
             _speedButton.onClick.AddListener(() => SpeedClicked?.Invoke());
         }
 
-        /// <summary>시나리오 버튼 문구를 표시한다.</summary>
-        public void SetScenario(string text) => _scenarioLabel.text = text;
+        /// <summary>현재 선택한 더미 수를 수량 버튼에 표시한다.</summary>
+        public void SetDummyCount(int count) => _dummyCountLabel.text = "더미 " + count + "마리";
+
+        /// <summary>현재 전력 energy와 최대 전력 maxEnergy의 비율에 맞춰 막대의 채움 폭을 갱신한다.</summary>
+        public void SetEnergy(double energy, double maxEnergy)
+        {
+            _energyFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01((float)(energy / maxEnergy)), 1f);
+        }
 
         /// <summary>피해·DPS·에너지·동시 개체 지표 문구를 표시한다.</summary>
         public void SetMetrics(string text) => _metrics.text = text;

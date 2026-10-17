@@ -8,7 +8,7 @@ namespace RuneCode
     /// <summary>
     /// 작업실 시험 도크의 독립 시뮬레이션 구동을 담당하는 일반 클래스다.
     /// 작업실 화면이 생성하고, 마법은 세션의 ISpellProvider 컴파일 결과로만 연결하며
-    /// 시나리오·자동 시전·적응·배속은 세션에 저장해 작업실 재진입 후에도 유지한다.
+        /// 더미 수·자동 시전·적응·배속은 세션에 저장해 작업실 재진입 후에도 유지한다.
     /// </summary>
     public sealed class DockRun : IDisposable
     {
@@ -26,6 +26,7 @@ namespace RuneCode
 
         public RuneSimulation Dock => _dock;
         public string Scenario => _session.DockScenario;
+        public int DummyCount => _session.DockDummyCount;
         public bool AutoFire => _session.DockAutoFire;
         public bool AdaptationEnabled => _session.DockAdaptation;
         public float Speed => _session.DockSpeed;
@@ -43,16 +44,17 @@ namespace RuneCode
             _session.Spells.Compiled -= OnSpellCompiled;
         }
 
-        /// <summary>선택 시나리오의 독립 시뮬레이션을 만들고 세션 마법과 해금 속성을 연결한다. 시나리오는 세션에 보존한다.</summary>
-        public void StartDock(string scenario)
+        /// <summary>dummyCount를 세션에 보관하고 같은 종류의 더미를 일렬로 배치한 독립 시험과 세션 마법을 연결한다.</summary>
+        public void StartDock(int dummyCount)
         {
-            _session.SetDockOptions(scenario, _session.DockAutoFire, _session.DockAdaptation, _session.DockSpeed);
+            _session.SetDockDummyCount(dummyCount);
+            _session.SetDockOptions("dummy_line", _session.DockAutoFire, _session.DockAdaptation, _session.DockSpeed);
             _dock = new RuneSimulation(1, false, _session.MaxHp, _session.MaxEnergy, energyRegen: _session.EnergyRegen,
                 damageMultiplier: _session.DamageMultiplier, moveSpeedMultiplier: _session.MoveSpeedMultiplier,
                 scrapGainMultiplier: _session.ScrapGainMultiplier, carrier: CarrierSpawnSettings.LoadDefinition(),
                 killEnergyBonus: _session.KillEnergyBonus);
-            _dock.ResetBench(scenario);
-            _dock.SetAdaptationEnabled(_session.DockAdaptation || scenario == "adapt_loop");
+            _dock.ResetBench(Scenario, DummyCount);
+            _dock.SetAdaptationEnabled(_session.DockAdaptation);
             _dock.SetUnlockedElements(_session.GetUnlockedElements());
             ApplyLoadout();
             _accumulator = 0;
@@ -63,10 +65,10 @@ namespace RuneCode
             _hasPendingCastRelease = false;
         }
 
-        /// <summary>도크를 현재 시나리오의 초기 상태로 복구한다.</summary>
+        /// <summary>현재 더미 수와 시험 옵션을 유지해 도크를 초기 상태로 복구한다.</summary>
         public void ResetDock()
         {
-            StartDock(Scenario);
+            StartDock(DummyCount);
         }
 
         /// <summary>유효한 세션 마법을 도크에 한 번 시전하고 튜토리얼 시험 단계를 저장한다.</summary>

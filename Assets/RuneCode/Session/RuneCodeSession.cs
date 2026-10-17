@@ -35,6 +35,7 @@ namespace RuneCode
         private bool _hasPendingFirstRunHelp;
 
         private string _dockScenario = "dummy_single";
+        private int _dockDummyCount = 1;
         private bool _dockAutoFire;
         private bool _dockAdaptation;
         private float _dockSpeed = 1;
@@ -54,6 +55,7 @@ namespace RuneCode
         public long StatusRevision => _statusRevision;
 
         public string DockScenario => _dockScenario;
+        public int DockDummyCount => _dockDummyCount;
         public bool DockAutoFire => _dockAutoFire;
         public bool DockAdaptation => _dockAdaptation;
         public float DockSpeed => _dockSpeed;
@@ -142,6 +144,7 @@ namespace RuneCode
                     ["selected_stage"] = SelectedStage,
                     ["save_slot"] = SaveStore.ActiveSlot,
                     ["ram_capacity"] = Capacity,
+                    ["inventory"] = GetInventoryLogSnapshot(),
                 };
                 var metadata = new Dictionary<string, object>
                 {
@@ -200,6 +203,7 @@ namespace RuneCode
                 ["unlocked_runes"] = new List<string>(_save.UnlockedRunes),
                 ["stock"] = stock,
                 ["upgrade_levels"] = upgrades,
+                ["inventory"] = GetInventoryLogSnapshot(),
             };
             var metadata = new Dictionary<string, object>
             {
@@ -343,6 +347,12 @@ namespace RuneCode
             _statusRevision++;
         }
 
+        /// <summary>시험 더미 수를 밸런스의 일렬 배치 상한 내에 저장해 작업실 재진입 후에도 유지한다.</summary>
+        public void SetDockDummyCount(int count)
+        {
+            _dockDummyCount = Math.Max(1, Math.Min(GameData.Balance.Sim.BenchLineCount, count));
+        }
+
         /// <summary>시험 도크의 시나리오와 자동 시전·적응·배속을 세션에 저장해 작업실 재진입 후에도 유지한다.</summary>
         public void SetDockOptions(string scenario, bool autoFire, bool adaptation, float speed)
         {
@@ -427,6 +437,48 @@ namespace RuneCode
                 return false;
             }
             return true;
+        }
+
+        /// <summary>보유 모듈의 종류·등급·총수량, 해금 목록과 재화를 복사해 로그용 스냅샷을 반환한다.</summary>
+        public Dictionary<string, object> GetInventoryLogSnapshot()
+        {
+            var owned = new List<Dictionary<string, object>>();
+            foreach (KeyValuePair<string, int> stock in _save.CreateStockMap())
+            {
+                if (stock.Value <= 0 || !SpellGrammar.TryParseStockKey(stock.Key, out string runeId, out string grade)) continue;
+                string category = GameData.Runes.TryGet(runeId, out RuneDefinition rune) ? rune.Category : "unknown";
+                owned.Add(new Dictionary<string, object>
+                {
+                    ["rune_id"] = runeId, ["category"] = category,
+                    ["grade"] = string.IsNullOrEmpty(grade) ? null : grade, ["count"] = stock.Value,
+                });
+            }
+            return new Dictionary<string, object>
+            {
+                ["owned_modules"] = owned,
+                ["unlocked_runes"] = new List<string>(_save.UnlockedRunes),
+                ["currency"] = _save.Currency,
+            };
+        }
+
+        /// <summary>현재 스킬트리의 배치·미배치 노드 레벨과 적용된 주요 능력치를 복사해 전투 결과 로그용 스냅샷을 반환한다.</summary>
+        public Dictionary<string, object> GetSkillTreeLogSnapshot()
+        {
+            var levels = new Dictionary<string, object>(StringComparer.Ordinal);
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
+                if (node != null) levels[node.Id] = GetUpgradeNodeLevel(node.Id);
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
+                if (node != null) levels[node.Id] = GetUpgradeNodeLevel(node.Id);
+            return new Dictionary<string, object>
+            {
+                ["node_levels"] = levels,
+                ["ram_capacity"] = Capacity,
+                ["max_hp"] = MaxHp,
+                ["max_energy"] = MaxEnergy,
+                ["energy_regen"] = EnergyRegen,
+                ["damage_multiplier"] = DamageMultiplier,
+                ["move_speed_multiplier"] = MoveSpeedMultiplier,
+            };
         }
 
         /// <summary>선행 조건을 만족하는 트리 노드를 구매하고 효과·룬 해금·저장을 반영한다.</summary>
@@ -543,17 +595,17 @@ namespace RuneCode
                     { Debug.LogWarning("[Stage] 룬이 없는 보상 ID를 건너뜁니다: " + reward.RuneId); continue; }
                     if (rune.Category == SpellGrammar.CATEGORY_ELEMENT)
                     {
-                        GrantRune(reward.RuneId, "", reward.Count);
+                        GrantRune(reward.RuneId, "", reward.Count, "stage_clear");
                     }
                     else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
                     {
                         if (string.IsNullOrEmpty(reward.Grade))
                         { Debug.LogWarning("[Stage] 등급이 없는 행동 보상을 건너뜁니다: " + reward.RuneId); continue; }
-                        GrantRune(reward.RuneId, reward.Grade, reward.Count);
+                        GrantRune(reward.RuneId, reward.Grade, reward.Count, "stage_clear");
                     }
                     else if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
                     {
-                        GrantRune(reward.RuneId, string.IsNullOrEmpty(reward.Grade) ? GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId) : reward.Grade, reward.Count);
+                        GrantRune(reward.RuneId, string.IsNullOrEmpty(reward.Grade) ? GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId) : reward.Grade, reward.Count, "stage_clear");
                     }
                     else
                     {
@@ -572,13 +624,23 @@ namespace RuneCode
         }
 
         /// <summary>일반 모드에서 주운·선택·보상받은 룬 소지 아이템을 즉시 반영한다. 테스트 모드는 시작 소지량을 유지한다.</summary>
-        public void GrantRune(string runeId, string grade, int count)
+        public void GrantRune(string runeId, string grade, int count, string reason = "unspecified")
         {
             if (_isTestMode || count <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)
                 || (rune.Category != SpellGrammar.CATEGORY_MODIFIER && rune.Category != SpellGrammar.CATEGORY_ELEMENT
                     && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)) return;
+            int before = _save.GetStock(runeId, grade);
             _save.AddStock(runeId, grade, count);
             PersistProgress();
+            int after = _save.GetStock(runeId, grade);
+            if (after > before)
+                LocalTelemetry.RecordUsabilityEvent("module_acquired", "inventory", new Dictionary<string, object>
+                {
+                    ["rune_id"] = runeId, ["category"] = rune.Category,
+                    ["grade"] = string.IsNullOrEmpty(grade) ? null : grade,
+                    ["count"] = after - before, ["stock_before"] = before, ["stock_after"] = after,
+                    ["reason"] = reason,
+                });
         }
 
         /// <summary>동일 분류·등급의 미사용 룬 3개를 무작위 룬으로 교환한다. C·B·A는 승급하고 S는 S를 유지하며 저장 실패 시 재고를 복구한다.</summary>
@@ -631,9 +693,9 @@ namespace RuneCode
         }
 
         /// <summary>주운·선택·보상받은 Modifier를 (종류, 등급) 소지량에 즉시 반영하고 저장한다. 이후 사망·시간 초과·후퇴와 무관하게 유지된다. 그 Modifier에 없는 등급이면 지급하지 않는다.</summary>
-        public void GrantModifier(string runeId, string grade, int count)
+        public void GrantModifier(string runeId, string grade, int count, string reason = "unspecified")
         {
-            GrantRune(runeId, grade, count);
+            GrantRune(runeId, grade, count, reason);
         }
 
         /// <summary>디버그 실행에서만 조각을 지급한다.</summary>
