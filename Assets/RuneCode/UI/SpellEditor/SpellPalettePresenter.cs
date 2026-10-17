@@ -40,13 +40,16 @@ namespace RuneCode
             _view.CategoryClicked += category =>
             {
                 if (_selectMaterial != null && (_lockedCategory != null
-                    || (category != "all" && category != SpellGrammar.CATEGORY_BEHAVIOR && category != SpellGrammar.CATEGORY_MODIFIER))) return;
+                    || (category != "all" && category != SpellGrammar.CATEGORY_BEHAVIOR && category != SpellGrammar.CATEGORY_MODIFIER
+                        && category != SpellGrammar.CATEGORY_ELEMENT))) return;
                 _category = category;
+                if (_selectMaterial != null && category == SpellGrammar.CATEGORY_ELEMENT) _grade = null;
                 Refresh();
             };
             _view.GradeClicked += grade =>
             {
-                if (_selectMaterial != null && (_lockedGrade != null || RuneSynthesisRules.NextGrade(grade) == null)) return;
+                if (_selectMaterial != null && (_lockedGrade != null || _category == SpellGrammar.CATEGORY_ELEMENT
+                    || RuneSynthesisRules.NextGrade(grade) == null)) return;
                 _grade = _grade == grade ? null : grade;
                 Refresh();
             };
@@ -64,14 +67,13 @@ namespace RuneCode
             SetSynthesisFilter(null, null);
         }
 
-        /// <summary>재료가 있으면 분류·등급을 잠그고 없으면 행동·모드 전체를 표시한다.</summary>
+        /// <summary>재료가 있으면 분류·등급을 잠그고 없으면 합성 가능한 모든 분류를 표시한다. 속성은 빈 등급으로 잠근다.</summary>
         public void SetSynthesisFilter(string category, string grade)
         {
             _lockedCategory = category;
             _lockedGrade = grade;
             _category = category ?? "all";
             _grade = grade;
-            _view.SetSynthesisFilters(true, category, grade);
             Refresh();
         }
 
@@ -92,6 +94,7 @@ namespace RuneCode
         /// <summary>현재 분류·검색어에 맞는 보유 행동(등급별)·속성·모디(등급별)를 이름·등급과 남은/보유 수로 표시한다.</summary>
         public void Refresh()
         {
+            _view.SetSynthesisFilters(_selectMaterial != null, _lockedCategory, _lockedGrade, _category == SpellGrammar.CATEGORY_ELEMENT);
             _view.ShowCategory(_category);
             _view.ShowGrade(_grade);
             _view.ClearPalette();
@@ -100,11 +103,9 @@ namespace RuneCode
             {
                 if (!IsPaletteRune(rune) || !_editor.IsRuneUnlocked(rune.Id)
                     || (_category != "all" && rune.Category != _category) || !MatchesSearch(rune, query)) continue;
-                if (_selectMaterial != null && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR
-                    && rune.Category != SpellGrammar.CATEGORY_MODIFIER) continue;
                 foreach (string grade in StockGrades(rune))
                 {
-                    if (_selectMaterial != null && (!RuneSynthesisRules.IsEligible(rune, grade) || RuneSynthesisRules.NextGrade(grade) == null)) continue;
+                    if (_selectMaterial != null && !RuneSynthesisRules.IsEligible(rune, grade)) continue;
                     if (_grade != null && grade != _grade) continue;
                     if (!TryGetStock(rune.Id, grade, out int remaining, out int owned)) continue;
                     if (_reservedCount != null) remaining = Math.Max(0, remaining - _reservedCount(rune.Id, grade));

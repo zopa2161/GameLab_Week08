@@ -7,60 +7,11 @@
     {
       "_id": "drop.elite.basic",
       "_rolls": 1,
-      "_guaranteed": [
-        {
-          "_type": "modifier",
-          "_id": "eliteModifier",
-          "_count": 1
-        }
-      ],
+      "_guaranteed": [],
       "_entries": [
-        {
-          "_type": "fragments",
-          "_min": 6,
-          "_max": 12,
-          "_weight": 30
-        },
-        {
-          "_type": "element",
-          "_id": "element.fire",
-          "_count": 1,
-          "_weight": 4
-        },
-        {
-          "_type": "element",
-          "_id": "element.ice",
-          "_count": 1,
-          "_weight": 4
-        },
-        {
-          "_type": "element",
-          "_id": "element.lightning",
-          "_count": 1,
-          "_weight": 4
-        },
-        {
-          "_type": "behavior",
-          "_id": "behavior.burst",
-          "_count": 1,
-          "_weight": 3
-        },
-        {
-          "_type": "behavior",
-          "_id": "behavior.persist",
-          "_count": 1,
-          "_weight": 3
-        },
-        {
-          "_type": "behavior",
-          "_id": "behavior.beam",
-          "_count": 1,
-          "_weight": 3
-        },
-        {
-          "_type": "none",
-          "_weight": 52
-        }
+        { "_type": "element", "_id": "randomElement", "_count": 1, "_weight": 10 },
+        { "_type": "behavior", "_id": "randomBehavior", "_count": 1, "_weight": 25 },
+        { "_type": "modifier", "_id": "eliteModifier", "_count": 1, "_weight": 65 }
       ]
     }
   ]

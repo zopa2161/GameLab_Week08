@@ -9,8 +9,6 @@ namespace RuneCode
     [Serializable]
     public sealed class PlayerSave : ISerializationCallbackReceiver
     {
-        private const int STARTER_MODIFIER_STOCK = 1;
-
         private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
         // 기본 마법 메소드 템플릿 ID다. 매직 미사일은 시작 마법 에너지 볼트와 같아 통합했으므로 지금은 비어 있다.
         private static readonly string[] DEFAULT_METHOD_IDS = Array.Empty<string>();
@@ -110,10 +108,7 @@ namespace RuneCode
                 string grade = GameData.ModifierGrades.GetLowestAvailableGrade(rune.Id);
                 if (rune.Category != SpellGrammar.CATEGORY_MODIFIER
                     || _modifierStock.Exists(stock => stock.RuneId == rune.Id && stock.Grade == grade)) continue;
-                int startStock = GameData.Balance.Economy.ModifierStartStock;
-                foreach (string startRune in GameData.Runes.StartRunes)
-                    if (startRune == rune.Id) startStock = Math.Max(startStock, STARTER_MODIFIER_STOCK);
-                _modifierStock.Add(new ModifierStock(rune.Id, grade, startStock));
+                _modifierStock.Add(new ModifierStock(rune.Id, grade, GameData.Balance.Economy.ModifierStartStock));
             }
 
             if (_elementStock == null) _elementStock = new List<ModifierStock>();
@@ -183,7 +178,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>모든 요청 수량을 먼저 검사하고 행동·모드 재고에서 함께 차감한다. 부족하거나 잘못된 요청이면 변경하지 않는다.</summary>
+        /// <summary>모든 요청 수량을 먼저 검사하고 행동·모드·전투 속성 재고에서 함께 차감한다. 부족하거나 잘못된 요청이면 변경하지 않는다.</summary>
         public bool TryConsumeStock(IReadOnlyDictionary<string, int> materials, string grade)
         {
             if (materials == null || materials.Count == 0) return false;
@@ -193,7 +188,7 @@ namespace RuneCode
             foreach (KeyValuePair<string, int> pair in materials)
             {
                 List<ModifierStock> stocks = GameData.Runes.Get(pair.Key).Category == SpellGrammar.CATEGORY_MODIFIER
-                    ? _modifierStock : _behaviorStock;
+                    ? _modifierStock : GameData.Runes.Get(pair.Key).Category == SpellGrammar.CATEGORY_ELEMENT ? _elementStock : _behaviorStock;
                 int remaining = pair.Value;
                 foreach (ModifierStock stock in stocks)
                 {
