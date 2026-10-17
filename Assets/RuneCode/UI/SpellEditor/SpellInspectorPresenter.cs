@@ -57,7 +57,11 @@ namespace RuneCode
                 case "mod.duration": effect = "효과의 지속시간을 늘립니다."; break;
                 case "behavior.launch": effect = "마법을 발사합니다."; break;
                 case "behavior.legacy_burst": effect = "범위에 레거시 폭발 효과를 줍니다."; break;
-                case "behavior.persist": effect = "효과를 남겨 일정 시간 유지합니다."; break;
+                case "behavior.persist":
+                    RuneStats persist = GameData.Runes.Get("form.zone").Stats;
+                    effect = "예고 후 범위를 유지하며 기본 " + persist.TickInterval.ToString("0.##") + "초마다 피해 "
+                        + persist.Damage.ToString("0.##") + "를 줍니다. 대상별로 실제 피해를 준 첫 타격에 OnHit이 발동하고, 이후 두 번 타격할 때마다 발동합니다(1·3·5번째). 종료 시점에는 타격하지 않습니다.";
+                    break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
                 case "behavior.burst": effect = GameData.L("ui.burstHint"); break;
                 case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
@@ -180,6 +184,7 @@ namespace RuneCode
                 ShowElementInfo(node);
                 if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR) ShowBehaviorStats(node, rune);
                 else ShowCompiledStats(node, rune);
+                if (rune.Id == "behavior.persist") _view.AddNote(RuneEffectText(rune, null), 60f, 10f);
             }
             if (rune.Category != SpellGrammar.CATEGORY_CORE) _view.AddButton(GameData.L("ui.delete"), "InspectorDeleteButton", () => _editor.RemoveNode(node.Id));
         }

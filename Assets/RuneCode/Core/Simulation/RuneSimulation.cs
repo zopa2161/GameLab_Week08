@@ -1122,7 +1122,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 범위 마법의 가까운 적부터 대상별 주기(행동의 범위 판정 주기)에 맞춰 피해를 적용한다. 주기 판정 적중은 OnHit을 만들지 않는다.
+        /// 범위 마법의 가까운 적부터 대상별 주기에 맞춰 피해를 적용하고, 실제 피해 타격 횟수에 따른 행동별 규칙으로 OnHit을 낸다.
         /// isBurst이면 대상별 한 번만 적중하고 확장 범위가 대상과 처음 겹친 접촉 위치로 OnHit을 낸다(Burst).
         /// </summary>
         internal void HitArea(SimulationSpellEntity entity, bool isBurst)
@@ -1154,9 +1154,11 @@ namespace RuneCode
                     entity.HitTimes[enemy.Id] = Time;
                     SimVector pushDirection = enemy.Position - entity.Position;
                     if (pushDirection.Length <= COLLISION_EPSILON) pushDirection = entity.Direction;
+                    double previousHp = enemy.Hp;
                     Hit(entity, enemy, entity.Stats.Damage, entity.Behavior.IsDamageOverTime, pushDirection);
-                    // Burst.OnHit은 확장 범위가 대상과 처음 겹칠 때 대상별 한 번, 접촉 위치로 낸다.
-                    if (isBurst) RaiseHitEvent(entity, SpellGeometry.GetContactPoint(entity, enemy.Position), enemy);
+                    // 폭발은 대상별 한 번, 잔류는 실제 피해 타격 횟수에 따라 접촉 위치에서 후속 행동을 실행한다.
+                    if (isBurst || (enemy.Hp < previousHp && entity.Behavior.RecordPeriodicHit(entity, enemy.Id)))
+                        RaiseHitEvent(entity, SpellGeometry.GetContactPoint(entity, enemy.Position), enemy);
                 }
             }
         }

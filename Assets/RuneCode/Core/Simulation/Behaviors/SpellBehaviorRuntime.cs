@@ -92,6 +92,9 @@ namespace RuneCode
         /// <summary>실제 피해를 잔류 피해 통계(PersistDamage)에 누적하는지 나타낸다.</summary>
         public virtual bool AccumulatesPersistDamage => false;
 
+        /// <summary>개체가 대상에게 실제 피해를 준 범위 타격을 기록하고 OnHit 후속 행동을 실행할지 반환한다. 기본은 실행하지 않는다.</summary>
+        public virtual bool RecordPeriodicHit(SimulationSpellEntity entity, int targetId) => false;
+
         /// <summary>
         /// 적중을 직접 충돌로 기록하고 첫 적중·소멸 이벤트(OnFirstHitOrExpire)를 추적하는지 나타낸다.
         /// 직접 충돌한 개체는 소멸 이벤트를 내지 않는다.
