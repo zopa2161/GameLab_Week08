@@ -37,7 +37,11 @@ namespace RuneCode
             string effect;
             switch (rune.Id)
             {
-                case "element.fire": case "elem.fire": effect = "화상을 부여해 지속 피해를 줍니다."; break;
+                case "element.fire": case "elem.fire":
+                    CombatBalance combat = GameData.Balance.Combat;
+                    effect = "적에게 화상을 부여해 " + combat.BurnSeconds.ToString("0.#") + "초 동안 "
+                        + combat.BurnInterval.ToString("0.#") + "초마다 공격 피해의 " + (combat.BurnDamageRatio * 100f).ToString("0.#") + "% 피해를 줍니다.";
+                    break;
                 case "element.ice": case "elem.ice": effect = "적을 둔화시키고 냉기가 누적되면 빙결시킵니다."; break;
                 case "element.lightning": case "elem.arc": effect = "전격 피해와 EMP 효과를 부여합니다."; break;
                 case "element.healing": effect = "회복 효과를 적용합니다."; break;

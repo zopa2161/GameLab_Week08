@@ -1273,7 +1273,7 @@ namespace RuneCode
                 break;
             }
             actual = enemy.Hurt(Math.Max(minimumDamage, actual), Time);
-            if (applyStatus) ApplyStatus(enemy, element, form, noise);
+            if (applyStatus) ApplyStatus(enemy, element, form, noise, damage);
             if (actual > 0)
             {
                 enemy.SetDamageTags(element, form);
@@ -1317,7 +1317,7 @@ namespace RuneCode
                 EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
                 if (burn == null) continue;
                 while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && Time + 0.000001 >= burn.NextTickTime)
-                { _statusDamage += ApplyDamage(enemy, _balance.Combat.BurnDps * _balance.Combat.BurnInterval, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false); burn.NextTickTime += _balance.Combat.BurnInterval; }
+                { _statusDamage += ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false); burn.NextTickTime += _balance.Combat.BurnInterval; }
             }
             for (int i = _enemyStatuses.Count - 1; i >= 0; i--)
                 if (IsStatusExpired(_enemyStatuses[i])) { RemoveStatusIndex(_enemyStatuses[i]); _enemyStatuses.RemoveAt(i); }
@@ -1337,16 +1337,16 @@ namespace RuneCode
             }
         }
 
-        /// <summary>피해 속성에 맞는 상태 이상(화염·냉기·EMP)을 현재 시각 기준으로 부여한다.</summary>
-        private void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise)
+        /// <summary>피해 속성에 맞는 상태 이상을 부여한다. 화염은 전투 공통 보정 전 공격 피해 sourceDamage를 틱 피해 계산에 전달한다.</summary>
+        private void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise, double sourceDamage)
         {
-            if (element == "fire") ApplyBurn(enemy, form, noise);
+            if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage);
             else if (element == "ice") ApplyChill(enemy);
             else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = Time + _balance.Combat.EmpSeconds;
         }
 
-        /// <summary>화염의 출처 형태와 노이즈를 보관하고 지속시간을 갱신하되, 진행 중인 화염이면 다음 틱 시각을 유지한다.</summary>
-        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise)
+        /// <summary>공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 저장하고 출처·지속시간을 갱신한다. 진행 중인 화상은 다음 틱 시각을 유지한다.</summary>
+        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage)
         {
             EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
             if (burn == null || Time >= burn.Until)
@@ -1355,6 +1355,7 @@ namespace RuneCode
                 burn.NextTickTime = Time + _balance.Combat.BurnInterval;
             }
             burn.Until = Time + _balance.Combat.BurnSeconds; burn.SourceForm = form; burn.IsNoise = noise;
+            burn.TickDamage = sourceDamage * _balance.Combat.BurnDamageRatio;
         }
 
         /// <summary>

@@ -38,6 +38,7 @@
   },
   "_combat": {
     "_burnDps": 3,
+    "_burnDamageRatio": 0.1,
     "_burnInterval": 0.5,
     "_burnSeconds": 3,
     "_chillSlow": 0.3,
@@ -76,8 +77,8 @@
     "_benchDummyX": 820,
     "_benchDummyY": 352,
     "_benchHp": 10000,
-    "_benchLineStartX": 1000,
-    "_benchLineGap": -125,
+    "_benchLineStartX": 930,
+    "_benchLineGap": -110,
     "_benchLineCount": 5,
     "_benchSwarmX": 650,
     "_benchSwarmY": 220,
