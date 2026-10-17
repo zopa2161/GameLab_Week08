@@ -220,8 +220,8 @@ namespace RuneCode
                         categoryOrder.Add(rune.Category);
                     }
                     if (candidates.Count == RuneSynthesisRules.MATERIAL_COUNT
-                        || !_editor.TryGetModifierUsage(rune.Id, candidateGrade, out int used, out int owned)) continue;
-                    int available = Math.Min(owned - used, RuneSynthesisRules.MATERIAL_COUNT - candidates.Count);
+                        || !_editor.TryGetUnusedStock(rune.Id, candidateGrade, out int unused, out int owned)) continue;
+                    int available = Math.Min(unused, RuneSynthesisRules.MATERIAL_COUNT - candidates.Count);
                     for (int index = 0; index < available; index++) candidates.Add(rune.Id);
                 }
                 foreach (string category in categoryOrder)
@@ -237,9 +237,9 @@ namespace RuneCode
             var elements = new List<string>(RuneSynthesisRules.MATERIAL_COUNT);
             foreach (string runeId in RuneSynthesisRules.GetResults(SpellGrammar.CATEGORY_ELEMENT, ""))
             {
-                if (!_editor.TryGetModifierUsage(runeId, "", out int used, out int owned)) continue;
-                int available = Math.Min(owned - used, RuneSynthesisRules.MATERIAL_COUNT - elements.Count);
-                for (int index = 0; index < available; index++) elements.Add(runeId);
+                if (!_editor.TryGetUnusedStock(runeId, "", out int unused, out int owned)) continue;
+                int elementAvailable = Math.Min(unused, RuneSynthesisRules.MATERIAL_COUNT - elements.Count);
+                for (int index = 0; index < elementAvailable; index++) elements.Add(runeId);
                 if (elements.Count != RuneSynthesisRules.MATERIAL_COUNT) continue;
                 materials = elements.ToArray();
                 grade = "";
@@ -284,7 +284,7 @@ namespace RuneCode
                 if (!RuneSynthesisRules.IsEligible(rune, grade)
                     || (_category != null && (_category != rune.Category || _grade != grade))) return;
                 int reserved = ReservedCount(runeId, grade) - (_materials[index] == runeId ? 1 : 0);
-                if (!_editor.TryGetModifierUsage(runeId, grade, out int used, out int owned) || owned - used <= reserved) return;
+                if (!_editor.TryGetUnusedStock(runeId, grade, out int unused, out int owned) || unused <= reserved) return;
                 _category = rune.Category;
                 _grade = grade;
             }
@@ -343,8 +343,8 @@ namespace RuneCode
                 {
                     if ((gradeFilter != null && grade != gradeFilter) || (_grade != null && grade != _grade)
                         || !RuneSynthesisRules.IsEligible(rune, grade)) continue;
-                    if (!_editor.TryGetModifierUsage(rune.Id, grade, out int used, out int owned)) continue;
-                    int remaining = owned - used - ReservedCount(rune.Id, grade) + (_materials[index] == rune.Id ? 1 : 0);
+                    if (!_editor.TryGetUnusedStock(rune.Id, grade, out int unused, out int owned)) continue;
+                    int remaining = unused - ReservedCount(rune.Id, grade) + (_materials[index] == rune.Id ? 1 : 0);
                     if (remaining <= 0) continue;
                     string runeId = rune.Id;
                     popup.AddResult(SpellPalettePresenter.StockLabel(rune, grade, remaining, owned),
@@ -364,8 +364,8 @@ namespace RuneCode
                     : _view.GetSynthesisRowPrefab(GameData.Runes.Get(id).Category).Button);
                 _slotButtons[index].GetComponentInChildren<TextMeshProUGUI>().text = id == null ? "비어있음"
                     : ModifierGradeText.FormatName(GameData.Runes.Get(id).Name, _grade);
-                if (id == null || !_editor.TryGetModifierUsage(id, _grade, out int used, out int owned)
-                    || owned - used < ReservedCount(id, _grade)) canSynthesize = false;
+                if (id == null || !_editor.TryGetUnusedStock(id, _grade, out int unused, out int owned)
+                    || unused < ReservedCount(id, _grade)) canSynthesize = false;
             }
             _synthesizeButton.interactable = canSynthesize;
             bool hasAutomaticMaterials = TryFindAutomaticMaterials(out _, out _);
@@ -396,8 +396,8 @@ namespace RuneCode
                 }
                 RuneDefinition resultRune = GameData.Runes.Get(resultId);
                 foreach (KeyValuePair<string, UiRow> pair in _resultRows) pair.Value.gameObject.SetActive(pair.Key == resultRune.Category);
-                _editor.TryGetModifierUsage(resultId, resultGrade, out int used, out int owned);
-                _resultRows[resultRune.Category].Configure(SpellPalettePresenter.StockLabel(resultRune, resultGrade, owned - used, owned),
+                _editor.TryGetUnusedStock(resultId, resultGrade, out int unused, out int owned);
+                _resultRows[resultRune.Category].Configure(SpellPalettePresenter.StockLabel(resultRune, resultGrade, unused, owned),
                     SpellPalettePresenter.ROW_HEIGHT, DismissResult, 12);
                 _resultOverlay.SetAsLastSibling();
                 _resultOverlay.gameObject.SetActive(true);

@@ -91,6 +91,15 @@ namespace RuneCode
             Refresh();
         }
 
+        /// <summary>분류·등급 필터와 검색어를 초기 상태("all", 등급 해제, 빈 검색어)로 되돌리고 팔레트를 다시 표시한다.</summary>
+        public void ResetFilters()
+        {
+            _category = "all";
+            _grade = null;
+            _view.SetSearchQuery("");
+            Refresh();
+        }
+
         /// <summary>현재 분류·검색어에 맞는 보유 행동(등급별)·속성·모디(등급별)를 이름·등급과 남은/보유 수로 표시한다.</summary>
         public void Refresh()
         {
@@ -236,12 +245,19 @@ namespace RuneCode
             _editor.Equip(nodeId, slotKey, runeId, grade);
         }
 
-        /// <summary>남은 수(remaining)와 보유 수(owned)를 구하고 보유 수가 1 이상이면 true를 반환한다.</summary>
+        /// <summary>남은 수(remaining)와 보유 수(owned)를 구하고 보유 수가 1 이상이면 true를 반환한다. 합성 모드에서는 보관함 전체 배치를 제외한 미사용 수량, 평소에는 현재 프리셋 배치를 제외한 수량을 반환한다.</summary>
         private bool TryGetStock(string runeId, string grade, out int remaining, out int owned)
         {
             remaining = 0;
-            if (!_editor.TryGetModifierUsage(runeId, grade, out int used, out owned)) return false;
-            remaining = owned - used;
+            if (_selectMaterial != null)
+            {
+                if (!_editor.TryGetUnusedStock(runeId, grade, out remaining, out owned)) return false;
+            }
+            else
+            {
+                if (!_editor.TryGetModifierUsage(runeId, grade, out int used, out owned)) return false;
+                remaining = owned - used;
+            }
             return owned > 0;
         }
 

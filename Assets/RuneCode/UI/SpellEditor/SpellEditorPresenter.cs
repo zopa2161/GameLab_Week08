@@ -52,11 +52,12 @@ namespace RuneCode
             _inspector.PreviewRune(rune, grade);
         }
 
-        /// <summary>패널이 보일 때 편집을 허용하고 전체를 갱신한다.</summary>
+        /// <summary>패널이 보일 때 팔레트 필터를 초기화하고 편집을 허용한 뒤 전체를 갱신한다.</summary>
         public void Enter()
         {
             _synthesis.RefreshAvailability();
             _editor.SetEditable(!_synthesis.IsOpen);
+            _palette.ResetFilters();
             RefreshAll();
         }
 

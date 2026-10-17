@@ -9,6 +9,15 @@
       "_key": "ui.mod.knockbackHint",
       "_value": "이번 타격에서 실제로 준 직접 피해에 비례해 적을 밀어냅니다. 작은 지속 피해는 짧게 밀어냅니다. 발사는 진행 방향, 폭발·레거시 폭발·잔류는 중심에서 바깥 방향, 빔은 맞은 구간의 진행 방향을 사용합니다. 보스·빙결·돌진 중인 적에게는 적용되지 않습니다."
     },
+    { "_key": "ui.behavior.launch", "_value": "마법을 발사합니다." },
+    { "_key": "ui.behavior.burst", "_value": "생성 위치에서 원형 폭발을 일으킵니다." },
+    { "_key": "ui.behavior.legacy_burst", "_value": "범위에 레거시 폭발 효과를 줍니다." },
+    { "_key": "ui.behavior.persist", "_value": "효과를 남겨 일정 시간 유지합니다." },
+    { "_key": "ui.behavior.beam", "_value": "버튼을 누르는 동안 빔을 유지합니다." },
+    { "_key": "ui.behavior.apply", "_value": "설정한 속성 효과를 대상에 적용합니다." },
+    { "_key": "ui.element.fire", "_value": "적에게 화상 피해를 입힙니다." },
+    { "_key": "ui.element.ice", "_value": "적을 둔화시키고 냉기가 누적되면 빙결시킵니다." },
+    { "_key": "ui.element.lightning", "_value": "전격 피해와 EMP 효과를 부여합니다." },
     { "_key": "tag.beam", "_value": "빔" },
     { "_key": "form.beam", "_value": "빔" },
     { "_key": "ui.beamInitialCost", "_value": "초기 소모 마나" },
@@ -1659,6 +1668,14 @@
     {
       "_key": "ui.gradeOrbitTargetCount",
       "_value": "공전 대상"
+    },
+    {
+      "_key": "ui.gradeKnockback",
+      "_value": "밀어내기 거리"
+    },
+    {
+      "_key": "ui.gradeOrbitPath",
+      "_value": "궤도 반경 배율"
     },
     {
       "_key": "ui.gradeAngularSpeed",

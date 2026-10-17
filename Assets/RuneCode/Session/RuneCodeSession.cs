@@ -646,7 +646,7 @@ namespace RuneCode
                 counts[id] = count + 1;
             }
             foreach (KeyValuePair<string, int> pair in counts)
-                if (!_spells.TryGetModifierUsage(pair.Key, grade, out int used, out int owned) || owned - used < pair.Value) return false;
+                if (!_spells.TryGetUnusedStock(pair.Key, grade, out int unused, out _) || unused < pair.Value) return false;
             string resultCategory = category;
             if (category == SpellGrammar.CATEGORY_ELEMENT || grade == "S")
                 resultCategory = UnityEngine.Random.Range(0, 2) == 0 ? SpellGrammar.CATEGORY_BEHAVIOR : SpellGrammar.CATEGORY_MODIFIER;
