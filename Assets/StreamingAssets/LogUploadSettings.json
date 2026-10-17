@@ -1,5 +1,5 @@
 {
-  "_isEnabled": false,
-  "_endpoint": "",
-  "_uploadToken": ""
+  "_isEnabled": true,
+  "_endpoint": "https://playlog-inbox-9123ca2b.playlog-cloud-collection.workers.dev/api/sessions",
+  "_uploadToken": "1V2o4FAcsHcpauhnpx0oZkhCAvt7GYweGC25VgXvWvQ"
 }
