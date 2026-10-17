@@ -12,8 +12,7 @@ namespace RuneCode
     {
         private const float MENU_BUTTON_X = 154f;
         private const float DEBUG_START_BUTTON_Y = -568f;
-        private const float TEST_START_BUTTON_Y = -642f;
-        private const float DEBUG_BUILD_QUIT_BUTTON_Y = -716f;
+        private const float DEBUG_BUILD_QUIT_BUTTON_Y = -642f;
 
         [Header("화면 구성")]
         [SerializeField] private Button _startButton;
@@ -28,9 +27,6 @@ namespace RuneCode
         /// <summary>디버그 시작 버튼을 눌렀을 때 알린다.</summary>
         public event Action DebugStartClicked;
 
-        /// <summary>테스트 모드 시작 버튼을 눌렀을 때 알린다.</summary>
-        public event Action TestStartClicked;
-
         /// <summary>저장 슬롯 관리 버튼을 눌렀을 때 알린다.</summary>
         public event Action SaveManagementClicked;
 
@@ -39,7 +35,7 @@ namespace RuneCode
 
         /// <summary>
         /// 시작·슬롯 관리·게임 종료 버튼을 연결하고 세션·UI 관리자와 Presenter를 만든다.
-        /// 테스트 모드 시작은 모든 빌드에서 표시하고 디버그 시작은 Unity 에디터에서만 표시한다.
+        /// 디버그 시작은 Unity 에디터에서만 표시한다.
         /// </summary>
         public void Initialize(RuneCodeSession session, UIManager ui)
         {
@@ -50,8 +46,6 @@ namespace RuneCode
             ((RectTransform)_debugStartButton.transform).anchoredPosition = new Vector2(MENU_BUTTON_X, DEBUG_START_BUTTON_Y);
             _saveManagementButton = CreateMenuButton("SaveManagementButton", GameData.L("save.manage"), -420);
             _saveManagementButton.onClick.AddListener(() => SaveManagementClicked?.Invoke());
-            Button testStartButton = CreateMenuButton("TestStartButton", GameData.L("ui.startTest"), TEST_START_BUTTON_Y);
-            testStartButton.onClick.AddListener(() => TestStartClicked?.Invoke());
             Button quitButton = CreateMenuButton("QuitButton", GameData.L("ui.quit"), DEBUG_BUILD_QUIT_BUTTON_Y);
             quitButton.onClick.AddListener(() => QuitClicked?.Invoke());
             _presenter = new TitlePresenter(session, ui, this);
