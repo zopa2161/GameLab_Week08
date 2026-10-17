@@ -365,7 +365,7 @@
       "_name": "빔 수치",
       "_category": "internal",
       "_ram": 2,
-      "_energy": 2,
+      "_energy": 5,
       "_energyMult": 1,
       "_unlockType": "start",
       "_stats": {
