@@ -22,9 +22,12 @@ namespace RuneCode
         private readonly SpellEditorPanel _view;
         private readonly SpellPalettePresenter _palette;
         private readonly SpellInspectorPresenter _inspector;
+        private readonly RuneSynthesisPresenter _synthesis;
 
         private bool _isTutorialActive;
         private int _tutorialStartExecutions;
+
+        public bool IsSynthesisOpen => _synthesis.IsOpen;
 
         /// <summary>편집 세션·작업실 호스트·UI 관리자·편집 View로 하위 Presenter를 만들고 View·세션 이벤트와 그래프를 연결한다.</summary>
         public SpellEditorPresenter(ISpellEditor editor, ISpellEditorHost host, UIManager ui, SpellEditorPanel view)
@@ -35,6 +38,7 @@ namespace RuneCode
             _view = view;
             _palette = new SpellPalettePresenter(editor, ui, view);
             _inspector = new SpellInspectorPresenter(editor, view.Inspector, view.GraphCanvas, OpenSpellPicker);
+            _synthesis = new RuneSynthesisPresenter(editor, host, ui, view, _palette);
             BindView();
             _view.GraphCanvas.Initialize(_editor, _view.Font, _inspector.Select, ShowTooltip, _palette.OpenQuickPalette, _palette.OpenSlotPicker);
             _editor.GraphChanged += OnGraphChanged;
@@ -51,7 +55,8 @@ namespace RuneCode
         /// <summary>패널이 보일 때 편집을 허용하고 전체를 갱신한다.</summary>
         public void Enter()
         {
-            _editor.SetEditable(true);
+            _synthesis.RefreshAvailability();
+            _editor.SetEditable(!_synthesis.IsOpen);
             RefreshAll();
         }
 
@@ -59,6 +64,7 @@ namespace RuneCode
         public void Exit()
         {
             _ui.CloseAllPopups();
+            _synthesis.Close();
             _editor.SetEditable(false);
         }
 
@@ -66,7 +72,7 @@ namespace RuneCode
         public void Tick()
         {
             UpdateTutorial();
-            if (_ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (_synthesis.IsOpen || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null) HandleShortcuts(keyboard);
         }
@@ -74,9 +80,13 @@ namespace RuneCode
         /// <summary>편집 세션 이벤트 구독을 해제한다.</summary>
         public void Dispose()
         {
+            _synthesis.Dispose();
             _editor.GraphChanged -= OnGraphChanged;
             _editor.SpellSwitched -= OnSpellSwitched;
         }
+
+        /// <summary>열린 합성 결과 또는 창을 닫고 Esc 처리 여부를 반환한다.</summary>
+        public bool HandleSynthesisEscape() => _synthesis.HandleEscape();
 
         /// <summary>제목 줄·도구줄·튜토리얼 버튼 이벤트를 편집 명령과 팝업 열기로 연결한다.</summary>
         private void BindView()
@@ -136,6 +146,7 @@ namespace RuneCode
         private void OnSpellSwitched()
         {
             _ui.CloseAllPopups();
+            _synthesis.Close();
             _inspector.ClearSelection();
             RefreshAll();
         }

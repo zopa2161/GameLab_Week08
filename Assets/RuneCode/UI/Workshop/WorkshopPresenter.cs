@@ -115,6 +115,15 @@ namespace RuneCode
 
         int ISpellEditorHost.TestExecutionCount => _dockRun.Dock != null ? _dockRun.Dock.NodeExecutionCount : 0;
 
+        bool ISpellEditorHost.CanSynthesizeRunes => !_session.IsTestMode;
+
+        /// <summary>편집 UI의 재료·등급을 세션에 전달하고 합성 결과 또는 오류를 반환한다.</summary>
+        bool ISpellEditorHost.TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
+            out string resultId, out string resultGrade, out string error)
+        {
+            return _session.TrySynthesizeRunes(materials, grade, out resultId, out resultGrade, out error);
+        }
+
         void ISpellEditorHost.FireTest() => _dockRun.FireDock();
 
         void ISpellEditorHost.CompleteTutorial() => _session.AdvanceTutorial(3);
@@ -225,7 +234,7 @@ namespace RuneCode
         /// <summary>팝업이 열려 있어 도크 클릭 시전을 막아야 하는지 반환한다.</summary>
         private bool IsEditorInputBlocked()
         {
-            return _ui.IsPopupOpen;
+            return _ui.IsPopupOpen || _view.SpellEditor.IsSynthesisOpen;
         }
 
         /// <summary>최근 도크 노드 실행 중 하이라이트 유지 틱 이내의 것을 편집 그래프 하이라이트로 전달한다.</summary>

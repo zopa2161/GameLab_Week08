@@ -106,6 +106,7 @@ namespace RuneCode
         /// <summary>스테이지 선택 중 Esc를 누르면 이전 작업실 탭으로 돌아가고 입력 소비 여부를 반환한다.</summary>
         public override bool HandleEscape()
         {
+            if (_spellEditor.IsSynthesisOpen) return _spellEditor.HandleSynthesisEscape();
             if (!_deployRoot.gameObject.activeSelf) return false;
             BackClicked?.Invoke();
             return true;

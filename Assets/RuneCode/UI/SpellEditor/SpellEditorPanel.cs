@@ -62,6 +62,9 @@ namespace RuneCode
         private readonly List<Button> _gradeButtons = new List<Button>();
         private readonly Dictionary<UiRow, ViewPool<UiRow>> _paletteRows = new Dictionary<UiRow, ViewPool<UiRow>>();
         private SpellInspectorView _inspector;
+        private readonly Dictionary<Button, bool> _synthesisButtonStates = new Dictionary<Button, bool>();
+        private CanvasGroup _inspectorInputGroup;
+        private bool _wasInspectorInteractable;
 
 
         /// <summary>노드 그래프 View다.</summary>
@@ -72,6 +75,8 @@ namespace RuneCode
 
         /// <summary>그래프 라벨에 쓰는 글꼴이다.</summary>
         public TMP_FontAsset Font => _font;
+
+        public bool IsSynthesisOpen => _presenter != null && _presenter.IsSynthesisOpen;
 
         public event Action LibraryClicked;
         public event Action RenameClicked;
@@ -140,6 +145,61 @@ namespace RuneCode
 
         /// <summary>현재 팔레트 검색어다.</summary>
         public string SearchQuery => _searchField.text;
+
+        /// <summary>검색어를 변경 이벤트 없이 복구한다.</summary>
+        public void SetSearchQuery(string query) => _searchField.SetTextWithoutNotify(query ?? "");
+
+        /// <summary>합성 중 편집 도구와 인스펙터의 키보드·포인터 입력을 막고 닫을 때 이전 활성 상태를 복구한다.</summary>
+        public void SetSynthesisEditingLocked(bool isLocked)
+        {
+            if (isLocked)
+            {
+                Button[] buttons = { _libraryButton, _renameButton, _saveButton, _shareButton,
+                    _undoButton, _redoButton, _arrangeButton, _copyButton, _pasteButton };
+                foreach (Button button in buttons)
+                {
+                    _synthesisButtonStates[button] = button.interactable;
+                    button.interactable = false;
+                }
+                if (_inspectorInputGroup == null)
+                {
+                    _inspectorInputGroup = _inspectorPanel.GetComponent<CanvasGroup>();
+                    if (_inspectorInputGroup == null) _inspectorInputGroup = _inspectorPanel.gameObject.AddComponent<CanvasGroup>();
+                }
+                _wasInspectorInteractable = _inspectorInputGroup.interactable;
+                _inspectorInputGroup.interactable = false;
+            }
+            else
+            {
+                foreach (KeyValuePair<Button, bool> state in _synthesisButtonStates) state.Key.interactable = state.Value;
+                _synthesisButtonStates.Clear();
+                _inspectorInputGroup.interactable = _wasInspectorInteractable;
+            }
+        }
+
+        /// <summary>합성 중 허용 분류·등급만 누를 수 있게 하고 재료가 있으면 필터 변경을 잠근다.</summary>
+        public void SetSynthesisFilters(bool isActive, string category, string grade)
+        {
+            for (int index = 0; index < _categoryButtons.Length; index++)
+            {
+                string id = CATEGORY_IDS[index];
+                _categoryButtons[index].interactable = !isActive || (category == null
+                    && (id == "all" || id == SpellGrammar.CATEGORY_BEHAVIOR || id == SpellGrammar.CATEGORY_MODIFIER));
+            }
+            for (int index = 0; index < _gradeButtons.Count; index++)
+                _gradeButtons[index].interactable = !isActive || (grade == null && RuneSynthesisRules.NextGrade(_gradeFilterIds[index]) != null);
+        }
+
+        /// <summary>기존 공용 프리팹으로 합성 UI를 구성할 생성기와 팔레트 영역을 반환한다.</summary>
+        public UiFactory CreateSynthesisUi(out RectTransform palette, out RectTransform scroll)
+        {
+            palette = (RectTransform)_categoryButtons[0].transform.parent;
+            scroll = (RectTransform)_runeList.parent.parent;
+            return new UiFactory(_font, _panelPrefab, _buttonPrefab);
+        }
+
+        /// <summary>합성창이 열려 있으면 결과 안내 또는 창을 닫고 입력을 소비한다.</summary>
+        public bool HandleSynthesisEscape() => _presenter != null && _presenter.HandleSynthesisEscape();
 
         /// <summary>팔레트 목록을 비운다. 이어서 AddPaletteRow로 채운다.</summary>
         public void ClearPalette()

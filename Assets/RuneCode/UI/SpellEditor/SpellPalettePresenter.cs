@@ -22,6 +22,13 @@ namespace RuneCode
         private readonly SpellEditorPanel _view;
         private string _category = "all";
         private string _grade;
+        private string _previousCategory;
+        private string _previousGrade;
+        private string _previousQuery;
+        private string _lockedCategory;
+        private string _lockedGrade;
+        private Action<string, string> _selectMaterial;
+        private Func<string, string, int> _reservedCount;
 
         /// <summary>편집 세션·UI 관리자·편집 View를 받아 검색어·분류 이벤트를 연결한다.</summary>
         public SpellPalettePresenter(ISpellEditor editor, UIManager ui, SpellEditorPanel view)
@@ -32,14 +39,54 @@ namespace RuneCode
             _view.SearchChanged += _ => Refresh();
             _view.CategoryClicked += category =>
             {
+                if (_selectMaterial != null && (_lockedCategory != null
+                    || (category != "all" && category != SpellGrammar.CATEGORY_BEHAVIOR && category != SpellGrammar.CATEGORY_MODIFIER))) return;
                 _category = category;
                 Refresh();
             };
             _view.GradeClicked += grade =>
             {
+                if (_selectMaterial != null && (_lockedGrade != null || RuneSynthesisRules.NextGrade(grade) == null)) return;
                 _grade = _grade == grade ? null : grade;
                 Refresh();
             };
+        }
+
+        /// <summary>기존 필터·검색을 보관하고 합성 재료 클릭과 예약 수량 조회를 연결한다.</summary>
+        public void BeginSynthesis(Action<string, string> selectMaterial, Func<string, string, int> reservedCount)
+        {
+            _previousCategory = _category;
+            _previousGrade = _grade;
+            _previousQuery = _view.SearchQuery;
+            _selectMaterial = selectMaterial;
+            _reservedCount = reservedCount;
+            _view.SetSearchQuery("");
+            SetSynthesisFilter(null, null);
+        }
+
+        /// <summary>재료가 있으면 분류·등급을 잠그고 없으면 행동·모드 전체를 표시한다.</summary>
+        public void SetSynthesisFilter(string category, string grade)
+        {
+            _lockedCategory = category;
+            _lockedGrade = grade;
+            _category = category ?? "all";
+            _grade = grade;
+            _view.SetSynthesisFilters(true, category, grade);
+            Refresh();
+        }
+
+        /// <summary>합성 클릭과 예약 수량을 해제하고 열기 전 필터·검색으로 복구한다.</summary>
+        public void EndSynthesis()
+        {
+            _selectMaterial = null;
+            _reservedCount = null;
+            _lockedCategory = null;
+            _lockedGrade = null;
+            _category = _previousCategory;
+            _grade = _previousGrade;
+            _view.SetSearchQuery(_previousQuery);
+            _view.SetSynthesisFilters(false, null, null);
+            Refresh();
         }
 
         /// <summary>현재 분류·검색어에 맞는 보유 행동(등급별)·속성·모디(등급별)를 이름·등급과 남은/보유 수로 표시한다.</summary>
@@ -53,10 +100,14 @@ namespace RuneCode
             {
                 if (!IsPaletteRune(rune) || !_editor.IsRuneUnlocked(rune.Id)
                     || (_category != "all" && rune.Category != _category) || !MatchesSearch(rune, query)) continue;
+                if (_selectMaterial != null && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR
+                    && rune.Category != SpellGrammar.CATEGORY_MODIFIER) continue;
                 foreach (string grade in StockGrades(rune))
                 {
+                    if (_selectMaterial != null && (!RuneSynthesisRules.IsEligible(rune, grade) || RuneSynthesisRules.NextGrade(grade) == null)) continue;
                     if (_grade != null && grade != _grade) continue;
                     if (!TryGetStock(rune.Id, grade, out int remaining, out int owned)) continue;
+                    if (_reservedCount != null) remaining = Math.Max(0, remaining - _reservedCount(rune.Id, grade));
                     AddPaletteRune(rune, grade, StockLabel(rune, grade, remaining, owned), remaining > 0);
                 }
             }
@@ -65,6 +116,7 @@ namespace RuneCode
         /// <summary>빠른 검색 팝업을 열고, 고른 보유 행동을 지정 그래프 좌표에 지정 등급으로 배치하게 한다.</summary>
         public void OpenQuickPalette(Vector2 graphPosition)
         {
+            if (_selectMaterial != null) return;
             QuickPalettePopup popup = _ui.OpenPopup<QuickPalettePopup>();
             popup.Begin();
             Action<string> onSearch = query => FillQuickPalette(popup, query, graphPosition);
@@ -78,6 +130,7 @@ namespace RuneCode
         /// </summary>
         public void OpenSlotPicker(string nodeId, string slotKey)
         {
+            if (_selectMaterial != null) return;
             if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return;
             QuickPalettePopup popup = _ui.OpenPopup<QuickPalettePopup>();
             popup.Begin(true);
@@ -158,10 +211,11 @@ namespace RuneCode
             string runeId = rune.Id;
             Action onClick;
             if (!canPlace) onClick = () => _editor.ReportStatus("editor.stockBlocked");
+            else if (_selectMaterial != null) onClick = () => _selectMaterial?.Invoke(runeId, grade);
             else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
                 onClick = () => _view.GraphCanvas.PlaceRune(runeId, _view.GraphCanvas.SuggestPlacement(runeId), grade);
             else onClick = () => EquipToSelected(runeId, grade);
-            _view.AddPaletteRow(label, ROW_HEIGHT, onClick, runeId, grade, canPlace);
+            _view.AddPaletteRow(label, ROW_HEIGHT, onClick, runeId, grade, canPlace && _selectMaterial == null);
         }
 
         /// <summary>선택한 행동 노드 하나의 첫 빈 슬롯에 속성·모디를 장착한다. 선택이 없거나 빈 슬롯이 없으면 상태 문구를 띄운다.</summary>
@@ -191,7 +245,7 @@ namespace RuneCode
         }
 
         /// <summary>룬 분류별 소지 등급 목록을 반환한다. 행동은 행동 등급표, 모디는 Modifier 등급표, 속성은 빈 등급 하나다.</summary>
-        private static IEnumerable<string> StockGrades(RuneDefinition rune)
+        internal static IEnumerable<string> StockGrades(RuneDefinition rune)
         {
             if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR) return GameData.Runes.BehaviorGradeOrder;
             if (rune.Category == SpellGrammar.CATEGORY_MODIFIER) return GameData.ModifierGrades.GetAvailableGrades(rune.Id);
@@ -199,7 +253,7 @@ namespace RuneCode
         }
 
         /// <summary>첫 줄에 이름·등급, 둘째 줄에 남은 수/보유 수를 담고 등급 색을 입힌 문구를 반환한다. 등급이 없으면 이름만 쓴다.</summary>
-        private static string StockLabel(RuneDefinition rune, string grade, int remaining, int owned)
+        internal static string StockLabel(RuneDefinition rune, string grade, int remaining, int owned)
         {
             string name = string.IsNullOrEmpty(grade) ? rune.Name : rune.Name + " " + grade;
             string label = name + "\n" + GameData.L("ui.modifierStock") + " " + remaining + "/" + owned;
@@ -215,7 +269,7 @@ namespace RuneCode
         }
 
         /// <summary>검색어가 비어 있거나 룬 이름·ID 중 하나와 대소문자 구분 없이 일치하는지 반환한다.</summary>
-        private static bool MatchesSearch(RuneDefinition rune, string query)
+        internal static bool MatchesSearch(RuneDefinition rune, string query)
         {
             return string.IsNullOrEmpty(query)
                 || rune.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0

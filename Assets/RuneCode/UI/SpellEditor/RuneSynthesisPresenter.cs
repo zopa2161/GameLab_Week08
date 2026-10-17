@@ -1,0 +1,310 @@
+using System;
+
+using UnityEngine;
+
+using TMPro;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+namespace RuneCode
+{
+    /// <summary>팔레트 옆 합성창의 재료 예약·슬롯 선택·결과 안내와 편집 입력 잠금을 관리한다.</summary>
+    public sealed class RuneSynthesisPresenter : IDisposable
+    {
+        private const float PALETTE_BUTTON_SPACE = 42f;
+        private readonly ISpellEditor _editor;
+        private readonly ISpellEditorHost _host;
+        private readonly UIManager _ui;
+        private readonly SpellPalettePresenter _palette;
+        private readonly SpellEditorPanel _view;
+        private readonly RectTransform _blocker;
+        private readonly Button _openButton;
+        private readonly Button _synthesizeButton;
+        private readonly Button[] _slotButtons = new Button[RuneSynthesisRules.MATERIAL_COUNT];
+        private readonly string[] _materials = new string[RuneSynthesisRules.MATERIAL_COUNT];
+        private readonly TextMeshProUGUI _hint;
+        private readonly RectTransform _resultOverlay;
+        private readonly TextMeshProUGUI _resultText;
+        private string _category;
+        private string _grade;
+        private bool _isProcessing;
+        private QuickPalettePopup _picker;
+
+        public bool IsOpen => _blocker.gameObject.activeSelf;
+
+        /// <summary>기존 UI 프리팹을 재사용해 팔레트 하단 버튼, 편집 차단 영역과 삼각형 슬롯을 생성한다.</summary>
+        public RuneSynthesisPresenter(ISpellEditor editor, ISpellEditorHost host, UIManager ui,
+            SpellEditorPanel view, SpellPalettePresenter palette)
+        {
+            _editor = editor;
+            _host = host;
+            _ui = ui;
+            _palette = palette;
+            _view = view;
+            UiFactory factory = view.CreateSynthesisUi(out RectTransform paletteRect, out RectTransform scroll);
+            scroll.offsetMin += new Vector2(0f, PALETTE_BUTTON_SPACE);
+            _openButton = factory.Button(paletteRect, 10, 0, 170, 30, "룬 합성", Open, 13, "OpenRuneSynthesis");
+            RectTransform openRect = (RectTransform)_openButton.transform;
+            openRect.anchorMin = new Vector2(0f, 0f);
+            openRect.anchorMax = new Vector2(1f, 0f);
+            openRect.pivot = new Vector2(0.5f, 0f);
+            openRect.anchoredPosition = new Vector2(0f, 8f);
+            openRect.sizeDelta = new Vector2(-20f, 30f);
+
+            _blocker = UiFactory.Rect(view.transform, "RuneSynthesisBlocker", 0, 0, 0, 0);
+            Stretch(_blocker);
+            _blocker.offsetMin = new Vector2(paletteRect.anchoredPosition.x + paletteRect.rect.width, 0f);
+            Image shade = _blocker.gameObject.AddComponent<Image>();
+            shade.color = new Color(0f, 0f, 0f, 0.65f);
+            shade.raycastTarget = true;
+            RectTransform panel = factory.Panel(_blocker, 0, 40, 400, 400, "RuneSynthesis");
+            panel.GetComponent<Image>().raycastTarget = true;
+            factory.Text(panel, 16, 16, 270, 26, "룬 합성", 20);
+            factory.Button(panel, 320, 14, 64, 28, "닫기", Close, 12);
+            factory.Text(panel, 16, 52, 368, 42, "같은 분류·등급의 룬 3개로\n한 등급 높은 무작위 룬 1개를 만듭니다.", 12);
+            Vector2[] positions = { new Vector2(145, 100), new Vector2(20, 260), new Vector2(270, 260) };
+            for (int index = 0; index < _slotButtons.Length; index++)
+            {
+                int slot = index;
+                _slotButtons[index] = factory.Button(panel, positions[index].x, positions[index].y,
+                    110, 58, "비어있음", () => OpenSlotPicker(slot), 12, "SynthesisSlot" + index);
+            }
+            _synthesizeButton = factory.Button(panel, 145, 216, 110, 40, "합성", Synthesize, 15, "Synthesize");
+            _hint = factory.Text(panel, 16, 336, 368, 56, "", 12);
+            _hint.richText = true;
+
+            Canvas canvas = view.GetComponentInParent<Canvas>().rootCanvas;
+            _resultOverlay = UiFactory.Rect(canvas.transform, "RuneSynthesisResult", 0, 0, 0, 0);
+            Stretch(_resultOverlay);
+            Image resultShade = _resultOverlay.gameObject.AddComponent<Image>();
+            resultShade.color = new Color(0f, 0f, 0f, 0.85f);
+            Button dismiss = _resultOverlay.gameObject.AddComponent<Button>();
+            dismiss.targetGraphic = resultShade;
+            dismiss.transition = Selectable.Transition.None;
+            dismiss.onClick.AddListener(DismissResult);
+            _resultText = factory.Text(_resultOverlay, 0, 0, 350, 130, "", 18);
+            _resultText.alignment = TextAlignmentOptions.Center;
+            _resultText.richText = true;
+            _resultText.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            _resultText.rectTransform.anchorMin = _resultText.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            _resultOverlay.gameObject.SetActive(false);
+            _blocker.gameObject.SetActive(false);
+            RefreshAvailability();
+        }
+
+        /// <summary>일반 세션·테스트 세션 전환에 맞춰 합성 진입 버튼의 사용 가능 상태를 갱신한다.</summary>
+        public void RefreshAvailability()
+        {
+            _openButton.interactable = _host.CanSynthesizeRunes;
+            _openButton.GetComponentInChildren<TextMeshProUGUI>().text = _host.CanSynthesizeRunes ? "룬 합성" : "룬 합성 (테스트 제한)";
+        }
+
+        /// <summary>편집 내용을 저장하고 합성 예약을 시작하며 그래프 입력을 잠근다.</summary>
+        public void Open()
+        {
+            if (IsOpen || !_host.CanSynthesizeRunes || _ui.IsPopupOpen) return;
+            _editor.Save();
+            _editor.SetEditable(false);
+            _view.SetSynthesisEditingLocked(true);
+            _blocker.gameObject.SetActive(true);
+            Array.Clear(_materials, 0, _materials.Length);
+            _category = null;
+            _grade = null;
+            _palette.BeginSynthesis(AddFirstEmpty, ReservedCount);
+            RefreshSlots();
+        }
+
+        /// <summary>선택 팝업과 결과 안내·예약을 해제하고 팔레트 및 그래프 입력을 복구한다. 취소는 재고를 변경하지 않는다.</summary>
+        public void Close()
+        {
+            if (!IsOpen) return;
+            _picker?.Close();
+            _resultOverlay.gameObject.SetActive(false);
+            _blocker.gameObject.SetActive(false);
+            Array.Clear(_materials, 0, _materials.Length);
+            _category = null;
+            _grade = null;
+            _palette.EndSynthesis();
+            _view.SetSynthesisEditingLocked(false);
+            _editor.SetEditable(true);
+        }
+
+        /// <summary>결과 안내가 있으면 초기화하고 그 외에는 합성창을 닫아 Esc를 소비한다.</summary>
+        public bool HandleEscape()
+        {
+            if (!IsOpen) return false;
+            if (_resultOverlay.gameObject.activeSelf) DismissResult();
+            else Close();
+            return true;
+        }
+
+        /// <summary>편집 패널 수명 밖 Canvas에 생성한 결과 차단 UI를 제거한다.</summary>
+        public void Dispose()
+        {
+            if (_resultOverlay != null) UnityEngine.Object.Destroy(_resultOverlay.gameObject);
+        }
+
+        /// <summary>RectTransform을 부모의 전체 영역에 맞춘다.</summary>
+        private static void Stretch(RectTransform rect)
+        {
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+        }
+
+        /// <summary>지정 룬·등급에 대해 현재 슬롯들이 예약한 수량을 반환한다.</summary>
+        private int ReservedCount(string runeId, string grade)
+        {
+            if (grade != _grade) return 0;
+            int count = 0;
+            foreach (string material in _materials) if (material == runeId) count++;
+            return count;
+        }
+
+        /// <summary>팔레트에서 선택한 재료를 첫 빈 슬롯에 넣는다. 이미 가득 찼으면 안내한다.</summary>
+        private void AddFirstEmpty(string runeId, string grade)
+        {
+            int index = Array.FindIndex(_materials, string.IsNullOrEmpty);
+            if (index < 0) { _hint.text = "슬롯이 가득 찼습니다. 슬롯을 눌러 교체하거나 비우세요."; return; }
+            SelectMaterial(index, runeId, grade);
+        }
+
+        /// <summary>분류·등급·미사용 수량을 검사하고 지정 슬롯을 예약하거나 비운다.</summary>
+        private void SelectMaterial(int index, string runeId, string grade)
+        {
+            if (!IsOpen || _isProcessing || _resultOverlay.gameObject.activeSelf) return;
+            if (runeId != null)
+            {
+                RuneDefinition rune = GameData.Runes.Get(runeId);
+                if (!RuneSynthesisRules.IsEligible(rune, grade) || RuneSynthesisRules.NextGrade(grade) == null
+                    || (_category != null && (_category != rune.Category || _grade != grade))) return;
+                int reserved = ReservedCount(runeId, grade) - (_materials[index] == runeId ? 1 : 0);
+                if (!_editor.TryGetModifierUsage(runeId, grade, out int used, out int owned) || owned - used <= reserved) return;
+                _category = rune.Category;
+                _grade = grade;
+            }
+            _materials[index] = runeId;
+            if (Array.TrueForAll(_materials, string.IsNullOrEmpty)) { _category = null; _grade = null; }
+            _palette.SetSynthesisFilter(_category, _grade);
+            RefreshSlots();
+        }
+
+        /// <summary>기존 빠른 룬 선택창에 슬롯 교체와 비우기를 연결하고 현재 선택 제약을 유지한다.</summary>
+        private void OpenSlotPicker(int index)
+        {
+            if (!IsOpen || _resultOverlay.gameObject.activeSelf || _ui.IsPopupOpen) return;
+            QuickPalettePopup popup = _ui.OpenPopup<QuickPalettePopup>();
+            _picker = popup;
+            popup.Begin(true);
+            popup.SetSynthesisGradeFilter(_grade);
+            string gradeFilter = _grade;
+            Action<string> search = query => FillPicker(popup, index, query, gradeFilter);
+            Action<string> filter = grade =>
+            {
+                if (_grade != null || RuneSynthesisRules.NextGrade(grade) == null) return;
+                gradeFilter = gradeFilter == grade ? null : grade;
+                popup.ShowGrade(gradeFilter);
+                FillPicker(popup, index, popup.Query, gradeFilter);
+            };
+            popup.SearchChanged += search;
+            popup.GradeClicked += filter;
+            popup.Closed += () =>
+            {
+                popup.SearchChanged -= search;
+                popup.GradeClicked -= filter;
+                _picker = null;
+            };
+            popup.ShowGrade(gradeFilter);
+            FillPicker(popup, index, popup.Query, gradeFilter);
+        }
+
+        /// <summary>슬롯 재료와 현재 예약을 제외한 미사용 재고를 검색·등급별로 표시한다. 현재 슬롯의 수량은 교체에 재사용할 수 있다.</summary>
+        private void FillPicker(QuickPalettePopup popup, int index, string query, string gradeFilter)
+        {
+            popup.ClearResults();
+            popup.AddResult("비어있음", () => { popup.Close(); SelectMaterial(index, null, null); });
+            foreach (RuneDefinition rune in GameData.Runes.All)
+            {
+                if ((_category != null && rune.Category != _category) || !SpellPalettePresenter.MatchesSearch(rune, query)) continue;
+                foreach (string grade in SpellPalettePresenter.StockGrades(rune))
+                {
+                    if ((gradeFilter != null && grade != gradeFilter) || (_grade != null && grade != _grade)
+                        || RuneSynthesisRules.NextGrade(grade) == null || !RuneSynthesisRules.IsEligible(rune, grade)) continue;
+                    if (!_editor.TryGetModifierUsage(rune.Id, grade, out int used, out int owned)) continue;
+                    int remaining = owned - used - ReservedCount(rune.Id, grade) + (_materials[index] == rune.Id ? 1 : 0);
+                    if (remaining <= 0) continue;
+                    string runeId = rune.Id;
+                    popup.AddResult(SpellPalettePresenter.StockLabel(rune, grade, remaining, owned),
+                        () => { popup.Close(); SelectMaterial(index, runeId, grade); }, rune.Category);
+                }
+            }
+        }
+
+        /// <summary>예약한 재료와 잠금 조건을 표시하고 미사용 재고 3개가 실제로 있을 때만 합성 버튼을 활성화한다.</summary>
+        private void RefreshSlots()
+        {
+            bool canSynthesize = !_isProcessing && _host.CanSynthesizeRunes;
+            for (int index = 0; index < _materials.Length; index++)
+            {
+                string id = _materials[index];
+                _slotButtons[index].GetComponentInChildren<TextMeshProUGUI>().text = id == null ? "비어있음"
+                    : ModifierGradeText.FormatName(GameData.Runes.Get(id).Name, _grade);
+                if (id == null || !_editor.TryGetModifierUsage(id, _grade, out int used, out int owned)
+                    || owned - used < ReservedCount(id, _grade)) canSynthesize = false;
+            }
+            _synthesizeButton.interactable = canSynthesize;
+            _hint.text = _grade == null ? "사용 중인 룬과 S등급은 재료에서 제외됩니다.\n팔레트 또는 슬롯을 눌러 선택하세요."
+                : (_category == SpellGrammar.CATEGORY_BEHAVIOR ? "행동 " : "모드 ") + _grade + "등급만 선택할 수 있습니다.\n슬롯을 눌러 교체하거나 비울 수 있습니다.";
+        }
+
+        /// <summary>세션에서 재고를 재검사해 교환·저장을 마치면 결과를 중앙에 표시하고 전체 화면의 다음 클릭을 소비한다.</summary>
+        private void Synthesize()
+        {
+            if (!IsOpen || _isProcessing || !_synthesizeButton.interactable || _resultOverlay.gameObject.activeSelf) return;
+            _isProcessing = true;
+            _synthesizeButton.interactable = false;
+            string failure = null;
+            try
+            {
+                if (!_host.TrySynthesizeRunes(_materials, _grade, out string resultId, out string resultGrade, out string error))
+                {
+                    failure = error;
+                    return;
+                }
+                _resultText.text = "합성 완료\n" + ModifierGradeText.FormatName(GameData.Runes.Get(resultId).Name, resultGrade)
+                    + "\n\n아무 곳이나 클릭하면 닫힙니다.";
+                _resultOverlay.SetAsLastSibling();
+                _resultOverlay.gameObject.SetActive(true);
+                EventSystem.current.SetSelectedGameObject(_resultOverlay.gameObject);
+                _resultText.rectTransform.position = _synthesizeButton.transform.position
+                    + _synthesizeButton.transform.TransformVector(new Vector3(55f, -20f, 0f));
+                _palette.Refresh();
+            }
+            finally
+            {
+                _isProcessing = false;
+                if (!_resultOverlay.gameObject.activeSelf)
+                {
+                    _palette.Refresh();
+                    RefreshSlots();
+                    _hint.text = failure;
+                }
+            }
+        }
+
+        /// <summary>결과 안내를 닫고 확정된 재료 예약과 잠금 필터를 비워 다음 합성을 준비한다.</summary>
+        private void DismissResult()
+        {
+            if (!_resultOverlay.gameObject.activeSelf) return;
+            _resultOverlay.gameObject.SetActive(false);
+            EventSystem.current.SetSelectedGameObject(null);
+            Array.Clear(_materials, 0, _materials.Length);
+            _category = null;
+            _grade = null;
+            _view.SetSearchQuery("");
+            _palette.SetSynthesisFilter(null, null);
+            RefreshSlots();
+        }
+    }
+}

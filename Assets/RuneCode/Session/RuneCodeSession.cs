@@ -586,6 +586,55 @@ namespace RuneCode
             PersistProgress();
         }
 
+        /// <summary>동일 분류·등급의 미사용 룬 3개를 다음 등급 무작위 룬으로 교환한다. 저장 실패 시 재고를 복구하고 오류를 반환한다.</summary>
+        public bool TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
+            out string resultId, out string resultGrade, out string error)
+        {
+            resultId = null;
+            resultGrade = null;
+            error = "같은 분류와 등급의 사용하지 않는 룬 3개가 필요합니다.";
+            if (_isTestMode)
+            {
+                error = "테스트 모드에서는 시작 지급 수량을 유지하므로 합성을 사용할 수 없습니다.";
+                return false;
+            }
+            string nextGrade = RuneSynthesisRules.NextGrade(grade);
+            if (materials == null || materials.Count != RuneSynthesisRules.MATERIAL_COUNT || nextGrade == null) return false;
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            string category = null;
+            foreach (string id in materials)
+            {
+                if (string.IsNullOrEmpty(id) || !GameData.Runes.TryGet(id, out RuneDefinition rune)
+                    || !RuneSynthesisRules.IsEligible(rune, grade) || (category != null && category != rune.Category)) return false;
+                category = rune.Category;
+                counts.TryGetValue(id, out int count);
+                counts[id] = count + 1;
+            }
+            foreach (KeyValuePair<string, int> pair in counts)
+                if (!_spells.TryGetModifierUsage(pair.Key, grade, out int used, out int owned) || owned - used < pair.Value) return false;
+            List<string> candidates = RuneSynthesisRules.GetResults(category, nextGrade);
+            if (candidates.Count == 0)
+            {
+                error = "해당 등급에서 얻을 수 있는 룬이 없습니다.";
+                return false;
+            }
+            string selectedId = candidates[UnityEngine.Random.Range(0, candidates.Count)];
+            if (!_save.TryConsumeStock(counts, grade)) return false;
+            _save.AddStock(selectedId, nextGrade, 1);
+            if (!PersistSpellStorage(_save))
+            {
+                _save.TryConsumeStock(new Dictionary<string, int> { [selectedId] = 1 }, nextGrade);
+                foreach (KeyValuePair<string, int> pair in counts) _save.AddStock(pair.Key, grade, pair.Value);
+                error = SaveStore.LastWarning;
+                return false;
+            }
+            resultId = selectedId;
+            resultGrade = nextGrade;
+            error = null;
+            _spells.Recompile();
+            return true;
+        }
+
         /// <summary>주운·선택·보상받은 Modifier를 (종류, 등급) 소지량에 즉시 반영하고 저장한다. 이후 사망·시간 초과·후퇴와 무관하게 유지된다. 그 Modifier에 없는 등급이면 지급하지 않는다.</summary>
         public void GrantModifier(string runeId, string grade, int count)
         {
