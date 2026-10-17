@@ -510,8 +510,8 @@ namespace RuneCode
         /// <summary>터미널의 다음 방 진행 성공 여부를 반환한다.</summary>
         public bool TryContinue() => InteractTerminal();
 
-        /// <summary>독립 시험 도크의 시드, 상태, 통계 및 선택 시나리오 적을 초기화한다.</summary>
-        public void ResetBench(string scenario)
+        /// <summary>독립 시험의 시드·상태·통계·시나리오 적을 초기화한다. dummyCount가 0이면 기존 일렬 배치 기본 수를 사용한다.</summary>
+        public void ResetBench(string scenario, int dummyCount = 0)
         {
             if (_isMission) throw new InvalidOperationException("미션은 시험 도크로 초기화할 수 없습니다.");
             if (scenario != "dummy_single" && scenario != "dummy_line" && scenario != "dummy_swarm" && scenario != "aegis" && scenario != "adapt_loop") throw new ArgumentException("알 수 없는 시험 시나리오입니다.", nameof(scenario));
@@ -524,7 +524,12 @@ namespace RuneCode
             SimulationBalance bench = _balance.Sim;
             _map = new MissionMap(_sector.Rooms[0].Tiles, _sector.TileSize); _player = new SimulationPlayer(_maxHp, _maxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
             Adaptation.Clear(); Adaptation.SetEnabled(scenario == "adapt_loop");
-            if (scenario == "dummy_line") for (int i = 0; i < bench.BenchLineCount; i++) SpawnBenchDummy(new SimVector(bench.BenchLineStartX + i * bench.BenchLineGap, bench.BenchDummyY), bench.BenchHp);
+            if (scenario == "dummy_line")
+            {
+                int count = dummyCount == 0 ? bench.BenchLineCount : dummyCount;
+                for (int i = count - 1; i >= 0; i--)
+                    SpawnBenchDummy(new SimVector(bench.BenchLineStartX + i * bench.BenchLineGap, bench.BenchDummyY), bench.BenchHp);
+            }
             else if (scenario == "dummy_swarm")
                 for (int i = 0; i < bench.BenchSwarmColumns * bench.BenchSwarmRows; i++) SpawnEnemy("enemy.scout", new SimVector(bench.BenchSwarmX + (i % bench.BenchSwarmColumns) * bench.BenchSwarmGapX, bench.BenchSwarmY + (i / bench.BenchSwarmColumns) * bench.BenchSwarmGapY), false, bench.BenchHp);
             else if (scenario == "aegis") SpawnEnemy("enemy.aegis", new SimVector(bench.BenchDummyX, bench.BenchDummyY), true, bench.BenchHp);

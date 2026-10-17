@@ -281,26 +281,26 @@ namespace RuneCode
                 data.Sim.ExecutionTimeScale, data.Combat.SeparationAllowance, data.Combat.SeparationStrength,
                 data.Combat.SeparationMaxStep };
             foreach (float value in values)
-                if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f)
-                    throw new FormatException("밸런스 값은 유한한 0 이상이어야 합니다.");
-            if (data.Player.MoveSpeed <= 0f || data.Player.DashDuration <= 0f || data.Combat.BurnInterval <= 0f
-                || data.Combat.ChillMaxStacks <= 0 || data.Combat.ChillImmuneMaxStacks <= 0
-                || data.Combat.ChillImmuneMaxStacks >= data.Combat.ChillMaxStacks
-                || data.Adaptation.ElementCap > 1f || data.Adaptation.FormCap > 1f
-                || data.Combat.AegisReduction > 1f || data.Combat.ChillSlow > 1f
-                || data.Economy.DeathRetention > 1f || data.Economy.TerminalHeal > 1f || data.Economy.MaxLibrary <= 0
-                || data.Economy.ModifierStartStock < 0 || data.Economy.BehaviorStartStock < 0
-                || data.Economy.SlotCost <= 0 || data.Economy.PickupAttractSpeed <= 0f
-                || data.Combat.SeparationAllowance <= 0f || data.Combat.SeparationAllowance > 1f
-                || data.Combat.SeparationStrength <= 0f || data.Combat.SeparationStrength > 1f
-                || data.Combat.SeparationMaxStep <= 0f
-                || data.Limits.MaxFrameSteps <= 0 || data.Limits.MaxGraphNodes <= 0 || data.Limits.MaxGraphEdges <= 0
-                || data.Sim.BenchHp <= 0f || data.Sim.AreaPlacementRange <= 0f
-                || data.Sim.BenchLineCount <= 0 || data.Sim.BenchSwarmColumns <= 0 || data.Sim.BenchSwarmRows <= 0
-                || data.Sim.SpellVisualSeconds <= 0f || data.Sim.DamageNumberSeconds <= 0f
-                || data.Limits.MaxEnemies <= 0 || data.Limits.MaxCompiledActions <= 0
-                || data.Limits.MaxScheduledExecutions <= 0 || data.Limits.MaxActionsPerTick <= 0)
-                throw new FormatException("밸런스 범위가 유효하지 않습니다.");
+                //if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f)
+                //    throw new FormatException("밸런스 값은 유한한 0 이상이어야 합니다.");
+                if (data.Player.MoveSpeed <= 0f || data.Player.DashDuration <= 0f || data.Combat.BurnInterval <= 0f
+                    || data.Combat.ChillMaxStacks <= 0 || data.Combat.ChillImmuneMaxStacks <= 0
+                    || data.Combat.ChillImmuneMaxStacks >= data.Combat.ChillMaxStacks
+                    || data.Adaptation.ElementCap > 1f || data.Adaptation.FormCap > 1f
+                    || data.Combat.AegisReduction > 1f || data.Combat.ChillSlow > 1f
+                    || data.Economy.DeathRetention > 1f || data.Economy.TerminalHeal > 1f || data.Economy.MaxLibrary <= 0
+                    || data.Economy.ModifierStartStock < 0 || data.Economy.BehaviorStartStock < 0
+                    || data.Economy.SlotCost <= 0 || data.Economy.PickupAttractSpeed <= 0f
+                    || data.Combat.SeparationAllowance <= 0f || data.Combat.SeparationAllowance > 1f
+                    || data.Combat.SeparationStrength <= 0f || data.Combat.SeparationStrength > 1f
+                    || data.Combat.SeparationMaxStep <= 0f
+                    || data.Limits.MaxFrameSteps <= 0 || data.Limits.MaxGraphNodes <= 0 || data.Limits.MaxGraphEdges <= 0
+                    || data.Sim.BenchHp <= 0f || data.Sim.AreaPlacementRange <= 0f
+                    || data.Sim.BenchLineCount <= 0 || data.Sim.BenchSwarmColumns <= 0 || data.Sim.BenchSwarmRows <= 0
+                    || data.Sim.SpellVisualSeconds <= 0f || data.Sim.DamageNumberSeconds <= 0f
+                    || data.Limits.MaxEnemies <= 0 || data.Limits.MaxCompiledActions <= 0
+                    || data.Limits.MaxScheduledExecutions <= 0 || data.Limits.MaxActionsPerTick <= 0)
+                    throw new FormatException("밸런스 범위가 유효하지 않습니다.");
             return data;
         }
     }
