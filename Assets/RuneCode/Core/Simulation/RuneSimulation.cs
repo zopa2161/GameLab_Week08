@@ -998,7 +998,8 @@ namespace RuneCode
                 bool canExtend = isDirect && root.CanHold;
                 if (isDirect) tracker.Acquire();
                 channel = new BeamBehaviorRuntime.BeamChannel(_tick, stats, root?.Slot ?? -1, root?.PressSerial ?? -1,
-                    canExtend, isDirect, action.GetNodeCosts(context.Modifiers).Multiply(context.CostMultiplier),
+                    canExtend, isDirect, action.GetExecutionCosts(context.Modifiers, context.CostMultiplier,
+                        context.IsManaPrepaid, context.CallEvents),
                     isDirect ? (Action)(() => CompleteBeamChannel(root, tracker)) : null);
                 _beamChannels.Add(channel);
             }
@@ -1278,7 +1279,7 @@ namespace RuneCode
                 break;
             }
             actual = enemy.Hurt(Math.Max(minimumDamage, actual), Time);
-            if (applyStatus) ApplyStatus(enemy, element, form, noise, sourceAction);
+            if (applyStatus) ApplyStatus(enemy, element, form, noise, damage);
             if (actual > 0)
             {
                 if (sourceAction != null) GetActionCombatStats(sourceAction).RecordDamage(actual, !applyStatus);
@@ -1323,7 +1324,7 @@ namespace RuneCode
                 EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
                 if (burn == null) continue;
                 while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && Time + 0.000001 >= burn.NextTickTime)
-                { _statusDamage += ApplyDamage(enemy, _balance.Combat.BurnDps * _balance.Combat.BurnInterval, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false, sourceAction: burn.DamageSourceAction); burn.NextTickTime += _balance.Combat.BurnInterval; }
+                { _statusDamage += ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false); burn.NextTickTime += _balance.Combat.BurnInterval; }
             }
             for (int i = _enemyStatuses.Count - 1; i >= 0; i--)
                 if (IsStatusExpired(_enemyStatuses[i])) { RemoveStatusIndex(_enemyStatuses[i]); _enemyStatuses.RemoveAt(i); }
@@ -1343,25 +1344,32 @@ namespace RuneCode
             }
         }
 
-        /// <summary>피해 속성에 맞는 상태 이상(화염·냉기·EMP)을 현재 시각 기준으로 부여한다.</summary>
-        private void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise, SpellAction sourceAction)
+        /// <summary>피해 속성에 맞는 상태 이상을 부여한다. 화염은 전투 공통 보정 전 공격 피해 sourceDamage를 틱 피해 계산에 전달한다.</summary>
+        private void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise, double sourceDamage)
         {
-            if (element == "fire") ApplyBurn(enemy, form, noise, sourceAction);
+            if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage);
             else if (element == "ice") ApplyChill(enemy);
             else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = Time + _balance.Combat.EmpSeconds;
         }
 
-        /// <summary>화염의 출처 형태와 노이즈를 보관하고 지속시간을 갱신하되, 진행 중인 화염이면 다음 틱 시각을 유지한다.</summary>
-        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, SpellAction sourceAction)
+        /// <summary>공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 계산하고, 새 화상이거나 기존보다 클 때만 피해·출처를 갱신한다. 재점화 때마다 지속시간은 갱신하며 진행 중인 화상의 다음 틱 시각은 유지한다.</summary>
+        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage)
         {
             EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
-            if (burn == null || Time >= burn.Until)
+            bool isNewBurn = burn == null || Time >= burn.Until;
+            if (isNewBurn)
             {
                 burn ??= AddStatus(enemy.Id, EnemyStatusType.Burn);
                 burn.NextTickTime = Time + _balance.Combat.BurnInterval;
             }
-            burn.DamageSourceAction = sourceAction;
-            burn.Until = Time + _balance.Combat.BurnSeconds; burn.SourceForm = form; burn.IsNoise = noise;
+            burn.Until = Time + _balance.Combat.BurnSeconds;
+            double tickDamage = sourceDamage * _balance.Combat.BurnDamageRatio;
+            if (isNewBurn || tickDamage > burn.TickDamage)
+            {
+                burn.TickDamage = tickDamage;
+                burn.SourceForm = form;
+                burn.IsNoise = noise;
+            }
         }
 
         /// <summary>

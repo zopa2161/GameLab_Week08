@@ -99,7 +99,8 @@ namespace RuneCode
             _view.SetEnergy(dock.Player.Energy, dock.Player.MaxEnergy);
             _view.SetMetrics(GameData.L("ui.damage") + " " + dock.TotalDamage.ToString("0") + "   " + GameData.L("ui.dps") + " " + dock.RollingDps.ToString("0.0")
                 + "   소모 " + GameData.L("ui.energy") + " " + dock.EnergySpent.ToString("0") + "   " + GameData.L("ui.peak") + " " + dock.PeakSpellEntities
-                + "\n" + GameData.L("ui.energy") + " " + dock.Player.Energy.ToString("0") + "/" + dock.Player.MaxEnergy.ToString("0"));
+                + "\n" + GameData.L("ui.energy") + " " + dock.Player.Energy.ToString("0") + "/" + dock.Player.MaxEnergy.ToString("0")
+                + "   " + GameData.L("ui.energy") + " 회복 " + dock.EnergyRegen.ToString("0.#") + "/s");
             _view.SetStatus(GameData.L("ui.autofire") + " " + GameData.L(_run.AutoFire ? "ui.on" : "ui.off") + "  ·  " + _run.Speed.ToString("0.#") + "×  ·  "
                 + GameData.L("ui.adaptation") + " " + GameData.L(dock.Adaptation.Enabled ? "ui.on" : "ui.off") + "\n" + AdaptationText.Format(dock, false));
         }

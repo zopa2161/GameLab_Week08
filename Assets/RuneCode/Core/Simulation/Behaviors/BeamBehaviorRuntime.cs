@@ -242,14 +242,14 @@ namespace RuneCode
             public bool IsStopped => _isStopped;
             public int Slot => _slot;
 
-            /// <summary>초기 구간을 선결제한 빔의 홀드 상태와 추가 피해 주기별 비용을 초기화한다. 홀드하지 않는 빔은 초기 구간만 유지한다.</summary>
+            /// <summary>초기 실행 비용을 선결제한 빔의 홀드 상태와 피해 주기별 분할 비용을 초기화한다. 홀드하지 않는 빔은 초기 구간만 유지한다.</summary>
             internal BeamChannel(int tick, SpellStats stats, int slot, int pressSerial, bool canExtend,
-                bool followsPlayer, ResourceCostSet minimumCosts, Action complete)
+                bool followsPlayer, ResourceCostSet initialCosts, Action complete)
             {
                 _slot = slot; _pressSerial = pressSerial; _startedTick = tick;
                 _minimumTicks = Math.Max(1, (int)Math.Round(stats.MinimumLifetime * RuneSimulation.TICK_RATE));
                 _paymentTicks = Math.Max(1, (int)Math.Round(stats.TickInterval * RuneSimulation.TICK_RATE));
-                _paymentCosts = minimumCosts.Multiply(_paymentTicks / (double)_minimumTicks);
+                _paymentCosts = initialCosts.Multiply(_paymentTicks / (double)_minimumTicks);
                 _canExtend = canExtend; _followsPlayer = followsPlayer; _complete = complete;
                 _paidUntilTick = tick + _minimumTicks;
             }

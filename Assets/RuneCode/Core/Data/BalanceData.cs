@@ -83,6 +83,7 @@ namespace RuneCode
     {
         [Header("상태와 방어")]
         [SerializeField] private float _burnDps;
+        [SerializeField] private float _burnDamageRatio;
         [SerializeField] private float _burnInterval;
         [SerializeField] private float _burnSeconds;
         [SerializeField] private float _chillSlow;
@@ -100,6 +101,7 @@ namespace RuneCode
         [SerializeField] private float _separationStrength;
         [SerializeField] private float _separationMaxStep;
         public float BurnDps => _burnDps;
+        public float BurnDamageRatio => _burnDamageRatio;
         public float BurnInterval => _burnInterval;
         public float BurnSeconds => _burnSeconds;
         public float ChillSlow => _chillSlow;
@@ -265,6 +267,9 @@ namespace RuneCode
                 || data.Economy.BaseCapacity <= 0
                 || (data.Ram.Mode != "shared" && data.Ram.Mode != "perSpell"))
                 throw new FormatException("유효하지 않은 밸런스 데이터입니다.");
+            if (float.IsNaN(data.Combat.BurnDamageRatio) || float.IsInfinity(data.Combat.BurnDamageRatio)
+                || data.Combat.BurnDamageRatio < 0f || data.Combat.BurnDamageRatio > 1f)
+                throw new FormatException("화상 공격 피해 비율은 0 이상 1 이하의 유한한 숫자여야 합니다.");
             float[] values = { data.Player.MaxHp, data.Player.MoveSpeed, data.Player.MaxEnergy, data.Player.EnergyRegen,
                 data.Player.DashDistance, data.Player.DashDuration, data.Player.DashCooldown, data.Player.HitInvulnerability,
                 data.Adaptation.ElementLearning, data.Adaptation.FormLearning, data.Adaptation.ElementCap, data.Adaptation.FormCap,
