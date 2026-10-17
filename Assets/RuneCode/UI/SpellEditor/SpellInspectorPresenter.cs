@@ -57,7 +57,11 @@ namespace RuneCode
                 case "mod.duration": effect = "효과의 지속시간을 늘립니다."; break;
                 case "behavior.launch": effect = "마법을 발사합니다."; break;
                 case "behavior.legacy_burst": effect = "범위에 레거시 폭발 효과를 줍니다."; break;
-                case "behavior.persist": effect = "효과를 남겨 일정 시간 유지합니다."; break;
+                case "behavior.persist":
+                    RuneStats persist = GameData.Runes.Get("form.zone").Stats;
+                    effect = "예고 후 범위를 유지하며 기본 " + persist.TickInterval.ToString("0.##") + "초마다 피해 "
+                        + persist.Damage.ToString("0.##") + "를 줍니다. 대상별로 실제 피해를 준 첫 타격에 OnHit이 발동하고, 이후 두 번 타격할 때마다 발동합니다(1·3·5번째). 종료 시점에는 타격하지 않습니다.";
+                    break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
                 case "behavior.burst": effect = GameData.L("ui.burstHint"); break;
                 case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
@@ -84,7 +88,11 @@ namespace RuneCode
                         case "durationMultiplier": label = " 지속시간 배율 ×"; break;
                         case "speedMultiplier": label = " 속도 배율 ×"; break;
                         case "orbitPath": label = " 궤도 반경 배율 ×"; break;
-                        case "knockbackDistance": label = " 기준 피해당 밀어내기 거리(px) "; break;
+                        case "knockbackDistance":
+                            effect += " 실제 직접 피해 " + rune.Stats.KnockbackReferenceDamage.ToString("0.##")
+                                + "당 " + value + "픽셀 밀어냅니다. (" + rune.Stats.KnockbackSeconds.ToString("0.##") + "초에 걸쳐 이동)";
+                            label = null;
+                            break;
                         default: label = " 등급 효과: "; break;
                     }
                     if (label != null) effect += label + value;
@@ -180,22 +188,28 @@ namespace RuneCode
                 ShowElementInfo(node);
                 if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR) ShowBehaviorStats(node, rune);
                 else ShowCompiledStats(node, rune);
+                if (rune.Id == "behavior.persist") _view.AddNote(RuneEffectText(rune, null), 60f, 10f);
             }
             if (rune.Category != SpellGrammar.CATEGORY_CORE) _view.AddButton(GameData.L("ui.delete"), "InspectorDeleteButton", () => _editor.RemoveNode(node.Id));
         }
 
-        /// <summary>행동 노드에서 사용 가능한 속성과 모든 모디 슬롯의 장착·빈·잠금 상태를 한 줄씩 표시한다.</summary>
+        /// <summary>행동 노드에 장착된 속성과 모디 정보만 표시하며 빈 슬롯과 잠긴 슬롯 안내는 생략한다.</summary>
         private void ShowSlots(GraphNode node)
         {
             var lines = new List<string>();
             for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
             {
                 string slotKey = SpellGrammar.ElementSlotKey(index);
-                if (!GraphNodeLayout.IsSlotLocked(node, slotKey)) lines.Add(SlotLine(node, slotKey));
+                if (!GraphNodeLayout.IsSlotLocked(node, slotKey) && !string.IsNullOrEmpty(node.GetText(slotKey, null)))
+                    lines.Add(SlotLine(node, slotKey));
             }
             for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
-                lines.Add(SlotLine(node, SpellGrammar.ModifierSlotKey(index)));
-            _view.AddNote(string.Join("\n", lines), 34, 6);
+            {
+                string slotKey = SpellGrammar.ModifierSlotKey(index);
+                if (!GraphNodeLayout.IsSlotLocked(node, slotKey) && !string.IsNullOrEmpty(node.GetText(slotKey, null)))
+                    lines.Add(SlotLine(node, slotKey));
+            }
+            if (lines.Count > 0) _view.AddNote(string.Join("\n", lines), 34, 6);
         }
 
         /// <summary>슬롯 한 칸의 표시 문구를 반환한다. 잠긴 칸은 잠김, 빈 칸은 비어 있음, 장착 칸은 룬 이름(모디는 등급 포함)이다.</summary>
@@ -626,7 +640,7 @@ namespace RuneCode
                     }
                     break;
                 case "knockbackDistance":
-                    values.Add("피해 " + rune.Stats.KnockbackReferenceDamage.ToString("0.##") + "당 밀어내기 " + gradeValue + "px");
+                    values.Add("실제 직접 피해 " + rune.Stats.KnockbackReferenceDamage.ToString("0.##") + "당 " + gradeValue + "픽셀 밀어내기");
                     values.Add("밀어내기 시간 " + rune.Stats.KnockbackSeconds.ToString("0.##") + "s");
                     break;
                 case "orbitPath":

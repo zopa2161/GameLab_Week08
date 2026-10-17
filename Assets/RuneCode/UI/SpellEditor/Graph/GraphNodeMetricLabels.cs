@@ -61,11 +61,11 @@ namespace RuneCode
             LayoutRamLabel(_ram[nodeId], nodeRect, scale);
         }
 
-        /// <summary>드래그 중인 행동 노드의 전력·RAM 라벨을 가장 앞에 배치한다.</summary>
+        /// <summary>지정한 노드에 전력·RAM 라벨이 있으면 가장 앞에 배치한다. 행동 노드가 아니면 생략한다.</summary>
         public void BringToFront(string nodeId)
         {
-            _details[nodeId].transform.SetAsLastSibling();
-            _ram[nodeId].transform.SetAsLastSibling();
+            if (_details.TryGetValue(nodeId, out TextMeshProUGUI details)) details.transform.SetAsLastSibling();
+            if (_ram.TryGetValue(nodeId, out TextMeshProUGUI ram)) ram.transform.SetAsLastSibling();
         }
 
         /// <summary>사용 전력을 노드 이름 바로 아래 오른쪽 끝에 맞춰 배치한다.</summary>

@@ -304,13 +304,13 @@
       "_energyMult": 1,
       "_unlockType": "start",
       "_stats": {
-        "_damage": 3,
+        "_damage": 5,
         "_speed": 100,
         "_radius": 90,
         "_lifetime": 4,
         "_offset": 180,
         "_count": 1,
-        "_tickInterval": 0.5,
+        "_tickInterval": 1,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1,
@@ -1957,6 +1957,13 @@
           "_kind": "exec",
           "_direction": "in",
           "_max": 1
+        },
+        {
+          "_order": 1,
+          "_portId": "onHit",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
         }
       ],
       "_params": [
