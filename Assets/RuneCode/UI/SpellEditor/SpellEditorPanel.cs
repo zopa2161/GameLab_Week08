@@ -178,16 +178,18 @@ namespace RuneCode
         }
 
         /// <summary>합성 중 허용 분류·등급만 누를 수 있게 하고 재료가 있으면 필터 변경을 잠근다.</summary>
-        public void SetSynthesisFilters(bool isActive, string category, string grade)
+        public void SetSynthesisFilters(bool isActive, string category, string grade, bool isElementFilter = false)
         {
             for (int index = 0; index < _categoryButtons.Length; index++)
             {
                 string id = CATEGORY_IDS[index];
                 _categoryButtons[index].interactable = !isActive || (category == null
-                    && (id == "all" || id == SpellGrammar.CATEGORY_BEHAVIOR || id == SpellGrammar.CATEGORY_MODIFIER));
+                    && (id == "all" || id == SpellGrammar.CATEGORY_BEHAVIOR || id == SpellGrammar.CATEGORY_MODIFIER
+                        || id == SpellGrammar.CATEGORY_ELEMENT));
             }
             for (int index = 0; index < _gradeButtons.Count; index++)
-                _gradeButtons[index].interactable = !isActive || (grade == null && RuneSynthesisRules.NextGrade(_gradeFilterIds[index]) != null);
+                _gradeButtons[index].interactable = !isActive || (grade == null && !isElementFilter
+                    && RuneSynthesisRules.NextGrade(_gradeFilterIds[index]) != null);
         }
 
         /// <summary>기존 공용 프리팹으로 합성 UI를 구성할 생성기와 팔레트 영역을 반환한다.</summary>

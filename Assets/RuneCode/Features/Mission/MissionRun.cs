@@ -293,7 +293,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>클리어 보상을 포함한 클리어, 사망 또는 보스 제한시간 초과 보상을 한 번만 정산하고 결과 문구(첫 클리어 Modifier 보상 포함)와 텔레메트리를 남긴다. 세이브 반영은 세션의 SettleMission이 한다.</summary>
+        /// <summary>전투를 한 번만 정산하고 성공 시 반복 클리어에도 보장 룬 1개를 추첨해 결과·획득 기록에 넣는다. 보스 선택 보상은 별도로 유지한다.</summary>
         public void FinishMission()
         {
             if (_settled) return;
@@ -302,7 +302,13 @@ namespace RuneCode
             // 첫 클리어만 지급하는 규칙으로 바꿀 때를 대비해 정산 기록 전에 판정한다.
             bool isFirstClear = _session.HighestClearedStage < _simulation.StageNumber;
             var fragments = _simulation.SettlementFragments;
-            var modifierRewards = _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts);
+            ModifierRewardDefinition clearRuneReward = null;
+            if (cleared && !_session.IsTestMode)
+            {
+                DropRoll roll = _simulation.DrawClearRuneReward();
+                clearRuneReward = new ModifierRewardDefinition(roll.RuneId, roll.Grade, roll.Count);
+            }
+            var modifierRewards = _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts, clearRuneReward);
             if (!_session.IsTestMode) AddFragmentReward(fragments);
             foreach (ModifierRewardDefinition reward in modifierRewards)
             {

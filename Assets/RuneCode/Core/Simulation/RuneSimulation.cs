@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -1856,64 +1856,17 @@ namespace RuneCode
             return result;
         }
 
-        /// <summary>드롭 테이블을 결정적 난수로 추첨해 스크랩은 배율이 적용된 오브로, 모디·속성·행동은 바닥 드롭 개체로 처치 위치에 떨군다.</summary>
+        /// <summary>처치 드롭과 같은 테이블·결정적 난수로 완료 스테이지의 클리어 룬 1개를 추첨한다.</summary>
+        public DropRoll DrawClearRuneReward()
+        {
+            return RuneRewardRoller.DrawRune(_drops.Get(_drops.NormalEnemyDrop.DropTable), _stageNumber, _eliteDrops, NextRandom);
+        }
+
+        /// <summary>처치 위치에 놓을 룬의 분류·종류·등급을 추첨해 드롭 개체 1개를 생성한다.</summary>
         private void RollDropTable(DropTableDefinition table, SimVector position)
         {
-            foreach (DropRoll roll in table.Roll(NextRandom))
-            {
-                if (roll.Type == DropCatalog.TYPE_FRAGMENTS) _orbs.Add(new FragmentOrb(position, ScaleKillScrap(roll.Fragments)));
-                else if (roll.Type == DropCatalog.TYPE_MODIFIER) DropModifier(roll, position);
-                else if (roll.Type == DropCatalog.TYPE_ELEMENT) _itemDrops.Add(new SimulationItemDrop(roll.RuneId, "", roll.Count, position));
-                else if (roll.Type == DropCatalog.TYPE_BEHAVIOR) DropBehavior(roll, position);
-            }
-        }
-
-        /// <summary>행동 추첨 결과를 바닥 드롭 개체로 만든다. 항목 등급이 비어 있으면 현재 스테이지의 행동 등급 확률로 굴리고, 확률이 없는 스테이지(보스)면 드롭하지 않는다.</summary>
-        private void DropBehavior(DropRoll roll, SimVector position)
-        {
-            string grade = roll.Grade;
-            if (string.IsNullOrEmpty(grade))
-            {
-                IReadOnlyList<EliteModifierGradeChance> chances = _eliteDrops.GetBehaviorGradeChances(_stageNumber);
-                if (chances == null) return;
-                grade = RollSlotGrade(chances);
-                if (grade == null) return;
-            }
-            _itemDrops.Add(new SimulationItemDrop(roll.RuneId, grade, roll.Count, position));
-        }
-
-        /// <summary>Modifier 추첨 결과를 바닥 드롭 개체로 만든다. eliteModifier 항목은 등급과 종류를 등급표로 정하고, 지정 Modifier 항목은 항목 등급(없으면 최저 등급)을 쓴다.</summary>
-        private void DropModifier(DropRoll roll, SimVector position)
-        {
-            bool isEliteEntry = roll.RuneId == DropCatalog.ELITE_MODIFIER_ENTRY_ID;
-            string grade = isEliteEntry ? RollEliteModifierGrade()
-                : string.IsNullOrEmpty(roll.Grade) ? GameData.ModifierGrades.GetLowestAvailableGrade(roll.RuneId) : roll.Grade;
-            if (isEliteEntry && grade == null) return;
-            string runeId = isEliteEntry ? PickEliteModifier(grade) : roll.RuneId;
-            if (runeId == null) return;
-            _itemDrops.Add(new SimulationItemDrop(runeId, grade, roll.Count, position));
-        }
-
-        /// <summary>현재 스테이지의 등급 확률표(C→S 순서)로 엘리트 Modifier 등급을 1회 추첨한다. 보스 스테이지처럼 등급표가 없으면 null을 반환하고 난수를 쓰지 않는다.</summary>
-        private string RollEliteModifierGrade()
-        {
-            IReadOnlyList<EliteModifierGradeChance> chances = _eliteDrops.GetGradeChances(_stageNumber);
-            if (chances == null || chances.Count == 0) return null;
-            double choice = NextRandom() * 100;
-            foreach (EliteModifierGradeChance chance in chances)
-            {
-                choice -= chance.Percent;
-                if (choice <= 0) return chance.Grade;
-            }
-            return chances[chances.Count - 1].Grade;
-        }
-
-        /// <summary>등급 값이 null이 아닌 Modifier 중 균등 추첨으로 하나를 고른다. 후보가 없으면 null을 반환한다.</summary>
-        private string PickEliteModifier(string grade)
-        {
-            IReadOnlyList<string> candidates = _eliteDrops.GetModifiersWithGrade(grade);
-            if (candidates.Count == 0) return null;
-            return candidates[(int)(NextRandom() * candidates.Count)];
+            DropRoll roll = RuneRewardRoller.DrawRune(table, _stageNumber, _eliteDrops, NextRandom);
+            _itemDrops.Add(new SimulationItemDrop(roll.RuneId, roll.Grade, roll.Count, position));
         }
 
         /// <summary>스크랩과 같은 반경에서 Modifier를 끌어당기고 플레이어에게 도착하면 누적 목록과 미지급 목록에 넣는다.</summary>

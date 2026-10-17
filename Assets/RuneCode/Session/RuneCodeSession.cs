@@ -25,6 +25,7 @@ namespace RuneCode
         private PlayerSave _save;
         private PlayerSave _normalSave;
         private readonly StageCatalog _stages;
+        private readonly ModifierGradeDropSource _synthesisGrades;
         private readonly UpgradeTreeDefinition _upgradeTree;
         private bool _isDebugEnabled;
         private bool _isTestMode;
@@ -87,6 +88,7 @@ namespace RuneCode
             _normalSave = save;
             _save = isDebugEnabled ? PlayerSave.CreateNew() : save;
             _stages = stages;
+            _synthesisGrades = new ModifierGradeDropSource(GameData.ModifierGrades);
             _upgradeTree = upgradeTree;
             _isDebugEnabled = isDebugEnabled;
             _statusMessage = initialStatus;
@@ -583,37 +585,15 @@ namespace RuneCode
         /// 일반 모드에서 전투 보상과 처치 기록을 세이브에 반영한다. 테스트 모드에서는 시작 조건 유지를 위해 보상을 반영하지 않는다.
         /// 클리어 때 지급한 룬 보상 목록을 반환한다.
         /// </summary>
-        public IReadOnlyList<ModifierRewardDefinition> SettleMission(int stageNumber, int fragments, bool isCleared, IEnumerable<KeyValuePair<string, int>> killCounts)
+        public IReadOnlyList<ModifierRewardDefinition> SettleMission(int stageNumber, int fragments, bool isCleared, IEnumerable<KeyValuePair<string, int>> killCounts,
+            ModifierRewardDefinition clearRuneReward = null)
         {
             if (_isTestMode) return Array.Empty<ModifierRewardDefinition>();
             var modifierRewards = new List<ModifierRewardDefinition>();
-            if (isCleared && stageNumber > _save.HighestClearedStage)
+            if (isCleared && clearRuneReward != null)
             {
-                foreach (ModifierRewardDefinition reward in _stages.Get(stageNumber).ModifierRewards)
-                {
-                    if (!GameData.Runes.TryGet(reward.RuneId, out RuneDefinition rune))
-                    { Debug.LogWarning("[Stage] 룬이 없는 보상 ID를 건너뜁니다: " + reward.RuneId); continue; }
-                    if (rune.Category == SpellGrammar.CATEGORY_ELEMENT)
-                    {
-                        GrantRune(reward.RuneId, "", reward.Count, "stage_clear");
-                    }
-                    else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
-                    {
-                        if (string.IsNullOrEmpty(reward.Grade))
-                        { Debug.LogWarning("[Stage] 등급이 없는 행동 보상을 건너뜁니다: " + reward.RuneId); continue; }
-                        GrantRune(reward.RuneId, reward.Grade, reward.Count, "stage_clear");
-                    }
-                    else if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
-                    {
-                        GrantRune(reward.RuneId, string.IsNullOrEmpty(reward.Grade) ? GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId) : reward.Grade, reward.Count, "stage_clear");
-                    }
-                    else
-                    {
-                        // 소지 아이템이 아닌 ID는 데이터 오류로 보고 지급하지 않는다.
-                        Debug.LogWarning("[Stage] 소지 아이템이 아닌 보상 ID를 건너뜁니다: " + reward.RuneId); continue;
-                    }
-                    modifierRewards.Add(reward);
-                }
+                GrantRune(clearRuneReward.RuneId, clearRuneReward.Grade, clearRuneReward.Count, "stage_clear");
+                modifierRewards.Add(clearRuneReward);
             }
             if (isCleared) _save.RecordStageClear(stageNumber);
             _save.Settle(fragments, isCleared);
@@ -643,7 +623,7 @@ namespace RuneCode
                 });
         }
 
-        /// <summary>동일 분류·등급의 미사용 룬 3개를 무작위 룬으로 교환한다. C·B·A는 승급하고 S는 S를 유지하며 저장 실패 시 재고를 복구한다.</summary>
+        /// <summary>미사용 룬 3개를 교환한다. 속성은 선택 스테이지 확률을, S는 행동·모드 교차 추첨을 쓰며 저장 실패 시 모든 재고를 복구한다.</summary>
         public bool TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
             out string resultId, out string resultGrade, out string error)
         {
@@ -655,8 +635,8 @@ namespace RuneCode
                 error = "테스트 모드에서는 시작 지급 수량을 유지하므로 합성을 사용할 수 없습니다.";
                 return false;
             }
-            string nextGrade = RuneSynthesisRules.NextGrade(grade);
-            if (materials == null || materials.Count != RuneSynthesisRules.MATERIAL_COUNT || nextGrade == null) return false;
+            grade = grade ?? "";
+            if (materials == null || materials.Count != RuneSynthesisRules.MATERIAL_COUNT) return false;
             var counts = new Dictionary<string, int>(StringComparer.Ordinal);
             string category = null;
             foreach (string id in materials)
@@ -669,24 +649,33 @@ namespace RuneCode
             }
             foreach (KeyValuePair<string, int> pair in counts)
                 if (!_spells.TryGetModifierUsage(pair.Key, grade, out int used, out int owned) || owned - used < pair.Value) return false;
-            List<string> candidates = RuneSynthesisRules.GetResults(category, nextGrade);
-            if (candidates.Count == 0)
+            string resultCategory = category;
+            if (category == SpellGrammar.CATEGORY_ELEMENT || grade == "S")
+                resultCategory = UnityEngine.Random.Range(0, 2) == 0 ? SpellGrammar.CATEGORY_BEHAVIOR : SpellGrammar.CATEGORY_MODIFIER;
+            string selectedId;
+            string selectedGrade;
+            if (category == SpellGrammar.CATEGORY_ELEMENT)
             {
-                error = "해당 등급에서 얻을 수 있는 룬이 없습니다.";
-                return false;
+                DropRoll roll = RuneRewardRoller.DrawCategory(resultCategory, SelectedStage, _synthesisGrades, () => UnityEngine.Random.value);
+                selectedId = roll.RuneId;
+                selectedGrade = roll.Grade;
             }
-            string selectedId = candidates[UnityEngine.Random.Range(0, candidates.Count)];
+            else
+            {
+                selectedGrade = RuneSynthesisRules.NextGrade(grade);
+                selectedId = RuneRewardRoller.PickRune(resultCategory, selectedGrade, () => UnityEngine.Random.value);
+            }
             if (!_save.TryConsumeStock(counts, grade)) return false;
-            _save.AddStock(selectedId, nextGrade, 1);
+            _save.AddStock(selectedId, selectedGrade, 1);
             if (!PersistSpellStorage(_save))
             {
-                _save.TryConsumeStock(new Dictionary<string, int> { [selectedId] = 1 }, nextGrade);
+                _save.TryConsumeStock(new Dictionary<string, int> { [selectedId] = 1 }, selectedGrade);
                 foreach (KeyValuePair<string, int> pair in counts) _save.AddStock(pair.Key, grade, pair.Value);
                 error = SaveStore.LastWarning;
                 return false;
             }
             resultId = selectedId;
-            resultGrade = nextGrade;
+            resultGrade = selectedGrade;
             error = null;
             _spells.Recompile();
             return true;
