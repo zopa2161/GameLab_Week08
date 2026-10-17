@@ -189,8 +189,6 @@ namespace RuneCode
             var upgrades = new Dictionary<string, object>(StringComparer.Ordinal);
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
                 if (node != null) upgrades[node.Id] = GetUpgradeNodeLevel(node.Id);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
-                if (node != null) upgrades[node.Id] = GetUpgradeNodeLevel(node.Id);
             var startState = new Dictionary<string, object>
             {
                 ["selected_stage"] = SelectedStage,
@@ -497,14 +495,11 @@ namespace RuneCode
             PersistProgress();
         }
 
-        /// <summary>디버그 진행의 배치·미배치 스탯 구매 기록을 0으로 되돌린다. SO 시작 레벨·룬·일반 저장은 유지한다.</summary>
+        /// <summary>디버그 진행의 스탯 구매 기록을 0으로 되돌린다. SO 시작 레벨·룬·일반 저장은 유지한다.</summary>
         public void ResetDebugTree()
         {
             if (!_isDebugEnabled) return;
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
-                if (node != null && node.EffectType != UpgradeEffectType.RuneUnlock)
-                    _save.SetUpgradeNodeLevel(node.Id, 0);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
                 if (node != null && node.EffectType != UpgradeEffectType.RuneUnlock)
                     _save.SetUpgradeNodeLevel(node.Id, 0);
             _spells.Recompile();
@@ -687,8 +682,6 @@ namespace RuneCode
             bool hasRestoredRune = false;
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
                 hasRestoredRune |= RestorePurchasedRuneUnlock(save, node);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
-                hasRestoredRune |= RestorePurchasedRuneUnlock(save, node);
             return hasRestoredRune;
         }
 
@@ -731,9 +724,6 @@ namespace RuneCode
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
                 if (node != null && node.EffectType == UpgradeEffectType.RuneUnlock)
                     _save.Unlock(node.RuneId);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.UnplacedNodes)
-                if (node != null && node.EffectType == UpgradeEffectType.RuneUnlock)
-                    _save.Unlock(node.RuneId);
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
                 if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
@@ -765,7 +755,6 @@ namespace RuneCode
             for (int stage = 1; stage <= TEST_CLEARED_STAGE; stage++) save.RecordStageClear(stage);
             save.SelectStage(TEST_STAGE, false);
             MaxUpgradeNodes(save, _upgradeTree.Nodes);
-            MaxUpgradeNodes(save, _upgradeTree.UnplacedNodes);
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
                 if (rune.IsDisabled) continue;
