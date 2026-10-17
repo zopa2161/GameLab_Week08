@@ -7,20 +7,18 @@ using UnityEngine.InputSystem;
 namespace RuneCode
 {
     /// <summary>
-    /// 시험 도크 Presenter다. DockRun(모델)의 시나리오·자동 발사·적응·배속을 바꾸고, 매 프레임 포인터 조준·좌클릭·R 리셋 입력으로
+    /// 시험 도크 Presenter다. DockRun(모델)의 더미 수·자동 발사·적응·배속을 바꾸고, 매 프레임 포인터 조준·좌클릭·R 리셋 입력으로
     /// 도크를 진행하며 지표를 표시한다. 팝업·편집 모달이 열려 있으면 클릭 시전을 막는다.
     /// </summary>
     public sealed class DockPresenter
     {
-        private static readonly string[] SCENARIOS = { "dummy_single", "dummy_line", "dummy_swarm", "aegis", "adapt_loop" };
-
         private readonly RuneCodeSession _session;
         private readonly DockRun _run;
         private readonly DockPanel _view;
         private readonly Func<bool> _isInputBlocked;
         private bool _wasClicking;
 
-        /// <summary>세션·도크 구동·도크 View와 클릭 입력 차단 조건을 받아 View를 연결하고 보존된 시나리오로 도크를 시작한다.</summary>
+        /// <summary>세션·도크 구동·View와 입력 차단 조건을 연결하고 보존된 더미 수로 도크를 시작한다.</summary>
         public DockPresenter(RuneCodeSession session, DockRun run, DockPanel view, Func<bool> isInputBlocked)
         {
             _session = session;
@@ -28,14 +26,15 @@ namespace RuneCode
             _view = view;
             _isInputBlocked = isInputBlocked;
             _view.Bind(() => _run.Dock, () => _session.Save.ScreenShake, () => _session.Save.HitStop);
-            _view.ScenarioClicked += CycleScenario;
+            _view.DummyCountClicked += CycleDummyCount;
             _view.TestClicked += () => _run.FireDock();
             _view.ResetClicked += () => _run.ResetDock();
             _view.AutoFireClicked += () => _run.SetDockOptions(!_run.AutoFire, _run.AdaptationEnabled, _run.Speed);
             _view.AdaptationClicked += () => _run.SetDockAdaptation(!_run.Dock.Adaptation.Enabled);
             _view.SpeedClicked += CycleSpeed;
-            _view.SetScenario(GameData.L("scenario." + _run.Scenario));
-            _run.StartDock(_run.Scenario);
+            _run.StartDock(_run.DummyCount);
+            _view.SetDummyCount(_run.DummyCount);
+            RenderStatus();
         }
 
         /// <summary>프레임마다 입력으로 도크를 진행하고 지표·상태 문구를 표시한다. 도크가 없으면 무시한다.</summary>
@@ -52,13 +51,13 @@ namespace RuneCode
             _run.Suspend();
         }
 
-        /// <summary>시험 시나리오를 다음 항목으로 바꾸고 독립 시뮬레이션을 다시 시작한다. 선택은 세션에 보존된다.</summary>
-        private void CycleScenario()
+        /// <summary>더미 수를 한 마리 늘리고 상한 다음에는 한 마리로 돌아가 시험을 초기화한다. 선택은 세션에 보존된다.</summary>
+        private void CycleDummyCount()
         {
-            int index = Array.IndexOf(SCENARIOS, _run.Scenario);
-            string scenario = SCENARIOS[(index + 1) % SCENARIOS.Length];
-            _view.SetScenario(GameData.L("scenario." + scenario));
-            _run.StartDock(scenario);
+            int next = _run.DummyCount >= GameData.Balance.Sim.BenchLineCount ? 1 : _run.DummyCount + 1;
+            _run.StartDock(next);
+            _view.SetDummyCount(_run.DummyCount);
+            RenderStatus();
         }
 
         /// <summary>시간 배속을 0.5 → 1 → 2 순서로 순환한다.</summary>
@@ -97,8 +96,10 @@ namespace RuneCode
         private void RenderStatus()
         {
             RuneSimulation dock = _run.Dock;
+            _view.SetEnergy(dock.Player.Energy, dock.Player.MaxEnergy);
             _view.SetMetrics(GameData.L("ui.damage") + " " + dock.TotalDamage.ToString("0") + "   " + GameData.L("ui.dps") + " " + dock.RollingDps.ToString("0.0")
-                + "   " + GameData.L("ui.energy") + " " + dock.EnergySpent.ToString("0") + "   " + GameData.L("ui.peak") + " " + dock.PeakSpellEntities);
+                + "   소모 " + GameData.L("ui.energy") + " " + dock.EnergySpent.ToString("0") + "   " + GameData.L("ui.peak") + " " + dock.PeakSpellEntities
+                + "\n" + GameData.L("ui.energy") + " " + dock.Player.Energy.ToString("0") + "/" + dock.Player.MaxEnergy.ToString("0"));
             _view.SetStatus(GameData.L("ui.autofire") + " " + GameData.L(_run.AutoFire ? "ui.on" : "ui.off") + "  ·  " + _run.Speed.ToString("0.#") + "×  ·  "
                 + GameData.L("ui.adaptation") + " " + GameData.L(dock.Adaptation.Enabled ? "ui.on" : "ui.off") + "\n" + AdaptationText.Format(dock, false));
         }

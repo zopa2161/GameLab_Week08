@@ -35,6 +35,7 @@ namespace RuneCode
         private bool _hasPendingFirstRunHelp;
 
         private string _dockScenario = "dummy_single";
+        private int _dockDummyCount = 1;
         private bool _dockAutoFire;
         private bool _dockAdaptation;
         private float _dockSpeed = 1;
@@ -54,6 +55,7 @@ namespace RuneCode
         public long StatusRevision => _statusRevision;
 
         public string DockScenario => _dockScenario;
+        public int DockDummyCount => _dockDummyCount;
         public bool DockAutoFire => _dockAutoFire;
         public bool DockAdaptation => _dockAdaptation;
         public float DockSpeed => _dockSpeed;
@@ -343,6 +345,12 @@ namespace RuneCode
         {
             _statusMessage = text;
             _statusRevision++;
+        }
+
+        /// <summary>시험 더미 수를 밸런스의 일렬 배치 상한 내에 저장해 작업실 재진입 후에도 유지한다.</summary>
+        public void SetDockDummyCount(int count)
+        {
+            _dockDummyCount = Math.Max(1, Math.Min(GameData.Balance.Sim.BenchLineCount, count));
         }
 
         /// <summary>시험 도크의 시나리오와 자동 시전·적응·배속을 세션에 저장해 작업실 재진입 후에도 유지한다.</summary>
