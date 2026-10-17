@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -13,7 +13,7 @@ namespace RuneCode
         private static readonly string[] USABILITY_COMBAT_COLUMNS =
         {
             "combat_id", "stage", "spell_build_id", "result", "duration_ms", "damage_dealt", "damage_received", "shield_absorbed",
-            "energy_spent", "cast_requests", "cast_successes", "dash_inputs", "dashes_started", "kill_count", "fragments", "seed", "reason"
+            "energy_spent", "cast_requests", "cast_successes", "dash_inputs", "dashes_started", "kill_count", "fragments", "seed", "reason", "skill_tree", "inventory", "module_rewards", "action_stats"
         };
         private static UsabilityLogWriter _usabilityLogWriter;
         private static readonly Dictionary<string, int> _usabilityEventCounts = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -53,7 +53,8 @@ namespace RuneCode
             _usabilityLogWriter.AppendEvent(eventName, context, eventData);
             IncrementUsabilityEventCount(eventName, eventData);
             if (eventName == "test_start" || eventName == "test_end" || eventName == "stage_enter"
-                || eventName == "combat_start" || eventName == "combat_end" || eventName == "spell_complete")
+                || eventName == "combat_start" || eventName == "combat_end" || eventName == "spell_complete"
+                || eventName == "clear_reward_selected")
                 _usabilityLogWriter.Flush();
         }
 
