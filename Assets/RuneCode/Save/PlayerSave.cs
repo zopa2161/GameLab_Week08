@@ -10,6 +10,7 @@ namespace RuneCode
     public sealed class PlayerSave : ISerializationCallbackReceiver
     {
         public const int ONBOARDING_LAST_STEP = 6;
+        public const string ONBOARDING_FIRST_DEFEAT = "firstDefeat";
 
         private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
         // 기본 마법 메소드 템플릿 ID다. 매직 미사일은 시작 마법 에너지 볼트와 같아 통합했으므로 지금은 비어 있다.
@@ -40,6 +41,7 @@ namespace RuneCode
 
         [Header("온보딩")]
         [SerializeField] private int _onboardingStep;
+        [SerializeField] private List<string> _seenOnboardingEvents = new List<string>();
 
         private List<SpellGraph> _graphs = new List<SpellGraph>();
 
@@ -273,6 +275,7 @@ namespace RuneCode
         public void OnAfterDeserialize()
         {
             if (_upgradeNodeProgress == null) _upgradeNodeProgress = new List<UpgradeNodeProgress>();
+            if (_seenOnboardingEvents == null) _seenOnboardingEvents = new List<string>();
             _graphs = new List<SpellGraph>();
             if (_library == null)
             {
@@ -517,11 +520,12 @@ namespace RuneCode
             _version = 4;
         }
 
-        /// <summary>버전 4 저장을 온보딩 전체 개방 상태로 표시해 버전 5로 이전한다. 기존 진행에는 자동 안내를 띄우지 않는다.</summary>
+        /// <summary>버전 4 저장을 온보딩 전체 개방 상태로 표시해 버전 5로 이전한다. 기존 진행에는 챕터·이벤트 자동 안내를 띄우지 않는다.</summary>
         public void MigrateToOnboarding()
         {
             if (_version != 4) return;
             _onboardingStep = ONBOARDING_LAST_STEP;
+            MarkOnboardingEvent(ONBOARDING_FIRST_DEFEAT);
             _version = 5;
         }
 
@@ -700,6 +704,15 @@ namespace RuneCode
             {
                 _level = level;
             }
+        }
+
+        /// <summary>id 이벤트 안내를 이미 띄웠는지 반환한다.</summary>
+        public bool HasSeenOnboardingEvent(string id) => _seenOnboardingEvents.Contains(id);
+
+        /// <summary>id 이벤트 안내를 띄운 것으로 중복 없이 기록한다.</summary>
+        public void MarkOnboardingEvent(string id)
+        {
+            if (!_seenOnboardingEvents.Contains(id)) _seenOnboardingEvents.Add(id);
         }
 
         /// <summary>개방한 온보딩 단계를 줄이지 않고 마지막 단계 이내로 저장한다.</summary>

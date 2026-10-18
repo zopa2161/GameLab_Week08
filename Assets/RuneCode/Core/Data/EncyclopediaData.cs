@@ -12,7 +12,34 @@ namespace RuneCode
         [Header("도움말 목록")]
         [SerializeField] private EncyclopediaEntry[] _entries;
 
+        [Header("이벤트 안내")]
+        [SerializeField] private EncyclopediaEvent[] _events;
+
         public IReadOnlyList<EncyclopediaEntry> Entries => _entries;
+        public IReadOnlyList<EncyclopediaEvent> Events => _events;
+
+        /// <summary>id가 같은 이벤트 안내를 반환하고 없으면 null을 반환한다.</summary>
+        public EncyclopediaEvent FindEvent(string id)
+        {
+            if (_events == null) return null;
+            foreach (EncyclopediaEvent item in _events)
+                if (item != null && item.Id == id) return item;
+            return null;
+        }
+    }
+
+    /// <summary>챕터 목차에 포함되지 않고 특정 상황(예: 첫 패배)에서 한 번만 띄우는 안내다. 코드의 트리거 ID와 _id로 연결한다.</summary>
+    [Serializable]
+    public sealed class EncyclopediaEvent
+    {
+        [Header("이벤트 안내 내용")]
+        [SerializeField] private string _id;
+        [SerializeField] private string _title;
+        [SerializeField] private EncyclopediaPage[] _pages;
+
+        public string Id => _id;
+        public string Title => _title;
+        public IReadOnlyList<EncyclopediaPage> Pages => _pages;
     }
 
     /// <summary>목차 제목과 좌우로 넘기는 본문 페이지 목록이다.</summary>

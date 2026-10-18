@@ -37,6 +37,7 @@ namespace RuneCode
         private long _statusRevision;
         private bool _isSaveDirty;
         private int _pendingOnboardingChapter;
+        private readonly List<string> _pendingOnboardingEvents = new List<string>();
 
         private string _dockScenario = "dummy_single";
         private int _dockDummyCount = 1;
@@ -125,7 +126,7 @@ namespace RuneCode
         {
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("mode_changed", _spells.Graph);
             bool isFirstGameStart = !isDebug && !SaveStore.HasSlot(SaveStore.ActiveSlot);
-            _pendingOnboardingChapter = 0;
+            ClearPendingOnboarding();
             _isDebugEnabled = isDebug;
             _isTestMode = false;
             _save = isDebug ? PlayerSave.CreateNew() : _normalSave;
@@ -204,7 +205,7 @@ namespace RuneCode
         {
             if (string.IsNullOrWhiteSpace(participantId)) return false;
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("restarted", _spells.Graph);
-            _pendingOnboardingChapter = 0;
+            ClearPendingOnboarding();
             _isDebugEnabled = false;
             _isTestMode = true;
             _save = CreateTestSave();
@@ -278,6 +279,36 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>
+        /// 일반 진행에서 id 이벤트 안내를 아직 띄우지 않았으면 본 것으로 저장하고 자동 안내 대기 목록에 넣는다. 넣었으면 true를 반환한다.
+        /// 챕터 개방 단계와는 무관하다.
+        /// </summary>
+        public bool TryTriggerOnboardingEvent(string id)
+        {
+            if (!IsOnboardingActive || _save.HasSeenOnboardingEvent(id)) return false;
+            _save.MarkOnboardingEvent(id);
+            _pendingOnboardingEvents.Add(id);
+            PersistProgress();
+            return true;
+        }
+
+        /// <summary>대기 중인 이벤트 안내를 먼저 들어온 순서로 하나 꺼낸다. 없으면 false를 반환한다.</summary>
+        public bool TryConsumePendingOnboardingEvent(out string id)
+        {
+            id = null;
+            if (_pendingOnboardingEvents.Count == 0) return false;
+            id = _pendingOnboardingEvents[0];
+            _pendingOnboardingEvents.RemoveAt(0);
+            return true;
+        }
+
+        /// <summary>대기 중인 챕터·이벤트 자동 안내를 모두 버린다. 진행을 바꾸거나 모드를 전환할 때 호출한다.</summary>
+        private void ClearPendingOnboarding()
+        {
+            _pendingOnboardingChapter = 0;
+            _pendingOnboardingEvents.Clear();
+        }
+
         /// <summary>자동으로 보여줄 온보딩 챕터를 반환하고 비운다. 없으면 0을 반환한다.</summary>
         public int ConsumePendingOnboarding()
         {
@@ -290,7 +321,7 @@ namespace RuneCode
         public bool SelectSaveSlot(int slot)
         {
             if (!SaveStore.TryLoadSlot(slot, out PlayerSave loaded)) return false;
-            _pendingOnboardingChapter = 0;
+            ClearPendingOnboarding();
             SaveStore.SetActiveSlot(slot);
             _normalSave = loaded;
             if (!IsMemorySession)
@@ -308,7 +339,7 @@ namespace RuneCode
         public bool CreateSaveSlot(int slot)
         {
             if (!SaveStore.CreateSlot(slot, out PlayerSave created)) return false;
-            _pendingOnboardingChapter = 0;
+            ClearPendingOnboarding();
             _normalSave = created;
             if (!IsMemorySession)
             {
@@ -581,7 +612,7 @@ namespace RuneCode
             }
             else if (!_isTestMode) _normalSave = _save;
             if (IsOnboardingActive) _save.UnlockOnboarding(1);
-            _pendingOnboardingChapter = 0;
+            ClearPendingOnboarding();
             _spells.Reload();
             PersistProgress();
         }

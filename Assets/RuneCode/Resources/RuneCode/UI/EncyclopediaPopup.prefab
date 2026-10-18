@@ -113,6 +113,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3688086012734204137}
   - component: {fileID: 5269428399068972123}
+  - component: {fileID: 5127186913193025004}
   m_Layer: 0
   m_Name: DetailArea
   m_TagString: Untagged
@@ -168,6 +169,28 @@ MonoBehaviour:
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0
   m_ReverseArrangement: 0
+--- !u!114 &5127186913193025004
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2421612189303782128}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4ad5ca9cf8342c44fac394cb347f1e35, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RuneCode.EncyclopediaPageView
+  _bodyScroll: {fileID: 4849076531874601935}
+  _entryBody: {fileID: 9073238594743685045}
+  _prevPageButton: {fileID: 2711314023276426498}
+  _nextPageButton: {fileID: 6434948466733364760}
+  _nextPageLabel: {fileID: 4262224275247369579}
+  _pageLabel: {fileID: 6054427953411827090}
+  _videoRoot: {fileID: 1225316814015225167}
+  _videoImage: {fileID: 5615308732128819748}
+  _videoPlayer: {fileID: 8654331253972118533}
+  _videoTextureSize: {x: 640, y: 360}
 --- !u!1 &4206993436799172335
 GameObject:
   m_ObjectHideFlags: 0
@@ -311,16 +334,8 @@ MonoBehaviour:
   _rowPrefab: {fileID: 147234489513134028, guid: 38bb8dbdf75fb11449828bb749a5487e, type: 3}
   _entryCount: {fileID: 8426162602914153390}
   _rowHeight: 54
-  _bodyScroll: {fileID: 4849076531874601935}
   _entryTitle: {fileID: 5897691383556437789}
-  _entryBody: {fileID: 9073238594743685045}
-  _prevPageButton: {fileID: 2711314023276426498}
-  _nextPageButton: {fileID: 6434948466733364760}
-  _pageLabel: {fileID: 6054427953411827090}
-  _videoRoot: {fileID: 1225316814015225167}
-  _videoImage: {fileID: 5615308732128819748}
-  _videoPlayer: {fileID: 8654331253972118533}
-  _videoTextureSize: {x: 640, y: 360}
+  _pageView: {fileID: 5127186913193025004}
   _backgroundButton: {fileID: 1834212882954842607}
 --- !u!1 &5036440424026942006
 GameObject:
@@ -2289,6 +2304,17 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0c38440755903e6479644e3872006499, type: 3}
+--- !u!114 &4262224275247369579 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 5579562545692236185, guid: 0c38440755903e6479644e3872006499, type: 3}
+  m_PrefabInstance: {fileID: 8523309649299363058}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!224 &5566311691358354229 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 4285001366992154567, guid: 0c38440755903e6479644e3872006499, type: 3}
