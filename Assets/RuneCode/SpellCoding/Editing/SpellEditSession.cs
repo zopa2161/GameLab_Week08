@@ -80,10 +80,16 @@ namespace RuneCode
             return _policy.IsRuneUnlocked(runeId);
         }
 
-        /// <summary>편집 중인 마법을 포함한 보관함 전체에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다.</summary>
+        /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다. 다른 마법 배치는 세지 않는다.</summary>
         public bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned)
         {
             return _policy.TryGetModifierUsage(runeId, grade, _editingGraph, out used, out owned);
+        }
+
+        /// <summary>보관함 전체 마법에 배치된 수를 제외한 미사용 수량과 소지량을 구한다. 합성 재료 계산에 쓴다.</summary>
+        public bool TryGetUnusedStock(string runeId, string grade, out int unused, out int owned)
+        {
+            return _policy.TryGetUnusedStock(runeId, grade, _editingGraph, out unused, out owned);
         }
 
         /// <summary>현재 진행 상태로 편집 마법을 다시 컴파일하고 결과를 알린다.</summary>

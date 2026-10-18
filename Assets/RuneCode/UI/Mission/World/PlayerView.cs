@@ -30,6 +30,11 @@ namespace RuneCode
         /// <summary>플레이어 위치·조준 방향·대시·보호막을 맵 중앙(origin) 기준 월드 표시로 갱신한다.</summary>
         public void Apply(SimulationPlayer player, SimVector origin)
         {
+            _body.enabled = true;
+            _ring.enabled = true;
+            _aimLine.enabled = true;
+            _dashTrail.enabled = true;
+            _shieldRing.enabled = true;
             transform.localPosition = MissionWorldSpace.ToWorld(player.Position, origin);
             transform.localRotation = Quaternion.Euler(0, 0, MissionWorldSpace.ToWorldAngle(player.AimDirection));
             bool isDashing = player.DashRemaining > 0;
@@ -40,6 +45,18 @@ namespace RuneCode
             if (isDashing) MissionWorldSpace.PlaceLine(_dashTrail, new Vector2(-DASH_TRAIL_LENGTH, 0), Vector2.zero, DASH_TRAIL_WIDTH, DashTrailColor);
             MissionWorldSpace.SetVisible(_shieldRing, player.Shield > 0);
             if (player.Shield > 0) MissionWorldSpace.Place(_shieldRing, Vector2.zero, SHIELD_RADIUS * 2, ShieldColor);
+        }
+
+        /// <summary>패배 진행률에 따라 몸체를 붉게 물들이고 소멸시키며 조준선·보호막·대시 표시를 숨긴다.</summary>
+        public void ApplyDefeat(float progress)
+        {
+            Color tint = Color.Lerp(BodyColor, Color.red, Mathf.Clamp01(progress * 3f));
+            tint.a = 1f - Mathf.Clamp01((progress - 0.35f) / 0.25f);
+            _body.color = tint;
+            _ring.enabled = false;
+            _aimLine.enabled = false;
+            _dashTrail.enabled = false;
+            _shieldRing.enabled = false;
         }
     }
 }

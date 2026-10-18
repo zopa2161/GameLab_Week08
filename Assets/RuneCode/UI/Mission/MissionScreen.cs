@@ -19,12 +19,14 @@ namespace RuneCode
         private RuneCodeSession _session;
         private MissionPresenter _presenter;
         private MissionWorldView _worldView;
+        private DamageVignetteView _damageVignette;
 
         /// <summary>세션·UI 관리자로 Presenter를 만들고 미션 월드를 생성해 카메라·월드 표시를 연결한다. 이미 초기화했으면 무시한다.</summary>
         public void Initialize(RuneCodeSession session, UIManager ui)
         {
             if (_presenter != null) return;
             _session = session;
+            _damageVignette = DamageVignetteView.Create((RectTransform)transform);
             _presenter = new MissionPresenter(session, ui, this, _hud, _resultPanel);
             _worldView = Instantiate(_worldPrefab);
             _worldView.name = _worldPrefab.name;
@@ -40,6 +42,22 @@ namespace RuneCode
             Mouse mouse = Mouse.current;
             return mouse != null && _worldView.Camera.TryGetSimPoint(mouse.position.ReadValue(), out pointer);
         }
+
+        /// <summary>피해 비네트를 strength(0~1) 강도로 점등한다. 점등 판단은 Presenter가 한다.</summary>
+        public void ShowDamageFeedback(float strength)
+        {
+            _damageVignette.Flash(strength);
+        }
+
+        /// <summary>저체력 지속 비네트의 목표 강도(0~1)를 표시한다. 판단은 Presenter가 한다.</summary>
+        public void ShowLowHealth(float level)
+        {
+            _damageVignette.SetLowHealth(level);
+        }
+
+        /// <summary>전투 시간을 진행하지 않고 월드 종료 연출만 갱신하며 완료 여부를 반환한다.</summary>
+        public bool AdvanceEnding(RuneSimulation simulation, float deltaTime)
+            => _worldView.AdvanceEnding(simulation, deltaTime);
 
         /// <summary>Esc 입력을 Presenter에 전달해 일시정지를 연다.</summary>
         public override bool HandleEscape() => _presenter != null && _presenter.HandleEscape();

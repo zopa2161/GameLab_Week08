@@ -29,8 +29,11 @@ namespace RuneCode
         /// <summary>룬이 해금되어 팔레트에서 배치 가능한지 반환한다.</summary>
         bool IsRuneUnlocked(string runeId);
 
-        /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다.</summary>
+        /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다. 다른 마법 배치는 세지 않는다.</summary>
         bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned);
+
+        /// <summary>보관함 전체 마법에 배치된 수를 제외한 미사용 수량과 소지량을 구한다. 합성 재료 계산에 쓴다.</summary>
+        bool TryGetUnusedStock(string runeId, string grade, out int unused, out int owned);
 
         /// <summary>지정 좌표에 행동 노드를 지정 등급(비면 기본 등급)으로 배치한다. 행동 외 룬은 배치하지 않는다.</summary>
         void AddRune(string runeId, float x, float y, string grade = null);

@@ -93,7 +93,11 @@ namespace RuneCode
             _isDebugEnabled = isDebugEnabled;
             _statusMessage = initialStatus;
             bool restoredRuneUnlocks = !isDebugEnabled && RestorePurchasedRuneUnlocks(_save);
-            if (isDebugEnabled) UnlockDebugRunes();
+            if (isDebugEnabled)
+            {
+                UnlockDebugRunes();
+                UnlockDebugUpgrades();
+            }
             var storage = new SessionSpellStorage(() => _save, PersistSpellStorage);
             var policy = new SessionSpellPolicy(this);
             _spells = new SpellEditSession(storage, policy);
@@ -119,7 +123,11 @@ namespace RuneCode
                 if (!SaveStore.WriteToSlot(SaveStore.ActiveSlot, _save)) SetStatusText(SaveStore.LastWarning);
                 else _isSaveDirty = false;
             }
-            if (isDebug) UnlockDebugRunes();
+            if (isDebug)
+            {
+                UnlockDebugRunes();
+                UnlockDebugUpgrades();
+            }
             else PersistRestoredRuneUnlocks(restoredRuneUnlocks);
             _spells.Reload();
             if (!isDebug && !Application.isEditor) BeginNormalPlayLog();
@@ -541,7 +549,11 @@ namespace RuneCode
         public void ResetSave()
         {
             _save = _isTestMode ? CreateTestSave() : PlayerSave.CreateNew();
-            if (_isDebugEnabled) UnlockDebugRunes();
+            if (_isDebugEnabled)
+            {
+                UnlockDebugRunes();
+                UnlockDebugUpgrades();
+            }
             else if (!_isTestMode) _normalSave = _save;
             _spells.Reload();
             PersistProgress();
@@ -564,7 +576,7 @@ namespace RuneCode
             PersistProgress();
         }
 
-        /// <summary>마법을 저장·컴파일하고 RAM과 최대 전력 제한을 만족하면 출격할 마법을 반환한다. 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
+        /// <summary>마법을 저장·컴파일하고 RAM과 최대 전력 제한을 만족하면 출격할 마법을 반환한다. 유지형 빔은 첫 시전 비용으로 검사하며, 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
         public bool TryPrepareMission(out CompiledSpell spell)
         {
             _spells.Save();
@@ -576,9 +588,13 @@ namespace RuneCode
                 return false;
             }
             CompiledSpell preparedSpell = _spells.CompileResult.Spell;
-            if (preparedSpell.EnergyCost > MaxEnergy)
+            bool hasHeldBeam = preparedSpell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK
+                && preparedSpell.Root.Any(action => action.Form == BeamBehaviorRules.BEAM_KIND);
+            double requiredEnergy = hasHeldBeam
+                ? preparedSpell.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale).GetAmount("mana") : preparedSpell.EnergyCost;
+            if (requiredEnergy > MaxEnergy)
             {
-                SetStatusText(string.Format(GameData.L("editor.energyBlocked"), preparedSpell.EnergyCost, MaxEnergy));
+                SetStatusText(string.Format(GameData.L("editor.energyBlocked"), requiredEnergy, MaxEnergy));
                 spell = null;
                 return false;
             }
@@ -595,6 +611,14 @@ namespace RuneCode
         {
             if (_isTestMode) return Array.Empty<ModifierRewardDefinition>();
             var modifierRewards = new List<ModifierRewardDefinition>();
+            if (isCleared)
+            {
+                foreach (ModifierRewardDefinition reward in _stages.Get(stageNumber).ModifierRewards)
+                {
+                    GrantRune(reward.RuneId, reward.Grade, reward.Count, "stage_clear");
+                    modifierRewards.Add(reward);
+                }
+            }
             if (isCleared && clearRuneReward != null)
             {
                 GrantRune(clearRuneReward.RuneId, clearRuneReward.Grade, clearRuneReward.Count, "stage_clear");
@@ -653,7 +677,7 @@ namespace RuneCode
                 counts[id] = count + 1;
             }
             foreach (KeyValuePair<string, int> pair in counts)
-                if (!_spells.TryGetModifierUsage(pair.Key, grade, out int used, out int owned) || owned - used < pair.Value) return false;
+                if (!_spells.TryGetUnusedStock(pair.Key, grade, out int unused, out _) || unused < pair.Value) return false;
             string resultCategory = category;
             if (category == SpellGrammar.CATEGORY_ELEMENT || grade == "S")
                 resultCategory = UnityEngine.Random.Range(0, 2) == 0 ? SpellGrammar.CATEGORY_BEHAVIOR : SpellGrammar.CATEGORY_MODIFIER;
@@ -798,6 +822,14 @@ namespace RuneCode
                     _save.AddStock(rune.Id, "", DEBUG_MODIFIER_STOCK - _save.GetStock(rune.Id, ""));
                 }
             }
+        }
+
+        /// <summary>새 디버그 진행의 강화 트리 스탯 노드를 테스트 프로필과 달리 예외 없이 모두 최대 레벨로 올린다. 룬 해금 노드는 UnlockDebugRunes가 처리한다.</summary>
+        private void UnlockDebugUpgrades()
+        {
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
+                if (node != null && node.EffectType != UpgradeEffectType.RuneUnlock)
+                    _save.SetUpgradeNodeLevel(node.Id, node.MaxLevel);
         }
 
         /// <summary>

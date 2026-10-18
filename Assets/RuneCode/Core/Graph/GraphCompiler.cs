@@ -85,8 +85,8 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 현재 프리셋에서 소지량 키(모디·속성·행동)별 사용 수를 세어 소지량을 넘는 키마다 첫 사용 노드에 E21 오류를 만든다.
-        /// 다른 프리셋의 배치는 합산하지 않으며 소지량에 없는 키의 소지량은 0이다.
+        /// 그래프 자체의 소지량 키(모디·속성·행동)별 사용 수가 소지량을 넘는 키마다 이 그래프의 첫 사용 노드에 E21 오류를 만든다.
+        /// 프리셋별 소지량을 검사하므로 보관함의 다른 마법 배치는 합산하지 않는다. 소지량에 없는 키의 소지량은 0이다.
         /// </summary>
         private static List<CompileIssue> FindModifierStockIssues(SpellGraph graph, RuneCatalog runes,
             IReadOnlyDictionary<string, int> modifierStock)

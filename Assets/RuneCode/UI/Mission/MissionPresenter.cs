@@ -16,6 +16,11 @@ namespace RuneCode
     {
         private const float TIMER_WARNING_SECONDS = 5f;
         private const float TOAST_DURATION = 0.9f;
+        private const float VIGNETTE_BASE_STRENGTH = 0.45f;
+        private const float VIGNETTE_DAMAGE_STRENGTH = 2f;
+        private const float LOW_HEALTH_FRACTION = 0.3f;
+        private const float LOW_HEALTH_MAX_LEVEL = 0.4f;
+        private const double PLAYER_DAMAGE_EPSILON = 0.000001;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -24,7 +29,9 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private MissionRun _run;
+        private double _lastPlayerDamage;
         private bool _isResultShown;
+        private bool _hasPresentedChoices;
         private int _lastFragments;
         private int _lastEnemyDamageEventCount;
         private int _lastBurnTickDamageEventCount;
@@ -49,7 +56,7 @@ namespace RuneCode
             _hud.PauseClicked += TogglePause;
             _hud.DebugClicked += OpenDebug;
             _result.Bind();
-            _result.ImproveClicked += () => _session.RequestScreen(AppScreen.Workshop);
+            _result.ImproveClicked += ReturnToWorkshop;
             _result.NextStageClicked += SelectNextStageAndReturnToWorkshop;
             _result.RetryClicked += RetryStage;
             _result.ClearModifierChoiceClicked += ChooseClearModifier;
@@ -81,6 +88,17 @@ namespace RuneCode
                 PlayElementalSounds();
                 PlayScrapPickupSounds();
                 if (!_isResultShown) ShowResult();
+                // 전투가 끝나면 저체력 지속 비네트는 목표를 0으로 두고 남은 점등만 자연스럽게 사라지게 한다.
+                _screen.ShowLowHealth(0f);
+                if (!_isResultShown)
+                {
+                    if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowResult();
+                }
+                else
+                {
+                    _result.AdvanceRewards(unscaledDeltaTime);
+                    if (_result.CanContinue && !_hasPresentedChoices) ShowPendingChoices();
+                }
                 return;
             }
             bool isTyping = UiFactory.IsTyping();
@@ -88,11 +106,13 @@ namespace RuneCode
             bool hasPointer = !isTyping && !_ui.IsPopupOpen && _screen.TryGetPointer(out pointer);
             Mouse mouse = Mouse.current;
             bool isCasting = Application.isFocused && hasPointer && mouse != null && mouse.leftButton.isPressed && !IsPointerOverUi();
+            double playerDamageBefore = _run.Simulation.Player.DamageReceived + _run.Simulation.Player.ShieldAbsorbed;
             _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
                 isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
             PlayEnemyHitSounds();
             PlayElementalSounds();
             PlayScrapPickupSounds();
+            UpdateDamageFeedback(playerDamageBefore);
             RenderHud();
         }
 
@@ -193,6 +213,7 @@ namespace RuneCode
         /// <summary>디버그 팝업을 열고 디버그 조작을 미션·세션에 연결한다. 디버그 실행이 아니면 무시한다.</summary>
         private void OpenDebug()
         {
+            if (_run == null || _run.IsFinished) return;
             if (!_session.IsDebugEnabled) return;
             MissionDebugPopup popup = _ui.OpenPopup<MissionDebugPopup>();
             popup.Bind();
@@ -229,8 +250,17 @@ namespace RuneCode
         private void RetryStage()
         {
             if (_run == null || !_run.IsFinished) return;
+            if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
             _session.SelectStage(_run.Simulation.StageNumber);
             StartRun();
+        }
+
+        /// <summary>정산과 보스 보상 선택을 마친 경우 작업실로 이동한다.</summary>
+        private void ReturnToWorkshop()
+        {
+            if (_run == null || !_run.IsFinished) return;
+            if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
+            _session.RequestScreen(AppScreen.Workshop);
         }
 
         /// <summary>승리 결과에서 다음 스테이지를 선택하고 노드 강화 작업실로 돌아간다. 클리어나 보상 선택이 끝나지 않았으면 무시한다.</summary>
@@ -245,15 +275,22 @@ namespace RuneCode
             _session.RequestScreen(AppScreen.Workshop);
         }
 
-        /// <summary>정산된 결과 View와 승패에 맞는 효과음을 한 번 표시·재생하고 클리어 Modifier 선택 후보가 있으면 팝업을 연다.</summary>
+        /// <summary>월드 종료 연출 후 결과 View를 표시하고 보상 순차 공개를 시작한다.</summary>
         private void ShowResult()
         {
             _isResultShown = true;
             _ui.CloseAllPopups();
-            SetResultSummary();
+            _result.HideClearModifierChoices();
+            SetResultSummary(true);
             _result.Show();
             if (_run.Simulation.Completed) SoundManager.Instance.PlayRoundClear();
             else SoundManager.Instance.PlayRoundDefeat();
+        }
+
+        /// <summary>일반 보상 공개가 끝난 다음 프레임에 보스 선택 팝업을 한 번만 연다.</summary>
+        private void ShowPendingChoices()
+        {
+            _hasPresentedChoices = true;
             if (_run.HasClearModifierChoices)
             {
                 var names = new List<string>();
@@ -299,35 +336,40 @@ namespace RuneCode
                 case "speedMultiplier":
                     values.Add(GameData.L("ui.gradeSpeed") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
                     break;
+                case "orbitPath":
+                    values.Add(GameData.L("ui.gradeOrbitPath") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
+                    break;
+                case "knockbackDistance":
+                    values.Add(GameData.L("ui.gradeKnockback") + " " + Convert.ToSingle(gradeValue).ToString("0.##") + "px");
+                    break;  
                 case "homingTier":
-                    string tier = gradeValue as string;
-                    HomingTierDefinition homing = rune.FindHomingTier(tier);
-                    if (homing != null)
-                    {
-                        values.Add(GameData.L("ui.gradeHomingTurn") + " " + homing.HomingTurn.ToString("0.#") + "°");
-                        values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
-                        values.Add(GameData.L("ui.gradeOrbitTargetCount") + " " + homing.OrbitTargetCount);
-                    }
+                    values.Add("적을 추적합니다.");
                     break;
             }
             return string.Join("\n", values);
         }
 
+        /// <summary>행동·속성 룬 보상 카드에 표시할 한 줄 설명을 strings 테이블의 ui.behavior.*·ui.element.* 키에서 반환한다.</summary>
+        private static string FormatRuneDescription(RuneDefinition rune)
+        {
+            return GameData.L("ui." + rune.Category + "." + rune.Id.Substring(rune.Category.Length + 1));
+        }
+
         /// <summary>결과 View에 정산 문구와 스테이지·진행 정보를 채운다.</summary>
-        private void SetResultSummary()
+        private void SetResultSummary(bool animateRewards = false)
         {
             RuneSimulation sim = _run.Simulation;
             int elapsedSeconds = (int)sim.Time;
             string playTime = "플레이 타임 " + (elapsedSeconds / 60).ToString("00") + ":" + (elapsedSeconds % 60).ToString("00");
-            _result.SetContent(sim.Completed ? "게임 완료" : "게임 종료",
+            _result.SetContent(sim.Completed ? "스테이지 승리" : sim.IsFailed ? "스테이지 패배" : "스테이지 중단",
                 GameData.L("ui.stage") + " " + sim.StageNumber,
                 playTime,
                 sim.Completed);
-            SetResultRewards();
+            SetResultRewards(animateRewards);
         }
 
         /// <summary>이번 미션에서 획득한 보상을 아이콘 수량과 Modifier 등급 효과 문구로 변환해 결과 View에 전달한다.</summary>
-        private void SetResultRewards()
+        private void SetResultRewards(bool animate)
         {
             var rewards = new List<ResultRewardContent>(_run.Rewards.Count);
             foreach (MissionReward reward in _run.Rewards)
@@ -340,10 +382,44 @@ namespace RuneCode
                 RuneDefinition rune = GameData.Runes.Get(reward.RuneId);
                 // 속성 보상은 등급이 없으므로 등급 줄을 생략하고, 모디·행동 보상은 등급을 표시한다.
                 string gradeLabel = string.IsNullOrEmpty(reward.Grade) ? "" : reward.Grade + "급\n";
-                string description = ModifierGradeText.Colorize(gradeLabel + FormatClearModifierDescription(rune, reward.Grade), reward.Grade);
-                rewards.Add(new ResultRewardContent(true, reward.Count, ModifierGradeText.FormatName(rune.Name, reward.Grade), description));
+                string description;
+                if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
+                    || rune.Category == SpellGrammar.CATEGORY_ELEMENT)
+                {
+                    description = ModifierGradeText.Colorize(
+                        gradeLabel + FormatRuneDescription(rune), reward.Grade);
+                }
+                else
+                {
+                    description = ModifierGradeText.Colorize(
+                        gradeLabel + FormatClearModifierDescription(rune, reward.Grade),
+                        reward.Grade);
+                }
+
+                rewards.Add(new ResultRewardContent(
+                    true,
+                    reward.Count,
+                    ModifierGradeText.FormatName(rune.Name, reward.Grade),
+                    description,
+                    reward.RuneId,
+                    reward.Grade));
             }
-            _result.SetRewards(rewards);
+            rewards.Sort((left, right) =>
+            {
+                int order = GetRewardOrder(left).CompareTo(GetRewardOrder(right));
+                return order != 0 ? order : string.CompareOrdinal(left.RuneId, right.RuneId);
+            });
+            _result.SetRewards(rewards, animate);
+        }
+
+        /// <summary>스크랩·속성·등급 오름차순 행동/모드 순서로 공개할 보상의 정렬 키를 반환한다.</summary>
+        private static int GetRewardOrder(ResultRewardContent reward)
+        {
+            if (!reward.IsModifier) return 0;
+            RuneDefinition rune = GameData.Runes.Get(reward.RuneId);
+            if (rune.Category == SpellGrammar.CATEGORY_ELEMENT) return 1;
+            int grade = Math.Max(0, Array.IndexOf(new[] { "C", "B", "A", "S" }, reward.Grade));
+            return 2 + grade * 2 + (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR ? 0 : 1);
         }
 
         /// <summary>클리어 Modifier 후보를 지급하고 선택 확정 상태와 결과 문구를 갱신한다. 유효한 선택이 아니면 무시한다.</summary>
@@ -366,6 +442,7 @@ namespace RuneCode
             _lastNormalScrapPickupEventCount = 0;
             _lastBigScrapPickupEventCount = 0;
             _isResultShown = false;
+            _hasPresentedChoices = false;
             _ui.CloseAllPopups();
             _result.Hide();
             _lastFragments = _run.Simulation.EarnedFragments;
@@ -378,6 +455,24 @@ namespace RuneCode
 
         /// <summary>포인터가 버튼 등 UI 입력 대상 위에 있는지 반환한다.</summary>
         private static bool IsPointerOverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+
+        /// <summary>
+        /// 이번 프레임에 플레이어가 입은 피해(체력 피해 + 보호막 흡수)로 비네트를 점등하고,
+        /// 최대 체력 대비 현재 체력으로 저체력 지속 비네트 강도를 정한다. 강도는 피해량에 비례해 최대 1까지 붙는다.
+        /// </summary>
+        private void UpdateDamageFeedback(double playerDamageBefore)
+        {
+            RuneSimulation sim = _run.Simulation;
+            double damageTaken = sim.Player.DamageReceived + sim.Player.ShieldAbsorbed - playerDamageBefore;
+            if (damageTaken > PLAYER_DAMAGE_EPSILON)
+            {
+                float strength = VIGNETTE_BASE_STRENGTH + (float)(damageTaken / sim.Player.MaxHp) * VIGNETTE_DAMAGE_STRENGTH;
+                _screen.ShowDamageFeedback(Mathf.Clamp01(strength));
+            }
+            float hpFraction = (float)(sim.Player.Hp / sim.Player.MaxHp);
+            _screen.ShowLowHealth(hpFraction >= LOW_HEALTH_FRACTION ? 0f
+                : Mathf.Lerp(LOW_HEALTH_MAX_LEVEL, 0f, hpFraction / LOW_HEALTH_FRACTION));
+        }
 
         /// <summary>현재 시뮬레이션 값으로 HUD 막대·전투 정보·마법 줄과 조각 토스트를 표시한다.</summary>
         private void RenderHud()

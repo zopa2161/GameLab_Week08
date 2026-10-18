@@ -80,7 +80,7 @@ namespace RuneCode
                 MissionWorldSpace.SetVisible(_inner, false);
                 MissionWorldSpace.SetVisible(_coneRenderer, true);
                 if (spell.IsExpandingRing) ApplyExplosionRing(spell, tint, origin);
-                else ApplyBeam(spell, tint, origin);
+                else ApplyBeam(spell.BeamPath, spell.Position, spell.BoxWidth, tint, origin);
                 return;
             }
             float radius = (float)spell.Radius;
@@ -168,13 +168,25 @@ namespace RuneCode
             MissionWorldSpace.PlaceLine(_trail, -direction * TRAIL_LENGTH, Vector2.zero, Mathf.Max(MIN_TRAIL_WIDTH, radius), trail);
         }
 
-        /// <summary>실제 빔 중심선의 각 선분을 판정 폭과 같은 사각형 메시로 표시한다.</summary>
-        private void ApplyBeam(SimulationSpellEntity spell, Color tint, SimVector origin)
+        /// <summary>공격 개체 없이 최초 빔의 복사된 경로·폭·속성을 표시한다.</summary>
+        public void ApplyBeamFlash(SimulationBeamFlash flash, SimVector origin)
+        {
+            transform.localPosition = MissionWorldSpace.ToWorld(flash.Path[0], origin);
+            MissionWorldSpace.SetVisible(_trail, false);
+            MissionWorldSpace.SetVisible(_shape, false);
+            MissionWorldSpace.SetVisible(_fill, false);
+            MissionWorldSpace.SetVisible(_outline, false);
+            MissionWorldSpace.SetVisible(_inner, false);
+            MissionWorldSpace.SetVisible(_coneRenderer, true);
+            ApplyBeam(flash.Path, flash.Path[0], flash.Width, RuneMesh.ElementColor(flash.Element), origin);
+        }
+
+        /// <summary>지정 중심선과 기준 위치·폭·색상으로 실제 빔 또는 표시용 빔의 선분 메시를 갱신한다.</summary>
+        private void ApplyBeam(IReadOnlyList<SimVector> path, SimVector position, double width, Color tint, SimVector origin)
         {
             _coneVertices.Clear(); _coneColors.Clear(); _coneTriangles.Clear();
-            IReadOnlyList<SimVector> path = spell.BeamPath;
-            Vector2 offset = MissionWorldSpace.ToWorld(spell.Position, origin);
-            float halfWidth = MissionWorldSpace.ToWorldLength(spell.BoxWidth * 0.5);
+            Vector2 offset = MissionWorldSpace.ToWorld(position, origin);
+            float halfWidth = MissionWorldSpace.ToWorldLength(width * 0.5);
             for (int index = 1; index < path.Count; index++)
             {
                 Vector3 start = MissionWorldSpace.ToWorld(path[index - 1], origin) - offset;

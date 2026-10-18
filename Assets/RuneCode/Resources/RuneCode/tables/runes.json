@@ -375,7 +375,7 @@
         "_minimumLifetime": 0.5,
         "_speed": 480,
         "_count": 1,
-        "_tickInterval": 0.1,
+        "_tickInterval": 0.2,
         "_beamLength": 1200,
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,

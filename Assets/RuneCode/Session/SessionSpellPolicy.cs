@@ -54,8 +54,8 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 현재 그래프를 후보로 바꿨을 때 수가 늘어나는 소지 키마다, 후보 프리셋 안의 배치 수가 소지량 이하인지 반환한다.
-        /// 이미 초과한 키라도 늘리지 않는 편집(다른 노드 배치 등)은 막지 않는다.
+        /// 현재 그래프를 후보로 바꿨을 때 수가 늘어나는 소지 키마다 후보의 배치 수가 프리셋 소지량 이하인지 반환한다.
+        /// 프리셋별로 소지량을 관리하므로 다른 마법에 배치된 수는 합산하지 않는다. 이미 초과한 키라도 늘리지 않는 편집(다른 노드 배치 등)은 막지 않는다.
         /// </summary>
         public bool IsWithinModifierStock(SpellGraph current, SpellGraph candidate)
         {
@@ -72,7 +72,7 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 배치 수(used)와 소지량(owned)을 구한다.</summary>
+        /// <summary>편집 중인 프리셋 그래프에서 지정 (룬 ID, 등급)의 배치 수(used)와 소지량(owned)을 구한다. 프리셋별 소지량 관리로 다른 마법 배치는 세지 않는다.</summary>
         public bool TryGetModifierUsage(string runeId, string grade, SpellGraph editing, out int used, out int owned)
         {
             used = 0;
@@ -96,6 +96,30 @@ namespace RuneCode
             GraphCompiler.CountStockUsage(editing, GameData.Runes).TryGetValue(key, out used);
             owned = _session.Save.GetStock(runeId, grade);
             return true;
+        }
+
+        /// <summary>보관함 전체 마법에 배치된 수를 제외한 미사용 수량(unused)과 소지량(owned)을 구한다. 합성 재료 계산에 쓴다.</summary>
+        public bool TryGetUnusedStock(string runeId, string grade, SpellGraph editing, out int unused, out int owned)
+        {
+            unused = 0;
+            if (!TryGetModifierUsage(runeId, grade, editing, out _, out owned)) return false;
+            string key = SpellGrammar.ModifierStockKey(runeId, grade);
+            unused = owned - CountPlacedInLibrary(key, editing);
+            return true;
+        }
+
+        /// <summary>보관함 전체에서 지정 소지 키의 배치 수를 센다. 편집 중 마법은 저장 사본 대신 편집 그래프 기준으로 센다.</summary>
+        private int CountPlacedInLibrary(string key, SpellGraph editing)
+        {
+            var count = 0;
+            string editingId = editing?.Id;
+            foreach (SpellGraph graph in _session.Save.Library)
+            {
+                if (graph == null || (editingId != null && graph.Id == editingId)) continue;
+                if (GraphCompiler.CountStockUsage(graph, GameData.Runes).TryGetValue(key, out int placed)) count += placed;
+            }
+            GraphCompiler.CountStockUsage(editing, GameData.Runes).TryGetValue(key, out int editingPlaced);
+            return count + editingPlaced;
         }
 
         /// <summary>룬 배치 후 진행 반응을 처리한다. 튜토리얼은 제외됐다.</summary>

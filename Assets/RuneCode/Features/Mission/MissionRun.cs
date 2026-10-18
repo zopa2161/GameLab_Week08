@@ -80,7 +80,7 @@ namespace RuneCode
         public ResourceCostSet SpellCosts => _spell?.ResourceCosts ?? ResourceCostSet.Empty;
 
         /// <summary>시전할 마법이 적중·소멸 이벤트 없이 시전만으로 차감하는 자원별 비용을 반환한다.</summary>
-        public ResourceCostSet SpellCastCosts => _spell?.CastCosts ?? ResourceCostSet.Empty;
+        public ResourceCostSet SpellCastCosts => _spell?.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale) ?? ResourceCostSet.Empty;
 
         /// <summary>일시정지 상태를 반환한다.</summary>
         public bool IsPaused => _isPaused;
