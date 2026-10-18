@@ -206,5 +206,18 @@ namespace RuneCode
                 default: return new Color(0.81f, 0.96f, 0.78f);
             }
         }
+
+        /// <summary>등급 문자(C·B·A·S)에 대응하는 보상 등급 표시 색상을 반환한다. 정의되지 않은 등급은 흰색을 반환한다.</summary>
+        internal static Color GradeColor(string grade)
+        {
+            switch (grade)
+            {
+                case "C": return new Color(0.75f, 0.78f, 0.80f, 1f);
+                case "B": return new Color(0.24f, 0.84f, 0.94f, 1f);
+                case "A": return new Color(0.66f, 0.40f, 1f, 1f);
+                case "S": return new Color(1f, 0.765f, 0.365f, 1f);
+                default: return Color.white;
+            }
+        }
     }
 }

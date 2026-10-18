@@ -151,7 +151,7 @@ namespace RuneCode
             _revealElapsed += Mathf.Max(0, deltaTime);
             while (_revealedCount < _rewardViews.Count && (skip || _revealElapsed >= _revealedCount * _rewardRevealInterval))
             {
-                _rewardViews[_revealedCount].Reveal(!skip, GetClearModifierGradeColor(_rewardContents[_revealedCount].Grade));
+                _rewardViews[_revealedCount].Reveal(!skip, RuneMesh.GradeColor(_rewardContents[_revealedCount].Grade));
                 _revealedCount++;
             }
             if (_revealedCount < _rewardViews.Count) return;
@@ -246,7 +246,7 @@ namespace RuneCode
                 if (firstChoice == null) firstChoice = _clearChoiceButtons[i].gameObject;
                 _clearChoiceButtons[i].interactable = true;
                 string grade = grades != null && i < grades.Count ? grades[i] : string.Empty;
-                Color gradeColor = GetClearModifierGradeColor(grade);
+                Color gradeColor = RuneMesh.GradeColor(grade);
                 _clearChoiceGradeLabels[i].text = grade + "급";
                 _clearChoiceGradeLabels[i].color = gradeColor;
                 _clearChoiceNameLabels[i].richText = true;
@@ -273,17 +273,5 @@ namespace RuneCode
                 EventSystem.current.SetSelectedGameObject(_improveButton.gameObject);
         }
 
-        /// <summary>grade에 대응하는 보상 카드 등급 표시 색상을 반환한다.</summary>
-        private static Color GetClearModifierGradeColor(string grade)
-        {
-            switch (grade)
-            {
-                case "C": return new Color(0.75f, 0.78f, 0.80f, 1f);
-                case "B": return new Color(0.24f, 0.84f, 0.94f, 1f);
-                case "A": return new Color(0.66f, 0.40f, 1f, 1f);
-                case "S": return new Color(1f, 0.765f, 0.365f, 1f);
-                default: return Color.white;
-            }
-        }
     }
 }

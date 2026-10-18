@@ -16,6 +16,11 @@ namespace RuneCode
     {
         private const float TIMER_WARNING_SECONDS = 5f;
         private const float TOAST_DURATION = 0.9f;
+        private const float VIGNETTE_BASE_STRENGTH = 0.45f;
+        private const float VIGNETTE_DAMAGE_STRENGTH = 2f;
+        private const float LOW_HEALTH_FRACTION = 0.3f;
+        private const float LOW_HEALTH_MAX_LEVEL = 0.4f;
+        private const double PLAYER_DAMAGE_EPSILON = 0.000001;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -24,6 +29,7 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private MissionRun _run;
+        private double _lastPlayerDamage;
         private bool _isResultShown;
         private bool _hasPresentedChoices;
         private int _lastFragments;
@@ -72,6 +78,8 @@ namespace RuneCode
             if (_run == null) return;
             if (_run.IsFinished)
             {
+                // 전투가 끝나면 저체력 지속 비네트는 목표를 0으로 두고 남은 점등만 자연스럽게 사라지게 한다.
+                _screen.ShowLowHealth(0f);
                 if (!_isResultShown)
                 {
                     if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowResult();
@@ -88,8 +96,10 @@ namespace RuneCode
             bool hasPointer = !isTyping && !_ui.IsPopupOpen && _screen.TryGetPointer(out pointer);
             Mouse mouse = Mouse.current;
             bool isCasting = Application.isFocused && hasPointer && mouse != null && mouse.leftButton.isPressed && !IsPointerOverUi();
+            double playerDamageBefore = _run.Simulation.Player.DamageReceived + _run.Simulation.Player.ShieldAbsorbed;
             _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
                 isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
+            UpdateDamageFeedback(playerDamageBefore);
             RenderHud();
         }
 
@@ -389,6 +399,24 @@ namespace RuneCode
 
         /// <summary>포인터가 버튼 등 UI 입력 대상 위에 있는지 반환한다.</summary>
         private static bool IsPointerOverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+
+        /// <summary>
+        /// 이번 프레임에 플레이어가 입은 피해(체력 피해 + 보호막 흡수)로 비네트를 점등하고,
+        /// 최대 체력 대비 현재 체력으로 저체력 지속 비네트 강도를 정한다. 강도는 피해량에 비례해 최대 1까지 붙는다.
+        /// </summary>
+        private void UpdateDamageFeedback(double playerDamageBefore)
+        {
+            RuneSimulation sim = _run.Simulation;
+            double damageTaken = sim.Player.DamageReceived + sim.Player.ShieldAbsorbed - playerDamageBefore;
+            if (damageTaken > PLAYER_DAMAGE_EPSILON)
+            {
+                float strength = VIGNETTE_BASE_STRENGTH + (float)(damageTaken / sim.Player.MaxHp) * VIGNETTE_DAMAGE_STRENGTH;
+                _screen.ShowDamageFeedback(Mathf.Clamp01(strength));
+            }
+            float hpFraction = (float)(sim.Player.Hp / sim.Player.MaxHp);
+            _screen.ShowLowHealth(hpFraction >= LOW_HEALTH_FRACTION ? 0f
+                : Mathf.Lerp(LOW_HEALTH_MAX_LEVEL, 0f, hpFraction / LOW_HEALTH_FRACTION));
+        }
 
         /// <summary>현재 시뮬레이션 값으로 HUD 막대·전투 정보·마법 줄과 조각 토스트를 표시한다.</summary>
         private void RenderHud()

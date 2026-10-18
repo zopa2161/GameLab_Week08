@@ -820,17 +820,19 @@ namespace RuneCode
         private readonly string _runeId;
         private readonly string _grade;
         private readonly int _count;
+        private readonly int _spawnTick;
         private SimVector _position;
         private bool _isAttracted;
         public string RuneId => _runeId;
         public string Grade => _grade;
         public int Count => _count;
+        public int SpawnTick => _spawnTick;
         public SimVector Position => _position;
         public bool IsAttracted => _isAttracted;
 
-        /// <summary>Modifier 룬 ID, 등급 문자, 수량과 바닥 위치로 드롭 개체를 생성한다.</summary>
-        internal SimulationItemDrop(string runeId, string grade, int count, SimVector position)
-        { _runeId = runeId; _grade = grade; _count = count; _position = position; }
+        /// <summary>Modifier 룬 ID, 등급 문자, 수량, 생성 시점 틱과 바닥 위치로 드롭 개체를 생성한다.</summary>
+        internal SimulationItemDrop(string runeId, string grade, int count, int spawnTick, SimVector position)
+        { _runeId = runeId; _grade = grade; _count = count; _spawnTick = spawnTick; _position = position; }
 
         /// <summary>자석 이동이 시작된 Modifier의 위치를 갱신하고 추적 상태를 유지한다.</summary>
         internal void AttractTo(SimVector position) { _position = position; _isAttracted = true; }

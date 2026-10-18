@@ -1886,7 +1886,7 @@ namespace RuneCode
         private void RollDropTable(DropTableDefinition table, SimVector position)
         {
             DropRoll roll = RuneRewardRoller.DrawRune(table, _stageNumber, _eliteDrops, NextRandom);
-            _itemDrops.Add(new SimulationItemDrop(roll.RuneId, roll.Grade, roll.Count, position));
+            _itemDrops.Add(new SimulationItemDrop(roll.RuneId, roll.Grade, roll.Count, _tick, position));
         }
 
         /// <summary>스크랩과 같은 반경에서 Modifier를 끌어당기고 플레이어에게 도착하면 누적 목록과 미지급 목록에 넣는다.</summary>

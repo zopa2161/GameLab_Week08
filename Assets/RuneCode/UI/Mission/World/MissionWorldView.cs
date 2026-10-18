@@ -160,7 +160,7 @@ namespace RuneCode
             foreach (FragmentOrb orb in sim.Orbs) GetView(_orbViews, _orbPrefab, count++).Apply(orb, origin);
             HideFrom(_orbViews, count);
             count = 0;
-            foreach (SimulationItemDrop drop in sim.ItemDrops) GetView(_itemDropViews, _itemDropPrefab, count++).Apply(drop, origin);
+            foreach (SimulationItemDrop drop in sim.ItemDrops) GetView(_itemDropViews, _itemDropPrefab, count++).Apply(drop, sim.Tick - drop.SpawnTick, origin);
             HideFrom(_itemDropViews, count);
             count = 0;
             foreach (DamageNumber number in sim.DamageNumbers)
@@ -220,7 +220,7 @@ namespace RuneCode
                 foreach (SimulationItemDrop drop in sim.ClearItemDrops)
                 {
                     ItemDropView view = GetView(_itemDropViews, _itemDropPrefab, count++);
-                    view.Apply(drop, sim.MapCenter);
+                    view.Apply(drop, sim.Tick - drop.SpawnTick, sim.MapCenter);
                     view.transform.localPosition = MissionWorldSpace.ToWorld(drop.Position + (sim.Player.Position - drop.Position) * blend, sim.MapCenter);
                     view.transform.localScale = Vector3.one;
                     MissionWorldSpace.SetVisible(view, progress < 1f);
