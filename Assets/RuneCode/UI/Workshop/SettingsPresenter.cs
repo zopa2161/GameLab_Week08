@@ -12,6 +12,7 @@ namespace RuneCode
         private readonly SettingsPanel _view;
         private readonly Action _onReset;
         private readonly Action _onProgressionChanged;
+        private bool _isTitle;
 
         /// <summary>
         /// 세션·UI 관리자·설정 View와 초기화 후 동작(에디터 탭 복귀), 디버그 변경 후 동작(헤더 갱신)을 받아 View 이벤트를 연결한다.
@@ -40,23 +41,30 @@ namespace RuneCode
         /// <summary>진행 종류에 따른 디버그 도구·저장 버튼·초기화 문구와 화면 흔들림·히트스톱·저장 설정의 현재 값을 표시한다.</summary>
         public void Refresh()
         {
-            _view.SetSessionMode(_session.IsDebugEnabled, !_session.IsMemorySession, GetResetTitleKey());
-            _view.SetFeedback(_session.Save.ScreenShake, _session.Save.HitStop);
+            _view.SetSessionMode(_session.IsDebugEnabled, !_session.IsMemorySession, GetResetTitleKey(), _isTitle);
+            _view.SetFeedback(_session.ScreenShake, _session.HitStop);
             _view.SetSaveOptions(SaveStore.AutoSaveEnabled, _session.IsSaveDirty,
                 !_session.IsMemorySession, !_session.IsMemorySession);
+        }
+
+        /// <summary>설정의 진입 위치를 갱신하고 타이틀에서 사용할 수 있는 항목만 표시한다.</summary>
+        public void SetTitleMode(bool isTitle)
+        {
+            _isTitle = isTitle;
+            Refresh();
         }
 
         /// <summary>화면 흔들림 설정을 반전시켜 저장하고 문구를 갱신한다.</summary>
         private void ToggleScreenShake()
         {
-            _session.SetSetting("screenShake", !_session.Save.ScreenShake);
+            _session.SetSetting("screenShake", !_session.ScreenShake);
             Refresh();
         }
 
         /// <summary>히트스톱 설정을 반전시켜 저장하고 문구를 갱신한다.</summary>
         private void ToggleHitStop()
         {
-            _session.SetSetting("hitStop", !_session.Save.HitStop);
+            _session.SetSetting("hitStop", !_session.HitStop);
             Refresh();
         }
 
@@ -105,7 +113,8 @@ namespace RuneCode
         private void ToggleAutoSave()
         {
             bool enabled = !SaveStore.AutoSaveEnabled;
-            if (!_session.SetAutoSaveEnabled(enabled))
+            if (_isTitle) SaveStore.SetAutoSaveEnabled(enabled);
+            else if (!_session.SetAutoSaveEnabled(enabled))
                 _ui.Alert(GameData.L("save.autoSave"), GameData.L("save.unavailable"));
             Refresh();
         }
@@ -121,7 +130,7 @@ namespace RuneCode
         /// <summary>저장 슬롯 목록을 열어 선택한 저장 진행으로 전환할 수 있게 한다.</summary>
         private void OpenSaveSlots()
         {
-            _ui.OpenPopup<SaveSlotsPopup>().Configure(_session, _ui, true, SaveSlotChanged);
+            _ui.OpenPopup<SaveSlotsPopup>().Configure(_session, _ui, SaveSlotsPopup.Mode.SettingsLoad, SaveSlotChanged);
         }
 
         /// <summary>슬롯 전환 후 작업실 진행 표시와 설정의 활성 슬롯 문구를 갱신한다.</summary>

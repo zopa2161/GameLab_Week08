@@ -26,6 +26,7 @@ namespace RuneCode
         private Button _autoSaveButton;
         private Button _manualSaveButton;
         private Button _manualLoadButton;
+        private Button _returnToTitleButton;
 
         /// <summary>화면 흔들림 버튼을 눌렀을 때 알린다.</summary>
         public event Action ScreenShakeClicked;
@@ -77,13 +78,15 @@ namespace RuneCode
         /// 진행 종류에 맞춰 디버그 도구·저장 버튼 표시와 초기화 버튼 문구(resetLabelKey)를 갱신한다.
         /// 같은 팝업 인스턴스를 일반·디버그·테스트 진행이 함께 쓰므로 열 때마다 호출한다.
         /// </summary>
-        public void SetSessionMode(bool isDebugVisible, bool isSaveVisible, string resetLabelKey)
+        public void SetSessionMode(bool isDebugVisible, bool isSaveVisible, string resetLabelKey, bool isTitle = false)
         {
-            _resetSaveButton.GetComponentInChildren<TextMeshProUGUI>().text = GameData.L(resetLabelKey);
-            _debugGroup.SetActive(isDebugVisible);
-            _autoSaveButton.gameObject.SetActive(isSaveVisible);
-            _manualSaveButton.gameObject.SetActive(isSaveVisible);
-            _manualLoadButton.gameObject.SetActive(isSaveVisible);
+            _resetSaveButton.GetComponentInChildren<TextMeshProUGUI>(true).text = GameData.L(resetLabelKey);
+            _debugGroup.SetActive(!isTitle && isDebugVisible);
+            _resetSaveButton.gameObject.SetActive(!isTitle);
+            _returnToTitleButton.gameObject.SetActive(!isTitle);
+            _autoSaveButton.gameObject.SetActive(isTitle || isSaveVisible);
+            _manualSaveButton.gameObject.SetActive(!isTitle && isSaveVisible);
+            _manualLoadButton.gameObject.SetActive(!isTitle && isSaveVisible);
         }
 
         /// <summary>화면 흔들림·히트스톱 설정의 켜짐 여부를 버튼 문구에 표시한다.</summary>
@@ -125,6 +128,7 @@ namespace RuneCode
 
             Button button = Instantiate(_resetSaveButton, parent, false);
             button.name = "ReturnToTitleButton";
+            _returnToTitleButton = button;
             button.onClick.RemoveAllListeners();
             RectTransform rect = (RectTransform)button.transform;
             rect.anchoredPosition = new Vector2(230, -280);
