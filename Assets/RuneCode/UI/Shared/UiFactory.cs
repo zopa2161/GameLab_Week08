@@ -91,7 +91,17 @@ namespace RuneCode
             return text;
         }
 
-        /// <summary>지정 버튼 프리팹을 배치하고 문구와 action 클릭 콜백을 연결한다. 표시 스타일은 프리팹에서 관리한다.</summary>
+        /// <summary>button의 공통 클릭음 리스너만 교체해 중복 없이 한 번 연결하고 다른 클릭 동작은 유지한다.</summary>
+        public static void BindClickSound(Button button)
+        {
+            button.onClick.RemoveListener(PlayClickSound);
+            button.onClick.AddListener(PlayClickSound);
+        }
+
+        /// <summary>공통 UI 버튼 클릭 효과음을 한 번 재생한다.</summary>
+        private static void PlayClickSound() => SoundManager.Instance.PlayClickButton();
+
+        /// <summary>버튼 프리팹을 배치하고 문구·공통 클릭음·action 콜백을 연결한다. 표시 스타일은 프리팹에서 관리한다.</summary>
         public Button Button(Transform parent, float x, float y, float width, float height, string label, Action action = null,
             float size = 14, string name = "Button", string prefabName = null)
         {
@@ -100,6 +110,7 @@ namespace RuneCode
             Image image = instance.GetComponent<Image>();
             image.raycastTarget = true;
             Button button = instance.GetComponent<Button>();
+            BindClickSound(button);
             if (action != null) button.onClick.AddListener(() => action());
             TextMeshProUGUI text = instance.GetComponentInChildren<TextMeshProUGUI>(true);
             text.font = _font;

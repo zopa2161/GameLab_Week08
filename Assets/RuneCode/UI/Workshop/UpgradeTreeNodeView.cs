@@ -47,6 +47,7 @@ namespace RuneCode
         {
             _purchaseAction = action;
             _button.onClick.RemoveAllListeners();
+            UiFactory.BindClickSound(_button);
             if (_purchaseAction != null) _button.onClick.AddListener(() => _purchaseAction());
         }
 

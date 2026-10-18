@@ -19,7 +19,7 @@ namespace RuneCode
         public Button Button => _button;
         public TextMeshProUGUI Label => _label;
 
-        /// <summary>문구, 글자 크기와 행 높이를 적용하고 기존 클릭 리스너를 action으로 교체한다.</summary>
+        /// <summary>문구·글자 크기·행 높이를 적용하고 기존 클릭 리스너를 공통 클릭음과 action으로 교체한다.</summary>
         public void Configure(string label, float height, Action action, float fontSize = 12)
         {
             _label.richText = true;
@@ -32,6 +32,7 @@ namespace RuneCode
             rect.sizeDelta = new Vector2(rect.sizeDelta.x, height);
             UiFactory.Layout(gameObject, height);
             _button.onClick.RemoveAllListeners();
+            UiFactory.BindClickSound(_button);
             if (action != null) _button.onClick.AddListener(() => action());
         }
     }

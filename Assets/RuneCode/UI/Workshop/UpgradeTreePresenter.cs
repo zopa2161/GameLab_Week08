@@ -145,12 +145,16 @@ namespace RuneCode
             return GameData.L("ui.tree.cost") + " " + _session.GetUpgradeNodeCost(node.Id) + " " + GameData.L("ui.fragments");
         }
 
-        /// <summary>노드 ID를 세션에 구매 요청하고 성공하면 작업실의 다른 표시도 갱신한다.</summary>
+        /// <summary>노드 구매에 성공하면 이전 레벨에 따라 최초 해금 또는 강화 효과음을 재생하고 작업실 표시를 갱신한다.</summary>
         private void Purchase(string nodeId)
         {
+            int previousLevel = _session.GetUpgradeNodeLevel(nodeId);
             bool isPurchased = _session.BuyUpgradeNode(nodeId);
             Refresh();
-            if (isPurchased) _onPurchased();
+            if (!isPurchased) return;
+            if (previousLevel == 0) SoundManager.Instance.PlayUnlockSkillTree();
+            else SoundManager.Instance.PlayUpgradeSkillTree();
+            _onPurchased();
         }
     }
 }

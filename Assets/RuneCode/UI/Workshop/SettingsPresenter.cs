@@ -27,6 +27,7 @@ namespace RuneCode
             _view.Bind();
             _view.ScreenShakeClicked += ToggleScreenShake;
             _view.HitStopClicked += ToggleHitStop;
+            _view.SoundSettingsClicked += OpenSoundSettings;
             _view.ResetSaveClicked += ConfirmReset;
             _view.DebugGrantClicked += DebugGrant;
             _view.DebugUnlockClicked += DebugUnlock;
@@ -66,6 +67,12 @@ namespace RuneCode
         {
             _session.SetSetting("hitStop", !_session.HitStop);
             Refresh();
+        }
+
+        /// <summary>현재 설정 팝업 위에 기기 공통 소리 설정 팝업을 연다.</summary>
+        private void OpenSoundSettings()
+        {
+            _ui.OpenPopup<SoundSettingsPopup>();
         }
 
         /// <summary>공용 확인 팝업으로 저장 초기화를 묻고, 확인하면 진행을 초기화한 뒤 초기화 후 동작을 실행한다.</summary>

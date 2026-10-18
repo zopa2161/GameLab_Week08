@@ -33,6 +33,15 @@ namespace RuneCode
         private bool _isResultShown;
         private bool _hasPresentedChoices;
         private int _lastFragments;
+        private int _lastEnemyDamageEventCount;
+        private int _lastShotLaunchEventCount;
+        private int _lastShotBurstEventCount;
+        private int _lastShotPersistEventCount;
+        private int _lastBurnTickDamageEventCount;
+        private int _lastArcDamageEventCount;
+        private int _lastFreezeStartEventCount;
+        private int _lastNormalScrapPickupEventCount;
+        private int _lastBigScrapPickupEventCount;
         private float _toastUntil;
 
         /// <summary>현재 진행 중인 미션의 시뮬레이션이다. 경기장 그래픽이 읽으며 미션이 없으면 null이다.</summary>
@@ -65,6 +74,8 @@ namespace RuneCode
         /// <summary>미션 화면을 떠날 때 진행 중인 미션을 놓는다.</summary>
         public void End()
         {
+            SoundManager soundManager = SoundManager.Instance;
+            if (soundManager != null) soundManager.StopShotBeam();
             _run = null;
         }
 
@@ -78,6 +89,12 @@ namespace RuneCode
             if (_run == null) return;
             if (_run.IsFinished)
             {
+                SoundManager.Instance.StopShotBeam();
+                PlayEnemyHitSounds();
+                PlayShotSounds();
+                PlayElementalSounds();
+                PlayScrapPickupSounds();
+                if (!_isResultShown) ShowResult();
                 // 전투가 끝나면 저체력 지속 비네트는 목표를 0으로 두고 남은 점등만 자연스럽게 사라지게 한다.
                 _screen.ShowLowHealth(0f);
                 if (!_isResultShown)
@@ -99,8 +116,65 @@ namespace RuneCode
             double playerDamageBefore = _run.Simulation.Player.DamageReceived + _run.Simulation.Player.ShieldAbsorbed;
             _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
                 isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
+            if (!_run.IsPaused && !_run.IsFinished && _run.Simulation.HasAnyActiveBeam())
+                SoundManager.Instance.StartShotBeam();
+            else SoundManager.Instance.StopShotBeam();
+            PlayEnemyHitSounds();
+            PlayShotSounds();
+            PlayElementalSounds();
+            PlayScrapPickupSounds();
             UpdateDamageFeedback(playerDamageBefore);
             RenderHud();
+        }
+
+        /// <summary>지난 확인 이후 적이 실제 피해를 받은 횟수만큼 피격음을 재생하고 소비한 횟수를 갱신한다.</summary>
+        private void PlayEnemyHitSounds()
+        {
+            int count = _run.Simulation.EnemyDamageEventCount - _lastEnemyDamageEventCount;
+            _lastEnemyDamageEventCount = _run.Simulation.EnemyDamageEventCount;
+            for (int index = 0; index < count; index++) SoundManager.Instance.PlayEnemyHit();
+        }
+
+        /// <summary>새로 생성된 발사·폭발·잔류 개체 수만큼 효과음을 재생하고 소비한 누적 횟수를 갱신한다.</summary>
+        private void PlayShotSounds()
+        {
+            RuneSimulation sim = _run.Simulation;
+            int launchCount = sim.ShotLaunchEventCount - _lastShotLaunchEventCount;
+            int burstCount = sim.ShotBurstEventCount - _lastShotBurstEventCount;
+            int persistCount = sim.ShotPersistEventCount - _lastShotPersistEventCount;
+            _lastShotLaunchEventCount = sim.ShotLaunchEventCount;
+            _lastShotBurstEventCount = sim.ShotBurstEventCount;
+            _lastShotPersistEventCount = sim.ShotPersistEventCount;
+            for (int index = 0; index < launchCount; index++) SoundManager.Instance.PlayShotLaunch();
+            for (int index = 0; index < burstCount; index++) SoundManager.Instance.PlayShotBurst();
+            for (int index = 0; index < persistCount; index++) SoundManager.Instance.PlayShotPersist();
+        }
+
+        /// <summary>새 화상 틱·감전 적중·빙결 시작 이벤트를 소비하고 각 효과음을 횟수만큼 재생한다.</summary>
+        private void PlayElementalSounds()
+        {
+            RuneSimulation sim = _run.Simulation;
+            int burnCount = sim.BurnTickDamageEventCount - _lastBurnTickDamageEventCount;
+            int arcCount = sim.ArcDamageEventCount - _lastArcDamageEventCount;
+            int freezeCount = sim.FreezeStartEventCount - _lastFreezeStartEventCount;
+            _lastBurnTickDamageEventCount = sim.BurnTickDamageEventCount;
+            _lastArcDamageEventCount = sim.ArcDamageEventCount;
+            _lastFreezeStartEventCount = sim.FreezeStartEventCount;
+            for (int index = 0; index < burnCount; index++) SoundManager.Instance.PlayBurn();
+            for (int index = 0; index < arcCount; index++) SoundManager.Instance.PlayChain();
+            for (int index = 0; index < freezeCount; index++) SoundManager.Instance.PlayFreeze();
+        }
+
+        /// <summary>새로 획득한 스크랩 오브마다 드롭 출처에 맞는 일반 또는 Big 획득음을 한 번 재생한다.</summary>
+        private void PlayScrapPickupSounds()
+        {
+            RuneSimulation sim = _run.Simulation;
+            int normalCount = sim.NormalScrapPickupEventCount - _lastNormalScrapPickupEventCount;
+            int bigCount = sim.BigScrapPickupEventCount - _lastBigScrapPickupEventCount;
+            _lastNormalScrapPickupEventCount = sim.NormalScrapPickupEventCount;
+            _lastBigScrapPickupEventCount = sim.BigScrapPickupEventCount;
+            for (int index = 0; index < normalCount; index++) SoundManager.Instance.PlayTakeScrap();
+            for (int index = 0; index < bigCount; index++) SoundManager.Instance.PlayTakeBigScrap();
         }
 
         /// <summary>Esc 입력으로 일시정지를 연다. 미션이 끝났으면 처리하지 않는다. 열린 팝업의 Esc는 UIManager가 먼저 처리한다.</summary>
@@ -127,6 +201,7 @@ namespace RuneCode
             popup.SetFeedback(_session.ScreenShake, _session.HitStop);
             popup.ShakeClicked += ToggleScreenShake;
             popup.HitStopClicked += ToggleHitStop;
+            popup.SoundSettingsClicked += OpenSoundSettings;
             popup.RetreatClicked += AbandonMission;
             popup.Closed += () => OnPauseClosed(popup);
         }
@@ -136,6 +211,7 @@ namespace RuneCode
         {
             popup.ShakeClicked -= ToggleScreenShake;
             popup.HitStopClicked -= ToggleHitStop;
+            popup.SoundSettingsClicked -= OpenSoundSettings;
             popup.RetreatClicked -= AbandonMission;
             if (_run != null && _run.IsPaused) _run.TogglePause();
         }
@@ -152,6 +228,12 @@ namespace RuneCode
         {
             _session.SetSetting("hitStop", !_session.HitStop);
             _ui.GetView<PausePopup>(UiLayer.Popup).SetFeedback(_session.ScreenShake, _session.HitStop);
+        }
+
+        /// <summary>현재 일시정지 팝업 위에 마스터 음량 설정 팝업을 연다.</summary>
+        private void OpenSoundSettings()
+        {
+            _ui.OpenPopup<SoundSettingsPopup>();
         }
 
         /// <summary>현재 전투를 중단해 보존 비율로 정산하고 팝업을 닫는다. 결과는 다음 Tick에서 표시된다.</summary>
@@ -235,6 +317,8 @@ namespace RuneCode
             _result.HideClearModifierChoices();
             SetResultSummary(true);
             _result.Show();
+            if (_run.Simulation.Completed) SoundManager.Instance.PlayRoundClear();
+            else SoundManager.Instance.PlayRoundDefeat();
         }
 
         /// <summary>일반 보상 공개가 끝난 다음 프레임에 보스 선택 팝업을 한 번만 연다.</summary>
@@ -385,6 +469,15 @@ namespace RuneCode
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
+            _lastEnemyDamageEventCount = 0;
+            _lastShotLaunchEventCount = 0;
+            _lastShotBurstEventCount = 0;
+            _lastShotPersistEventCount = 0;
+            _lastBurnTickDamageEventCount = 0;
+            _lastArcDamageEventCount = 0;
+            _lastFreezeStartEventCount = 0;
+            _lastNormalScrapPickupEventCount = 0;
+            _lastBigScrapPickupEventCount = 0;
             _isResultShown = false;
             _hasPresentedChoices = false;
             _ui.CloseAllPopups();
@@ -401,7 +494,7 @@ namespace RuneCode
         private static bool IsPointerOverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
         /// <summary>
-        /// 이번 프레임에 플레이어가 입은 피해(체력 피해 + 보호막 흡수)로 비네트를 점등하고,
+        /// 이번 프레임에 플레이어가 입은 피해(체력 피해 + 보호막 흡수)로 피격음을 재생하고 비네트를 점등하며,
         /// 최대 체력 대비 현재 체력으로 저체력 지속 비네트 강도를 정한다. 강도는 피해량에 비례해 최대 1까지 붙는다.
         /// </summary>
         private void UpdateDamageFeedback(double playerDamageBefore)
@@ -410,6 +503,7 @@ namespace RuneCode
             double damageTaken = sim.Player.DamageReceived + sim.Player.ShieldAbsorbed - playerDamageBefore;
             if (damageTaken > PLAYER_DAMAGE_EPSILON)
             {
+                SoundManager.Instance.PlayPlayerHit();
                 float strength = VIGNETTE_BASE_STRENGTH + (float)(damageTaken / sim.Player.MaxHp) * VIGNETTE_DAMAGE_STRENGTH;
                 _screen.ShowDamageFeedback(Mathf.Clamp01(strength));
             }
