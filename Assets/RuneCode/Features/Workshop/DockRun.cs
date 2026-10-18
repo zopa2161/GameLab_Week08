@@ -20,6 +20,8 @@ namespace RuneCode
         private double _accumulator;
         private int _telemetryCount;
         private int _lastEnemyDamageEventCount;
+        private int _lastShotLaunchEventCount;
+        private int _lastShotBurstEventCount;
         private int _lastBurnTickDamageEventCount;
         private int _lastArcDamageEventCount;
         private int _lastFreezeStartEventCount;
@@ -64,6 +66,8 @@ namespace RuneCode
             _accumulator = 0;
             _telemetryCount = 0;
             _lastEnemyDamageEventCount = 0;
+            _lastShotLaunchEventCount = 0;
+            _lastShotBurstEventCount = 0;
             _lastBurnTickDamageEventCount = 0;
             _lastArcDamageEventCount = 0;
             _lastFreezeStartEventCount = 0;
@@ -158,6 +162,7 @@ namespace RuneCode
                 _accumulator -= FIXED_STEP;
             }
             PlayEnemyHitSounds();
+            PlayShotSounds();
             PlayElementalSounds();
             CaptureNodeTelemetry();
         }
@@ -191,6 +196,17 @@ namespace RuneCode
             int count = _dock.EnemyDamageEventCount - _lastEnemyDamageEventCount;
             _lastEnemyDamageEventCount = _dock.EnemyDamageEventCount;
             for (int index = 0; index < count; index++) SoundManager.Instance.PlayEnemyHit();
+        }
+
+        /// <summary>새로 생성된 발사·폭발 개체 수만큼 효과음을 재생하고 소비한 누적 횟수를 갱신한다.</summary>
+        private void PlayShotSounds()
+        {
+            int launchCount = _dock.ShotLaunchEventCount - _lastShotLaunchEventCount;
+            int burstCount = _dock.ShotBurstEventCount - _lastShotBurstEventCount;
+            _lastShotLaunchEventCount = _dock.ShotLaunchEventCount;
+            _lastShotBurstEventCount = _dock.ShotBurstEventCount;
+            for (int index = 0; index < launchCount; index++) SoundManager.Instance.PlayShotLaunch();
+            for (int index = 0; index < burstCount; index++) SoundManager.Instance.PlayShotBurst();
         }
 
         /// <summary>새 화상 틱·감전 적중·빙결 시작 이벤트를 소비하고 각 효과음을 횟수만큼 재생한다.</summary>

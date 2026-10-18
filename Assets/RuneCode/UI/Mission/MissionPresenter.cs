@@ -34,6 +34,8 @@ namespace RuneCode
         private bool _hasPresentedChoices;
         private int _lastFragments;
         private int _lastEnemyDamageEventCount;
+        private int _lastShotLaunchEventCount;
+        private int _lastShotBurstEventCount;
         private int _lastBurnTickDamageEventCount;
         private int _lastArcDamageEventCount;
         private int _lastFreezeStartEventCount;
@@ -85,6 +87,7 @@ namespace RuneCode
             if (_run.IsFinished)
             {
                 PlayEnemyHitSounds();
+                PlayShotSounds();
                 PlayElementalSounds();
                 PlayScrapPickupSounds();
                 if (!_isResultShown) ShowResult();
@@ -110,6 +113,7 @@ namespace RuneCode
             _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
                 isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
             PlayEnemyHitSounds();
+            PlayShotSounds();
             PlayElementalSounds();
             PlayScrapPickupSounds();
             UpdateDamageFeedback(playerDamageBefore);
@@ -122,6 +126,18 @@ namespace RuneCode
             int count = _run.Simulation.EnemyDamageEventCount - _lastEnemyDamageEventCount;
             _lastEnemyDamageEventCount = _run.Simulation.EnemyDamageEventCount;
             for (int index = 0; index < count; index++) SoundManager.Instance.PlayEnemyHit();
+        }
+
+        /// <summary>새로 생성된 발사·폭발 개체 수만큼 효과음을 재생하고 소비한 누적 횟수를 갱신한다.</summary>
+        private void PlayShotSounds()
+        {
+            RuneSimulation sim = _run.Simulation;
+            int launchCount = sim.ShotLaunchEventCount - _lastShotLaunchEventCount;
+            int burstCount = sim.ShotBurstEventCount - _lastShotBurstEventCount;
+            _lastShotLaunchEventCount = sim.ShotLaunchEventCount;
+            _lastShotBurstEventCount = sim.ShotBurstEventCount;
+            for (int index = 0; index < launchCount; index++) SoundManager.Instance.PlayShotLaunch();
+            for (int index = 0; index < burstCount; index++) SoundManager.Instance.PlayShotBurst();
         }
 
         /// <summary>새 화상 틱·감전 적중·빙결 시작 이벤트를 소비하고 각 효과음을 횟수만큼 재생한다.</summary>
@@ -436,6 +452,8 @@ namespace RuneCode
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
             _lastEnemyDamageEventCount = 0;
+            _lastShotLaunchEventCount = 0;
+            _lastShotBurstEventCount = 0;
             _lastBurnTickDamageEventCount = 0;
             _lastArcDamageEventCount = 0;
             _lastFreezeStartEventCount = 0;
@@ -457,7 +475,7 @@ namespace RuneCode
         private static bool IsPointerOverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
         /// <summary>
-        /// 이번 프레임에 플레이어가 입은 피해(체력 피해 + 보호막 흡수)로 비네트를 점등하고,
+        /// 이번 프레임에 플레이어가 입은 피해(체력 피해 + 보호막 흡수)로 피격음을 재생하고 비네트를 점등하며,
         /// 최대 체력 대비 현재 체력으로 저체력 지속 비네트 강도를 정한다. 강도는 피해량에 비례해 최대 1까지 붙는다.
         /// </summary>
         private void UpdateDamageFeedback(double playerDamageBefore)
@@ -466,6 +484,7 @@ namespace RuneCode
             double damageTaken = sim.Player.DamageReceived + sim.Player.ShieldAbsorbed - playerDamageBefore;
             if (damageTaken > PLAYER_DAMAGE_EPSILON)
             {
+                SoundManager.Instance.PlayPlayerHit();
                 float strength = VIGNETTE_BASE_STRENGTH + (float)(damageTaken / sim.Player.MaxHp) * VIGNETTE_DAMAGE_STRENGTH;
                 _screen.ShowDamageFeedback(Mathf.Clamp01(strength));
             }

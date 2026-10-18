@@ -118,6 +118,8 @@ namespace RuneCode
         private int _peakSpellEntities;
         private int _nodeExecutionCount;
         private int _enemyDamageEventCount;
+        private int _shotLaunchEventCount;
+        private int _shotBurstEventCount;
         private int _burnTickDamageEventCount;
         private int _arcDamageEventCount;
         private int _freezeStartEventCount;
@@ -191,6 +193,8 @@ namespace RuneCode
         public IReadOnlyList<SimulationItemDrop> PickedUpItems => _pickedUpItems;
         public IReadOnlyList<DamageNumber> DamageNumbers => _damageNumbers;
         public int EnemyDamageEventCount => _enemyDamageEventCount;
+        public int ShotLaunchEventCount => _shotLaunchEventCount;
+        public int ShotBurstEventCount => _shotBurstEventCount;
         public int BurnTickDamageEventCount => _burnTickDamageEventCount;
         public int ArcDamageEventCount => _arcDamageEventCount;
         public int FreezeStartEventCount => _freezeStartEventCount;
@@ -541,6 +545,8 @@ namespace RuneCode
             _totalDamage = 0; _statusDamage = 0; _persistDamage = 0; _rollingDamage = 0; _resourceCostsSpent.Clear(); _peakSpellEntities = 0;
             _nodeExecutionCount = 0; _collectedFragments = 0; _scrapRemainder = 0; _killCount = 0; _spawnedEnemies = 0;
             _enemyDamageEventCount = 0;
+            _shotLaunchEventCount = 0;
+            _shotBurstEventCount = 0;
             _burnTickDamageEventCount = 0;
             _arcDamageEventCount = 0;
             _freezeStartEventCount = 0;
@@ -1116,6 +1122,8 @@ namespace RuneCode
                     context.CallEvents, context.Modifiers, context.CostMultiplier, context.Caster);
                 RecordActionSpawn(action, context);
                 _spellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _spellEntities.Count);
+                if (action.Form == SpellGrammar.FORM_BOLT) _shotLaunchEventCount++;
+                else if (action.Form == SpellGrammar.FORM_BURST || action.Form == SpellGrammar.FORM_LEGACY_BURST) _shotBurstEventCount++;
                 if (channel != null) ((BeamBehaviorRuntime.BeamState)entity.BehaviorState).Attach(channel);
                 behavior.OnSpawned(this, entity);
             }
