@@ -19,6 +19,7 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _shakeLabel;
         [SerializeField] private Button _hitStopButton;
         [SerializeField] private TextMeshProUGUI _hitStopLabel;
+        [SerializeField] private Button _soundSettingsButton;
         [SerializeField] private Button _retreatButton;
 
         private bool _isBound;
@@ -31,6 +32,9 @@ namespace RuneCode
 
         /// <summary>후퇴 버튼을 눌렀을 때 알린다.</summary>
         public event Action RetreatClicked;
+        /// <summary>소리 설정 버튼을 눌렀을 때 알린다.</summary>
+        public event Action SoundSettingsClicked;
+
 
         /// <summary>버튼 클릭을 처음 한 번만 연결한다. 계속하기는 팝업 닫기와 같다.</summary>
         public void Bind()
@@ -40,6 +44,7 @@ namespace RuneCode
             _shakeButton.onClick.AddListener(() => ShakeClicked?.Invoke());
             _hitStopButton.onClick.AddListener(() => HitStopClicked?.Invoke());
             _retreatButton.onClick.AddListener(() => RetreatClicked?.Invoke());
+            _soundSettingsButton.onClick.AddListener(() => SoundSettingsClicked?.Invoke());
             _isBound = true;
         }
 
@@ -49,5 +54,6 @@ namespace RuneCode
             _shakeLabel.text = GameData.L("ui.shake") + " " + GameData.L(isScreenShake ? "ui.on" : "ui.off");
             _hitStopLabel.text = GameData.L("ui.hitstop") + " " + GameData.L(isHitStop ? "ui.on" : "ui.off");
         }
+
     }
 }

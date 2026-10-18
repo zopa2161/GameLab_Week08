@@ -132,16 +132,18 @@ namespace RuneCode
         {
         }
 
-        /// <summary>문자열 키를 세션 상태 문구로 전달한다.</summary>
+        /// <summary>편집 거부·오류 키를 세션 상태 문구로 전달하고 알림음을 재생한다.</summary>
         public void ReportStatus(string key)
         {
             _session.SetStatus(key);
+            SoundManager.Instance.PlayDisable();
         }
 
-        /// <summary>이미 번역된 문구를 세션 상태 문구로 전달한다.</summary>
+        /// <summary>가져오기·저장 실패 문구를 세션 상태 문구로 전달하고 알림음을 재생한다.</summary>
         public void ReportStatusText(string text)
         {
             _session.SetStatusText(text);
+            SoundManager.Instance.PlayDisable();
         }
 
         /// <summary>그래프에서 엣지에 연결된 룬의 RAM만 합산한다.</summary>

@@ -1,9 +1,16 @@
 using UnityEngine;
 
 using FMODUnity;
+using FMOD.Studio;
+
+using RuneCode;
 
 public class SoundManager : MonoBehaviour
 {
+    public float masterVolume = 1f;
+
+    private Bus masterBus;
+
     private const string ENEMY_HIT_SOUND = "event:/SFX/Enemy/EnemyHit";
 
     private const string ROUND_CLEAR_SOUND = "event:/SFX/GameEvent/RoundClear";
@@ -28,7 +35,11 @@ public class SoundManager : MonoBehaviour
     private const string UNLOCK_SKILL_TREE_SOUND = "event:/SFX/UI/UnlockSkillTree";
     private const string UPGRADE_SKILL_TREE_SOUND = "event:/SFX/UI/UpgradeSkillTree";
 
+    private EventInstance _shotBeamInstance;
+
     public static SoundManager Instance { get; private set; }
+
+    public float MasterVolume => masterVolume;
 
     void Awake()
     {
@@ -38,11 +49,23 @@ public class SoundManager : MonoBehaviour
             return;
         }
         Instance = this;
+
+        masterBus = RuntimeManager.GetBus("bus:/");
+        SetMasterVolume(SaveStore.MasterVolume);
+    }
+
+    /// <summary>확정한 음량을 0부터 1로 제한하고 FMOD 마스터 버스와 현재 음량에 한 번 적용한다.</summary>
+    public void SetMasterVolume(float volume)
+    {
+        masterVolume = Mathf.Clamp01(volume);
+        masterBus.setVolume(masterVolume);
     }
 
     void OnDestroy()
     {
-        if (Instance == this) Instance = null;
+        if (Instance != this) return;
+        StopShotBeam();
+        Instance = null;
     }
 
     /// <summary>적 피격 효과음을 한 번 재생한다.</summary>
@@ -108,7 +131,7 @@ public class SoundManager : MonoBehaviour
     /// <summary>UI 버튼 클릭 효과음을 한 번 재생한다.</summary>
     public void PlayClickButton()
     {
-        //RuntimeManager.PlayOneShot(BUTTON_CLICK_SOUND);
+        RuntimeManager.PlayOneShot(BUTTON_CLICK_SOUND);
     }
 
     /// <summary>UI 버튼 호버 효과음을 한 번 재생한다.</summary>
@@ -155,5 +178,24 @@ public class SoundManager : MonoBehaviour
     public void PlayFreeze()
     {
         RuntimeManager.PlayOneShot(FREEZE_SOUND);
+    }
+
+    public void StartShotBeam()
+    {
+        if (_shotBeamInstance.isValid())
+            return;
+
+        _shotBeamInstance = RuntimeManager.CreateInstance(SHOT_BEAM_SOUND);
+        _shotBeamInstance.start();
+    }
+
+    public void StopShotBeam()
+    {
+        if (!_shotBeamInstance.isValid())
+            return;
+
+        _shotBeamInstance.stop(FMOD.Studio.STOP_MODE.ALLOWFADEOUT);
+        _shotBeamInstance.release();
+        _shotBeamInstance = default;
     }
 }

@@ -10,11 +10,16 @@ namespace RuneCode
     /// <summary>설정 팝업의 내용 View다. 설정·저장·타이틀 복귀·게임 종료·디버그 입력을 알린다.</summary>
     public sealed class SettingsPanel : MonoBehaviour
     {
+        private const float LOWER_CONTROLS_TOP = 210f;
+        private const float CONTROL_ROW_STEP = 70f;
+        private const float CONTROL_GROUP_GAP = 12f;
+
         [Header("설정")]
         [SerializeField] private Button _screenShakeButton;
         [SerializeField] private TextMeshProUGUI _screenShakeLabel;
         [SerializeField] private Button _hitStopButton;
         [SerializeField] private TextMeshProUGUI _hitStopLabel;
+        [SerializeField] private Button _soundSettingsButton;
         [SerializeField] private Button _resetSaveButton;
 
         [Header("디버그")]
@@ -33,6 +38,9 @@ namespace RuneCode
 
         /// <summary>히트스톱 버튼을 눌렀을 때 알린다.</summary>
         public event Action HitStopClicked;
+
+        /// <summary>소리 설정 버튼을 눌렀을 때 알린다.</summary>
+        public event Action SoundSettingsClicked;
 
         /// <summary>저장 초기화 버튼을 눌렀을 때 알린다.</summary>
         public event Action ResetSaveClicked;
@@ -66,6 +74,7 @@ namespace RuneCode
         {
             _screenShakeButton.onClick.AddListener(() => ScreenShakeClicked?.Invoke());
             _hitStopButton.onClick.AddListener(() => HitStopClicked?.Invoke());
+            _soundSettingsButton.onClick.AddListener(() => SoundSettingsClicked?.Invoke());
             _resetSaveButton.onClick.AddListener(() => ResetSaveClicked?.Invoke());
             _debugGrantButton.onClick.AddListener(() => DebugGrantClicked?.Invoke());
             _debugUnlockButton.onClick.AddListener(() => DebugUnlockClicked?.Invoke());
@@ -80,13 +89,16 @@ namespace RuneCode
         /// </summary>
         public void SetSessionMode(bool isDebugVisible, bool isSaveVisible, string resetLabelKey, bool isTitle = false)
         {
+            bool isDebugGroupVisible = !isTitle && isDebugVisible;
+            bool isSaveRowVisible = isTitle || isSaveVisible;
             _resetSaveButton.GetComponentInChildren<TextMeshProUGUI>(true).text = GameData.L(resetLabelKey);
-            _debugGroup.SetActive(!isTitle && isDebugVisible);
+            _debugGroup.SetActive(isDebugGroupVisible);
             _resetSaveButton.gameObject.SetActive(!isTitle);
             _returnToTitleButton.gameObject.SetActive(!isTitle);
-            _autoSaveButton.gameObject.SetActive(isTitle || isSaveVisible);
+            _autoSaveButton.gameObject.SetActive(isSaveRowVisible);
             _manualSaveButton.gameObject.SetActive(!isTitle && isSaveVisible);
             _manualLoadButton.gameObject.SetActive(!isTitle && isSaveVisible);
+            LayoutLowerControls(isDebugGroupVisible, isSaveRowVisible);
         }
 
         /// <summary>화면 흔들림·히트스톱 설정의 켜짐 여부를 버튼 문구에 표시한다.</summary>
@@ -131,7 +143,7 @@ namespace RuneCode
             _returnToTitleButton = button;
             button.onClick.RemoveAllListeners();
             RectTransform rect = (RectTransform)button.transform;
-            rect.anchoredPosition = new Vector2(230, -280);
+            rect.anchoredPosition = new Vector2(230, resetRect.anchoredPosition.y);
             rect.sizeDelta = new Vector2(216, 48);
             SetButtonLabel(button, GameData.L("ui.returnToTitle"));
             button.onClick.AddListener(() => ReturnToTitleClicked?.Invoke());
@@ -163,9 +175,32 @@ namespace RuneCode
             button.onClick.RemoveAllListeners();
             UiFactory.BindClickSound(button);
             RectTransform rect = (RectTransform)button.transform;
-            rect.anchoredPosition = new Vector2(x, -210);
+            rect.anchoredPosition = new Vector2(x, -LOWER_CONTROLS_TOP);
             rect.sizeDelta = new Vector2(144, 48);
             return button;
+        }
+
+        /// <summary>표시 중인 디버그·저장 행만 차례로 배치해 소리 설정 아래의 버튼이 겹치지 않게 한다.</summary>
+        private void LayoutLowerControls(bool isDebugVisible, bool isSaveVisible)
+        {
+            float nextTop = LOWER_CONTROLS_TOP;
+            RectTransform debugRect = (RectTransform)_debugGroup.transform;
+            SetTop(debugRect, nextTop);
+            if (isDebugVisible) nextTop += debugRect.sizeDelta.y + CONTROL_GROUP_GAP;
+
+            SetTop((RectTransform)_autoSaveButton.transform, nextTop);
+            SetTop((RectTransform)_manualSaveButton.transform, nextTop);
+            SetTop((RectTransform)_manualLoadButton.transform, nextTop);
+            if (isSaveVisible) nextTop += CONTROL_ROW_STEP;
+
+            SetTop((RectTransform)_resetSaveButton.transform, nextTop);
+            SetTop((RectTransform)_returnToTitleButton.transform, nextTop);
+        }
+
+        /// <summary>rect의 가로 위치와 크기를 유지하고 위쪽 좌표를 top에 맞춘다.</summary>
+        private static void SetTop(RectTransform rect, float top)
+        {
+            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, -top);
         }
 
         /// <summary>버튼 안의 TMP 레이블이 있으면 표시 문구를 바꾼다.</summary>

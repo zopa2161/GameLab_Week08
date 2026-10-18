@@ -20,6 +20,7 @@ namespace RuneCode
         private const string AUTO_SAVE_KEY = "runecode.save.auto-save";
         private const string SCREEN_SHAKE_KEY = "runecode.settings.screen-shake";
         private const string HIT_STOP_KEY = "runecode.settings.hit-stop";
+        private const string MASTER_VOLUME_KEY = "runecode.settings.master-volume";
         private const string LEGACY_MIGRATED_KEY = "runecode.save.legacy-migrated";
         private const string ENCRYPTED_SAVE_PREFIX = "RC-AES-CBC-1:";
         private const string SAVE_KEY_BASE64 = "Fn18bSp50G37Q6RkCeWQIoCjDt1zqeoAbviQE4oXn00=";
@@ -32,6 +33,7 @@ namespace RuneCode
         public static bool AutoSaveEnabled => PlayerPrefs.GetInt(AUTO_SAVE_KEY, 1) != 0;
         public static bool ScreenShake => PlayerPrefs.GetInt(SCREEN_SHAKE_KEY, 1) != 0;
         public static bool HitStop => PlayerPrefs.GetInt(HIT_STOP_KEY, 1) != 0;
+        public static float MasterVolume => Mathf.Clamp01(PlayerPrefs.GetFloat(MASTER_VOLUME_KEY, 1f));
         public static string SavePath => GetSlotPath(ActiveSlot);
 
         /// <summary>선택된 슬롯을 1부터 3까지의 범위 안에 저장하고 다른 실행에도 적용한다.</summary>
@@ -46,6 +48,13 @@ namespace RuneCode
         public static void SetAutoSaveEnabled(bool isEnabled)
         {
             PlayerPrefs.SetInt(AUTO_SAVE_KEY, isEnabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>확정한 마스터 음량을 0부터 1로 제한해 기기 공통 환경설정에 저장한다.</summary>
+        public static void SetMasterVolume(float volume)
+        {
+            PlayerPrefs.SetFloat(MASTER_VOLUME_KEY, Mathf.Clamp01(volume));
             PlayerPrefs.Save();
         }
 

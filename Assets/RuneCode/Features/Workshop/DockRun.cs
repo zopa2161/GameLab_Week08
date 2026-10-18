@@ -22,6 +22,7 @@ namespace RuneCode
         private int _lastEnemyDamageEventCount;
         private int _lastShotLaunchEventCount;
         private int _lastShotBurstEventCount;
+        private int _lastShotPersistEventCount;
         private int _lastBurnTickDamageEventCount;
         private int _lastArcDamageEventCount;
         private int _lastFreezeStartEventCount;
@@ -47,12 +48,15 @@ namespace RuneCode
         /// <summary>세션 마법의 컴파일 이벤트 구독을 해제한다. 작업실 화면 파기 시 호출한다.</summary>
         public void Dispose()
         {
+            SoundManager soundManager = SoundManager.Instance;
+            if (soundManager != null) soundManager.StopShotBeam();
             _session.Spells.Compiled -= OnSpellCompiled;
         }
 
         /// <summary>dummyCount를 세션에 보관하고 같은 종류의 더미를 일렬로 배치한 독립 시험과 세션 마법을 연결한다.</summary>
         public void StartDock(int dummyCount)
         {
+            SoundManager.Instance.StopShotBeam();
             _session.SetDockDummyCount(dummyCount);
             _session.SetDockOptions("dummy_line", _session.DockAutoFire, _session.DockAdaptation, _session.DockSpeed);
             _dock = new RuneSimulation(1, false, _session.MaxHp, _session.MaxEnergy, energyRegen: _session.EnergyRegen,
@@ -68,6 +72,7 @@ namespace RuneCode
             _lastEnemyDamageEventCount = 0;
             _lastShotLaunchEventCount = 0;
             _lastShotBurstEventCount = 0;
+            _lastShotPersistEventCount = 0;
             _lastBurnTickDamageEventCount = 0;
             _lastArcDamageEventCount = 0;
             _lastFreezeStartEventCount = 0;
@@ -163,6 +168,7 @@ namespace RuneCode
             }
             PlayEnemyHitSounds();
             PlayShotSounds();
+            SyncShotBeamSound();
             PlayElementalSounds();
             CaptureNodeTelemetry();
         }
@@ -170,11 +176,20 @@ namespace RuneCode
         /// <summary>탭 전환 등으로 스텝이 멈출 때 남은 누적 시간을 버린다.</summary>
         public void Suspend()
         {
+            SoundManager.Instance.StopShotBeam();
             _accumulator = 0;
             _wasFiring = false;
             _hasPendingCastPress = false;
             _hasPendingCastRelease = false;
             _dock?.CancelBeamInput();
+        }
+
+        /// <summary>도크 슬롯에 활성 빔이 하나라도 있으면 지속 음원을 시작하고, 모두 끝나면 정지한다.</summary>
+        private void SyncShotBeamSound()
+        {
+            bool hasActiveBeam = _dock.HasAnyActiveBeam();
+            if (hasActiveBeam) SoundManager.Instance.StartShotBeam();
+            else SoundManager.Instance.StopShotBeam();
         }
 
         /// <summary>컴파일 결과가 갱신되면 현재 도크의 시전 프로그램을 교체한다.</summary>
@@ -198,15 +213,18 @@ namespace RuneCode
             for (int index = 0; index < count; index++) SoundManager.Instance.PlayEnemyHit();
         }
 
-        /// <summary>새로 생성된 발사·폭발 개체 수만큼 효과음을 재생하고 소비한 누적 횟수를 갱신한다.</summary>
+        /// <summary>새로 생성된 발사·폭발·잔류 개체 수만큼 효과음을 재생하고 소비한 누적 횟수를 갱신한다.</summary>
         private void PlayShotSounds()
         {
             int launchCount = _dock.ShotLaunchEventCount - _lastShotLaunchEventCount;
             int burstCount = _dock.ShotBurstEventCount - _lastShotBurstEventCount;
+            int persistCount = _dock.ShotPersistEventCount - _lastShotPersistEventCount;
             _lastShotLaunchEventCount = _dock.ShotLaunchEventCount;
             _lastShotBurstEventCount = _dock.ShotBurstEventCount;
+            _lastShotPersistEventCount = _dock.ShotPersistEventCount;
             for (int index = 0; index < launchCount; index++) SoundManager.Instance.PlayShotLaunch();
             for (int index = 0; index < burstCount; index++) SoundManager.Instance.PlayShotBurst();
+            for (int index = 0; index < persistCount; index++) SoundManager.Instance.PlayShotPersist();
         }
 
         /// <summary>새 화상 틱·감전 적중·빙결 시작 이벤트를 소비하고 각 효과음을 횟수만큼 재생한다.</summary>

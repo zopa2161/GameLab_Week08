@@ -36,6 +36,7 @@ namespace RuneCode
         private int _lastEnemyDamageEventCount;
         private int _lastShotLaunchEventCount;
         private int _lastShotBurstEventCount;
+        private int _lastShotPersistEventCount;
         private int _lastBurnTickDamageEventCount;
         private int _lastArcDamageEventCount;
         private int _lastFreezeStartEventCount;
@@ -73,6 +74,8 @@ namespace RuneCode
         /// <summary>미션 화면을 떠날 때 진행 중인 미션을 놓는다.</summary>
         public void End()
         {
+            SoundManager soundManager = SoundManager.Instance;
+            if (soundManager != null) soundManager.StopShotBeam();
             _run = null;
         }
 
@@ -86,6 +89,7 @@ namespace RuneCode
             if (_run == null) return;
             if (_run.IsFinished)
             {
+                SoundManager.Instance.StopShotBeam();
                 PlayEnemyHitSounds();
                 PlayShotSounds();
                 PlayElementalSounds();
@@ -112,6 +116,9 @@ namespace RuneCode
             double playerDamageBefore = _run.Simulation.Player.DamageReceived + _run.Simulation.Player.ShieldAbsorbed;
             _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
                 isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
+            if (!_run.IsPaused && !_run.IsFinished && _run.Simulation.HasAnyActiveBeam())
+                SoundManager.Instance.StartShotBeam();
+            else SoundManager.Instance.StopShotBeam();
             PlayEnemyHitSounds();
             PlayShotSounds();
             PlayElementalSounds();
@@ -128,16 +135,19 @@ namespace RuneCode
             for (int index = 0; index < count; index++) SoundManager.Instance.PlayEnemyHit();
         }
 
-        /// <summary>새로 생성된 발사·폭발 개체 수만큼 효과음을 재생하고 소비한 누적 횟수를 갱신한다.</summary>
+        /// <summary>새로 생성된 발사·폭발·잔류 개체 수만큼 효과음을 재생하고 소비한 누적 횟수를 갱신한다.</summary>
         private void PlayShotSounds()
         {
             RuneSimulation sim = _run.Simulation;
             int launchCount = sim.ShotLaunchEventCount - _lastShotLaunchEventCount;
             int burstCount = sim.ShotBurstEventCount - _lastShotBurstEventCount;
+            int persistCount = sim.ShotPersistEventCount - _lastShotPersistEventCount;
             _lastShotLaunchEventCount = sim.ShotLaunchEventCount;
             _lastShotBurstEventCount = sim.ShotBurstEventCount;
+            _lastShotPersistEventCount = sim.ShotPersistEventCount;
             for (int index = 0; index < launchCount; index++) SoundManager.Instance.PlayShotLaunch();
             for (int index = 0; index < burstCount; index++) SoundManager.Instance.PlayShotBurst();
+            for (int index = 0; index < persistCount; index++) SoundManager.Instance.PlayShotPersist();
         }
 
         /// <summary>새 화상 틱·감전 적중·빙결 시작 이벤트를 소비하고 각 효과음을 횟수만큼 재생한다.</summary>
@@ -191,6 +201,7 @@ namespace RuneCode
             popup.SetFeedback(_session.ScreenShake, _session.HitStop);
             popup.ShakeClicked += ToggleScreenShake;
             popup.HitStopClicked += ToggleHitStop;
+            popup.SoundSettingsClicked += OpenSoundSettings;
             popup.RetreatClicked += AbandonMission;
             popup.Closed += () => OnPauseClosed(popup);
         }
@@ -200,6 +211,7 @@ namespace RuneCode
         {
             popup.ShakeClicked -= ToggleScreenShake;
             popup.HitStopClicked -= ToggleHitStop;
+            popup.SoundSettingsClicked -= OpenSoundSettings;
             popup.RetreatClicked -= AbandonMission;
             if (_run != null && _run.IsPaused) _run.TogglePause();
         }
@@ -216,6 +228,12 @@ namespace RuneCode
         {
             _session.SetSetting("hitStop", !_session.HitStop);
             _ui.GetView<PausePopup>(UiLayer.Popup).SetFeedback(_session.ScreenShake, _session.HitStop);
+        }
+
+        /// <summary>현재 일시정지 팝업 위에 마스터 음량 설정 팝업을 연다.</summary>
+        private void OpenSoundSettings()
+        {
+            _ui.OpenPopup<SoundSettingsPopup>();
         }
 
         /// <summary>현재 전투를 중단해 보존 비율로 정산하고 팝업을 닫는다. 결과는 다음 Tick에서 표시된다.</summary>
@@ -454,6 +472,7 @@ namespace RuneCode
             _lastEnemyDamageEventCount = 0;
             _lastShotLaunchEventCount = 0;
             _lastShotBurstEventCount = 0;
+            _lastShotPersistEventCount = 0;
             _lastBurnTickDamageEventCount = 0;
             _lastArcDamageEventCount = 0;
             _lastFreezeStartEventCount = 0;
