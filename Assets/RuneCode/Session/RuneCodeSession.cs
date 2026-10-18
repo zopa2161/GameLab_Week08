@@ -578,7 +578,8 @@ namespace RuneCode
             CompiledSpell preparedSpell = _spells.CompileResult.Spell;
             bool hasHeldBeam = preparedSpell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK
                 && preparedSpell.Root.Any(action => action.Form == BeamBehaviorRules.BEAM_KIND);
-            double requiredEnergy = hasHeldBeam ? preparedSpell.CastCosts.GetAmount("mana") : preparedSpell.EnergyCost;
+            double requiredEnergy = hasHeldBeam
+                ? preparedSpell.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale).GetAmount("mana") : preparedSpell.EnergyCost;
             if (requiredEnergy > MaxEnergy)
             {
                 SetStatusText(string.Format(GameData.L("editor.energyBlocked"), requiredEnergy, MaxEnergy));

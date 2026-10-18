@@ -63,6 +63,7 @@ namespace RuneCode
             if (state.Channel.IsStopped) { entity.HasExpired = true; return; }
             BuildPath(simulation, entity, state);
             if (simulation.Tick < state.NextDamageTick) return;
+            if (state.NextDamageTick == 0) simulation.RecordBeamFlash(entity, state.Path);
             state.ScheduleDamage(simulation.Tick + Math.Max(1, (int)Math.Round(entity.Stats.TickInterval * RuneSimulation.TICK_RATE)));
             HitPath(simulation, entity, state);
         }
@@ -222,17 +223,15 @@ namespace RuneCode
             beam.WriteHits(state);
         }
 
-        /// <summary>한 번의 행동으로 만들어진 다중 빔이 공유하는 홀드·지속 결제와 루트 실행 수명이다.</summary>
+        /// <summary>한 행동의 다중 빔이 공유하는 결제 완료 구간이다. 직접 공격 빔은 슬롯 경계에서 갱신하고 나머지는 초기 구간만 유지한다.</summary>
         internal sealed class BeamChannel
         {
             private readonly int _slot;
-            private readonly int _pressSerial;
             private readonly int _startedTick;
-            private readonly int _minimumTicks;
-            private readonly int _paymentTicks;
-            private readonly ResourceCostSet _paymentCosts;
+            private readonly SpellAction _action;
+            private readonly ResourceCostSet _cycleCosts;
             private readonly Action _complete;
-            private readonly bool _canExtend;
+            private readonly bool _usesSlotCycle;
             private readonly bool _followsPlayer;
             private int _paidUntilTick;
             private int _lastTick = -1;
@@ -241,30 +240,34 @@ namespace RuneCode
             public bool FollowsPlayer => _followsPlayer;
             public bool IsStopped => _isStopped;
             public int Slot => _slot;
+            public SpellAction Action => _action;
+            public bool UsesSlotCycle => _usesSlotCycle;
+            public ResourceCostSet CycleCosts => _cycleCosts;
+            public int PaidUntilTick => _paidUntilTick;
 
-            /// <summary>초기 실행 비용을 선결제한 빔의 홀드 상태와 피해 주기별 분할 비용을 초기화한다. 홀드하지 않는 빔은 초기 구간만 유지한다.</summary>
-            internal BeamChannel(int tick, SpellStats stats, int slot, int pressSerial, bool canExtend,
-                bool followsPlayer, ResourceCostSet initialCosts, Action complete)
+            /// <summary>최초 결제 비용과 슬롯 주기 종료 틱을 저장한다. 비슬롯 빔의 수명은 기존 최소 유지 시간으로 정한다.</summary>
+            internal BeamChannel(int tick, SpellStats stats, int slot, bool followsPlayer, SpellAction action,
+                bool usesSlotCycle, int cycleEndTick, ResourceCostSet cycleCosts, Action complete)
             {
-                _slot = slot; _pressSerial = pressSerial; _startedTick = tick;
-                _minimumTicks = Math.Max(1, (int)Math.Round(stats.MinimumLifetime * RuneSimulation.TICK_RATE));
-                _paymentTicks = Math.Max(1, (int)Math.Round(stats.TickInterval * RuneSimulation.TICK_RATE));
-                _paymentCosts = initialCosts.Multiply(_paymentTicks / (double)_minimumTicks);
-                _canExtend = canExtend; _followsPlayer = followsPlayer; _complete = complete;
-                _paidUntilTick = tick + _minimumTicks;
+                _slot = slot; _startedTick = tick; _action = action;
+                _usesSlotCycle = usesSlotCycle; _followsPlayer = followsPlayer; _complete = complete;
+                _cycleCosts = cycleCosts;
+                int minimumTicks = Math.Max(1, (int)Math.Round(stats.MinimumLifetime * RuneSimulation.TICK_RATE));
+                _paidUntilTick = usesSlotCycle ? cycleEndTick : tick + minimumTicks;
             }
 
-            /// <summary>홀드 빔은 시간 상한 없이 결제를 이어가고 입력 해제나 자원 부족 시 즉시 종료한다. 비홀드 빔은 초기 구간 뒤 종료한다.</summary>
+            /// <summary>최초 공격은 보장하고 결제한 구간 끝에 도달하면 종료한다. 홀드·결제는 슬롯 시전 경계에서 먼저 처리한다.</summary>
             internal void Advance(RuneSimulation simulation)
             {
                 if (_isStopped || _lastTick == simulation.Tick) return;
                 _lastTick = simulation.Tick;
                 int age = simulation.Tick - _startedTick;
-                if (_canExtend ? !simulation.IsBeamHeld(_slot, _pressSerial) : age >= _minimumTicks) { Stop(); return; }
-                if (simulation.Tick < _paidUntilTick) return;
-                if (!simulation.TrySpendBeamCosts(_paymentCosts)) { Stop(); return; }
-                _paidUntilTick += _paymentTicks;
+                if (age == 0) return;
+                if (simulation.Tick >= _paidUntilTick) Stop();
             }
+
+            /// <summary>구간 비용 지불 성공 후 종료 틱만 갱신하며 경로·적중 횟수·다음 공격 시각은 유지한다.</summary>
+            internal void Renew(int cycleEndTick) => _paidUntilTick = cycleEndTick;
 
             /// <summary>추가 이벤트 없이 채널을 종료하고 확보한 실행 추적 참조를 한 번만 해제한다.</summary>
             internal void Stop()
@@ -276,10 +279,14 @@ namespace RuneCode
 
             /// <summary>공유 홀드·예약·결제 상태를 결정성 해시에 기록한다.</summary>
             internal void WriteState(StringBuilder state)
-                => state.Append("|channel:").Append(_slot).Append(':').Append(_pressSerial).Append(':')
+            {
+                state.Append("|channel:").Append(_slot).Append(':').Append(_action.NodeId).Append(':')
                     .Append(_startedTick).Append(':').Append(_paidUntilTick).Append(':')
                     .Append(_lastTick).Append(':').Append(_isStopped)
-                    .Append(':').Append(_canExtend).Append(':').Append(_followsPlayer);
+                    .Append(':').Append(_usesSlotCycle).Append(':').Append(_followsPlayer);
+                foreach (ResourceAmount amount in _cycleCosts.Amounts)
+                    state.Append(':').Append(amount.Resource).Append('=').Append(amount.Amount.ToString("R", CultureInfo.InvariantCulture));
+            }
         }
 
         /// <summary>빔 개체별 재사용 경로·공전 휨 대상·피해 예약·조준 대비 각도·대상 적중 이력이다.</summary>

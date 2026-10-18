@@ -836,6 +836,33 @@ namespace RuneCode
         internal void AttractTo(SimVector position) { _position = position; _isAttracted = true; }
     }
 
+    /// <summary>실제 공격 수명과 분리해 빔의 최초 판정 경로·폭·속성·생성 틱을 보관한다.</summary>
+    public sealed class SimulationBeamFlash
+    {
+        private readonly int _entityId;
+        private readonly int _tick;
+        private readonly double _width;
+        private readonly string _element;
+        private readonly SimVector[] _path;
+
+        public int EntityId => _entityId;
+        public int Tick => _tick;
+        public double Width => _width;
+        public string Element => _element;
+        public IReadOnlyList<SimVector> Path => _path;
+
+        /// <summary>빔의 현재 경로를 복사해 개체 소멸·다음 경로 갱신과 무관한 표시 기록을 만든다.</summary>
+        internal SimulationBeamFlash(SimulationSpellEntity entity, IReadOnlyList<SimVector> path, int tick)
+        {
+            _entityId = entity.Id;
+            _tick = tick;
+            _width = entity.BoxWidth;
+            _element = entity.Element;
+            _path = new SimVector[path.Count];
+            for (int index = 0; index < path.Count; index++) _path[index] = path[index];
+        }
+    }
+
     public readonly struct DamageNumber
     {
         private readonly SimVector _position;
