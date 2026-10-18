@@ -106,10 +106,10 @@ namespace RuneCode
             }
         }
 
-        /// <summary>제목·내용과 확인·취소 버튼의 공용 확인 팝업을 연다. 확인을 누르면 팝업을 닫은 뒤 onConfirm을 실행한다.</summary>
-        public void Confirm(string title, string message, string confirmLabel, Action onConfirm)
+        /// <summary>제목·내용과 확인·취소 팝업을 열고 isDestructive이면 확인 버튼을 빨간색으로 표시한다. 확인 시 닫은 뒤 onConfirm을 실행한다.</summary>
+        public void Confirm(string title, string message, string confirmLabel, Action onConfirm, bool isDestructive = false)
         {
-            OpenPopup<ConfirmPopup>().Configure(title, message, confirmLabel, onConfirm);
+            OpenPopup<ConfirmPopup>().Configure(title, message, confirmLabel, onConfirm, isDestructive);
         }
 
         /// <summary>제목·내용과 확인 버튼 하나의 공용 알림 팝업을 연다.</summary>

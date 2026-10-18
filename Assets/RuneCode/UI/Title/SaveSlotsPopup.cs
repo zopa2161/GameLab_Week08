@@ -19,6 +19,8 @@ namespace RuneCode
         }
 
         private const int SLOT_COUNT = 3;
+        private const float SLOT_BUTTON_X = 632f;
+        private const float SLOT_BUTTON_WIDTH = 106f;
 
         [Header("팝업 구성")]
         [SerializeField] private TMP_FontAsset _font;
@@ -119,10 +121,11 @@ namespace RuneCode
                 rowButton.navigation = new Navigation { mode = Navigation.Mode.None };
                 rowButton.onClick.AddListener(() => SelectOrCreateSlot(slot));
                 _slotLabels[index] = factory.Text(row, 18, 13, 488, 64, string.Empty, 16, FontStyles.Normal, "SlotLabel");
-                _selectButtons[index] = factory.Button(row, 516, 22, 104, 46, string.Empty,
+                _selectButtons[index] = factory.Button(row, SLOT_BUTTON_X, 22, SLOT_BUTTON_WIDTH, 46, string.Empty,
                     () => SelectOrCreateSlot(slot), 14, "SelectSlot" + slot);
-                _deleteButtons[index] = factory.Button(row, 632, 22, 106, 46, GameData.L("save.delete"),
+                _deleteButtons[index] = factory.Button(row, SLOT_BUTTON_X, 22, SLOT_BUTTON_WIDTH, 46, GameData.L("save.delete"),
                     () => ConfirmDeleteSlot(slot), 14, "DeleteSlot" + slot);
+                UiFactory.ApplyDestructiveButtonStyle(_deleteButtons[index]);
             }
 
             factory.Button(panel, 650, 488, 138, 48, GameData.L("ui.close"), Close, 16, "CloseButton");
@@ -148,7 +151,8 @@ namespace RuneCode
             if (_mode == Mode.SettingsLoad)
             {
                 string confirmKey = slot == SaveStore.ActiveSlot ? "save.loadConfirm" : "save.switchConfirm";
-                _ui.Confirm(GameData.L("save.load"), GameData.L(confirmKey), GameData.L("save.load"), () => LoadSelectedSlot(slot));
+                _ui.Confirm(GameData.L("save.load"), GameData.L(confirmKey), GameData.L("save.load"),
+                    () => LoadSelectedSlot(slot), isDestructive: true);
                 return;
             }
 
@@ -193,7 +197,7 @@ namespace RuneCode
                     return;
                 }
                 Refresh();
-            });
+            }, isDestructive: true);
         }
 
         /// <summary>슬롯 버튼의 TMP 레이블 문구를 갱신한다.</summary>

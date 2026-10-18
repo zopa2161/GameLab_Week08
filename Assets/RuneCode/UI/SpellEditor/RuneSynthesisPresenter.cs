@@ -67,8 +67,7 @@ namespace RuneCode
             panel.GetComponent<Image>().raycastTarget = true;
             factory.Text(panel, 16, 16, 270, 26, "룬 합성", 20);
             Button closeButton = factory.Button(panel, 320, 14, 64, 28, "닫기", Close, 12);
-            Image closeImage = (Image)closeButton.targetGraphic;
-            closeImage.sprite = Resources.Load<Sprite>("RuneCode/UI/Skins/ButtonDestructive");
+            UiFactory.ApplyDestructiveButtonStyle(closeButton);
             factory.Text(panel, 16, 52, 368, 58, "행동·모드: C·B·A 승급, S는 행동/모드 S로 변환\n속성 3개: 선택한 스테이지 확률로 행동/모드 생성", 12);
             _autoSelectButton = factory.Button(panel, 145, 116, 110, 30, "자동 선택", AutoSelectMaterials, 13, "AutoSelectMaterials");
             Vector2[] positions = { new Vector2(145, 100), new Vector2(20, 260), new Vector2(270, 260) };
