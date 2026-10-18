@@ -598,6 +598,14 @@ namespace RuneCode
         {
             if (_isTestMode) return Array.Empty<ModifierRewardDefinition>();
             var modifierRewards = new List<ModifierRewardDefinition>();
+            if (isCleared)
+            {
+                foreach (ModifierRewardDefinition reward in _stages.Get(stageNumber).ModifierRewards)
+                {
+                    GrantRune(reward.RuneId, reward.Grade, reward.Count, "stage_clear");
+                    modifierRewards.Add(reward);
+                }
+            }
             if (isCleared && clearRuneReward != null)
             {
                 GrantRune(clearRuneReward.RuneId, clearRuneReward.Grade, clearRuneReward.Count, "stage_clear");
