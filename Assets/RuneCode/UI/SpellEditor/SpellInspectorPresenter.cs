@@ -57,11 +57,7 @@ namespace RuneCode
                 case "mod.duration": effect = "효과의 지속시간을 늘립니다."; break;
                 case "behavior.launch": effect = "마법을 발사합니다."; break;
                 case "behavior.legacy_burst": effect = "범위에 레거시 폭발 효과를 줍니다."; break;
-                case "behavior.persist":
-                    RuneStats persist = GameData.Runes.Get("form.zone").Stats;
-                    effect = "예고 후 범위를 유지하며 기본 " + persist.TickInterval.ToString("0.##") + "초마다 피해 "
-                        + persist.Damage.ToString("0.##") + "를 줍니다. 대상별로 실제 피해를 준 첫 타격에 OnHit이 발동하고, 이후 두 번 타격할 때마다 발동합니다(1·3·5번째). 종료 시점에는 타격하지 않습니다.";
-                    break;
+                case "behavior.persist": effect = "일정 시간 유지되는 장판을 생성합니다."; break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
                 case "behavior.burst": effect = GameData.L("ui.burstHint"); break;
                 case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
@@ -299,7 +295,7 @@ namespace RuneCode
                 lines.Add(GameData.L("ui.beamWidth") + " " + (beam?.BoxWidth ?? GameData.Runes.Get("form.bolt").Stats.Radius).ToString("0.##") + "px");
                 lines.Add(GameData.L("ui.beamSustainCost") + " " + (initialCost / period).ToString("0.##") + "/s");
                 lines.Add(GameData.L("ui.beamHint"));
-                _view.AddNote(string.Join("\n", lines), 150, 6);
+                _view.AddNote(string.Join("\n", lines), 18 * lines.Count + 16, 6);
                 return;
             }
 
@@ -774,7 +770,11 @@ namespace RuneCode
             CompileResult result = _editor.CompileResult;
             if (result.Ok) _view.AddIssue(list, GameData.L("ui.valid"), "ValidationSuccessRow", null);
             foreach (CompileIssue issue in result.Errors) AddIssue(list, issue, "ValidationErrorRow");
-            foreach (CompileIssue issue in result.Warnings) AddIssue(list, issue, "ValidationWarningRow");
+            foreach (CompileIssue issue in result.Warnings)
+            {
+                if (issue.Code == "W3" || issue.Code == "W8" || issue.Code == "W10" || issue.Code == "W11") continue;
+                AddIssue(list, issue, "ValidationWarningRow");
+            }
             _view.AddIssue(list, GameData.L("ui.controls"), null, null);
         }
 
