@@ -382,6 +382,10 @@
       "_value": "게임 종료"
     },
     {
+      "_key": "ui.returnToTitle",
+      "_value": "타이틀로 돌아가기"
+    },
+    {
       "_key": "ui.help",
       "_value": "업그레이드 트리 강화 → 전투로 스크랩 획득"
     },

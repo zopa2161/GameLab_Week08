@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace RuneCode
 {
-    /// <summary>설정 내용 Presenter다. 저장·디버그 동작과 게임 종료 요청을 처리한다.</summary>
+    /// <summary>설정 내용 Presenter다. 저장·디버그 동작과 타이틀 복귀·게임 종료 요청을 처리한다.</summary>
     public sealed class SettingsPresenter
     {
         private readonly RuneCodeSession _session;
@@ -34,6 +34,7 @@ namespace RuneCode
             _view.ManualSaveClicked += SaveManually;
             _view.ManualLoadClicked += OpenSaveSlots;
             _view.QuitClicked += QuitGame;
+            _view.ReturnToTitleClicked += ReturnToTitle;
         }
 
         /// <summary>진행 종류에 따른 디버그 도구·저장 버튼·초기화 문구와 화면 흔들림·히트스톱·저장 설정의 현재 값을 표시한다.</summary>
@@ -128,6 +129,12 @@ namespace RuneCode
         {
             _onProgressionChanged();
             Refresh();
+        }
+
+        /// <summary>세션에 편집 내용 반영과 로그 마감 및 타이틀 화면 전환을 요청한다.</summary>
+        private void ReturnToTitle()
+        {
+            _session.ReturnToTitle();
         }
 
         /// <summary>게임 프로세스 종료를 요청한다.</summary>

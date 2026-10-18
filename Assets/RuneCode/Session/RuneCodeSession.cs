@@ -107,6 +107,14 @@ namespace RuneCode
         /// <summary>등록된 전환 콜백으로 지정 화면 전환을 요청한다.</summary>
         public void RequestScreen(AppScreen screen) { ScreenRequested?.Invoke(screen); }
 
+        /// <summary>기존 저장 정책으로 편집 내용을 반영하고 로그 회차를 마감한 뒤 타이틀 화면으로 전환한다.</summary>
+        public void ReturnToTitle()
+        {
+            SaveAll();
+            LocalTelemetry.EndUsabilityTest("return_to_title", _spells.Graph);
+            RequestScreen(AppScreen.Title);
+        }
+
         /// <summary>일반 저장 또는 메모리 디버그 진행을 열고, 빌드의 일반 시작은 로그 회차도 자동 생성해 작업실로 전환한다.</summary>
         public void StartGame(bool isDebug)
         {
