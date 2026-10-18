@@ -159,7 +159,13 @@
           ]
         }
       ],
-      "_modifierRewards": []
+      "_modifierRewards": [
+        {
+          "_runeId": "behavior.launch",
+          "_grade": "C",
+          "_count": 1
+        }
+      ]
     },
     {
       "_fromStage": 2,
@@ -284,7 +290,13 @@
           "_dropTable": "drop.elite.basic"
         }
       ],
-      "_modifierRewards": []
+      "_modifierRewards": [
+        {
+          "_runeId": "behavior.persist",
+          "_grade": "C",
+          "_count": 1
+        }
+      ]
     },
     {
       "_fromStage": 3,
@@ -373,7 +385,13 @@
           "_dropTable": "drop.elite.basic"
         }
       ],
-      "_modifierRewards": []
+      "_modifierRewards": [
+        {
+          "_runeId": "behavior.beam",
+          "_grade": "C",
+          "_count": 1
+        }
+      ]
     },
     {
       "_fromStage": 4,
@@ -467,13 +485,19 @@
           "_dropTable": "drop.elite.basic"
         }
       ],
-      "_modifierRewards": []
+      "_modifierRewards": [
+        {
+          "_runeId": "behavior.burst",
+          "_grade": "C",
+          "_count": 1
+        }
+      ]
     },
     {
       "_fromStage": 5,
       "_toStage": 5,
       "_kind": "boss",
-      "_timeLimit": 45,
+      "_timeLimit": 75,
       "_clearReward": 60,
       "_stream": {
         "_candidates": [
