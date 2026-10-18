@@ -29,6 +29,7 @@ namespace RuneCode
         private readonly List<string> _expiredHighlights = new List<string>();
 
         private ISpellEditor _editor;
+        private TMP_FontAsset _font;
         private Action<GraphNode> _selectionChanged;
         private Action<GraphNode, string> _hoverChanged;
         private Action<Vector2> _quickPlacement;
@@ -70,6 +71,7 @@ namespace RuneCode
             Action<GraphNode, string> hoverChanged, Action<Vector2> quickPlacement, Action<string, string> slotPicker)
         {
             _editor = editor;
+            _font = font;
             _selectionChanged = selectionChanged;
             _hoverChanged = hoverChanged;
             _quickPlacement = quickPlacement;
@@ -144,6 +146,14 @@ namespace RuneCode
 
         /// <summary>그래프 좌표에 행동 노드를 지정 등급으로 배치한다.</summary>
         public void PlaceRune(string runeId, Vector2 position, string grade = null) => _placement.Place(runeId, position, grade);
+
+        /// <summary>실제 편집 데이터와 분리된 팔레트 미리보기를 현재 글꼴과 그래프 배율로 생성한다.</summary>
+        internal RunePalettePreview CreatePalettePreview(RuneDefinition rune, string grade)
+        {
+            if (!HasGraph || canvas == null) return null;
+            return new RunePalettePreview(canvas.rootCanvas, rectTransform, _viewport.Zoom, rune, grade,
+                _font, _editor.Library, _editor.IsRuneUnlocked);
+        }
 
         /// <summary>
         /// 화면 좌표에 속성·모디를 놓는다. 같은 종류의 잠기지 않은 슬롯 위면 그 슬롯에(교체 포함), 행동 노드 본문 위면 첫 빈 슬롯에 장착한다.
