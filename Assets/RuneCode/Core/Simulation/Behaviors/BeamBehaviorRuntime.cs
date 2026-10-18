@@ -5,7 +5,7 @@ using System.Text;
 
 namespace RuneCode
 {
-    /// <summary>얇은 빔의 홀드 수명, 곡선 경로, 지속 피해와 두 번 적중마다 발생하는 이벤트를 처리한다.</summary>
+    /// <summary>얇은 빔의 홀드 수명, 곡선 경로, 지속 피해와 대상별 첫 타격 및 이후 두 타격마다 발생하는 이벤트를 처리한다.</summary>
     internal sealed class BeamBehaviorRuntime : SpellBehaviorRuntime
     {
         private const double PATH_STEP = 12;
@@ -171,7 +171,7 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>경로에 겹친 적을 경로 거리·ID 순으로 한 번씩 타격하고 대상별 두 번째 피해마다 onHit을 발생시킨다.</summary>
+        /// <summary>경로에 겹친 적을 경로 거리·ID 순으로 한 번씩 타격하고 실제 피해를 준 대상별 1·3·5번째 타격에 OnHit을 발생시킨다.</summary>
         private static void HitPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
         {
             state.ClearTargets();
@@ -207,7 +207,7 @@ namespace RuneCode
                 simulation.Hit(entity, enemy, entity.Stats.Damage, true, target.Direction);
                 if (enemy.Hp >= previousHp) continue;
                 entity.HitTimes[enemy.Id] = simulation.Time;
-                if (state.RecordHit(enemy.Id) % HITS_PER_EVENT == 0)
+                if ((state.RecordHit(enemy.Id) - 1) % HITS_PER_EVENT == 0)
                     simulation.RaiseHitEvent(entity, target.Contact, enemy);
             }
         }
