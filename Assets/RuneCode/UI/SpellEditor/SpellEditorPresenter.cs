@@ -164,7 +164,7 @@ namespace RuneCode
                 + RAM_HIGHLIGHT_CLOSE;
             text += spell == null
                 ? "  ·  " + GameData.L("ui.warning")
-                : "  ·  " + GameData.L("ui.castCost") + " " + SpellCostText.Format(spell.CastCosts) + "  ·  " + GameData.L("ui.cooldown") + " "
+                : "  ·  " + GameData.L("ui.castCost") + " " + SpellCostText.Format(spell.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale)) + "  ·  " + GameData.L("ui.cooldown") + " "
                     + spell.GetCooldownSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s  ·  " + GameData.L("ui.executionTime") + " "
                     + spell.GetEstimatedExecutionSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s";
             _view.SetMetrics(text);

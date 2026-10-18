@@ -10,6 +10,7 @@ namespace RuneCode
     public sealed class RuneSimulation
     {
         public const int TICK_RATE = CompiledSpell.SIMULATION_TICK_RATE;
+        private const int MAX_BEAM_FLASHES = 128;
         public const int ARC_LINK_TICKS = 12;
         private const int RELAY_REGEN_INTERVAL_TICKS = 60;
         private const double MIN_KILL_ENERGY = 1;
@@ -50,6 +51,7 @@ namespace RuneCode
         private readonly double _killEnergyBonus;
         private readonly List<SimulationEnemy> _enemies = new List<SimulationEnemy>();
         private readonly List<SimulationSpellEntity> _spellEntities = new List<SimulationSpellEntity>();
+        private readonly List<SimulationBeamFlash> _beamFlashes = new List<SimulationBeamFlash>();
         private readonly List<SimulationProjectile> _enemyProjectiles = new List<SimulationProjectile>();
         private readonly List<FragmentOrb> _orbs = new List<FragmentOrb>();
         private readonly List<SimulationItemDrop> _itemDrops = new List<SimulationItemDrop>();
@@ -74,9 +76,7 @@ namespace RuneCode
         private SimVector? _aimPoint;
         private readonly bool[] _castHeld = new bool[3];
         private readonly bool[] _beamQueued = new bool[3];
-        private readonly int[] _beamPressSerial = new int[3];
         private readonly List<BeamBehaviorRuntime.BeamChannel> _beamChannels = new List<BeamBehaviorRuntime.BeamChannel>();
-        private bool _isAutomaticInput;
         private readonly List<string> _unlockedElements = new List<string> { "fire" };
         private readonly List<SimVector> _tickSpawnPositions = new List<SimVector>();
         private readonly SpawnSlots _spawnSlots;
@@ -90,6 +90,7 @@ namespace RuneCode
         private int _tick;
         private double _statusTime;
         private int _nextEntityId;
+        private int _beamFlashGeneration;
         private StageDefinition _stageDefinition;
         private SpawnDirector _director;
         private double _spawnRadius;
@@ -167,6 +168,10 @@ namespace RuneCode
             return position;
         }
         public IReadOnlyList<SimulationProjectile> EnemyProjectiles => _enemyProjectiles;
+        /// <summary>짧은 빔의 최초 경로를 화면에서 읽도록 보관한 최근 표시 기록이다. 피해 판정에는 사용하지 않는다.</summary>
+        public IReadOnlyList<SimulationBeamFlash> BeamFlashes => _beamFlashes;
+        /// <summary>도크 초기화·전투 취소 후 이전 표시 기록을 구분하는 세대 번호다.</summary>
+        public int BeamFlashGeneration => _beamFlashGeneration;
         public IReadOnlyList<FragmentOrb> Orbs => _orbs;
 
         /// <summary>바닥에 떨어져 줍기를 기다리는 Modifier 드롭 목록이다.</summary>
@@ -352,21 +357,23 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 시전 가능 상태와 슬롯 쿨다운을 확인하고 루트 실행을 시작한다. 각 최초 행동이 시작될 때 onHit 직렬 체인의 전력을 선결제한다.
+        /// 슬롯 쿨다운을 시작하고 루트 실행을 등록한다. 직접 공격 빔은 구간 비용을 선결제하며 연장은 현재 슬롯 입력으로 판단한다.
         /// </summary>
         public bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false)
         {
             if (spell == null || slot < 0 || slot >= _loadout.Length || (_stage != MissionStage.Bench && _stage != MissionStage.Combat)) return false;
             if (_isMission && slot != 0) return false;
+            if (_player.Cooldowns[slot] > 0.000001 || _player.IsSpellRunning(slot)) return false;
             double executionSeconds = spell.GetEstimatedExecutionSeconds(_balance.Sim.ExecutionTimeScale);
-            bool usesBeamCooldown = spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK && HasDirectBeam(spell);
-            double cooldownSeconds = usesBeamCooldown ? 0 : spell.Cooldown + executionSeconds;
+            int cycleTicks = spell.GetSlotCycleTicks(_balance.Sim.ExecutionTimeScale);
+            double cooldownSeconds = spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK && HasDirectBeam(spell)
+                ? cycleTicks / (double)TICK_RATE : spell.Cooldown + executionSeconds;
             if (!_player.TryBeginSpell(slot, executionSeconds, cooldownSeconds)) return false;
             RecordNode(spell.CoreNodeId);
             _beamQueued[slot] = false;
             SimVector delta = _aimPoint.HasValue ? _aimPoint.Value - _player.Position : SimVector.Zero;
             SimVector targetDirection = delta.LengthSquared > 0.000001 ? delta.Normalized() : _player.AimDirection;
-            var rootCast = new RootSpellExecution(slot, spell, _beamPressSerial[slot], allowBeamHold && _castHeld[slot],
+            var rootCast = new RootSpellExecution(slot, spell, cycleTicks, _tick + cycleTicks,
                 _player.Position, targetDirection, _aimPoint ?? _player.Position + targetDirection * GetAreaPlacementRange());
             var context = new SpellContext(_player.Position + _player.AimDirection * (_sector.PlayerRadius + _balance.Sim.WandOffset), _player.AimDirection, null, false, null,
                 caster: _player, randomState: new SpellRandomState());
@@ -379,11 +386,10 @@ namespace RuneCode
         private bool TryCastTriggered(CompiledSpell spell, string trigger, int slot)
         {
             if (spell == null || spell.Trigger != trigger) return false;
-            if (trigger == SpellGrammar.TRIGGER_ON_ATTACK && HasDirectBeam(spell) && !_isAutomaticInput && !_beamQueued[slot]) return false;
             return TryCast(spell, slot, trigger == SpellGrammar.TRIGGER_ON_ATTACK);
         }
 
-        /// <summary>공격 코어에 직접 연결된 빔이 있는지 검사해 새 클릭이 필요한 마법을 구분한다.</summary>
+        /// <summary>공격 코어에 직접 연결된 빔이 있는지 검사해 슬롯 주기 길이를 틱으로 맞출 마법을 구분한다.</summary>
         private static bool HasDirectBeam(CompiledSpell spell)
         {
             foreach (SpellAction action in spell.Root)
@@ -391,10 +397,9 @@ namespace RuneCode
             return false;
         }
 
-        /// <summary>슬롯별 새 클릭을 예약하고 해제·재클릭 시 이전 빔의 연장 권한을 무효화한다.</summary>
+        /// <summary>슬롯별 현재 홀드와 짧은 클릭을 기록한다. 해제·재클릭은 결제한 빔 구간을 취소하지 않는다.</summary>
         private void ReadBeamInput(SimulationInput input)
         {
-            _isAutomaticInput = input.IsAutomatic;
             for (int slot = 0; slot < _castHeld.Length; slot++)
             {
                 bool held = slot == 0 ? input.CastA : slot == 1 ? input.CastB : input.CastC;
@@ -402,12 +407,10 @@ namespace RuneCode
                 bool pressed = held && !_castHeld[slot] || slot == 0 && input.CastPressed;
                 if (released)
                 {
-                    _beamPressSerial[slot]++;
                     _beamQueued[slot] = false;
                 }
                 if (pressed)
                 {
-                    _beamPressSerial[slot]++;
                     if (_loadout[slot] != null && _loadout[slot].Trigger == SpellGrammar.TRIGGER_ON_ATTACK
                         && HasDirectBeam(_loadout[slot]))
                         _beamQueued[slot] = true;
@@ -415,10 +418,6 @@ namespace RuneCode
                 _castHeld[slot] = held;
             }
         }
-
-        /// <summary>빔이 시작한 클릭과 현재 슬롯 홀드가 같은지 반환한다.</summary>
-        internal bool IsBeamHeld(int slot, int pressSerial)
-            => slot >= 0 && _castHeld[slot] && _beamPressSerial[slot] == pressSerial;
 
         /// <summary>지정 슬롯에 아직 종료되지 않은 직접 시전 빔이 있는지 반환한다.</summary>
         public bool HasActiveBeam(int slot)
@@ -428,10 +427,9 @@ namespace RuneCode
             return false;
         }
 
-        /// <summary>직접 빔 종료 시 해당 슬롯의 전용 쿨다운을 시작하고 채널의 실행 추적 참조를 해제한다.</summary>
-        private void CompleteBeamChannel(RootSpellExecution rootCast, ExecutionTracker tracker)
+        /// <summary>직접 빔 종료 시 추가 쿨다운 없이 채널의 실행 추적 참조를 해제한다.</summary>
+        private void CompleteBeamChannel(ExecutionTracker tracker)
         {
-            if (rootCast.UsesBeamCooldown) _player.StartSpellCooldown(rootCast.Slot, _balance.Sim.BeamCooldownSeconds);
             tracker.Release();
         }
 
@@ -440,7 +438,6 @@ namespace RuneCode
         {
             for (int slot = 0; slot < _castHeld.Length; slot++)
             {
-                if (_castHeld[slot] || _beamQueued[slot]) _beamPressSerial[slot]++;
                 _castHeld[slot] = false;
                 _beamQueued[slot] = false;
             }
@@ -461,7 +458,7 @@ namespace RuneCode
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         public bool TryCast(CompiledSpell spell, SimVector aimDirection, int slot = 0) { _player.Aim(aimDirection); return TryCast(spell, slot); }
 
-        /// <summary>루트 체인의 모든 노드와 완료 분기가 끝난 슬롯에 쿨다운을 시작한다.</summary>
+        /// <summary>루트 노드와 예약 분기가 끝나면 실행 잠금만 해제하고 시전 시 시작한 슬롯 쿨다운은 유지한다.</summary>
         private void CompleteRootSpell(RootSpellExecution rootCast)
         {
             _player.FinishSpell(rootCast.Slot);
@@ -521,6 +518,7 @@ namespace RuneCode
         /// <summary>독립 시험의 시드·상태·통계·시나리오 적을 초기화한다. dummyCount가 0이면 기존 일렬 배치 기본 수를 사용한다.</summary>
         public void ResetBench(string scenario, int dummyCount = 0)
         {
+            _beamFlashes.Clear();
             _clearOrbs.Clear();
             _clearItemDrops.Clear();
             if (_isMission) throw new InvalidOperationException("미션은 시험 도크로 초기화할 수 없습니다.");
@@ -572,9 +570,9 @@ namespace RuneCode
         public string StateHash()
         {
             var state = new StringBuilder();
-            state.Append("beamInput:").Append(_isAutomaticInput);
+            state.Append("beamInput:");
             for (int slot = 0; slot < _castHeld.Length; slot++)
-                state.Append('|').Append(_castHeld[slot]).Append(':').Append(_beamQueued[slot]).Append(':').Append(_beamPressSerial[slot]);
+                state.Append('|').Append(_castHeld[slot]).Append(':').Append(_beamQueued[slot]);
             state.Append(_tick).Append('|').Append(_rngState).Append('|').Append(_nextEntityId).Append('|').Append(_stage).Append('|').Append(_stageNumber).Append('|').Append(_killTarget).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_killCount).Append('|').Append(_scenario).Append('|').Append(_debugInvulnerable);
             state.Append('|').Append(_actionBudgetTick).Append('|').Append(_actionsThisTick).Append('|').Append(_droppedExecutions);
             AppendNumber(state, TimeLimit); AppendNumber(state, _energyRegen);
@@ -612,7 +610,7 @@ namespace RuneCode
                 if (pending.Tracker != null)
                 {
                     state.Append("|flow:").Append(pending.Tracker.RootCast?.Slot ?? -1).Append(':').Append(pending.Tracker.Pending);
-                    state.Append(':').Append(pending.Tracker.RootCast?.PressSerial ?? -1).Append(':').Append(pending.Tracker.RootCast?.CanHold ?? false);
+                    state.Append(':').Append(pending.Tracker.RootCast?.CycleEndTick ?? -1);
                     pending.Tracker.RootCast?.WriteTargetState(state);
                 }
                 pending.Context.Repeat?.AppendState(state);
@@ -713,7 +711,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>Starts root-connected branches in parallel with a 0.05-second offset between their start times.</summary>
+        /// <summary>직접 빔은 주기 경계에서 결제·연장하고 다른 루트 분기는 기존 0.05초 간격으로 시작한다.</summary>
         private void ExecuteRootBranches(IReadOnlyList<SpellAction> actions, SpellContext context, ExecutionTracker tracker)
         {
             tracker.BeginDispatch();
@@ -722,6 +720,8 @@ namespace RuneCode
                 int intervalTicks = GetExecutionDelayTicks(CompiledSpell.ROOT_BRANCH_INTERVAL_SECONDS);
                 for (int index = 1; index < actions.Count; index++)
                 {
+                    if (tracker.RootCast != null && tracker.RootCast.IsSlotCycleBeam(actions[index]))
+                        continue;
                     if (_scheduled.Count >= _balance.Limits.MaxScheduledExecutions)
                     {
                         _droppedExecutions++;
@@ -730,12 +730,68 @@ namespace RuneCode
                     tracker.Acquire();
                     _scheduled.Add(new ScheduledExecution(_tick + intervalTicks * index, actions[index], context, tracker, true));
                 }
-                if (actions.Count > 0) Execute(new[] { actions[0] }, context, tracker);
+                if (actions.Count > 0)
+                {
+                    if (tracker.RootCast != null && tracker.RootCast.IsSlotCycleBeam(actions[0]))
+                        ExecuteBeamCycle(actions[0], context, tracker, 0);
+                    else Execute(new[] { actions[0] }, context, tracker);
+                }
+                for (int index = 1; index < actions.Count; index++)
+                    if (tracker.RootCast != null && tracker.RootCast.IsSlotCycleBeam(actions[index]))
+                        ExecuteBeamCycle(actions[index], context, tracker, intervalTicks * index);
             }
             finally
             {
                 tracker.EndDispatch();
             }
+        }
+
+        /// <summary>직접 공격 빔을 기존 구간 비용으로 갱신하거나 최초 비용을 결제하고 원래 분기·실행 시간 뒤 생성 예약한다.</summary>
+        private void ExecuteBeamCycle(SpellAction action, SpellContext context, ExecutionTracker tracker, int branchDelayTicks)
+        {
+            if (_actionBudgetTick != _tick) { _actionBudgetTick = _tick; _actionsThisTick = 0; }
+            if (_actionsThisTick >= _balance.Limits.MaxActionsPerTick)
+            {
+                _droppedExecutions++;
+                return;
+            }
+            _actionsThisTick++;
+            RootSpellExecution root = tracker.RootCast;
+            BeamBehaviorRuntime.BeamChannel active = null;
+            foreach (BeamBehaviorRuntime.BeamChannel channel in _beamChannels)
+            {
+                if (!channel.IsStopped && channel.UsesSlotCycle && channel.Slot == root.Slot
+                    && ReferenceEquals(channel.Action, action) && channel.PaidUntilTick >= _tick)
+                {
+                    active = channel;
+                    break;
+                }
+            }
+            int delayTicks = branchDelayTicks + GetExecutionDelayTicks(GetExecutionSeconds(action, context));
+            if (active == null && delayTicks > 0 && _scheduled.Count >= _balance.Limits.MaxScheduledExecutions)
+            {
+                _droppedExecutions++;
+                return;
+            }
+            ResourceCostSet costs = active != null ? active.CycleCosts
+                : root.Spell.GetBeamCycleCosts(action, _balance.Sim.ExecutionTimeScale,
+                    context.Modifiers, context.CostMultiplier, context.IsManaPrepaid, context.CallEvents);
+            if (!TrySpendBeamCosts(costs))
+            {
+                active?.Stop();
+                return;
+            }
+            RecordNode(action.NodeId);
+            if (active != null)
+            {
+                active.Renew(root.CycleEndTick);
+                foreach (string nodeId in action.AttachedNodeIds) RecordNode(nodeId);
+                return;
+            }
+            root.SetBeamCycleCosts(action, costs);
+            tracker.Acquire();
+            if (delayTicks == 0) CompleteAction(action, context, tracker);
+            else _scheduled.Add(new ScheduledExecution(_tick + delayTicks, action, context, tracker));
         }
 
         /// <summary>Repeat 회차를 간격대로 시작하고 Body 실행이 모두 끝난 뒤 완료 분기를 연결한다.</summary>
@@ -1003,12 +1059,12 @@ namespace RuneCode
             {
                 RootSpellExecution root = tracker.RootCast;
                 bool isDirect = !context.FromEvent && root != null && root.IsDirectBeam(action);
-                bool canExtend = isDirect && root.CanHold;
-                if (isDirect) tracker.Acquire();
-                channel = new BeamBehaviorRuntime.BeamChannel(_tick, stats, root?.Slot ?? -1, root?.PressSerial ?? -1,
-                    canExtend, isDirect, action.GetExecutionCosts(context.Modifiers, context.CostMultiplier,
-                        context.IsManaPrepaid, context.CallEvents),
-                    isDirect ? (Action)(() => CompleteBeamChannel(root, tracker)) : null);
+                bool isSlotCycle = isDirect && root.IsSlotCycleBeam(action);
+                if (isDirect && !isSlotCycle) tracker.Acquire();
+                channel = new BeamBehaviorRuntime.BeamChannel(_tick, stats, root?.Slot ?? -1,
+                    isDirect, action, isSlotCycle, root?.CycleEndTick ?? 0,
+                    isSlotCycle ? root.GetBeamCycleCosts(action) : ResourceCostSet.Empty,
+                    isDirect && !isSlotCycle ? (Action)(() => CompleteBeamChannel(tracker)) : null);
                 _beamChannels.Add(channel);
             }
             for (int i = 0; i < action.Count; i++)
@@ -1081,6 +1137,14 @@ namespace RuneCode
             }
             for (int index = _beamChannels.Count - 1; index >= 0; index--)
                 if (_beamChannels[index].IsStopped) _beamChannels.RemoveAt(index);
+        }
+
+        /// <summary>첫 판정 빔의 경로를 표시 전용으로 복사하고 최근 기록 수를 제한한다.</summary>
+        internal void RecordBeamFlash(SimulationSpellEntity entity, IReadOnlyList<SimVector> path)
+        {
+            if (path.Count < 2) return;
+            if (_beamFlashes.Count >= MAX_BEAM_FLASHES) _beamFlashes.RemoveAt(0);
+            _beamFlashes.Add(new SimulationBeamFlash(entity, path, _tick));
         }
 
         /// <summary>원점 origin과 방향 direction의 중심선을 최대 length까지 검사해 첫 벽 앞의 길이를 반환한다.</summary>
@@ -2102,6 +2166,8 @@ namespace RuneCode
         /// <summary>사망, 클리어 및 시간 초과 시 지속 개체, 예약 실행과 분열 대기를 취소한다.</summary>
         private void CancelCombat()
         {
+            _beamFlashGeneration++;
+            _beamFlashes.Clear();
             CancelBeamChannels();
             foreach (SimulationEnemy enemy in _enemies) enemy.CancelDisplacement();
             _spellEntities.Clear(); _enemyProjectiles.Clear(); _scheduled.Clear(); _pendingEnemyShots.Clear(); _pendingSplits.Clear(); _deadEnemies.Clear();
@@ -2377,29 +2443,37 @@ namespace RuneCode
         {
             private readonly int _slot;
             private readonly IReadOnlyList<SpellAction> _actions;
-            private readonly bool _canHold;
-            private readonly int _pressSerial;
+            private readonly CompiledSpell _spell;
+            private readonly int _cycleTicks;
+            private readonly int _cycleEndTick;
+            private readonly Dictionary<SpellAction, ResourceCostSet> _beamCycleCosts = new Dictionary<SpellAction, ResourceCostSet>();
             private readonly SimVector _playerPosition;
             private readonly SimVector _aimDirection;
             private readonly SimVector? _aimPoint;
-            private readonly bool _usesBeamCooldown;
             public int Slot => _slot;
-            public bool CanHold => _canHold;
-            public int PressSerial => _pressSerial;
+            public CompiledSpell Spell => _spell;
+            public int CycleEndTick => _cycleEndTick;
             public SimVector PlayerPosition => _playerPosition;
             public SimVector AimDirection => _aimDirection;
             public SimVector? AimPoint => _aimPoint;
-            public bool UsesBeamCooldown => _usesBeamCooldown;
 
-            /// <summary>완료 슬롯·실행 루트·빔 유지 상태와 시전 시작 위치·조준 방향·포인터 좌표를 보관한다.</summary>
-            public RootSpellExecution(int slot, CompiledSpell spell, int pressSerial, bool canHold,
+            /// <summary>슬롯·실행 루트·공통 주기와 종료 틱, 시전 시작 위치·조준 방향·포인터 좌표를 보관한다.</summary>
+            public RootSpellExecution(int slot, CompiledSpell spell, int cycleTicks, int cycleEndTick,
                 SimVector playerPosition, SimVector aimDirection, SimVector? aimPoint)
             {
-                _slot = slot; _actions = spell.Root; _pressSerial = pressSerial;
-                _canHold = canHold && spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK;
+                _slot = slot; _actions = spell.Root; _spell = spell;
+                _cycleTicks = cycleTicks; _cycleEndTick = cycleEndTick;
                 _playerPosition = playerPosition; _aimDirection = aimDirection; _aimPoint = aimPoint;
-                _usesBeamCooldown = spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK && HasDirectBeam(spell);
             }
+
+            /// <summary>명령이 슬롯 주기로 결제·연장할 직접 공격 빔인지 반환한다.</summary>
+            public bool IsSlotCycleBeam(SpellAction action) => _spell.IsSlotCycleBeam(action);
+
+            /// <summary>최초 생성 예약에 사용할 빔의 결제 완료 구간 비용을 저장한다.</summary>
+            public void SetBeamCycleCosts(SpellAction action, ResourceCostSet costs) => _beamCycleCosts[action] = costs;
+
+            /// <summary>최초 결제한 빔 구간 비용을 생성 시 채널에 전달한다.</summary>
+            public ResourceCostSet GetBeamCycleCosts(SpellAction action) => _beamCycleCosts[action];
 
             /// <summary>명령이 시작 노드에 직접 연결된 실행 대상인지 반환한다.</summary>
             public bool IsDirectAction(SpellAction action)
@@ -2413,7 +2487,7 @@ namespace RuneCode
             public void WriteTargetState(StringBuilder state)
             {
                 state.Append('|').Append(_aimPoint.HasValue);
-                state.Append('|').Append(_usesBeamCooldown);
+                state.Append(':').Append(_cycleTicks).Append(':').Append(_cycleEndTick);
                 AppendNumber(state, _playerPosition.X); AppendNumber(state, _playerPosition.Y);
                 AppendNumber(state, _aimDirection.X); AppendNumber(state, _aimDirection.Y);
                 if (_aimPoint.HasValue) { AppendNumber(state, _aimPoint.Value.X); AppendNumber(state, _aimPoint.Value.Y); }

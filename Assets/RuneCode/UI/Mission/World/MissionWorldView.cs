@@ -69,6 +69,8 @@ namespace RuneCode
         private readonly Dictionary<string, EnemyView> _additionalEnemyPrefabs = new Dictionary<string, EnemyView>();
         private readonly Dictionary<string, int> _additionalEnemyCounts = new Dictionary<string, int>();
         private readonly List<SpellEntityView> _spellViews = new List<SpellEntityView>();
+        private readonly List<SpellEntityView> _beamFlashViews = new List<SpellEntityView>();
+        private readonly BeamFlashPresentation _beamFlashPresentation = new BeamFlashPresentation();
         private readonly List<HostileProjectileView> _projectileViews = new List<HostileProjectileView>();
         private readonly List<OrbView> _orbViews = new List<OrbView>();
         private readonly List<ItemDropView> _itemDropViews = new List<ItemDropView>();
@@ -121,11 +123,13 @@ namespace RuneCode
             RuneSimulation sim = _simulation?.Invoke();
             if (sim == null)
             {
+                HideFrom(_beamFlashViews, 0);
                 HideFrom(_rangeLines, 0);
                 HideFrom(_rangePreviews, 0);
                 return;
             }
             if (_observedSimulation != sim) BeginSimulation(sim);
+            _beamFlashPresentation.Update(sim, Time.unscaledTime);
             if (_hasRenderedEnding)
             {
                 RenderEnding(sim);
@@ -133,7 +137,9 @@ namespace RuneCode
             }
             UpdateRangePreview(sim);
             DetectImpact(sim);
-            if (!sim.Completed && !sim.IsFailed && _hitStopUntil > Time.unscaledTime && (_isHitStopEnabled?.Invoke() ?? false)) return;
+            bool isHitStop = !sim.Completed && !sim.IsFailed && _hitStopUntil > Time.unscaledTime && (_isHitStopEnabled?.Invoke() ?? false);
+            RenderBeamFlashes(sim, isHitStop);
+            if (isHitStop) return;
             SimVector origin = sim.MapCenter;
             if (_playerView == null) _playerView = Instantiate(_playerPrefab, transform);
             _playerView.Apply(sim.Player, origin);
@@ -192,9 +198,22 @@ namespace RuneCode
             }
         }
 
+        /// <summary>히트 스톱 중이거나 실제 개체가 소멸한 최초 빔의 표시 기록을 갱신하고 나머지 뷰를 숨긴다.</summary>
+        private void RenderBeamFlashes(RuneSimulation sim, bool isHitStop)
+        {
+            int count = 0;
+            foreach (SimulationBeamFlash flash in _beamFlashPresentation.Flashes)
+            {
+                if (!isHitStop && BeamFlashPresentation.HasLiveBeam(sim, flash.EntityId)) continue;
+                GetView(_beamFlashViews, _spellPrefab, count++).ApplyBeamFlash(flash, sim.MapCenter);
+            }
+            HideFrom(_beamFlashViews, count);
+        }
+
         /// <summary>정지된 전장 위에서 승리 드롭 흡수 또는 패배 시계·붉은 몸체·파편만 표시한다. 보상과 전투 상태는 변경하지 않는다.</summary>
         private void RenderEnding(RuneSimulation sim)
         {
+            HideFrom(_beamFlashViews, 0);
             HideFrom(_rangeLines, 0);
             HideFrom(_rangePreviews, 0);
             HideFrom(_spellViews, 0);

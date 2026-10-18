@@ -866,6 +866,8 @@ namespace RuneCode
         private readonly int _worstCaseEntities;
         private readonly IReadOnlyList<string> _tags;
         private readonly IReadOnlyList<SpellAction> _root;
+        private ResourceCostSet _slotCastCosts;
+        private float _slotCastTimeScale = float.NaN;
         public string Id => _id;
         public string Name => _name;
         public string Signature => _signature;
@@ -874,8 +876,48 @@ namespace RuneCode
         public int RamUsed => _ramUsed;
         public ResourceCostSet ResourceCosts => _resourceCosts;
 
-        /// <summary>onHit 직렬 체인 전력 선결제를 포함한 시전 비용이다. 소멸·첫 이벤트의 별도 결제 비용은 제외한다.</summary>
+        /// <summary>OnHit 선결제를 포함한 원본 구간 비용이다. 슬롯 주기 빔의 실제 시전 비용은 GetCastCosts에서 산정한다.</summary>
         public ResourceCostSet CastCosts => _castCosts;
+
+        /// <summary>실행 배율에 따른 공통 슬롯 쿨다운을 시뮬레이션 틱으로 올림해 반환한다.</summary>
+        public int GetSlotCycleTicks(float executionTimeScale)
+            => Math.Max(1, GetExecutionDelayTicks(GetCooldownSeconds(executionTimeScale)));
+
+        /// <summary>공격 시작에 직접 연결되어 슬롯 주기로 유지·결제할 빔인지 반환한다.</summary>
+        public bool IsSlotCycleBeam(SpellAction action)
+        {
+            if (_trigger != SpellGrammar.TRIGGER_ON_ATTACK || action.Form != BeamBehaviorRules.BEAM_KIND) return false;
+            foreach (SpellAction root in _root)
+                if (ReferenceEquals(root, action)) return true;
+            return false;
+        }
+
+        /// <summary>직접 공격 빔의 초기 비용을 슬롯 한 구간 길이에 비례해 산정한다. 다른 행동은 기존 실행 비용을 반환한다.</summary>
+        public ResourceCostSet GetBeamCycleCosts(SpellAction action, float executionTimeScale,
+            SpellModifierValues modifiers = null, double costMultiplier = 1d, bool isManaPrepaid = false, SpellEventScope callEvents = null)
+        {
+            ResourceCostSet costs = action.GetExecutionCosts(modifiers ?? SpellModifierValues.None, costMultiplier, isManaPrepaid, callEvents);
+            if (!IsSlotCycleBeam(action)) return costs;
+            double minimumSeconds = Math.Max(1d / SIMULATION_TICK_RATE, action.Stats.MinimumLifetime);
+            return costs.Multiply(GetSlotCycleTicks(executionTimeScale) / (double)SIMULATION_TICK_RATE / minimumSeconds);
+        }
+
+        /// <summary>직접 빔의 슬롯 구간 비용을 반영한 최초 시전 합계를 실행 배율별로 캐싱해 반환한다.</summary>
+        public ResourceCostSet GetCastCosts(float executionTimeScale)
+        {
+            if (_slotCastCosts != null && _slotCastTimeScale == executionTimeScale) return _slotCastCosts;
+            var amounts = new List<ResourceAmount>(_castCosts.Amounts);
+            foreach (SpellAction action in _root)
+            {
+                if (!IsSlotCycleBeam(action)) continue;
+                foreach (ResourceAmount amount in action.GetExecutionCosts(SpellModifierValues.None).Amounts)
+                    amounts.Add(new ResourceAmount(amount.Resource, -amount.Amount));
+                amounts.AddRange(GetBeamCycleCosts(action, executionTimeScale).Amounts);
+            }
+            _slotCastTimeScale = executionTimeScale;
+            _slotCastCosts = new ResourceCostSet(amounts);
+            return _slotCastCosts;
+        }
         public float EnergyCost => (float)_resourceCosts.GetAmount("mana");
         public float Cooldown => _cooldown;
         public double EstimatedExecutionSeconds => GetEstimatedExecutionSeconds(1f);

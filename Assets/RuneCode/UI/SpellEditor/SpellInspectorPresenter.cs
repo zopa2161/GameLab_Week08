@@ -280,16 +280,24 @@ namespace RuneCode
             if (behavior.Id == "behavior.beam")
             {
                 SpellStats beam = action?.Stats;
+                CompiledSpell compiled = _editor.CompileResult.Spell;
+                bool isSlotCycle = action != null && compiled != null && compiled.IsSlotCycleBeam(action);
+                double period = isSlotCycle
+                    ? compiled.GetSlotCycleTicks(GameData.Balance.Sim.ExecutionTimeScale) / (double)CompiledSpell.SIMULATION_TICK_RATE
+                    : form.Stats.MinimumLifetime;
                 double initialCost = action == null
-                    ? form.Energy : action.GetExecutionCosts(SpellModifierValues.None).GetAmount("mana");
+                    ? form.Energy : isSlotCycle
+                        ? compiled.GetBeamCycleCosts(action, GameData.Balance.Sim.ExecutionTimeScale).GetAmount("mana")
+                        : action.GetExecutionCosts(SpellModifierValues.None).GetAmount("mana");
                 lines.Clear();
                 lines.Add(GameData.L("ui.beamInitialCost") + " " + initialCost.ToString("0.##"));
-                lines.Add(GameData.L("ui.beamDuration") + " " + GameData.L("ui.beamUnlimitedHold"));
-                lines.Add(GameData.L("ui.beamStopCooldown") + " " + GameData.Balance.Sim.BeamCooldownSeconds.ToString("0.##") + "s");
+                lines.Add(GameData.L("ui.beamDuration") + " " + period.ToString("0.##") + "s"
+                    + (isSlotCycle ? " · " + GameData.L("ui.beamUnlimitedHold") : ""));
+                if (isSlotCycle) lines.Add("연장 소모 전력 " + initialCost.ToString("0.##") + " / 구간");
                 lines.Add(GameData.L("ui.runeDamageAmount") + " " + (beam?.Damage ?? form.Stats.Damage).ToString("0.##")
                     + " / " + form.Stats.TickInterval.ToString("0.##") + "s");
                 lines.Add(GameData.L("ui.beamWidth") + " " + (beam?.BoxWidth ?? GameData.Runes.Get("form.bolt").Stats.Radius).ToString("0.##") + "px");
-                lines.Add(GameData.L("ui.beamSustainCost") + " " + (initialCost / form.Stats.MinimumLifetime).ToString("0.##") + "/s");
+                lines.Add(GameData.L("ui.beamSustainCost") + " " + (initialCost / period).ToString("0.##") + "/s");
                 lines.Add(GameData.L("ui.beamHint"));
                 _view.AddNote(string.Join("\n", lines), 150, 6);
                 return;
@@ -470,7 +478,7 @@ namespace RuneCode
         }
 
         /// <summary>행동 종류에 맞는 비시간 전투 수치, 제어 흐름 조건 또는 호출 마법 요약을 목록에 추가한다.</summary>
-        private static void AddActionStats(List<string> lines, SpellAction action, RuneDefinition rune)
+        private void AddActionStats(List<string> lines, SpellAction action, RuneDefinition rune)
         {
             SpellStats stats = action.Stats;
             if (stats != null)
@@ -505,7 +513,12 @@ namespace RuneCode
                 bool isOrbiting = action.Mods.Contains(OrbitModifierRules.RUNE_ID);
                 if (isOrbiting && stats.OrbitRadius > 0f) movement.Add(GameData.L("ui.runeOrbitRadius") + " " + stats.OrbitRadius.ToString("0.#") + "px");
                 if (action.Form == BeamBehaviorRules.BEAM_KIND)
-                    movement.Add(GameData.L("ui.beamDuration") + " " + GameData.L("ui.beamUnlimitedHold"));
+                {
+                    CompiledSpell owner = _editor.CompileResult.Spell;
+                    string duration = owner != null && owner.IsSlotCycleBeam(action)
+                        ? GameData.L("ui.beamUnlimitedHold") : stats.MinimumLifetime.ToString("0.##") + "s";
+                    movement.Add(GameData.L("ui.beamDuration") + " " + duration);
+                }
                 else if (!isTravelling && stats.Lifetime > 0f)
                     movement.Add(GameData.L("ui.runeLifetime") + " " + stats.Lifetime.ToString("0.##") + "s");
                 if (movement.Count > 0) lines.Add(string.Join(" · ", movement));

@@ -578,7 +578,8 @@ namespace RuneCode
             CompiledSpell preparedSpell = _spells.CompileResult.Spell;
             bool hasHeldBeam = preparedSpell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK
                 && preparedSpell.Root.Any(action => action.Form == BeamBehaviorRules.BEAM_KIND);
-            double requiredEnergy = hasHeldBeam ? preparedSpell.CastCosts.GetAmount("mana") : preparedSpell.EnergyCost;
+            double requiredEnergy = hasHeldBeam
+                ? preparedSpell.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale).GetAmount("mana") : preparedSpell.EnergyCost;
             if (requiredEnergy > MaxEnergy)
             {
                 SetStatusText(string.Format(GameData.L("editor.energyBlocked"), requiredEnergy, MaxEnergy));
@@ -598,6 +599,14 @@ namespace RuneCode
         {
             if (_isTestMode) return Array.Empty<ModifierRewardDefinition>();
             var modifierRewards = new List<ModifierRewardDefinition>();
+            if (isCleared)
+            {
+                foreach (ModifierRewardDefinition reward in _stages.Get(stageNumber).ModifierRewards)
+                {
+                    GrantRune(reward.RuneId, reward.Grade, reward.Count, "stage_clear");
+                    modifierRewards.Add(reward);
+                }
+            }
             if (isCleared && clearRuneReward != null)
             {
                 GrantRune(clearRuneReward.RuneId, clearRuneReward.Grade, clearRuneReward.Count, "stage_clear");
