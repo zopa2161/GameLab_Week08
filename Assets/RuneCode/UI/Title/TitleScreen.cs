@@ -59,6 +59,7 @@ namespace RuneCode
             RectTransform rect = (RectTransform)button.transform;
             rect.anchoredPosition = new Vector2(MENU_BUTTON_X, y);
             button.onClick.RemoveAllListeners();
+            UiFactory.BindClickSound(button);
             TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
             label.text = labelText;
             return button;

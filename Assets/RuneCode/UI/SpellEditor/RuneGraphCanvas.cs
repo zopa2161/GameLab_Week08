@@ -147,7 +147,7 @@ namespace RuneCode
 
         /// <summary>
         /// 화면 좌표에 속성·모디를 놓는다. 같은 종류의 잠기지 않은 슬롯 위면 그 슬롯에(교체 포함), 행동 노드 본문 위면 첫 빈 슬롯에 장착한다.
-        /// 장착하지 못하면 false를 반환한다.
+        /// 장착 성공 시 선택 효과음을 재생하고 true를 반환하며, 장착하지 못하면 false를 반환한다.
         /// </summary>
         public bool DropSlotItem(string runeId, string grade, Vector2 screen)
         {
@@ -158,7 +158,11 @@ namespace RuneCode
             if (_layout.FindSlot(point, out GraphNode slotNode, out string slotKey)
                 && SpellGrammar.TryParseSlotKey(slotKey, out bool isElementSlot, out _) && isElementSlot == isElement
                 && !GraphNodeLayout.IsSlotLocked(slotNode, slotKey))
-                return _editor.Equip(slotNode.Id, slotKey, runeId, grade);
+            {
+                bool isSlotEquipped = _editor.Equip(slotNode.Id, slotKey, runeId, grade);
+                if (isSlotEquipped) SoundManager.Instance.PlaySelectSlotItem();
+                return isSlotEquipped;
+            }
             GraphNode node = _layout.FindNodeAt(point);
             if (node == null || !GraphNodeLayout.HasSlots(GameData.Runes.Get(node.RuneId))) return false;
             if (!_editor.TryFindEquipSlot(node.Id, runeId, grade, out string emptySlot))
@@ -166,7 +170,9 @@ namespace RuneCode
                 _editor.ReportStatus("editor.slotBlocked");
                 return false;
             }
-            return _editor.Equip(node.Id, emptySlot, runeId, grade);
+            bool isEquipped = _editor.Equip(node.Id, emptySlot, runeId, grade);
+            if (isEquipped) SoundManager.Instance.PlaySelectSlotItem();
+            return isEquipped;
         }
 
         void Update()

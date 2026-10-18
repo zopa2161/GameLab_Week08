@@ -123,6 +123,7 @@ namespace RuneCode
             Button button = Instantiate(_resetSaveButton, parent, false);
             button.name = "QuitButton";
             button.onClick.RemoveAllListeners();
+            UiFactory.BindClickSound(button);
             RectTransform rect = (RectTransform)button.transform;
             rect.anchoredPosition = new Vector2(230, -280);
             rect.sizeDelta = new Vector2(216, 48);
@@ -136,6 +137,7 @@ namespace RuneCode
             Button button = Instantiate(_screenShakeButton, parent, false);
             button.name = name;
             button.onClick.RemoveAllListeners();
+            UiFactory.BindClickSound(button);
             RectTransform rect = (RectTransform)button.transform;
             rect.anchoredPosition = new Vector2(x, -210);
             rect.sizeDelta = new Vector2(144, 48);

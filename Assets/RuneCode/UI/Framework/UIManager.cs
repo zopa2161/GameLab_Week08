@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 namespace RuneCode
 {
@@ -121,6 +122,7 @@ namespace RuneCode
             T view = Instantiate(prefab, _layers[layer], false);
             view.name = typeof(T).Name;
             view.gameObject.SetActive(false);
+            foreach (Button button in view.GetComponentsInChildren<Button>(true)) UiFactory.BindClickSound(button);
             _views.Add(typeof(T), view);
             return view;
         }

@@ -19,6 +19,10 @@ namespace RuneCode
         private RuneSimulation _dock;
         private double _accumulator;
         private int _telemetryCount;
+        private int _lastEnemyDamageEventCount;
+        private int _lastBurnTickDamageEventCount;
+        private int _lastArcDamageEventCount;
+        private int _lastFreezeStartEventCount;
         private bool _wasFiring;
         private bool _wasAutomatic;
         private bool _hasPendingCastPress;
@@ -59,6 +63,10 @@ namespace RuneCode
             ApplyLoadout();
             _accumulator = 0;
             _telemetryCount = 0;
+            _lastEnemyDamageEventCount = 0;
+            _lastBurnTickDamageEventCount = 0;
+            _lastArcDamageEventCount = 0;
+            _lastFreezeStartEventCount = 0;
             _wasFiring = false;
             _wasAutomatic = false;
             _hasPendingCastPress = false;
@@ -149,6 +157,8 @@ namespace RuneCode
                 _hasPendingCastRelease = false;
                 _accumulator -= FIXED_STEP;
             }
+            PlayEnemyHitSounds();
+            PlayElementalSounds();
             CaptureNodeTelemetry();
         }
 
@@ -173,6 +183,28 @@ namespace RuneCode
         {
             CompileResult result = _session.Spells.CompileResult;
             _dock.SetLoadout(new[] { result.Ok ? result.Spell : null });
+        }
+
+        /// <summary>지난 확인 이후 실제 적 피해가 발생한 횟수만큼 피격음을 재생하고 소비한 횟수를 갱신한다.</summary>
+        private void PlayEnemyHitSounds()
+        {
+            int count = _dock.EnemyDamageEventCount - _lastEnemyDamageEventCount;
+            _lastEnemyDamageEventCount = _dock.EnemyDamageEventCount;
+            for (int index = 0; index < count; index++) SoundManager.Instance.PlayEnemyHit();
+        }
+
+        /// <summary>새 화상 틱·감전 적중·빙결 시작 이벤트를 소비하고 각 효과음을 횟수만큼 재생한다.</summary>
+        private void PlayElementalSounds()
+        {
+            int burnCount = _dock.BurnTickDamageEventCount - _lastBurnTickDamageEventCount;
+            int arcCount = _dock.ArcDamageEventCount - _lastArcDamageEventCount;
+            int freezeCount = _dock.FreezeStartEventCount - _lastFreezeStartEventCount;
+            _lastBurnTickDamageEventCount = _dock.BurnTickDamageEventCount;
+            _lastArcDamageEventCount = _dock.ArcDamageEventCount;
+            _lastFreezeStartEventCount = _dock.FreezeStartEventCount;
+            for (int index = 0; index < burnCount; index++) SoundManager.Instance.PlayBurn();
+            for (int index = 0; index < arcCount; index++) SoundManager.Instance.PlayChain();
+            for (int index = 0; index < freezeCount; index++) SoundManager.Instance.PlayFreeze();
         }
 
         /// <summary>새로 실행된 노드만 로컬 링 버퍼에 기록하여 동일 tick 실행도 보존한다.</summary>

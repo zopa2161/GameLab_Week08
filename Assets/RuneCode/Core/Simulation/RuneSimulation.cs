@@ -104,6 +104,8 @@ namespace RuneCode
         private int _actionsThisTick;
         private int _droppedExecutions;
         private int _collectedFragments;
+        private int _normalScrapPickupEventCount;
+        private int _bigScrapPickupEventCount;
         private double _scrapRemainder;
         private double _totalDamage;
         private double _statusDamage;
@@ -112,6 +114,10 @@ namespace RuneCode
         private readonly Dictionary<string, double> _resourceCostsSpent = new Dictionary<string, double>(StringComparer.Ordinal);
         private int _peakSpellEntities;
         private int _nodeExecutionCount;
+        private int _enemyDamageEventCount;
+        private int _burnTickDamageEventCount;
+        private int _arcDamageEventCount;
+        private int _freezeStartEventCount;
         private string _scenario;
         private bool _debugInvulnerable;
         private string[] _lastPatchTags = Array.Empty<string>();
@@ -173,6 +179,10 @@ namespace RuneCode
         /// <summary>이번 전투에서 주워 확정한 Modifier 드롭의 누적 목록이다.</summary>
         public IReadOnlyList<SimulationItemDrop> PickedUpItems => _pickedUpItems;
         public IReadOnlyList<DamageNumber> DamageNumbers => _damageNumbers;
+        public int EnemyDamageEventCount => _enemyDamageEventCount;
+        public int BurnTickDamageEventCount => _burnTickDamageEventCount;
+        public int ArcDamageEventCount => _arcDamageEventCount;
+        public int FreezeStartEventCount => _freezeStartEventCount;
         public IReadOnlyList<HealPulse> HealPulses => _healPulses;
 
         /// <summary>최근 ARC_LINK_TICKS 동안 발생한 전격 연쇄 구간 목록이다. 표시 전용이다.</summary>
@@ -207,6 +217,8 @@ namespace RuneCode
         public int RoomIndex => _stageNumber - 1;
         public string RoomName => _isMission ? GameData.L("incremental.stage") + " " + _stageNumber : GameData.L("scenario." + _scenario);
         public int CollectedFragments => _collectedFragments;
+        public int NormalScrapPickupEventCount => _normalScrapPickupEventCount;
+        public int BigScrapPickupEventCount => _bigScrapPickupEventCount;
         public int Fragments => _collectedFragments;
         /// <summary>플레이어가 직접 줍거나 스테이지 클리어 시 회수한 스크랩 누계를 반환한다.</summary>
         public int EarnedFragments => _collectedFragments;
@@ -522,6 +534,12 @@ namespace RuneCode
             _enemyStatuses.Clear(); _statusIndex.Clear(); _statusTime = 0;
             _totalDamage = 0; _statusDamage = 0; _persistDamage = 0; _rollingDamage = 0; _resourceCostsSpent.Clear(); _peakSpellEntities = 0;
             _nodeExecutionCount = 0; _collectedFragments = 0; _scrapRemainder = 0; _killCount = 0; _spawnedEnemies = 0;
+            _enemyDamageEventCount = 0;
+            _burnTickDamageEventCount = 0;
+            _arcDamageEventCount = 0;
+            _freezeStartEventCount = 0;
+            _normalScrapPickupEventCount = 0;
+            _bigScrapPickupEventCount = 0;
             _actionBudgetTick = -1; _actionsThisTick = 0; _droppedExecutions = 0;
             SimulationBalance bench = _balance.Sim;
             _map = new MissionMap(_sector.Rooms[0].Tiles, _sector.TileSize); _player = new SimulationPlayer(_maxHp, _maxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
@@ -556,9 +574,15 @@ namespace RuneCode
             return null;
         }
 
-        /// <summary>디버그 기능에서 현재 적들을 자폭 없이 처치하고 드롭을 남기되 스폰 예약과 보스 제한시간은 유지한다. 처치로 생긴 분열 대기도 함께 비운다.</summary>
+        /// <summary>현재 적들을 자폭 없이 처치하고 실제 피해 횟수를 기록하며 드롭을 남긴다. 스폰 예약·보스 제한시간은 유지하고 분열 대기는 비운다.</summary>
         public void DebugDefeatRoom()
-        { if (_isMission && _stage != MissionStage.Combat) return; foreach (SimulationEnemy enemy in _enemies) enemy.Hurt(enemy.Hp, Time); CleanupEnemies(false); _pendingSplits.Clear(); }
+        {
+            if (_isMission && _stage != MissionStage.Combat) return;
+            foreach (SimulationEnemy enemy in _enemies)
+                if (enemy.Hurt(enemy.Hp, Time) > 0) _enemyDamageEventCount++;
+            CleanupEnemies(false);
+            _pendingSplits.Clear();
+        }
 
         /// <summary>현재 시뮬레이션의 핵심 상태를 안정적으로 해시하여 동일 입력 실행의 결정성을 비교한다.</summary>
         public string StateHash()
@@ -612,7 +636,7 @@ namespace RuneCode
                 pending.Context.CallEvents?.AppendState(state);
                 if (pending.Context.Target != null && !pending.Context.Target.IsAlive) pending.Context.Target.WriteState(state);
             }
-            foreach (FragmentOrb orb in _orbs) { AppendNumber(state, orb.Position.X); AppendNumber(state, orb.Position.Y); state.Append(orb.Amount).Append('|').Append(orb.IsAttracted); }
+            foreach (FragmentOrb orb in _orbs) { AppendNumber(state, orb.Position.X); AppendNumber(state, orb.Position.Y); state.Append(orb.Amount).Append('|').Append(orb.IsAttracted).Append('|').Append(orb.IsBigScrap); }
             foreach (SimulationItemDrop drop in _itemDrops) AppendItemDropState(state, drop);
             foreach (SimulationItemDrop drop in _pickedUpItems) AppendItemDropState(state, drop);
             foreach (CompiledSpell spell in _loadout) state.Append('|').Append(spell?.Signature);
@@ -627,7 +651,9 @@ namespace RuneCode
                 AppendNumber(state, split.Elite != null ? split.Elite.RawSpeedMultiplier : 0);
                 if (split.CarrierOwnerId != 0) state.Append("|owner:").Append(split.CarrierOwnerId);
             }
-            AppendNumber(state, _totalDamage); state.Append(_collectedFragments).Append(_nodeExecutionCount);
+            AppendNumber(state, _totalDamage); state.Append(_collectedFragments).Append(_nodeExecutionCount).Append('|').Append(_enemyDamageEventCount)
+                .Append('|').Append(_burnTickDamageEventCount).Append('|').Append(_arcDamageEventCount).Append('|').Append(_freezeStartEventCount);
+            state.Append('|').Append(_normalScrapPickupEventCount).Append('|').Append(_bigScrapPickupEventCount);
             if (_director != null)
             { _director.WriteState(state); AppendNumber(state, _moveDirection.X); AppendNumber(state, _moveDirection.Y); state.Append(_hasMoveDirection); }
             uint hash = 2166136261;
@@ -1207,6 +1233,7 @@ namespace RuneCode
                     actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action);
                     _arcLinks.Add(new ArcLink(enemy.Position, chain[i].Position, _tick));
                 }
+                if (actual > 0) _arcDamageEventCount++;
             }
             if (entity.Behavior.AccumulatesPersistDamage) _persistDamage += actual;
         }
@@ -1285,6 +1312,7 @@ namespace RuneCode
             if (actual > 0)
             {
                 if (sourceAction != null) GetActionCombatStats(sourceAction).RecordDamage(actual, !applyStatus);
+                _enemyDamageEventCount++;
                 enemy.SetDamageTags(element, form);
                 _totalDamage += actual; _rollingDamage += actual; _damageWindow.Enqueue(new DamageSample(_tick, actual));
                 _damageNumbers.Add(new DamageNumber(enemy.Position, actual, element, _tick));
@@ -1326,7 +1354,12 @@ namespace RuneCode
                 EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
                 if (burn == null) continue;
                 while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && Time + 0.000001 >= burn.NextTickTime)
-                { _statusDamage += ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false); burn.NextTickTime += _balance.Combat.BurnInterval; }
+                {
+                    double actual = ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false);
+                    _statusDamage += actual;
+                    if (actual > 0) _burnTickDamageEventCount++;
+                    burn.NextTickTime += _balance.Combat.BurnInterval;
+                }
             }
             for (int i = _enemyStatuses.Count - 1; i >= 0; i--)
                 if (IsStatusExpired(_enemyStatuses[i])) { RemoveStatusIndex(_enemyStatuses[i]); _enemyStatuses.RemoveAt(i); }
@@ -1389,6 +1422,7 @@ namespace RuneCode
             if (isImmune || chill.Stacks < combat.ChillMaxStacks) return;
             freeze ??= AddStatus(enemy.Id, EnemyStatusType.Freeze);
             freeze.Until = Time + combat.FreezeSeconds; freeze.ImmuneUntil = freeze.Until + combat.FreezeImmunity;
+            _freezeStartEventCount++;
             RemoveStatusIndex(chill); _enemyStatuses.Remove(chill);
         }
 
@@ -1745,7 +1779,7 @@ namespace RuneCode
                     {
                         // 오브에 실제로 담기는 크레딧을 한 번만 산출해 나머지 누적이 이중 반영되지 않게 한다.
                         droppedCredits = ScaleKillScrap(enemy.Reward);
-                        _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits));
+                        _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits, enemy.IsElite || enemy.Boss != null));
                     }
                     string dropTableId = enemy.CarrierOwnerId == 0 ? GetDropTableId(enemy) : null;
                     if (dropTableId != null) RollDropTable(_drops.Get(dropTableId), enemy.Position);
@@ -1779,7 +1813,11 @@ namespace RuneCode
             {
                 if (!target.IsAlive || target.IsPatching || SimVector.Distance(source.Position, target.Position) > radius + target.Radius) continue;
                 double actual = target.Hurt(damage, Time);
-                if (actual > 0) _damageNumbers.Add(new DamageNumber(target.Position, actual, "raw", _tick));
+                if (actual > 0)
+                {
+                    _enemyDamageEventCount++;
+                    _damageNumbers.Add(new DamageNumber(target.Position, actual, "raw", _tick));
+                }
                 if (target.IsAlive && target.Boss != null && target.Boss.IsGovernorPattern) CheckBossPatch(target, target.Boss);
             }
         }
@@ -1798,7 +1836,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>줍기 반경에 들어온 스크랩을 매 틱 플레이어에게 끌어당기고 도착한 오브만 획득한다.</summary>
+        /// <summary>스크랩을 매 틱 플레이어에게 끌어당기고 도착한 오브의 재화와 일반·강력한 적 드롭별 획득 횟수를 더한다.</summary>
         private void CollectNearbyOrbs()
         {
             for (int i = _orbs.Count - 1; i >= 0; i--)
@@ -1808,6 +1846,8 @@ namespace RuneCode
                 if (hasArrived)
                 {
                     _collectedFragments += orb.Amount;
+                    if (orb.IsBigScrap) _bigScrapPickupEventCount++;
+                    else _normalScrapPickupEventCount++;
                     _orbs.RemoveAt(i);
                 }
                 else

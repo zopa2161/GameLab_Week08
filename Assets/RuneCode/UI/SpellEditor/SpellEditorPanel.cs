@@ -294,6 +294,7 @@ namespace RuneCode
                 string grade = _gradeFilterIds[index];
                 Button button = Instantiate(_categoryButtons[0], firstCategoryRect.parent, false);
                 button.name = "GradeFilter" + grade;
+                UiFactory.BindClickSound(button);
                 RectTransform buttonRect = (RectTransform)button.transform;
                 buttonRect.anchoredPosition = new Vector2(firstCategoryRect.anchoredPosition.x + columnStep * index, rowY);
                 TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);

@@ -803,12 +803,15 @@ namespace RuneCode
     {
         private SimVector _position;
         private readonly int _amount;
+        private readonly bool _isBigScrap;
         private bool _isAttracted;
         public SimVector Position => _position;
         public int Amount => _amount;
+        public bool IsBigScrap => _isBigScrap;
         public bool IsAttracted => _isAttracted;
-        /// <summary>처치 위치와 조각 개수로 회수 가능한 오브를 생성한다.</summary>
-        internal FragmentOrb(SimVector position, int amount) { _position = position; _amount = amount; _isAttracted = false; }
+        /// <summary>처치 위치·스크랩 양과 강력한 적 드롭 여부를 보관한 회수 오브를 생성한다.</summary>
+        internal FragmentOrb(SimVector position, int amount, bool isBigScrap = false)
+        { _position = position; _amount = amount; _isBigScrap = isBigScrap; _isAttracted = false; }
 
         /// <summary>자석 이동이 시작된 오브의 위치를 갱신하고 추적 상태를 유지한다.</summary>
         internal void AttractTo(SimVector position) { _position = position; _isAttracted = true; }

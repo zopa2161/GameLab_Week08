@@ -26,6 +26,12 @@ namespace RuneCode
         private MissionRun _run;
         private bool _isResultShown;
         private int _lastFragments;
+        private int _lastEnemyDamageEventCount;
+        private int _lastBurnTickDamageEventCount;
+        private int _lastArcDamageEventCount;
+        private int _lastFreezeStartEventCount;
+        private int _lastNormalScrapPickupEventCount;
+        private int _lastBigScrapPickupEventCount;
         private float _toastUntil;
 
         /// <summary>현재 진행 중인 미션의 시뮬레이션이다. 경기장 그래픽이 읽으며 미션이 없으면 null이다.</summary>
@@ -71,6 +77,9 @@ namespace RuneCode
             if (_run == null) return;
             if (_run.IsFinished)
             {
+                PlayEnemyHitSounds();
+                PlayElementalSounds();
+                PlayScrapPickupSounds();
                 if (!_isResultShown) ShowResult();
                 return;
             }
@@ -81,7 +90,45 @@ namespace RuneCode
             bool isCasting = Application.isFocused && hasPointer && mouse != null && mouse.leftButton.isPressed && !IsPointerOverUi();
             _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
                 isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
+            PlayEnemyHitSounds();
+            PlayElementalSounds();
+            PlayScrapPickupSounds();
             RenderHud();
+        }
+
+        /// <summary>지난 확인 이후 적이 실제 피해를 받은 횟수만큼 피격음을 재생하고 소비한 횟수를 갱신한다.</summary>
+        private void PlayEnemyHitSounds()
+        {
+            int count = _run.Simulation.EnemyDamageEventCount - _lastEnemyDamageEventCount;
+            _lastEnemyDamageEventCount = _run.Simulation.EnemyDamageEventCount;
+            for (int index = 0; index < count; index++) SoundManager.Instance.PlayEnemyHit();
+        }
+
+        /// <summary>새 화상 틱·감전 적중·빙결 시작 이벤트를 소비하고 각 효과음을 횟수만큼 재생한다.</summary>
+        private void PlayElementalSounds()
+        {
+            RuneSimulation sim = _run.Simulation;
+            int burnCount = sim.BurnTickDamageEventCount - _lastBurnTickDamageEventCount;
+            int arcCount = sim.ArcDamageEventCount - _lastArcDamageEventCount;
+            int freezeCount = sim.FreezeStartEventCount - _lastFreezeStartEventCount;
+            _lastBurnTickDamageEventCount = sim.BurnTickDamageEventCount;
+            _lastArcDamageEventCount = sim.ArcDamageEventCount;
+            _lastFreezeStartEventCount = sim.FreezeStartEventCount;
+            for (int index = 0; index < burnCount; index++) SoundManager.Instance.PlayBurn();
+            for (int index = 0; index < arcCount; index++) SoundManager.Instance.PlayChain();
+            for (int index = 0; index < freezeCount; index++) SoundManager.Instance.PlayFreeze();
+        }
+
+        /// <summary>새로 획득한 스크랩 오브마다 드롭 출처에 맞는 일반 또는 Big 획득음을 한 번 재생한다.</summary>
+        private void PlayScrapPickupSounds()
+        {
+            RuneSimulation sim = _run.Simulation;
+            int normalCount = sim.NormalScrapPickupEventCount - _lastNormalScrapPickupEventCount;
+            int bigCount = sim.BigScrapPickupEventCount - _lastBigScrapPickupEventCount;
+            _lastNormalScrapPickupEventCount = sim.NormalScrapPickupEventCount;
+            _lastBigScrapPickupEventCount = sim.BigScrapPickupEventCount;
+            for (int index = 0; index < normalCount; index++) SoundManager.Instance.PlayTakeScrap();
+            for (int index = 0; index < bigCount; index++) SoundManager.Instance.PlayTakeBigScrap();
         }
 
         /// <summary>Esc 입력으로 일시정지를 연다. 미션이 끝났으면 처리하지 않는다. 열린 팝업의 Esc는 UIManager가 먼저 처리한다.</summary>
@@ -198,13 +245,15 @@ namespace RuneCode
             _session.RequestScreen(AppScreen.Workshop);
         }
 
-        /// <summary>정산이 끝난 결과 View를 표시하고 클리어 Modifier 선택 후보가 있으면 모달 팝업을 연다.</summary>
+        /// <summary>정산된 결과 View와 승패에 맞는 효과음을 한 번 표시·재생하고 클리어 Modifier 선택 후보가 있으면 팝업을 연다.</summary>
         private void ShowResult()
         {
             _isResultShown = true;
             _ui.CloseAllPopups();
             SetResultSummary();
             _result.Show();
+            if (_run.Simulation.Completed) SoundManager.Instance.PlayRoundClear();
+            else SoundManager.Instance.PlayRoundDefeat();
             if (_run.HasClearModifierChoices)
             {
                 var names = new List<string>();
@@ -310,6 +359,12 @@ namespace RuneCode
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
+            _lastEnemyDamageEventCount = 0;
+            _lastBurnTickDamageEventCount = 0;
+            _lastArcDamageEventCount = 0;
+            _lastFreezeStartEventCount = 0;
+            _lastNormalScrapPickupEventCount = 0;
+            _lastBigScrapPickupEventCount = 0;
             _isResultShown = false;
             _ui.CloseAllPopups();
             _result.Hide();

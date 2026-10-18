@@ -204,7 +204,7 @@ namespace RuneCode
                     popup.AddResult(StockLabel(rune, grade, remaining, owned), () =>
                     {
                         popup.Close();
-                        _editor.Equip(nodeId, slotKey, runeId, grade);
+                        if (_editor.Equip(nodeId, slotKey, runeId, grade)) SoundManager.Instance.PlaySelectSlotItem();
                     }, rune.Category);
                 }
             }
@@ -240,7 +240,7 @@ namespace RuneCode
                 _editor.ReportStatus("editor.slotBlocked");
                 return;
             }
-            _editor.Equip(nodeId, slotKey, runeId, grade);
+            if (_editor.Equip(nodeId, slotKey, runeId, grade)) SoundManager.Instance.PlaySelectSlotItem();
         }
 
         /// <summary>남은 수(remaining)와 보유 수(owned)를 구하고 보유 수가 1 이상이면 true를 반환한다.</summary>
