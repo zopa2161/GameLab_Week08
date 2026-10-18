@@ -14,6 +14,8 @@ namespace RuneCode
     /// </summary>
     public sealed class UiFactory
     {
+        private const float DESTRUCTIVE_BUTTON_PIXELS_PER_UNIT = 2f;
+
         private readonly TMP_FontAsset _font;
         private readonly GameObject _panelPrefab;
         private readonly GameObject _buttonPrefab;
@@ -148,6 +150,14 @@ namespace RuneCode
             rect.anchoredPosition = new Vector2(x, -y);
             rect.sizeDelta = new Vector2(width, height);
             return rect;
+        }
+
+        /// <summary>버튼에 기존 빨간 스프라이트와 테두리 표시 배율을 함께 적용한다.</summary>
+        public static void ApplyDestructiveButtonStyle(Button button)
+        {
+            Image image = (Image)button.targetGraphic;
+            image.sprite = Resources.Load<Sprite>("RuneCode/UI/Skins/ButtonDestructive");
+            image.pixelsPerUnitMultiplier = DESTRUCTIVE_BUTTON_PIXELS_PER_UNIT;
         }
 
         /// <summary>세로 목록 요소의 최소 높이와 원하는 높이를 고정한다.</summary>

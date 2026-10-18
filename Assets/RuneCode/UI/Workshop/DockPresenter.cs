@@ -25,7 +25,7 @@ namespace RuneCode
             _run = run;
             _view = view;
             _isInputBlocked = isInputBlocked;
-            _view.Bind(() => _run.Dock, () => _session.Save.ScreenShake, () => _session.Save.HitStop);
+            _view.Bind(() => _run.Dock, () => _session.ScreenShake, () => _session.HitStop);
             _view.DummyCountClicked += CycleDummyCount;
             _view.TestClicked += () => _run.FireDock();
             _view.ResetClicked += () => _run.ResetDock();

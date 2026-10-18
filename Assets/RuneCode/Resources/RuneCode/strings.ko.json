@@ -1,5 +1,15 @@
 {
   "_entries": [
+    {"_key": "ui.newGame", "_value": "새로 하기"},
+    {"_key": "ui.continueGame", "_value": "이어 하기"},
+    {"_key": "ui.environmentSettings", "_value": "환경 설정"},
+    {"_key": "save.newGameHint", "_value": "새 게임을 시작할 빈 저장 슬롯을 선택하세요."},
+    {"_key": "save.continueHint", "_value": "이어서 시작할 저장 데이터를 선택하세요."},
+    {"_key": "save.manageHint", "_value": "저장 데이터를 삭제할 수 있습니다. 새로 하기와 이어 하기는 타이틀에서 선택하세요."},
+    {"_key": "save.noEmptySlots", "_value": "빈 저장 슬롯이 없습니다. 저장 관리에서 세이브 데이터를 관리해 주세요."},
+    {"_key": "save.occupiedSlot", "_value": "이미 데이터가 있는 슬롯입니다. 저장 관리에서 세이브 데이터를 관리해 주세요."},
+    {"_key": "save.noContinueSlots", "_value": "이어 할 저장 데이터가 없습니다."},
+    {"_key": "save.damagedSlot", "_value": "읽을 수 없는 저장 데이터입니다. 저장 관리에서 세이브 데이터를 관리해 주세요."},
     {"_key": "tag.legacy_burst", "_value": "레거시 폭발"},
     {"_key": "form.legacy_burst", "_value": "레거시 폭발"},
     {"_key": "ui.burstHint", "_value": "생성 위치에서 원형 파동이 확장됩니다. 적마다 한 번 타격하고 수명까지 유지되며 벽과 보호막을 통과합니다. 다중·관통·유도·공전은 지원하지 않습니다."},
@@ -380,6 +390,10 @@
     {
       "_key": "ui.quit",
       "_value": "게임 종료"
+    },
+    {
+      "_key": "ui.returnToTitle",
+      "_value": "타이틀로 돌아가기"
     },
     {
       "_key": "ui.help",
