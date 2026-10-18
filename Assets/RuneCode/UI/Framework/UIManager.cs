@@ -3,7 +3,9 @@ using System.Collections.Generic;
 
 using UnityEngine;
 
+using TMPro;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 namespace RuneCode
 {
@@ -19,11 +21,15 @@ namespace RuneCode
         private const int SCREEN_SORTING_ORDER = 0;
         private const int POPUP_SORTING_ORDER = 100;
         private const int SYSTEM_SORTING_ORDER = 200;
+        private const float TOAST_DURATION = 3f;
 
         private readonly Dictionary<UiLayer, RectTransform> _layers = new Dictionary<UiLayer, RectTransform>();
         private readonly Dictionary<Type, UiView> _views = new Dictionary<Type, UiView>();
         private readonly List<UiPopup> _popupStack = new List<UiPopup>();
         private UiView _currentScreen;
+        private RectTransform _toast;
+        private TextMeshProUGUI _toastLabel;
+        private float _toastUntil;
 
         /// <summary>현재 표시 중인 화면 View다. 없으면 null이다.</summary>
         public UiView CurrentScreen => _currentScreen;
@@ -45,6 +51,8 @@ namespace RuneCode
 
         void Update()
         {
+            if (_toast != null && _toast.gameObject.activeSelf && Time.unscaledTime >= _toastUntil)
+                _toast.gameObject.SetActive(false);
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null || !keyboard.escapeKey.wasPressedThisFrame || UiFactory.IsTyping()) return;
             if (_popupStack.Count > 0) _popupStack[_popupStack.Count - 1].HandleEscape();
@@ -57,6 +65,7 @@ namespace RuneCode
         /// </summary>
         public T ShowScreen<T>(Action<T> prepare = null) where T : UiView
         {
+            if (_toast != null) _toast.gameObject.SetActive(false);
             CloseAllPopups();
             T screen = GetView<T>(UiLayer.Screen);
             if (_currentScreen != null && _currentScreen != screen) _currentScreen.Hide();
@@ -97,16 +106,41 @@ namespace RuneCode
             }
         }
 
-        /// <summary>제목·내용과 확인·취소 버튼의 공용 확인 팝업을 연다. 확인을 누르면 팝업을 닫은 뒤 onConfirm을 실행한다.</summary>
-        public void Confirm(string title, string message, string confirmLabel, Action onConfirm)
+        /// <summary>제목·내용과 확인·취소 팝업을 열고 isDestructive이면 확인 버튼을 빨간색으로 표시한다. 확인 시 닫은 뒤 onConfirm을 실행한다.</summary>
+        public void Confirm(string title, string message, string confirmLabel, Action onConfirm, bool isDestructive = false)
         {
-            OpenPopup<ConfirmPopup>().Configure(title, message, confirmLabel, onConfirm);
+            OpenPopup<ConfirmPopup>().Configure(title, message, confirmLabel, onConfirm, isDestructive);
         }
 
         /// <summary>제목·내용과 확인 버튼 하나의 공용 알림 팝업을 연다.</summary>
         public void Alert(string title, string message)
         {
             OpenPopup<ConfirmPopup>().Configure(title, message, null, null);
+        }
+
+        /// <summary>팝업 위의 시스템 층에 입력을 차단하지 않는 안내를 표시하고 실제 시간 3초 뒤 숨긴다.</summary>
+        public void ShowToast(string message)
+        {
+            if (_toast == null)
+            {
+                _toast = UiFactory.Rect(_layers[UiLayer.System], "Toast", 190, 632, 900, 64);
+                Image background = _toast.gameObject.AddComponent<Image>();
+                background.color = new Color(.025f, .045f, .075f, .96f);
+                background.raycastTarget = false;
+                _toastLabel = Instantiate(Resources.Load<TextMeshProUGUI>("RuneCode/UI/Elements/UiText"), _toast, false);
+                RectTransform labelRect = _toastLabel.rectTransform;
+                labelRect.anchorMin = Vector2.zero;
+                labelRect.anchorMax = Vector2.one;
+                labelRect.offsetMin = new Vector2(20, 8);
+                labelRect.offsetMax = new Vector2(-20, -8);
+                _toastLabel.fontSize = 18f;
+                _toastLabel.alignment = TextAlignmentOptions.Center;
+                _toastLabel.raycastTarget = false;
+            }
+            _toastLabel.text = message;
+            _toastUntil = Time.unscaledTime + TOAST_DURATION;
+            _toast.SetAsLastSibling();
+            _toast.gameObject.SetActive(true);
         }
 
         /// <summary>

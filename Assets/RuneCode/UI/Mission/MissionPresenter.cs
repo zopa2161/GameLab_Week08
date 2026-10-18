@@ -125,7 +125,7 @@ namespace RuneCode
             _run.TogglePause();
             PausePopup popup = _ui.OpenPopup<PausePopup>();
             popup.Bind();
-            popup.SetFeedback(_session.Save.ScreenShake, _session.Save.HitStop);
+            popup.SetFeedback(_session.ScreenShake, _session.HitStop);
             popup.ShakeClicked += ToggleScreenShake;
             popup.HitStopClicked += ToggleHitStop;
             popup.RetreatClicked += AbandonMission;
@@ -144,15 +144,15 @@ namespace RuneCode
         /// <summary>화면 흔들림 설정을 반대로 저장하고 열린 일시정지 팝업 문구를 갱신한다.</summary>
         private void ToggleScreenShake()
         {
-            _session.SetSetting("screenShake", !_session.Save.ScreenShake);
-            _ui.GetView<PausePopup>(UiLayer.Popup).SetFeedback(_session.Save.ScreenShake, _session.Save.HitStop);
+            _session.SetSetting("screenShake", !_session.ScreenShake);
+            _ui.GetView<PausePopup>(UiLayer.Popup).SetFeedback(_session.ScreenShake, _session.HitStop);
         }
 
         /// <summary>히트스톱 설정을 반대로 저장하고 열린 일시정지 팝업 문구를 갱신한다.</summary>
         private void ToggleHitStop()
         {
-            _session.SetSetting("hitStop", !_session.Save.HitStop);
-            _ui.GetView<PausePopup>(UiLayer.Popup).SetFeedback(_session.Save.ScreenShake, _session.Save.HitStop);
+            _session.SetSetting("hitStop", !_session.HitStop);
+            _ui.GetView<PausePopup>(UiLayer.Popup).SetFeedback(_session.ScreenShake, _session.HitStop);
         }
 
         /// <summary>현재 전투를 중단해 보존 비율로 정산하고 팝업을 닫는다. 결과는 다음 Tick에서 표시된다.</summary>
