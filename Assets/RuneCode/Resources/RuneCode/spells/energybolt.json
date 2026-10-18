@@ -15,29 +15,7 @@
           "_text": "onAttack"
         }
       ]
-    },
-    {
-      "_id": "form",
-      "_runeId": "behavior.launch",
-      "_x": 200,
-      "_y": 150,
-      "_params": [
-        {
-          "_key": "grade",
-          "_number": 0,
-          "_text": "C"
-        }
-      ]
     }
   ],
-  "_edges": [
-    {
-      "_id": "exec",
-      "_fromNode": "core",
-      "_fromPort": "exec",
-      "_toNode": "form",
-      "_toPort": "exec",
-      "_order": 0
-    }
-  ]
+  "_edges": []
 }

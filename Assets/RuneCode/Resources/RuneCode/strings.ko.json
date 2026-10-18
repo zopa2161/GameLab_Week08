@@ -386,18 +386,6 @@
       "_value": "업그레이드 트리 강화 → 전투로 스크랩 획득"
     },
     {
-      "_key": "ui.tutorial1",
-      "_value": "1 / 3 · [구형] → [발사] 블록을 시작 조건에 이어 연결하세요"
-    },
-    {
-      "_key": "ui.tutorial2",
-      "_value": "2 / 3 · [화염] 속성 노드를 [구형] 블록의 element 포트에 연결하세요"
-    },
-    {
-      "_key": "ui.tutorial3",
-      "_value": "3 / 3 · 시험 도크에서 마법을 발사하세요"
-    },
-    {
       "_key": "ui.complete",
       "_value": "설계가 준비되었습니다. 전투로 스크랩을 얻고 같은 마법을 계속 확장하세요"
     },
@@ -982,10 +970,6 @@
       "_value": "장착 해제"
     },
     {
-      "_key": "ui.tutorial",
-      "_value": "노드 연결 도움말"
-    },
-    {
       "_key": "ui.singleSpell",
       "_value": "계속 강화할 마법"
     },
@@ -1232,6 +1216,10 @@
     {
       "_key": "result.stageCleared",
       "_value": "모든 적 처치 · 스테이지 클리어"
+    },
+    {
+      "_key": "onboarding.resultGuide",
+      "_value": "작업실로 돌아가 다음 안내를 확인하세요"
     },
     {
       "_key": "result.timeout",

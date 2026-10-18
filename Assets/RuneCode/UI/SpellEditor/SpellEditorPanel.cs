@@ -87,7 +87,6 @@ namespace RuneCode
         public event Action ArrangeClicked;
         public event Action CopyClicked;
         public event Action PasteClicked;
-        public event Action TutorialClicked;
 
         /// <summary>팔레트 검색어가 바뀌었을 때 알린다.</summary>
         public event Action<string> SearchChanged;

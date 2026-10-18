@@ -32,6 +32,7 @@ namespace RuneCode
         private double _lastPlayerDamage;
         private bool _isResultShown;
         private bool _hasPresentedChoices;
+        private bool _isOnboardingReturnOnly;
         private int _lastFragments;
         private float _toastUntil;
 
@@ -234,6 +235,7 @@ namespace RuneCode
             _ui.CloseAllPopups();
             _result.HideClearModifierChoices();
             SetResultSummary(true);
+            _result.SetReturnOnly(_isOnboardingReturnOnly && _run.Simulation.Completed, GameData.L("onboarding.resultGuide"));
             _result.Show();
         }
 
@@ -385,6 +387,7 @@ namespace RuneCode
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
+            _isOnboardingReturnOnly = _session.IsOnboardingResultGuided;
             _isResultShown = false;
             _hasPresentedChoices = false;
             _ui.CloseAllPopups();

@@ -19,6 +19,9 @@ namespace RuneCode
         private const int TEST_STOCK_COUNT = 2;
         private const string PLAY_LOG_PARTICIPANT_KEY = "RuneCode.PlayLogParticipantId";
 
+        // 온보딩 1·2는 작업실 행동으로 열리고, n스테이지 첫 클리어는 n+2 챕터를 연다.
+        private const int STAGE_ONBOARDING_OFFSET = 2;
+
         // 이 레벨 상한을 가진 노드는 반복 성장용 endgame 노드로 보고 테스트 프로필에서 구매하지 않는다.
         private const int TEST_ENDGAME_NODE_LEVEL = 99;
 
@@ -33,7 +36,7 @@ namespace RuneCode
         private string _statusMessage;
         private long _statusRevision;
         private bool _isSaveDirty;
-        private bool _hasPendingFirstRunHelp;
+        private int _pendingOnboardingChapter;
 
         private string _dockScenario = "dummy_single";
         private int _dockDummyCount = 1;
@@ -76,6 +79,16 @@ namespace RuneCode
         public StageDefinition SelectedStageDefinition => _stages.Get(SelectedStage);
         public int HighestClearedStage => _save.HighestClearedStage;
 
+        /// <summary>디버그·테스트가 아닌 일반 진행이라 온보딩 개방·자동 안내를 적용하는지 반환한다.</summary>
+        public bool IsOnboardingActive => !_isDebugEnabled && !_isTestMode;
+
+        /// <summary>도움말에서 열람할 수 있는 항목 수다. 온보딩 제외 모드이거나 마지막 단계를 개방했으면 전체를 연다.</summary>
+        public int UnlockedHelpCount => !IsOnboardingActive || _save.OnboardingStep >= PlayerSave.ONBOARDING_LAST_STEP
+            ? int.MaxValue : _save.OnboardingStep;
+
+        /// <summary>1스테이지를 아직 깨지 않은 일반 진행이라 첫 클리어 결과에서 작업실 복귀로 유도해야 하는지 반환한다.</summary>
+        public bool IsOnboardingResultGuided => IsOnboardingActive && _save.HighestClearedStage == 0;
+
         /// <summary>화면 전환 요청을 받는 콜백이다. RuneCodeApp만 등록한다.</summary>
         public event Action<AppScreen> ScreenRequested;
 
@@ -112,8 +125,7 @@ namespace RuneCode
         {
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("mode_changed", _spells.Graph);
             bool isFirstGameStart = !isDebug && !SaveStore.HasSlot(SaveStore.ActiveSlot);
-            if (isDebug) _hasPendingFirstRunHelp = false;
-            else _hasPendingFirstRunHelp |= isFirstGameStart;
+            _pendingOnboardingChapter = 0;
             _isDebugEnabled = isDebug;
             _isTestMode = false;
             _save = isDebug ? PlayerSave.CreateNew() : _normalSave;
@@ -129,6 +141,7 @@ namespace RuneCode
                 UnlockDebugUpgrades();
             }
             else PersistRestoredRuneUnlocks(restoredRuneUnlocks);
+            if (_save.OnboardingStep == 0) TryUnlockOnboarding(1);
             _spells.Reload();
             if (!isDebug && !Application.isEditor) BeginNormalPlayLog();
             RequestScreen(AppScreen.Workshop);
@@ -191,7 +204,7 @@ namespace RuneCode
         {
             if (string.IsNullOrWhiteSpace(participantId)) return false;
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("restarted", _spells.Graph);
-            _hasPendingFirstRunHelp = false;
+            _pendingOnboardingChapter = 0;
             _isDebugEnabled = false;
             _isTestMode = true;
             _save = CreateTestSave();
@@ -253,19 +266,31 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>새 세이브로 처음 시작할 때 대기 중인 도움말 요청을 반환하고 한 번만 소비한다.</summary>
-        public bool ConsumeFirstRunHelpRequest()
+        /// <summary>
+        /// 일반 진행에서 chapter가 다음 온보딩 단계일 때만 개방해 저장하고 자동 안내 대기 챕터로 둔다. 개방했으면 true를 반환한다.
+        /// </summary>
+        public bool TryUnlockOnboarding(int chapter)
         {
-            bool hasPendingRequest = _hasPendingFirstRunHelp;
-            _hasPendingFirstRunHelp = false;
-            return hasPendingRequest;
+            if (!IsOnboardingActive || chapter != _save.OnboardingStep + 1 || chapter > PlayerSave.ONBOARDING_LAST_STEP) return false;
+            _save.UnlockOnboarding(chapter);
+            _pendingOnboardingChapter = chapter;
+            PersistProgress();
+            return true;
+        }
+
+        /// <summary>자동으로 보여줄 온보딩 챕터를 반환하고 비운다. 없으면 0을 반환한다.</summary>
+        public int ConsumePendingOnboarding()
+        {
+            int chapter = _pendingOnboardingChapter;
+            _pendingOnboardingChapter = 0;
+            return chapter;
         }
 
         /// <summary>타이틀에서 선택한 저장 슬롯을 읽어 일반 진행으로 설정하고 성공 여부를 반환한다.</summary>
         public bool SelectSaveSlot(int slot)
         {
             if (!SaveStore.TryLoadSlot(slot, out PlayerSave loaded)) return false;
-            _hasPendingFirstRunHelp = false;
+            _pendingOnboardingChapter = 0;
             SaveStore.SetActiveSlot(slot);
             _normalSave = loaded;
             if (!IsMemorySession)
@@ -283,7 +308,7 @@ namespace RuneCode
         public bool CreateSaveSlot(int slot)
         {
             if (!SaveStore.CreateSlot(slot, out PlayerSave created)) return false;
-            _hasPendingFirstRunHelp = true;
+            _pendingOnboardingChapter = 0;
             _normalSave = created;
             if (!IsMemorySession)
             {
@@ -555,6 +580,8 @@ namespace RuneCode
                 UnlockDebugUpgrades();
             }
             else if (!_isTestMode) _normalSave = _save;
+            if (IsOnboardingActive) _save.UnlockOnboarding(1);
+            _pendingOnboardingChapter = 0;
             _spells.Reload();
             PersistProgress();
         }
@@ -567,13 +594,6 @@ namespace RuneCode
                 if (node != null && node.EffectType != UpgradeEffectType.RuneUnlock)
                     _save.SetUpgradeNodeLevel(node.Id, 0);
             _spells.Recompile();
-        }
-
-        /// <summary>튜토리얼 완료 단계를 저장한다.</summary>
-        public void AdvanceTutorial(int step)
-        {
-            _save.SetTutorialStep(step);
-            PersistProgress();
         }
 
         /// <summary>마법을 저장·컴파일하고 RAM과 최대 전력 제한을 만족하면 출격할 마법을 반환한다. 유지형 빔은 첫 시전 비용으로 검사하며, 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
@@ -625,6 +645,7 @@ namespace RuneCode
                 modifierRewards.Add(clearRuneReward);
             }
             if (isCleared) _save.RecordStageClear(stageNumber);
+            if (isCleared) TryUnlockOnboarding(stageNumber + STAGE_ONBOARDING_OFFSET);
             _save.Settle(fragments, isCleared);
             foreach (var pair in killCounts) _save.RecordKills(pair.Key, pair.Value);
             PersistProgress();

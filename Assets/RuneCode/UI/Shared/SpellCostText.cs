@@ -27,6 +27,25 @@ namespace RuneCode
             return cast == max ? text : text + "  ·  " + GameData.L("ui.cost") + " " + max;
         }
 
+        /// <summary>
+        /// 시전 비용을 최대 전력값에 대한 nn/max 표기로 반환한다. maxEnergy는 세션이 성장을 반영해 넘기는 최대 전력 데이터다.
+        /// 산정 불가 비용이거나 전력 외 자원이 섞였으면 nn/max 표기를 쓸 수 없어 기존 문구를 반환한다.
+        /// </summary>
+        public static string FormatWithMaxEnergy(ResourceCostSet costs, float maxEnergy)
+        {
+            if (IsUnbounded(costs)) return Format(costs);
+            foreach (ResourceAmount amount in costs.Amounts)
+                if (amount.Resource != "mana") return Format(costs);
+            return costs.GetAmount("mana").ToString("0.#") + " / " + maxEnergy.ToString("0.#") + " 전력" ;
+        }
+
+        /// <summary>시전 비용이 최대 전력값을 넘어 시전할 수 없는 상태인지 반환한다. 산정 불가 비용도 시전할 수 없으므로 초과로 본다.</summary>
+        public static bool ExceedsMaxEnergy(ResourceCostSet costs, float maxEnergy)
+        {
+            if (IsUnbounded(costs)) return true;
+            return costs.GetAmount("mana") > maxEnergy;
+        }
+
         /// <summary>비용 묶음에 무한 또는 NaN 비용이 있는지 반환한다.</summary>
         public static bool IsUnbounded(ResourceCostSet costs)
         {
