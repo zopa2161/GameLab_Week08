@@ -78,6 +78,7 @@ namespace RuneCode
         private static readonly Color ARC_CORE_COLOR = new Color(0.95f, 0.92f, 1f);
 
         private readonly List<TextMeshProUGUI> _damageLabels = new List<TextMeshProUGUI>();
+        private readonly BeamFlashPresentation _beamFlashPresentation = new BeamFlashPresentation();
         private readonly Vector2[] _arcPoints = new Vector2[ARC_SEGMENTS + 1];
         private Func<RuneSimulation> _simulation;
         private Func<bool> _screenShake;
@@ -120,8 +121,13 @@ namespace RuneCode
         {
             RuneSimulation sim = _simulation?.Invoke();
             if (sim == null) return;
+            bool flashesChanged = _beamFlashPresentation.Update(sim, Time.unscaledTime);
             DetectImpact(sim);
-            if (_hitStopUntil > Time.unscaledTime && (_hitStop?.Invoke() ?? false)) return;
+            if (_hitStopUntil > Time.unscaledTime && (_hitStop?.Invoke() ?? false))
+            {
+                if (flashesChanged) SetVerticesDirty();
+                return;
+            }
             SetVerticesDirty();
             CalculateScale();
             UpdateDamageNumbers(sim);
@@ -137,6 +143,11 @@ namespace RuneCode
             if (sim == null) return;
             DrawMap(mesh, sim);
             foreach (SimulationSpellEntity spell in sim.SpellEntities) DrawSpell(mesh, spell);
+            foreach (SimulationBeamFlash flash in _beamFlashPresentation.Flashes)
+            {
+                if (BeamFlashPresentation.HasLiveBeam(sim, flash.EntityId)) continue;
+                DrawBeamPath(mesh, flash.Path, flash.Width, flash.Element);
+            }
             foreach (SimulationProjectile projectile in sim.EnemyProjectiles) DrawHostileProjectile(mesh, projectile);
             foreach (FragmentOrb orb in sim.Orbs) DrawOrb(mesh, orb);
             foreach (SimulationItemDrop drop in sim.ItemDrops) DrawItemDrop(mesh, drop);
@@ -302,10 +313,7 @@ namespace RuneCode
             }
             if (SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
             {
-                Color beamColor = RuneMesh.ElementColor(spell.Element);
-                IReadOnlyList<SimVector> path = spell.BeamPath;
-                for (int index = 1; index < path.Count; index++)
-                    RuneMesh.Line(mesh, Point(path[index - 1]), Point(path[index]), (float)spell.BoxWidth * _scale, beamColor);
+                DrawBeamPath(mesh, spell.BeamPath, spell.BoxWidth, spell.Element);
                 return;
             }
             Vector2 point = Point(spell.Position);
@@ -317,6 +325,14 @@ namespace RuneCode
                 DrawAreaSpell(mesh, spell, point, radius, angle, tint);
             else
                 DrawMovingSpell(mesh, spell, point, radius, direction, angle, tint);
+        }
+
+        /// <summary>지정 중심선·폭·속성으로 실제 빔과 첫 판정 표시 기록을 동일한 모양으로 그린다.</summary>
+        private void DrawBeamPath(UnityEngine.UI.VertexHelper mesh, IReadOnlyList<SimVector> path, double width, string element)
+        {
+            Color tint = RuneMesh.ElementColor(element);
+            for (int index = 1; index < path.Count; index++)
+                RuneMesh.Line(mesh, Point(path[index - 1]), Point(path[index]), (float)width * _scale, tint);
         }
 
         /// <summary>
