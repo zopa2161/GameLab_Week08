@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace RuneCode
 {
-    /// <summary>바닥에 떨어진 소지 아이템(Modifier·속성·행동) 드롭을 정사각 코어와 흐린 링으로 표시한다. A·S 등급은 등장 순간 중심에서 화면 밖으로 뻗는 등급색 삼각형 빛이 번쩍이고, 바닥에 있는 동안 등급색 링이 퍼졌다 사라지기를 반복하며 빛 조각이 떠오른다.</summary>
+    /// <summary>바닥에 떨어진 소지 아이템(Modifier·속성·행동) 드롭을 정사각 코어와 흐린 링으로 표시한다. A·S 등급은 등장 순간 화면 밖까지 뻗는 등급색 삼각형 빛이 번쩍이고, 바닥에 있는 동안 짧은 삼각형 빛이 계속 회전하며 링이 퍼졌다 사라지기를 반복하고 빛 조각이 떠오른다.</summary>
     public sealed class ItemDropView : MonoBehaviour
     {
         private const float CORE_RADIUS = 7f;
@@ -15,11 +15,13 @@ namespace RuneCode
         private const float RING_END_DIAMETER = 128f;
         private const float RING_START_ALPHA = 0.5f;
 
-        private const int RAY_TICKS = 72;
-        private const float RAY_LENGTH_PX = 1500f;
+        private const int RAY_TICKS = 144;
+        private const float RAY_LENGTH_PX = 1800f;
+        private const float RAY_IDLE_LENGTH_PX = 300f;
+        private const float RAY_IDLE_ALPHA_SCALE = 0.2f;
         private const float RAY_MIN_ALPHA = 0.35f;
         private const float RAY_MAX_ALPHA = 0.55f;
-        private const float RAY_HUE_VARIATION = 0.08f;
+        private const float RAY_HUE_VARIATION = 0.1f;
         private const float RAY_MIN_ANGLE = 5f;
         private const float RAY_MAX_ANGLE = 20f;
         private const float RAY_MAX_TOTAL_ANGLE = 150f;
@@ -35,9 +37,11 @@ namespace RuneCode
         private const float MOTE_START_OFFSET = 6f;
         private const float MOTE_BASE_SIZE = 3.5f;
         private const float MOTE_X_SPACING = 3f;
+        private const float S_GRADE_SATURATION_BOOST = 1.1f;
+        private const float S_GRADE_VALUE_BOOST = 1.05f;
 
         private static readonly Color CoreColor = new Color(0.78f, 0.55f, 1f);
-        private static readonly Color RingColor = new Color(0.62f, 0.4f, 0.95f, 0.35f);
+        private static readonly Color RingColor = new Color(0.62f, 0.4f, 0.95f, 0.45f);
 
         [Header("표시")]
         [SerializeField] private SpriteRenderer _core;
@@ -70,8 +74,15 @@ namespace RuneCode
             MissionWorldSpace.Place(_ring, Vector2.zero, RING_RADIUS * 2, ring);
             int gradeRank = drop.Grade == "A" ? 2 : drop.Grade == "S" ? 3 : -1;
             Color effectColor = gradeRank < 0 ? Color.white : RuneMesh.GradeColor(drop.Grade);
+            if (gradeRank == 3)
+            {
+                // 드롭 이펙트에서만 S등급 황금색의 채도와 명도를 살짝 올린다. 값 상한은 1로 제한된다.
+                Color.RGBToHSV(effectColor, out float goldenHue, out float goldenSaturation, out float goldenValue);
+                effectColor = Color.HSVToRGB(goldenHue, Mathf.Clamp01(goldenSaturation * S_GRADE_SATURATION_BOOST),
+                    Mathf.Clamp01(goldenValue * S_GRADE_VALUE_BOOST));
+            }
             ApplyRingCycle(gradeRank, effectColor, elapsedTicks);
-            ApplyRayBurst(drop.SpawnTick, gradeRank, effectColor, elapsedTicks);
+            ApplyRays(drop.SpawnTick, gradeRank, effectColor, elapsedTicks);
             ApplyMotes(gradeRank, effectColor, elapsedTicks);
         }
 
@@ -97,21 +108,24 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 등장 순간 아이템 중심을 한 꼭짓점으로 화면 밖까지 뻗는 삼각형 빛을 펼치고 서서히 옅아지게 한다.
+        /// 등장 순간 아이템 중심을 한 꼭짓점으로 화면 밖까지 뻗는 삼각형 빛을 펼치고 서서히 줄어들며 옅아진 뒤,
+        /// 이후에도 짧은 삼각형 무리가 계속 회전한다.
         /// 꼭짓각은 드롭 생성 틱에서 결정적으로 추출해 5~20도 범위에서 정하고 합이 상한(150도)을 넘으면 그 삼각형은 숨긴다.
         /// 시작 알파와 색조는 삼각형마다 범위 내 무작위로, 등급색(A 보라·S 황금) 계열을 벗어나지 않게 한다.
-        /// 표시 동안 삼각형 무리가 천천히 회전한다. A·S가 아니거나 섬광 시간이 지나면 모두 숨긴다.
+        /// A·S가 아니면 모두 숨긴다.
         /// </summary>
-        private void ApplyRayBurst(int spawnTick, int gradeRank, Color effectColor, int elapsedTicks)
+        private void ApplyRays(int spawnTick, int gradeRank, Color effectColor, int elapsedTicks)
         {
-            if (gradeRank < 0 || elapsedTicks >= RAY_TICKS)
+            if (gradeRank < 0)
             {
                 foreach (SpriteRenderer ray in _rays) MissionWorldSpace.SetVisible(ray, false);
                 return;
             }
-            float fade = 1f - elapsedTicks / (float)RAY_TICKS;
+            float burstBlend = Mathf.Clamp01(1f - elapsedTicks / (float)RAY_TICKS);
+            float alphaScale = Mathf.Lerp(RAY_IDLE_ALPHA_SCALE, 1f, burstBlend);
+            float lengthPx = Mathf.Lerp(RAY_IDLE_LENGTH_PX, RAY_LENGTH_PX, burstBlend);
             Color.RGBToHSV(effectColor, out float hue, out float saturation, out float value);
-            float scaleX = RAY_LENGTH_PX / RAY_SPRITE_DEPTH_PX;
+            float scaleX = lengthPx / RAY_SPRITE_DEPTH_PX;
             float rotation = elapsedTicks * RAY_ROTATION_PER_TICK;
             float totalAngle = 0f;
             for (int index = 0; index < _rays.Length; index++)
@@ -122,7 +136,7 @@ namespace RuneCode
                 totalAngle += apexAngle;
                 Color tint = Color.HSVToRGB(Mathf.Repeat(hue + (PseudoRandom(spawnTick + index * 4 + 3) - 0.5f) * RAY_HUE_VARIATION, 1f), saturation, value);
                 tint = Color.Lerp(tint, Color.white, RAY_WHITE_BLEND);
-                tint.a = Mathf.Lerp(RAY_MIN_ALPHA, RAY_MAX_ALPHA, PseudoRandom(spawnTick + index * 4 + 1)) * fade;
+                tint.a = Mathf.Lerp(RAY_MIN_ALPHA, RAY_MAX_ALPHA, PseudoRandom(spawnTick + index * 4 + 1)) * alphaScale;
                 float angle = 360f * PseudoRandom(spawnTick + index * 4 + 2) + rotation;
                 float scaleY = scaleX * (RAY_SPRITE_DEPTH_PX / RAY_SPRITE_BASE_HALF_PX) * Mathf.Tan(apexAngle * 0.5f * Mathf.Deg2Rad);
                 MissionWorldSpace.SetVisible(_rays[index], true);
