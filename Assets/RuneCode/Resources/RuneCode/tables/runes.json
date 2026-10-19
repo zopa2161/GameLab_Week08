@@ -31,7 +31,7 @@
       "_energyMult": 1,
       "_unlockType": "start",
       "_stats": {
-        "_damage": 15,
+        "_damage": 10,
         "_radius": 150,
         "_beamWidth": 12,
         "_lifetime": 0.5,

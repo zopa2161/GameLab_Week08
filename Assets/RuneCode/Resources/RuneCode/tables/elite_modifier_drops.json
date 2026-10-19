@@ -152,14 +152,14 @@
       "_stage": 1,
       "_stageType": "normal",
       "_eliteModifierGradeChancesPercent": {
-        "C": 90,
-        "B": 9,
-        "A": 1,
-        "S": 0
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       },
       "_behaviorGradeChancesPercent": {
-        "C": 80,
-        "B": 15,
+        "C": 85,
+        "B": 10,
         "A": 4,
         "S": 1
       }
@@ -168,14 +168,14 @@
       "_stage": 2,
       "_stageType": "normal",
       "_eliteModifierGradeChancesPercent": {
-        "C": 87,
-        "B": 11,
-        "A": 2,
-        "S": 0
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       },
       "_behaviorGradeChancesPercent": {
-        "C": 79,
-        "B": 16,
+        "C": 85,
+        "B": 10,
         "A": 4,
         "S": 1
       }
@@ -184,15 +184,15 @@
       "_stage": 3,
       "_stageType": "normal",
       "_eliteModifierGradeChancesPercent": {
-        "C": 83,
-        "B": 13,
-        "A": 3,
+        "C": 85,
+        "B": 10,
+        "A": 4,
         "S": 1
       },
       "_behaviorGradeChancesPercent": {
-        "C": 78,
-        "B": 16,
-        "A": 5,
+        "C": 85,
+        "B": 10,
+        "A": 4,
         "S": 1
       }
     },
@@ -200,16 +200,16 @@
       "_stage": 4,
       "_stageType": "normal",
       "_eliteModifierGradeChancesPercent": {
-        "C": 73,
-        "B": 20,
-        "A": 5,
-        "S": 2
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       },
       "_behaviorGradeChancesPercent": {
-        "C": 76,
-        "B": 17,
-        "A": 5,
-        "S": 2
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       }
     },
     {
@@ -234,68 +234,104 @@
       "_stage": 6,
       "_stageType": "normal",
       "_eliteModifierGradeChancesPercent": {
-        "C": 60,
-        "B": 30,
-        "A": 7,
-        "S": 3
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       },
       "_behaviorGradeChancesPercent": {
-        "C": 74,
-        "B": 18,
-        "A": 6,
-        "S": 2
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       }
     },
     {
       "_stage": 7,
       "_stageType": "normal",
       "_eliteModifierGradeChancesPercent": {
-        "C": 50,
-        "B": 33,
-        "A": 11,
-        "S": 6
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       },
       "_behaviorGradeChancesPercent": {
-        "C": 72,
-        "B": 19,
-        "A": 7,
-        "S": 2
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       }
     },
     {
       "_stage": 8,
       "_stageType": "normal",
       "_eliteModifierGradeChancesPercent": {
-        "C": 40,
-        "B": 36,
-        "A": 16,
-        "S": 8
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       },
       "_behaviorGradeChancesPercent": {
-        "C": 70,
-        "B": 20,
-        "A": 7,
-        "S": 3
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       }
     },
     {
       "_stage": 9,
       "_stageType": "normal",
       "_eliteModifierGradeChancesPercent": {
-        "C": 30,
-        "B": 40,
-        "A": 20,
-        "S": 10
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       },
       "_behaviorGradeChancesPercent": {
-        "C": 68,
-        "B": 21,
-        "A": 8,
-        "S": 3
+        "C": 85,
+        "B": 10,
+        "A": 4,
+        "S": 1
       }
     },
     {
       "_stage": 10,
+      "_stageType": "boss",
+      "_eliteModifierGradeChancesPercent": null,
+      "_stageClearModifierRewardChoice": {
+        "_grade": "S",
+        "_choiceCount": 3,
+        "_selectCount": 1,
+        "_drawMethod": "uniformWithoutReplacement",
+        "_candidateRule": "slot grade rolled by _slotGradeChancesPercent, _gradeValues.<grade> is not null, no duplicate modifier",
+        "_slotGradeChancesPercent": {
+          "C": 0,
+          "B": 0,
+          "A": 90,
+          "S": 10
+        }
+      }
+    },
+    {
+      "_stage": 15,
+      "_stageType": "boss",
+      "_eliteModifierGradeChancesPercent": null,
+      "_stageClearModifierRewardChoice": {
+        "_grade": "S",
+        "_choiceCount": 3,
+        "_selectCount": 1,
+        "_drawMethod": "uniformWithoutReplacement",
+        "_candidateRule": "slot grade rolled by _slotGradeChancesPercent, _gradeValues.<grade> is not null, no duplicate modifier",
+        "_slotGradeChancesPercent": {
+          "C": 0,
+          "B": 0,
+          "A": 90,
+          "S": 10
+        }
+      }
+    },
+    {
+      "_stage": 20,
       "_stageType": "boss",
       "_eliteModifierGradeChancesPercent": null,
       "_stageClearModifierRewardChoice": {

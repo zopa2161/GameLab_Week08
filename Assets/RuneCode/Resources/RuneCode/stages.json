@@ -193,7 +193,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 }
             ],
             "_modifierRewards": [
@@ -355,7 +356,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 },
                 {
                     "_enemyId": "enemy.scout",
@@ -363,7 +365,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 }
             ],
             "_modifierRewards": [
@@ -558,7 +561,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 },
                 {
                     "_enemyId": "enemy.scout",
@@ -566,7 +570,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 }
             ],
             "_modifierRewards": [
@@ -770,7 +775,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 },
                 {
                     "_enemyId": "enemy.scout",
@@ -778,7 +784,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 }
             ],
             "_modifierRewards": [
@@ -889,8 +896,27 @@
                     ]
                 }
             ],
-            "_eliteEvery": 0,
-            "_eliteTypes": [],
+            "_eliteEvery": 10,
+            "_eliteTypes": [
+                {
+                    "_enemyId": "enemy.hunter",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
+                },
+                {
+                    "_enemyId": "enemy.scout",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
+                }
+            ],
             "_modifierRewards": []
         },
         {
@@ -1130,7 +1156,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 },
                 {
                     "_enemyId": "enemy.hunter",
@@ -1138,7 +1165,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 }
             ],
             "_modifierRewards": []
@@ -1384,7 +1412,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 },
                 {
                     "_enemyId": "enemy.sentry",
@@ -1392,7 +1421,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 },
                 {
                     "_enemyId": "enemy.shield_ranged",
@@ -1400,7 +1430,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 }
             ],
             "_modifierRewards": []
@@ -1604,7 +1635,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 },
                 {
                     "_enemyId": "enemy.aegis",
@@ -1612,7 +1644,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 }
             ],
             "_modifierRewards": []
@@ -1810,7 +1843,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 },
                 {
                     "_enemyId": "enemy.hunter",
@@ -1818,7 +1852,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 },
                 {
                     "_enemyId": "enemy.carrier",
@@ -1826,7 +1861,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
                 }
             ],
             "_modifierRewards": []
@@ -2099,8 +2135,36 @@
                     ]
                 }
             ],
-            "_eliteEvery": 0,
-            "_eliteTypes": [],
+            "_eliteEvery": 8,
+            "_eliteTypes": [
+                {
+                    "_enemyId": "enemy.relay",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
+                },
+                {
+                    "_enemyId": "enemy.hunter",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
+                },
+                {
+                    "_enemyId": "enemy.carrier",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 50
+                }
+            ],
             "_modifierRewards": []
         },
         {
@@ -2348,7 +2412,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.hunter",
@@ -2356,7 +2421,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 }
             ],
             "_modifierRewards": []
@@ -2606,7 +2672,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.sentry",
@@ -2614,7 +2681,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.shield_ranged",
@@ -2622,7 +2690,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 }
             ],
             "_modifierRewards": []
@@ -2846,7 +2915,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.aegis",
@@ -2854,7 +2924,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 }
             ],
             "_modifierRewards": []
@@ -3056,7 +3127,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.hunter",
@@ -3064,7 +3136,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.carrier",
@@ -3072,7 +3145,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 }
             ],
             "_modifierRewards": []
@@ -3345,8 +3419,36 @@
                     ]
                 }
             ],
-            "_eliteEvery": 0,
-            "_eliteTypes": [],
+            "_eliteEvery": 8,
+            "_eliteTypes": [
+                {
+                    "_enemyId": "enemy.relay",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
+                },
+                {
+                    "_enemyId": "enemy.hunter",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
+                },
+                {
+                    "_enemyId": "enemy.carrier",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
+                }
+            ],
             "_modifierRewards": []
         },
         {
@@ -3598,7 +3700,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.hunter",
@@ -3606,7 +3709,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 }
             ],
             "_modifierRewards": []
@@ -3868,7 +3972,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.sentry",
@@ -3876,7 +3981,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.shield_ranged",
@@ -3884,7 +3990,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 }
             ],
             "_modifierRewards": []
@@ -4112,7 +4219,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.aegis",
@@ -4120,7 +4228,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 }
             ],
             "_modifierRewards": []
@@ -4326,7 +4435,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.hunter",
@@ -4334,7 +4444,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 },
                 {
                     "_enemyId": "enemy.carrier",
@@ -4342,7 +4453,8 @@
                     "_rewardMultiplier": 2.0,
                     "_speedMultiplier": 1.2,
                     "_radiusMultiplier": 1.5,
-                    "_dropTable": "drop.elite.basic"
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
                 }
             ],
             "_modifierRewards": []
@@ -4619,8 +4731,36 @@
                     ]
                 }
             ],
-            "_eliteEvery": 0,
-            "_eliteTypes": [],
+            "_eliteEvery": 8,
+            "_eliteTypes": [
+                {
+                    "_enemyId": "enemy.relay",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
+                },
+                {
+                    "_enemyId": "enemy.hunter",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
+                },
+                {
+                    "_enemyId": "enemy.carrier",
+                    "_hpMultiplier": 2.0,
+                    "_rewardMultiplier": 2.0,
+                    "_speedMultiplier": 1.2,
+                    "_radiusMultiplier": 1.5,
+                    "_dropTable": "drop.elite.basic",
+                    "_dropChancePercent": 20
+                }
+            ],
             "_modifierRewards": []
         }
     ]

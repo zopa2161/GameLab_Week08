@@ -452,15 +452,17 @@ namespace RuneCode.Editor
             DrawIntField(countRect, element.FindPropertyRelative("_count"), GUIContent.none);
         }
 
-        /// <summary>엘리트 타입 한 행에 적·드롭 테이블 팝업과 네 배율 입력칸을 그린다.</summary>
+        /// <summary>엘리트 타입 한 행에 적·드롭 테이블 팝업, 드롭 확률과 네 배율 입력칸을 그린다.</summary>
         private void DrawEliteRow(Rect rect, int index)
         {
             SerializedProperty element = _eliteTypesList.serializedProperty.GetArrayElementAtIndex(index);
             Rect content = ElementContent(rect);
             float y = rect.y + 1;
-            float half = (content.width - FIELD_GAP) * 0.5f;
-            DrawStringPopup(new Rect(content.x, y, half, ROW_HEIGHT), element.FindPropertyRelative("_enemyId"), GUIContent.none, _enemyIds, _enemyIds);
-            DrawStringPopup(new Rect(content.x + half + FIELD_GAP, y, half, ROW_HEIGHT), element.FindPropertyRelative("_dropTable"), GUIContent.none, _dropPopupValues, _dropPopupLabels);
+            float chanceWidth = Mathf.Min(96f, content.width * 0.25f);
+            float popupWidth = (content.width - chanceWidth - FIELD_GAP * 2) * 0.5f;
+            DrawStringPopup(new Rect(content.x, y, popupWidth, ROW_HEIGHT), element.FindPropertyRelative("_enemyId"), GUIContent.none, _enemyIds, _enemyIds);
+            DrawStringPopup(new Rect(content.x + popupWidth + FIELD_GAP, y, popupWidth, ROW_HEIGHT), element.FindPropertyRelative("_dropTable"), GUIContent.none, _dropPopupValues, _dropPopupLabels);
+            DrawMultiplierCell(new Rect(content.xMax - chanceWidth, y, chanceWidth, ROW_HEIGHT), "드롭%", element.FindPropertyRelative("_dropChancePercent"));
             y += ROW_HEIGHT + ROW_GAP;
 
             float cellWidth = (content.width - FIELD_GAP * 3) * 0.25f;
@@ -896,6 +898,7 @@ namespace RuneCode.Editor
                 element.FindPropertyRelative("_speedMultiplier").doubleValue = 0;
                 element.FindPropertyRelative("_radiusMultiplier").doubleValue = 0;
                 element.FindPropertyRelative("_dropTable").stringValue = "";
+                element.FindPropertyRelative("_dropChancePercent").doubleValue = 0;
             });
             return list;
         }

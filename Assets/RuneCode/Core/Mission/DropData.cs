@@ -95,16 +95,41 @@ namespace RuneCode
     }
 
     [Serializable]
+    public sealed class StageDropChance
+    {
+        [Header("스테이지 구간 확률")]
+        [SerializeField] private int _fromStage;
+        [SerializeField] private int _toStage;
+        [SerializeField] private double _chancePercent;
+        public int FromStage => _fromStage;
+        public int ToStage => _toStage;
+        public double ChancePercent => _chancePercent;
+
+        /// <summary>스테이지 번호가 이 구간 안인지 반환한다.</summary>
+        public bool Contains(int stage) => stage >= _fromStage && stage <= _toStage;
+    }
+
+    [Serializable]
     public sealed class NormalEnemyDropDefinition
     {
         [Header("일반 적 드롭")]
         [SerializeField] private string _dropTable;
         [SerializeField] private double _chancePercent;
+        [SerializeField] private StageDropChance[] _stageChances;
         public string DropTable => _dropTable;
         public double ChancePercent => _chancePercent;
+        internal StageDropChance[] StageChances => _stageChances ?? Array.Empty<StageDropChance>();
 
-        /// <summary>일반 적 드롭이 설정되어 있는지 반환한다. 테이블 ID가 비어 있거나 확률이 0 이하면 false다.</summary>
-        public bool IsEnabled => !string.IsNullOrEmpty(_dropTable) && _chancePercent > 0;
+        /// <summary>스테이지의 일반 적 드롭 확률을 반환한다. 처음 일치하는 스테이지 구간 확률을 쓰고 없으면 기본 확률을 쓴다.</summary>
+        public double GetChancePercent(int stage)
+        {
+            foreach (StageDropChance chance in StageChances)
+                if (chance.Contains(stage)) return chance.ChancePercent;
+            return _chancePercent;
+        }
+
+        /// <summary>스테이지에서 일반 적 드롭이 가능한지 반환한다. 테이블 ID가 비어 있거나 그 스테이지 확률이 0 이하면 false다.</summary>
+        public bool IsEnabled(int stage) => !string.IsNullOrEmpty(_dropTable) && GetChancePercent(stage) > 0;
     }
 
     [Serializable]
@@ -162,15 +187,25 @@ namespace RuneCode
             return catalog;
         }
 
-        /// <summary>일반 적 드롭 설정의 테이블 ID가 등록된 ID인지, 확률이 0 이상 100 이하인지 검사하고 오류를 목록에 모은다. 테이블 ID가 비어 있으면 일반 적 드롭이 없다.</summary>
+        /// <summary>일반 적 드롭 설정의 테이블 ID가 등록된 ID인지, 기본·스테이지 구간 확률이 0 이상 100 이하인지, 구간이 1 이상이고 시작이 끝 이하인지 검사하고 오류를 목록에 모은다. 테이블 ID가 비어 있으면 일반 적 드롭이 없다.</summary>
         private static void ValidateNormalEnemyDrop(DropCatalog catalog, HashSet<string> tableIds, List<string> errors)
         {
             NormalEnemyDropDefinition drop = catalog._normalEnemyDrop;
             if (drop == null || string.IsNullOrEmpty(drop.DropTable)) return;
             if (!tableIds.Contains(drop.DropTable)) errors.Add("drops.json:_normalEnemyDrop._dropTable 등록되지 않은 드롭 테이블입니다: " + drop.DropTable);
-            if (double.IsNaN(drop.ChancePercent) || drop.ChancePercent < 0 || drop.ChancePercent > 100)
+            if (!IsValidPercent(drop.ChancePercent))
                 errors.Add("drops.json:_normalEnemyDrop._chancePercent 확률은 0 이상 100 이하여야 합니다.");
+            for (int i = 0; i < drop.StageChances.Length; i++)
+            {
+                StageDropChance chance = drop.StageChances[i];
+                string path = "drops.json:_normalEnemyDrop._stageChances[" + i + "]";
+                if (chance.FromStage < 1 || chance.ToStage < chance.FromStage) errors.Add(path + " 스테이지 구간은 1 <= from <= to여야 합니다.");
+                if (!IsValidPercent(chance.ChancePercent)) errors.Add(path + "._chancePercent 확률은 0 이상 100 이하여야 합니다.");
+            }
         }
+
+        /// <summary>확률 값이 0 이상 100 이하인지 반환한다.</summary>
+        private static bool IsValidPercent(double percent) => !double.IsNaN(percent) && percent >= 0 && percent <= 100;
 
         /// <summary>테이블의 항목 배열을 검사하고 오류를 목록에 모은다. 가중치는 추첨 항목에서만 요구한다.</summary>
         private static void ValidateEntries(DropEntry[] entries, string tableId, string field, List<string> errors, bool checkWeight)

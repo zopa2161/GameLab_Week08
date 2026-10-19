@@ -2031,15 +2031,21 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 처치된 적의 드롭 테이블 ID를 반환하고 없으면 null을 반환한다. 엘리트는 엘리트 정의의 테이블을 쓴다.
-        /// 엘리트·보스가 아닌 일반 적은 보스 스테이지가 아닐 때 일반 적 드롭 확률로 1회 판정해 당첨되면 설정된 테이블을 쓴다.
+        /// 처치된 적의 드롭 테이블 ID를 반환하고 없으면 null을 반환한다. 엘리트는 엘리트 정의의 드롭 확률로 판정해 당첨되면 그 테이블을 쓴다.
+        /// 엘리트·보스가 아닌 일반 적은 보스 스테이지를 포함한 모든 스테이지에서 그 스테이지의 일반 적 드롭 확률로 1회 판정해 당첨되면 설정된 테이블을 쓴다.
         /// </summary>
         private string GetDropTableId(SimulationEnemy enemy)
         {
-            if (enemy.Elite != null) return string.IsNullOrEmpty(enemy.Elite.DropTable) ? null : enemy.Elite.DropTable;
+            if (enemy.Elite != null)
+            {
+                EliteSpawnDefinition elite = enemy.Elite;
+                if (string.IsNullOrEmpty(elite.DropTable)) return null;
+                // 확률이 100%면 난수를 쓰지 않아 기존 판정 순서를 유지한다.
+                return elite.DropChancePercent >= 100 || NextRandom() * 100 < elite.DropChancePercent ? elite.DropTable : null;
+            }
             NormalEnemyDropDefinition normalDrop = _drops.NormalEnemyDrop;
-            if (enemy.Boss != null || _stageDefinition.IsBoss || normalDrop == null || !normalDrop.IsEnabled) return null;
-            return NextRandom() * 100 < normalDrop.ChancePercent ? normalDrop.DropTable : null;
+            if (enemy.Boss != null || normalDrop == null || !normalDrop.IsEnabled(_stageNumber)) return null;
+            return NextRandom() * 100 < normalDrop.GetChancePercent(_stageNumber) ? normalDrop.DropTable : null;
         }
 
         /// <summary>적 처치 스크랩에 획득 배율을 적용하고 소수 보너스를 다음 드롭으로 이월해 정수 스크랩량을 반환한다.</summary>

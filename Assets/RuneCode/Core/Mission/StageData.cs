@@ -240,6 +240,7 @@ namespace RuneCode
         [SerializeField] private double _speedMultiplier;
         [SerializeField] private double _radiusMultiplier;
         [SerializeField] private string _dropTable;
+        [SerializeField] private double _dropChancePercent;
         public string EnemyId => _enemyId;
         // 배율 0은 데이터에 기재하지 않은 것으로 보고 1을 쓴다. 이후 강화 특징도 같은 방식으로 필드를 확장한다.
         public double HpMultiplier => _hpMultiplier > 0 ? _hpMultiplier : 1;
@@ -250,6 +251,10 @@ namespace RuneCode
 
         /// <summary>엘리트 처치 시 추첨할 드롭 테이블 ID다. 데이터에 기재하지 않으면 드롭이 없다.</summary>
         public string DropTable => _dropTable;
+
+        /// <summary>엘리트 처치 시 드롭 테이블을 굴릴 확률(%)이다. 데이터에 기재하지 않으면(0) 100을 반환한다.</summary>
+        public double DropChancePercent => _dropChancePercent > 0 ? _dropChancePercent : 100;
+        internal double RawDropChancePercent => _dropChancePercent;
         internal double RawHpMultiplier => _hpMultiplier;
         internal double RawRewardMultiplier => _rewardMultiplier;
         internal double RawSpeedMultiplier => _speedMultiplier;
@@ -383,10 +388,10 @@ namespace RuneCode
         internal const int STAGE_CYCLE_START = 21;
         internal const int STAGE_CYCLE_FIRST_STAGE = 11;
         internal const int STAGE_CYCLE_LAST_STAGE = 20;
-        internal const int ENDLESS_STAGE_START = 11;
+        internal const int ENDLESS_STAGE_START = 21;
         internal const int ENDLESS_HP_BASE_STAGE = 10;
-        internal const double ENDLESS_HP_SCALE_MULTIPLIER = 1.5;
-        internal const double ENDLESS_HP_BASE_MULTIPLIER = 5;
+        internal const double ENDLESS_HP_SCALE_MULTIPLIER = 1.3;
+        internal const double ENDLESS_HP_BASE_MULTIPLIER = 2;
 
         [Header("스테이지 루트")]
         [SerializeField] private StageMapSettings _map;
@@ -592,7 +597,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>엘리트 주기와 순회 타입의 대상 적, 배율, 보스 종족 제외, 드롭 테이블 참조를 확인한다. 주기가 0이면 타입 확인을 생략한다.</summary>
+        /// <summary>엘리트 주기와 순회 타입의 대상 적, 배율, 보스 종족 제외, 드롭 확률 범위, 드롭 테이블 참조를 확인한다. 주기가 0이면 타입 확인을 생략한다.</summary>
         private static void ValidateElites(StageDefinition stage, EnemyCatalog enemies, DropCatalog drops)
         {
             if (stage.EliteEvery < 0) throw new FormatException("엘리트 주기는 0 이상이어야 합니다: 스테이지 " + stage.FromStage);
@@ -605,6 +610,8 @@ namespace RuneCode
                 if (!IsFinite(elite.RawHpMultiplier) || !IsFinite(elite.RawRewardMultiplier) || !IsFinite(elite.RawSpeedMultiplier) || !IsFinite(elite.RawRadiusMultiplier)
                     || elite.RawHpMultiplier < 0 || elite.RawRewardMultiplier < 0 || elite.RawSpeedMultiplier < 0 || elite.RawRadiusMultiplier < 0)
                     throw new FormatException("엘리트 배율은 0 이상의 유한값이어야 합니다: " + elite.EnemyId + " (스테이지 " + stage.FromStage + ")");
+                if (double.IsNaN(elite.RawDropChancePercent) || elite.RawDropChancePercent < 0 || elite.RawDropChancePercent > 100)
+                    throw new FormatException("엘리트 드롭 확률은 0 이상 100 이하여야 합니다: " + elite.EnemyId + " (스테이지 " + stage.FromStage + ")");
                 if (!string.IsNullOrEmpty(elite.DropTable) && !drops.Has(elite.DropTable))
                     throw new FormatException("등록되지 않은 엘리트 드롭 테이블입니다: " + elite.DropTable + " (" + elite.EnemyId + ", 스테이지 " + stage.FromStage + ")");
             }

@@ -300,7 +300,8 @@ const SCHEMAS = {
           { k: "_enemyId", label: "적 ID", type: "ref", ref: "enemy" },
           { k: "_hpMultiplier", label: "체력 배율", type: "number" }, { k: "_rewardMultiplier", label: "보상 배율", type: "number" },
           { k: "_speedMultiplier", label: "속도 배율", type: "number" }, { k: "_radiusMultiplier", label: "반경 배율", type: "number" },
-          { k: "_dropTable", label: "드롭 테이블", type: "ref", ref: "drop", allowEmpty: true } ] },
+          { k: "_dropTable", label: "드롭 테이블", type: "ref", ref: "drop", allowEmpty: true },
+          { k: "_dropChancePercent", label: "드롭 확률(%, 0=100)", type: "number" } ] },
         { k: "_modifierRewards", label: "Modifier 보상", type: "list", item: [
           { k: "_runeId", label: "룬 ID", type: "ref", ref: "modifier" },
           { k: "_grade", label: "등급", type: "select", vocab: "grade" }, { k: "_count", label: "수량", type: "number" } ] } ] },
