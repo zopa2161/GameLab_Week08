@@ -121,7 +121,6 @@ namespace RuneCode
                     });
                 return;
             }
-            _session.AdvanceTutorial(3);
             LocalTelemetry.Record(_dock.Tick, "bench.cast", result.Spell.Signature);
             if (LocalTelemetry.IsUsabilityTestActive)
                 LocalTelemetry.RecordUsabilityEvent("simulation_cast_result", "test_dock", new Dictionary<string, object>

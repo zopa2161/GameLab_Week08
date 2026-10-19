@@ -14,8 +14,11 @@ namespace RuneCode
         /// <summary>현재 RAM 용량이다.</summary>
         int Capacity { get; }
 
-        /// <summary>시험 도크에서 지금까지 실행된 노드 수로, 튜토리얼 시험 완료 판정에 쓴다.</summary>
-        int TestExecutionCount { get; }
+        /// <summary>성장 효과까지 반영한 현재 최대 전력값이다. 편집 지표의 시전 비용 nn/max 표기에 쓴다.</summary>
+        float MaxEnergy { get; }
+
+        /// <summary>성장 효과까지 반영한 초당 전력 회복량이다. 편집 지표의 전력 회복 nn/s 표기에 쓴다.</summary>
+        float EnergyRegen { get; }
 
         /// <summary>현재 세션에서 시작 지급 수량 고정 없이 룬 합성을 사용할 수 있는지 나타낸다.</summary>
         bool CanSynthesizeRunes { get; }
@@ -29,8 +32,5 @@ namespace RuneCode
 
         /// <summary>현재 마법을 시험 도크에서 한 번 시전한다.</summary>
         void FireTest();
-
-        /// <summary>튜토리얼 완료 단계를 저장한다.</summary>
-        void CompleteTutorial();
     }
 }

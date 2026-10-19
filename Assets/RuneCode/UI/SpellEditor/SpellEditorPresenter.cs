@@ -8,13 +8,15 @@ namespace RuneCode
 {
     /// <summary>
     /// 비주얼 스크립팅 편집 Presenter다. 편집 세션(ISpellEditor)의 변경을 그래프·제목·지표·인스펙터에 반영하고,
-    /// 제목 줄·도구줄 버튼과 단축키를 편집 명령으로 바꾸며, 보관함·프리셋 대상·이름 변경·공유·튜토리얼을 Popup 층 팝업으로 연다.
+    /// 제목 줄·도구줄 버튼과 단축키를 편집 명령으로 바꾸며, 보관함·프리셋 대상·이름 변경·공유를 Popup 층 팝업으로 연다.
     /// 팔레트와 인스펙터는 하위 Presenter가 맡는다.
     /// </summary>
     public sealed class SpellEditorPresenter : IDisposable
     {
         private const string RAM_HIGHLIGHT_OPEN = "<b><color=#FFD54A>";
         private const string RAM_HIGHLIGHT_CLOSE = "</color></b>";
+        private const string COST_EXCEED_OPEN = "<b><color=#FF5A5A>";
+        private const string COST_EXCEED_CLOSE = "</color></b>";
 
         private readonly ISpellEditor _editor;
         private readonly ISpellEditorHost _host;
@@ -23,9 +25,6 @@ namespace RuneCode
         private readonly SpellPalettePresenter _palette;
         private readonly SpellInspectorPresenter _inspector;
         private readonly RuneSynthesisPresenter _synthesis;
-
-        private bool _isTutorialActive;
-        private int _tutorialStartExecutions;
 
         public bool IsSynthesisOpen => _synthesis.IsOpen;
 
@@ -69,10 +68,9 @@ namespace RuneCode
             _editor.SetEditable(false);
         }
 
-        /// <summary>프레임마다 활성 튜토리얼의 완료 조건을 확인하고, 팝업·문자 입력이 없으면 단축키를 처리한다.</summary>
+        /// <summary>팝업·문자 입력이 없으면 프레임마다 단축키를 처리한다.</summary>
         public void Tick()
         {
-            UpdateTutorial();
             if (_synthesis.IsOpen || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null) HandleShortcuts(keyboard);
@@ -89,7 +87,7 @@ namespace RuneCode
         /// <summary>열린 합성 결과 또는 창을 닫고 Esc 처리 여부를 반환한다.</summary>
         public bool HandleSynthesisEscape() => _synthesis.HandleEscape();
 
-        /// <summary>제목 줄·도구줄·튜토리얼 버튼 이벤트를 편집 명령과 팝업 열기로 연결한다.</summary>
+        /// <summary>제목 줄·도구줄 버튼 이벤트를 편집 명령과 팝업 열기로 연결한다.</summary>
         private void BindView()
         {
             _view.LibraryClicked += OpenLibrary;
@@ -101,7 +99,6 @@ namespace RuneCode
             _view.ArrangeClicked += _editor.AutoArrange;
             _view.CopyClicked += () => _editor.CopyNodes(_view.GraphCanvas.SelectedNodes);
             _view.PasteClicked += _editor.PasteNodes;
-            _view.TutorialClicked += StartTutorial;
         }
 
         /// <summary>현재 입력으로 그래프 삭제·복사·붙여넣기·복제·저장·시험·되돌리기 단축키를 실행한다.</summary>
@@ -152,7 +149,7 @@ namespace RuneCode
             RefreshAll();
         }
 
-        /// <summary>장착 RAM·그래프 RAM, 시전 비용, 쿨다운과 예상 실행 시간을 표시한다.</summary>
+        /// <summary>장착 RAM·그래프 RAM, 시전 비용, 전력 회복량과 쿨다운을 표시하고, 시전 비용이 최대 전력을 넘으면 비용 구간을 붉게 강조한다.</summary>
         private void RefreshMetrics()
         {
             CompiledSpell spell = _editor.CompileResult.Spell;
@@ -160,13 +157,24 @@ namespace RuneCode
             foreach (GraphNode node in _editor.Graph.Nodes)
                 if (_editor.Graph.IsNodeConnected(node.Id)) ram += GameData.Runes.NodeRam(node);
             // RAM 구간만 노란색 굵게 강조한다.
-            string text = RAM_HIGHLIGHT_OPEN + GameData.L("ui.ram") + " " + _host.EquippedRam + "/" + _host.Capacity + "  ·  " + ram + " RAM"
+            string text = RAM_HIGHLIGHT_OPEN + GameData.L("ui.ram") + " " + _host.EquippedRam + " / " + _host.Capacity
                 + RAM_HIGHLIGHT_CLOSE;
-            text += spell == null
-                ? "  ·  " + GameData.L("ui.warning")
-                : "  ·  " + GameData.L("ui.castCost") + " " + SpellCostText.Format(spell.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale)) + "  ·  " + GameData.L("ui.cooldown") + " "
-                    + spell.GetCooldownSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s  ·  " + GameData.L("ui.executionTime") + " "
-                    + spell.GetEstimatedExecutionSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s";
+            if (spell == null)
+            {
+                _view.SetMetrics(text + "  ·  " + GameData.L("ui.warning"));
+                return;
+            }
+
+            ResourceCostSet castCosts = spell.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale);
+            string castCostText = GameData.L("ui.castCost") + " " +
+                SpellCostText.FormatWithMaxEnergy(castCosts, _host.MaxEnergy);
+            // 시전 비용이 최대 전력을 넘어 시전할 수 없으면 비용 구간만 붉게 강조한다.
+            if (SpellCostText.ExceedsMaxEnergy(castCosts, _host.MaxEnergy))
+                castCostText = COST_EXCEED_OPEN + castCostText + COST_EXCEED_CLOSE;
+            text += "  ·  " + castCostText
+                + "  ·  " + GameData.L("ui.energy") + " 회복 " + _host.EnergyRegen.ToString("0.#") + " /s"
+                + "  ·  " + GameData.L("ui.cooldown") + " "
+                + spell.GetCooldownSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s";
             _view.SetMetrics(text);
         }
 
@@ -211,37 +219,6 @@ namespace RuneCode
             string text = rune.Name;
             if (action?.Stats != null) text += "  ·  " + GameData.L("ui.damage") + " " + action.Stats.Damage.ToString("0.#");
             _view.SetTooltip(text + "  ·  " + GameData.L("ui.nodeCost") + " " + SpellCostText.Format(action?.OwnCosts ?? rune.Costs));
-        }
-
-        /// <summary>튜토리얼 안내 팝업을 열고 현재 시험 실행 수를 완료 판정 기준으로 저장한다.</summary>
-        private void StartTutorial()
-        {
-            _isTutorialActive = true;
-            _tutorialStartExecutions = _host.TestExecutionCount;
-            _ui.OpenPopup<TutorialPopup>();
-        }
-
-        /// <summary>Shape→발사 체인 연결, Shape에 붙인 화염 속성 노드, 시험 시전을 모두 마친 활성 튜토리얼을 완료 처리한다.</summary>
-        private void UpdateTutorial()
-        {
-            bool hasCastShape = false;
-            bool hasLaunch = false;
-            bool hasFire = false;
-            foreach (GraphNode node in _editor.Graph.Nodes)
-            {
-                bool isShape = SpellGrammar.MagicTypeOf(node.RuneId) != null;
-                foreach (GraphEdge edge in _editor.Graph.Edges)
-                {
-                    if (node.RuneId == SpellGrammar.ElementRune("fire") && edge.FromNode == node.Id && edge.FromPort == SpellGrammar.ELEMENT_PORT) hasFire = true;
-                    if (isShape && edge.ToNode == node.Id && edge.ToPort == SpellGrammar.EXEC_PORT) hasCastShape = true;
-                    if (node.RuneId == "behavior.launch" && edge.ToNode == node.Id && edge.ToPort == SpellGrammar.CHAIN_IN) hasLaunch = true;
-                }
-            }
-            bool hasChain = hasCastShape && hasLaunch;
-            bool hasTested = _host.TestExecutionCount > (_isTutorialActive ? _tutorialStartExecutions : 0);
-            if (!_isTutorialActive || !hasChain || !hasFire || !hasTested) return;
-            _isTutorialActive = false;
-            _host.CompleteTutorial();
         }
 
         /// <summary>보관함 팝업을 열어 마법을 고르거나 새로 만들거나 복제하게 한다.</summary>

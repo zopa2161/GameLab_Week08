@@ -55,6 +55,7 @@ namespace RuneCode
             _view.BackClicked += ReturnFromDeploy;
             _session.Spells.Compiled += RefreshHeader;
             _session.Spells.Compiled += RecordCompileResult;
+            _session.Spells.GraphChanged += CheckOnboardingConnection;
         }
 
         /// <summary>작업실에 들어올 때 도크를 다시 시작한 뒤 에디터 탭을 갱신한다.</summary>
@@ -62,7 +63,6 @@ namespace RuneCode
         {
             LocalTelemetry.BeginUsabilityEditingEpisode();
             ShowEditorTab();
-            if (_session.ConsumeFirstRunHelpRequest()) OpenHelp();
         }
 
         /// <summary>작업실을 떠날 때 편집 패널을 닫고 도크 누적 시간을 버린다.</summary>
@@ -73,7 +73,7 @@ namespace RuneCode
             _dock.Suspend();
         }
 
-        /// <summary>프레임마다 편집 세션 시간 처리, 상태 토스트 만료, 에디터 탭의 도크 진행과 실행 하이라이트를 한다.</summary>
+        /// <summary>프레임마다 편집 세션 시간 처리, 상태 토스트 만료, 열린 팝업이 없을 때 대기 중인 온보딩 안내 표시, 에디터 탭의 도크 진행과 실행 하이라이트를 한다.</summary>
         public void Tick()
         {
             _session.Spells.Tick(Time.unscaledTime);
@@ -91,6 +91,7 @@ namespace RuneCode
             string status = Time.unscaledTime < _statusExpiresAt ? _session.StatusMessage : string.Empty;
             _view.SetStatus(status);
             if (hasNewStatus && !string.IsNullOrEmpty(status)) _view.SetStatusPosition(_lastMouseScreenPosition);
+            if (!_ui.IsPopupOpen) ShowPendingOnboarding();
             if (_selectedTab != WorkshopScreen.TAB_EDITOR) return;
             _dock.Tick();
             ForwardDockHighlights();
@@ -106,6 +107,7 @@ namespace RuneCode
             _view.BackClicked -= ReturnFromDeploy;
             _session.Spells.Compiled -= RefreshHeader;
             _session.Spells.Compiled -= RecordCompileResult;
+            _session.Spells.GraphChanged -= CheckOnboardingConnection;
             _dockRun.Dispose();
         }
 
@@ -113,7 +115,9 @@ namespace RuneCode
 
         int ISpellEditorHost.Capacity => _session.Capacity;
 
-        int ISpellEditorHost.TestExecutionCount => _dockRun.Dock != null ? _dockRun.Dock.NodeExecutionCount : 0;
+        float ISpellEditorHost.MaxEnergy => _session.MaxEnergy;
+
+        float ISpellEditorHost.EnergyRegen => _session.EnergyRegen;
 
         bool ISpellEditorHost.CanSynthesizeRunes => !_session.IsTestMode;
 
@@ -127,8 +131,6 @@ namespace RuneCode
         }
 
         void ISpellEditorHost.FireTest() => _dockRun.FireDock();
-
-        void ISpellEditorHost.CompleteTutorial() => _session.AdvanceTutorial(3);
 
         /// <summary>탭을 바꾸고 진입한 탭의 내용과 헤더를 갱신한다. 에디터 탭을 떠나면 편집 패널을 닫고 도크를 멈춘다.</summary>
         private void SetTab(string tab)
@@ -166,8 +168,54 @@ namespace RuneCode
             _ui.OpenPopup<SettingsPopup>().Configure(_session, _ui, ShowEditorTab, RefreshProgression);
         }
 
-        /// <summary>처음 도움말을 열 때 Resources JSON을 읽어 보관하고 현재 화면을 유지한 채 공용 팝업에 전달한다.</summary>
+        /// <summary>헤더 도움말 버튼으로 가장 최근에 개방된 항목을 선택한 도움말을 연다.</summary>
         private void OpenHelp()
+        {
+            _ui.OpenPopup<EncyclopediaPopup>().Configure(LoadEncyclopedia(), _session.UnlockedHelpCount, 0);
+        }
+
+        /// <summary>온보딩 1단계에서 코어 노드가 행동 노드로 연결되면 2단계를 개방하고 해당 도움말을 연다.</summary>
+        private void CheckOnboardingConnection()
+        {
+            if (_session.Save.OnboardingStep != 1) return;
+            SpellGraph graph = _session.Spells.Graph;
+            foreach (GraphNode core in graph.Nodes)
+            {
+                if (core.RuneId != SpellGrammar.CORE_RUNE) continue;
+                foreach (GraphEdge edge in graph.Edges)
+                {
+                    if (edge.FromNode != core.Id) continue;
+                    GraphNode target = graph.FindNode(edge.ToNode);
+                    if (target == null || !GameData.Runes.TryGet(target.RuneId, out RuneDefinition rune)
+                        || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR) continue;
+                    _session.TryUnlockOnboarding(2);
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 세션에 대기 중인 자동 안내 하나를 목차 없는 안내 팝업으로 연다. 새 챕터를 먼저, 이벤트 안내를 들어온 순서로 다음에 연다.
+        /// 도움말 데이터에 해당 항목이 없으면 열지 않고 넘긴다. 열린 팝업이 없을 때 매 프레임 호출해 하나씩 차례로 띄운다.
+        /// </summary>
+        private void ShowPendingOnboarding()
+        {
+            int chapter = _session.ConsumePendingOnboarding();
+            if (chapter > 0)
+            {
+                EncyclopediaData data = LoadEncyclopedia();
+                EncyclopediaEntry entry = data?.Entries != null && chapter <= data.Entries.Count ? data.Entries[chapter - 1] : null;
+                if (entry != null) _ui.OpenPopup<OnboardingPopup>().Configure(entry.Title, entry.Pages);
+                return;
+            }
+            if (!_session.TryConsumePendingOnboardingEvent(out string eventId)) return;
+            EncyclopediaEvent onboardingEvent = LoadEncyclopedia()?.FindEvent(eventId);
+            if (onboardingEvent != null) _ui.OpenPopup<OnboardingPopup>().Configure(onboardingEvent.Title, onboardingEvent.Pages);
+            else Debug.LogWarning("게임 도움말 JSON에 이벤트 안내가 없습니다: " + eventId);
+        }
+
+        /// <summary>처음 호출될 때 Resources JSON을 읽어 보관하고 도움말 데이터를 반환한다. 읽지 못하면 null을 반환한다.</summary>
+        private EncyclopediaData LoadEncyclopedia()
         {
             if (!_hasLoadedEncyclopedia)
             {
@@ -185,7 +233,7 @@ namespace RuneCode
                     }
                 }
             }
-            _ui.OpenPopup<EncyclopediaPopup>().Configure(_encyclopedia);
+            return _encyclopedia;
         }
 
         /// <summary>도크를 다시 시작한 뒤 에디터 탭으로 전환하고 출격·헤더를 갱신한다.</summary>

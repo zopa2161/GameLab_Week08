@@ -161,7 +161,7 @@
       ],
       "_modifierRewards": [
         {
-          "_runeId": "behavior.launch",
+          "_runeId": "mod.multi",
           "_grade": "C",
           "_count": 1
         }
@@ -292,7 +292,7 @@
       ],
       "_modifierRewards": [
         {
-          "_runeId": "behavior.persist",
+          "_runeId": "behavior.burst",
           "_grade": "C",
           "_count": 1
         }
@@ -487,7 +487,7 @@
       ],
       "_modifierRewards": [
         {
-          "_runeId": "behavior.burst",
+          "_runeId": "mod.amplify",
           "_grade": "C",
           "_count": 1
         }
