@@ -55,6 +55,7 @@ namespace RuneCode
 
     /// <summary>
     /// elite_modifier_drops.json의 단일 로더(ModifierGradeTable)를 엘리트 드롭 조회 창구로 감싼다.
+    /// 21스테이지 이후는 스테이지 정의와 같이 11~20 표를 순환해 조회한다.
     /// 표에 없는 스테이지는 마지막 일반 스테이지의 확률을 쓰고(임시 규칙), 보스 스테이지는 엘리트 Modifier 드롭이 없다.
     /// </summary>
     public sealed class ModifierGradeDropSource : IEliteModifierDropSource
@@ -78,14 +79,14 @@ namespace RuneCode
         /// <summary>스테이지의 등급 확률을 등급 순서대로 반환한다. 보스 스테이지는 null, 표에 없는 스테이지는 마지막 일반 스테이지 확률이다.</summary>
         public IReadOnlyList<EliteModifierGradeChance> GetGradeChances(int stage)
         {
-            ModifierStageDropTable table = _table.GetStageDropTable(stage);
+            ModifierStageDropTable table = _table.GetStageDropTable(StageCatalog.ResolveDataStage(stage));
             return table == null ? _fallbackChances : ToChances(table.EliteModifierGradeChancesPercent, _table.GradeOrder);
         }
 
         /// <summary>스테이지의 행동 드롭 등급 확률을 행동 등급 순서대로 반환한다. 보스 스테이지는 null, 표에 없는 스테이지는 마지막 일반 스테이지 확률이다.</summary>
         public IReadOnlyList<EliteModifierGradeChance> GetBehaviorGradeChances(int stage)
         {
-            ModifierStageDropTable table = _table.GetStageDropTable(stage);
+            ModifierStageDropTable table = _table.GetStageDropTable(StageCatalog.ResolveDataStage(stage));
             return table == null ? _fallbackBehaviorChances : ToChances(table.BehaviorGradeChancesPercent, GameData.Runes.BehaviorGradeOrder);
         }
 
@@ -95,7 +96,7 @@ namespace RuneCode
         /// <summary>스테이지 클리어 Modifier 선택 보상 설정을 반환하고 없는 스테이지면 null을 반환한다.</summary>
         public EliteModifierClearChoice GetClearChoice(int stage)
         {
-            ModifierStageDropTable table = _table.GetStageDropTable(stage);
+            ModifierStageDropTable table = _table.GetStageDropTable(StageCatalog.ResolveDataStage(stage));
             if (table == null || !table.HasStageClearModifierReward) return null;
             List<EliteModifierGradeChance> slotChances = null;
             if (table.RewardSlotGradeChancesPercent != null)

@@ -12,6 +12,7 @@ namespace RuneCode
         public const int ONBOARDING_LAST_STEP = 6;
         public const string ONBOARDING_FIRST_DEFEAT = "firstDefeat";
         public const string ONBOARDING_STAGE_FIVE_ENTER = "stage5Enter";
+        public const string ONBOARDING_GAME_CLEAR = "gameClear";
 
         private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
         // 기본 마법 메소드 템플릿 ID다. 매직 미사일은 시작 마법 에너지 볼트와 같아 통합했으므로 지금은 비어 있다.

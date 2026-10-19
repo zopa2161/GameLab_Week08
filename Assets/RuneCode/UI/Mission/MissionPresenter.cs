@@ -22,6 +22,7 @@ namespace RuneCode
         private const float LOW_HEALTH_MAX_LEVEL = 0.4f;
         private const double PLAYER_DAMAGE_EPSILON = 0.000001;
         private const int ONBOARDING_ENTER_STAGE = 5;
+        private const int GAME_CLEAR_STAGE = 20;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -348,8 +349,15 @@ namespace RuneCode
             else SoundManager.Instance.PlayRoundDefeat();
         }
 
-        /// <summary>일반 보상 공개가 끝난 다음 프레임에 보스 선택 팝업을 한 번만 연다.</summary>
+        /// <summary>일반 보상 공개가 끝난 다음 프레임에 보스 선택 카드를 한 번만 펼치고, 같은 프레임에 게임 클리어 안내를 그 위에 연다.</summary>
         private void ShowPendingChoices()
+        {
+            ShowPendingChoiceCards();
+            ShowGameClearNotice();
+        }
+
+        /// <summary>보스 선택 보상이 있으면 후보 카드를 표시하고 없으면 숨긴다.</summary>
+        private void ShowPendingChoiceCards()
         {
             _hasPresentedChoices = true;
             if (_run.HasClearModifierChoices)
@@ -366,6 +374,23 @@ namespace RuneCode
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions, _run.ClearModifierGrades);
             }
             else _result.HideClearModifierChoices();
+        }
+
+        /// <summary>
+        /// 마지막 정규 스테이지를 처음 클리어했으면 게임 클리어 안내 팝업을 결과 창 위에 연다.
+        /// 팝업의 전체 화면 배경이 닫힐 때까지 뒤의 선택 카드와 결과 버튼 입력을 막는다.
+        /// </summary>
+        private void ShowGameClearNotice()
+        {
+            if (!_run.Simulation.Completed || _run.Simulation.StageNumber != GAME_CLEAR_STAGE
+                || !_session.TryMarkOnboardingEvent(PlayerSave.ONBOARDING_GAME_CLEAR)) return;
+            EncyclopediaEvent notice = EncyclopediaData.LoadResource()?.FindEvent(PlayerSave.ONBOARDING_GAME_CLEAR);
+            if (notice == null)
+            {
+                Debug.LogWarning("게임 도움말 JSON에 이벤트 안내가 없습니다: " + PlayerSave.ONBOARDING_GAME_CLEAR);
+                return;
+            }
+            _ui.OpenPopup<OnboardingPopup>().Configure(notice.Title, notice.Pages);
         }
 
         /// <summary>Modifier와 등급의 현재 효과를 보상 카드에 표시할 줄 단위 문구로 반환한다.</summary>
@@ -492,10 +517,10 @@ namespace RuneCode
             return 2 + grade * 2 + (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR ? 0 : 1);
         }
 
-        /// <summary>클리어 Modifier 후보를 지급하고 선택 확정 상태와 결과 문구를 갱신한다. 유효한 선택이 아니면 무시한다.</summary>
+        /// <summary>클리어 Modifier 후보를 지급하고 선택 확정 상태와 결과 문구를 갱신한다. 유효한 선택이 아니거나 안내 팝업이 열려 있으면 무시한다.</summary>
         private void ChooseClearModifier(int index)
         {
-            if (_run == null || !_run.ChooseClearModifier(index)) return;
+            if (_run == null || _ui.IsPopupOpen || !_run.ChooseClearModifier(index)) return;
             SetResultSummary();
             _result.HideClearModifierChoices();
         }

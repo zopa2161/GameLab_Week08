@@ -390,7 +390,7 @@ namespace RuneCode
         internal const int STAGE_CYCLE_LAST_STAGE = 20;
         internal const int ENDLESS_STAGE_START = 21;
         internal const int ENDLESS_HP_BASE_STAGE = 10;
-        internal const double ENDLESS_HP_SCALE_MULTIPLIER = 1.3;
+        internal const double ENDLESS_HP_SCALE_MULTIPLIER = 1.5;
         internal const double ENDLESS_HP_BASE_MULTIPLIER = 2;
 
         [Header("스테이지 루트")]
@@ -413,7 +413,7 @@ namespace RuneCode
         /// </summary>
         public StageDefinition Get(int stage)
         {
-            if (stage >= STAGE_CYCLE_START) stage = ResolveCycleStage(stage);
+            stage = ResolveDataStage(stage);
             for (int i = 0; i < _stages.Length; i++)
                 if (_stages[i].IsSingle && _stages[i].FromStage == stage) return _stages[i];
             for (int i = 0; i < _stages.Length; i++)
@@ -421,9 +421,13 @@ namespace RuneCode
             throw new FormatException("스테이지 정의가 없습니다: " + stage);
         }
 
-        /// <summary>21스테이지 이후 번호를 11~20스테이지 정의 하나로 순환 배치한다. 21→11, 22→12, … 30→20, 31→11 순서다.</summary>
-        private static int ResolveCycleStage(int stage)
+        /// <summary>
+        /// 스테이지 번호가 쓸 데이터의 스테이지 번호를 반환한다. 20스테이지까지는 그대로, 21스테이지 이후는 11~20 하나로 순환 배치한다.
+        /// 21→11, 22→12, … 30→20, 31→11 순서다. 스테이지 정의와 등급표 조회가 같은 순환 규칙을 쓴다.
+        /// </summary>
+        public static int ResolveDataStage(int stage)
         {
+            if (stage < STAGE_CYCLE_START) return stage;
             int cycleLength = STAGE_CYCLE_LAST_STAGE - STAGE_CYCLE_FIRST_STAGE + 1;
             return STAGE_CYCLE_FIRST_STAGE + (stage - STAGE_CYCLE_START) % cycleLength;
         }
