@@ -123,7 +123,7 @@ namespace RuneCode
         {
             if (_circleShield != null)
             {
-                bool hasShield = enemy.Definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD);
+                bool hasShield = enemy.HasCircleShield;
                 MissionWorldSpace.SetVisible(_circleShield, hasShield);
                 if (hasShield) MissionWorldSpace.Place(_circleShield, Vector2.zero, (float)enemy.Definition.ShieldRadius * 2, new Color(0.3f, 0.95f, 0.85f, 0.7f));
             }

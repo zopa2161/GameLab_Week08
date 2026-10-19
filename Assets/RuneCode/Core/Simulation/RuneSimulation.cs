@@ -1348,11 +1348,15 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 원형 쉴드에 막아 소멸한 발사체의 명중·소멸 이벤트를 모두 실행한다.
+        /// 발사체의 적중 보정과 피해 배율을 보호막 체력에 적용하고 명중·소멸 이벤트를 실행한다.
         /// OnHit과 첫 이벤트는 접촉 위치와 쉴드 소유자 대상으로, OnExpire는 개체 위치와 대상 없이 낸다.
         /// </summary>
         internal void RaiseShieldHitEvent(SimulationSpellEntity entity, SimVector contact, SimulationEnemy shieldOwner)
         {
+            double damage = entity.Stats.Damage;
+            bool isConsumed = true;
+            entity.ApplyHitModifiers(this, shieldOwner, ref damage, ref isConsumed);
+            shieldOwner.HurtShield(damage * _damageMultiplier * Adaptation.GetMultiplier(entity.Element, entity.Kind));
             RaiseHitEvent(entity, contact, shieldOwner);
             RaiseExpireEvent(entity);
         }
