@@ -81,7 +81,7 @@ namespace RuneCode
                 MissionWorldSpace.SetVisible(_coneRenderer, true);
                 if (spell.IsExpandingRing) ApplyExplosionRing(spell, tint, origin);
                 else if (spell.IsSlash) ApplySlash(spell);
-                else ApplyBeam(spell.BeamPath, spell.Position, spell.BoxWidth, tint, origin);
+                else ApplyBeam(spell.BeamPath, spell.Position, spell.BoxWidth, tint, origin, spell.BeamChargeProgress);
                 return;
             }
             float radius = (float)spell.Radius;
@@ -192,24 +192,34 @@ namespace RuneCode
             _coneMesh.SetTriangles(_coneTriangles, 0);
         }
 
-        /// <summary>지정 중심선과 기준 위치·폭·색상으로 실제 빔 또는 표시용 빔의 선분 메시를 갱신한다.</summary>
-        private void ApplyBeam(IReadOnlyList<SimVector> path, SimVector position, double width, Color tint, SimVector origin)
+        /// <summary>중심선 꼭짓점을 공유하는 연속 빔 메시를 위치·폭·색상으로 갱신한다. 충전 발광도 같은 띠로 연결해 굽은 구간의 틈과 중첩을 방지한다.</summary>
+        private void ApplyBeam(IReadOnlyList<SimVector> path, SimVector position, double width, Color tint, SimVector origin,
+            double chargeProgress = 0)
         {
             _coneVertices.Clear(); _coneColors.Clear(); _coneTriangles.Clear();
             Vector2 offset = MissionWorldSpace.ToWorld(position, origin);
             float halfWidth = MissionWorldSpace.ToWorldLength(width * 0.5);
-            for (int index = 1; index < path.Count; index++)
+            bool isEmpowered = chargeProgress > 0;
+            int bands = isEmpowered ? RuneMesh.BEAM_GLOW_BANDS : 1;
+            if (isEmpowered) halfWidth *= RuneMesh.BEAM_GLOW_WIDTH;
+            float brightness = 0.96f + 0.04f * Mathf.Sin(Time.unscaledTime * RuneMesh.BEAM_GLOW_PULSE_SPEED);
+            int rowSize = bands + 1;
+            for (int index = 0; index < path.Count; index++)
             {
-                Vector3 start = MissionWorldSpace.ToWorld(path[index - 1], origin) - offset;
-                Vector3 end = MissionWorldSpace.ToWorld(path[index], origin) - offset;
-                Vector3 direction = (end - start).normalized;
-                Vector3 normal = new Vector3(-direction.y, direction.x, 0) * halfWidth;
-                int vertex = _coneVertices.Count;
-                _coneVertices.Add(start - normal); _coneVertices.Add(start + normal);
-                _coneVertices.Add(end + normal); _coneVertices.Add(end - normal);
-                for (int corner = 0; corner < 4; corner++) _coneColors.Add(tint);
-                _coneTriangles.Add(vertex); _coneTriangles.Add(vertex + 1); _coneTriangles.Add(vertex + 2);
-                _coneTriangles.Add(vertex); _coneTriangles.Add(vertex + 2); _coneTriangles.Add(vertex + 3);
+                Vector3 point = MissionWorldSpace.ToWorld(path[index], origin) - offset;
+                Vector3 normal = (Vector3)RuneMesh.BeamJoinNormal(path, index) * halfWidth;
+                for (int band = 0; band <= bands; band++)
+                {
+                    float crossOffset = -1f + 2f * band / bands;
+                    Color color = isEmpowered ? RuneMesh.BeamGlowColor(tint, crossOffset, brightness, (float)chargeProgress) : tint;
+                    _coneVertices.Add(point + normal * crossOffset);
+                    _coneColors.Add(color);
+                    if (index == 0 || band == 0) continue;
+                    int current = index * rowSize + band;
+                    int previous = current - rowSize;
+                    _coneTriangles.Add(previous - 1); _coneTriangles.Add(previous); _coneTriangles.Add(current);
+                    _coneTriangles.Add(previous - 1); _coneTriangles.Add(current); _coneTriangles.Add(current - 1);
+                }
             }
             _coneMesh.Clear();
             _coneMesh.SetVertices(_coneVertices);

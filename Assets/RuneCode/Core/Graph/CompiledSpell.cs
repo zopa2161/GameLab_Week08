@@ -476,6 +476,9 @@ namespace RuneCode
         private readonly int _count;
         private readonly int _waveCount = 1;
         private readonly float _waveInterval;
+        private readonly float _beamEmpowerMultiplier = 1f;
+        private readonly float _beamEmpowerManaMultiplier = 1f;
+        private readonly float _beamEmpowerSizeMultiplier = 1f;
         private readonly SpellStats _stats;
         private readonly IReadOnlyList<string> _mods;
         private readonly IReadOnlyList<SpellModifierRules> _modifierRules;
@@ -537,6 +540,10 @@ namespace RuneCode
         public float Distance => _distance;
         public float ShieldAmount => _shieldAmount;
         public float ShieldSeconds => _shieldSeconds;
+        /// <summary>과충전 모드의 최대 충전 피해 배율이다. 모드가 없으면 1이다.</summary>
+        public float BeamEmpowerMultiplier => _beamEmpowerMultiplier;
+        public float BeamEmpowerManaMultiplier => _beamEmpowerManaMultiplier;
+        public float BeamEmpowerSizeMultiplier => _beamEmpowerSizeMultiplier;
         public float Power => _power;
         public float BuffDuration => _buffDuration;
         public float ExecutionSeconds => _executionSeconds;
@@ -625,6 +632,12 @@ namespace RuneCode
                 RuneStats modifierStats = mod.Stats;
                 string grade = SpellGrammar.GetModifierGrade(mod, modifierNode, modifierGrades);
                 ids.Add(mod.Id);
+                if (mod.Id == BeamEmpowerModifierRules.RUNE_ID)
+                {
+                    _beamEmpowerMultiplier = SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "beamEmpowerMultiplier", 2f);
+                    _beamEmpowerManaMultiplier = modifierGrades?.GetBeamEmpowerManaMultiplier(mod.Id, grade) ?? 2f;
+                    _beamEmpowerSizeMultiplier = modifierGrades?.GetBeamEmpowerSizeMultiplier(mod.Id, grade) ?? 3f;
+                }
                 energyMultiplier *= modifierGrades == null
                     ? ModifierGradeTable.DEFAULT_ENERGY_MULTIPLIER
                     : modifierGrades.GetEnergyMultiplier(mod.Id, grade);

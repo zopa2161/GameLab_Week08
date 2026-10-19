@@ -63,6 +63,13 @@ namespace RuneCode
             _presenter = new TitlePresenter(session, ui, this);
         }
 
+        /// <summary>Esc로 타이틀 환경 설정 열기를 알리고 입력을 소비한다. 열린 설정의 닫기는 공용 팝업 흐름이 처리한다.</summary>
+        public override bool HandleEscape()
+        {
+            SettingsClicked?.Invoke();
+            return true;
+        }
+
         /// <summary>일반 시작 버튼을 복제해 지정한 타이틀 메뉴 버튼을 만든다.</summary>
         private Button CreateMenuButton(string name, string labelText)
         {

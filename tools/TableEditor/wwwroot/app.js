@@ -664,7 +664,22 @@ function renderGradesView(table, main) {
       touch(); renderView();
     });
     row.appendChild(el("td", {}, effectSelect));
-    for (const grade of grades) row.appendChild(el("td", {}, gradeValueControl(effect, grade)));
+    for (const grade of grades) {
+      const cell = el("td", {}, gradeValueControl(effect, grade));
+      if (effect._effectType === "beamEmpowerMultiplier") {
+        for (const [key, label] of [["_beamEmpowerManaMultByGrade", "최대 마나"], ["_beamEmpowerSizeMultByGrade", "최대 빔 폭"]]) {
+          const values = effect[key] || {};
+          const input = el("input", { type: "number", min: "1", step: "0.01", value: values[grade] ?? "", style: "width:72px" });
+          input.addEventListener("change", () => {
+            effect[key] = effect[key] || {};
+            effect[key][grade] = Number(input.value);
+            touch();
+          });
+          cell.appendChild(el("div", {}, el("span", { class: "muted", text: label + " × " }), input));
+        }
+      }
+      row.appendChild(cell);
+    }
     const actions = el("td", { class: "item-actions" });
     actions.appendChild(el("button", { text: "삭제", onclick: () => { g._modifierGradeEffects.splice(index, 1); touch(); renderView(); } }));
     row.appendChild(actions);
@@ -1091,6 +1106,15 @@ const VALIDATORS = {
       }
       if (!grades.some(grade => values[grade] !== null && values[grade] !== undefined))
         errors.push({ level: "error", path: `${p}:_gradeValues`, msg: "값이 있는 등급이 하나 이상 있어야 합니다." });
+      if (effect._effectType === "beamEmpowerMultiplier") {
+        for (const key of ["_beamEmpowerManaMultByGrade", "_beamEmpowerSizeMultByGrade"]) {
+          for (const grade of grades) {
+            const multiplier = effect[key]?.[grade];
+            if (typeof multiplier !== "number" || !Number.isFinite(multiplier) || multiplier < 1)
+              errors.push({ level: "error", path: `${p}:${key}.${grade}`, msg: "1 이상의 유한한 배율이 필요합니다." });
+          }
+        }
+      }
     }
     for (const row of g._stageDropTables || []) {
       const p = `grades:${row._stage}스테이지`;

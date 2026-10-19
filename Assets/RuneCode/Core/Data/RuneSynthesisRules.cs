@@ -7,6 +7,7 @@ namespace RuneCode
     public static class RuneSynthesisRules
     {
         public const int MATERIAL_COUNT = 3;
+        public const int SCRAP_COST = 200;
         private static readonly string[] GRADES = { "C", "B", "A", "S" };
 
         public static IReadOnlyList<string> GradeOrder { get; } = Array.AsReadOnly(GRADES);

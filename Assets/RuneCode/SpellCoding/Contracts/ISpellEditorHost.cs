@@ -26,6 +26,9 @@ namespace RuneCode
         /// <summary>속성 조합의 등급 확률에 사용할 현재 선택 출격 스테이지다.</summary>
         int SynthesisStage { get; }
 
+        /// <summary>합성 비용 지불에 사용할 현재 보유 스크랩 수다.</summary>
+        int SynthesisScrap { get; }
+
         /// <summary>재료 룬 ID 3개와 등급으로 합성을 요청하고 성공 시 결과 룬·등급, 실패 시 오류를 반환한다.</summary>
         bool TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
             out string resultId, out string resultGrade, out string error);

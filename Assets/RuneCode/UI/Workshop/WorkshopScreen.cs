@@ -103,12 +103,12 @@ namespace RuneCode
             _showStageSelectionOnNextEntry = true;
         }
 
-        /// <summary>스테이지 선택 중 Esc를 누르면 이전 작업실 탭으로 돌아가고 입력 소비 여부를 반환한다.</summary>
+        /// <summary>Esc로 합성·스테이지 선택을 먼저 닫고, 일반 작업실 화면에서는 설정을 열어 입력을 소비한다.</summary>
         public override bool HandleEscape()
         {
             if (_spellEditor.IsSynthesisOpen) return _spellEditor.HandleSynthesisEscape();
-            if (!_deployRoot.gameObject.activeSelf) return false;
-            BackClicked?.Invoke();
+            if (_deployRoot.gameObject.activeSelf) BackClicked?.Invoke();
+            else SettingsClicked?.Invoke();
             return true;
         }
 

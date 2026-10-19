@@ -8,8 +8,15 @@ using RuneCode;
 public class SoundManager : MonoBehaviour
 {
     public float masterVolume = 1f;
+    public float sfxVolume = 1f;
+    public float musicVolume = 1f;
 
     private Bus masterBus;
+    private Bus sfxBus;
+    private Bus musicBus;
+
+    private const string MUSIC_STATE = "event:/BGM/MainMusic";
+
 
     private const string ENEMY_HIT_SOUND = "event:/SFX/Enemy/EnemyHit";
 
@@ -21,6 +28,7 @@ public class SoundManager : MonoBehaviour
     private const string SHOT_PERSIST_SOUND = "event:/SFX/Player/Behavior/ShotPersist";
     private const string SHOT_BURST_SOUND = "event:/SFX/Player/Behavior/ShotBurst";
     private const string PLAYER_HIT_SOUND = "event:/SFX/Player/Hit";
+    private const string SPAWN_BIG_SCRAP_SOUND = "event:/SFX/Player/SpawnBigScrap";
     private const string TAKE_BIG_SCRAP_SOUND = "event:/SFX/Player/TakeBigScrap";
     private const string TAKE_SCRAP_SOUND = "event:/SFX/Player/TakeScrap";
     private const string BURN_SOUND = "event:/SFX/Player/Elemental/Burn";
@@ -35,11 +43,14 @@ public class SoundManager : MonoBehaviour
     private const string UNLOCK_SKILL_TREE_SOUND = "event:/SFX/UI/UnlockSkillTree";
     private const string UPGRADE_SKILL_TREE_SOUND = "event:/SFX/UI/UpgradeSkillTree";
 
+    private EventInstance _musicInstance;
     private EventInstance _shotBeamInstance;
 
     public static SoundManager Instance { get; private set; }
 
     public float MasterVolume => masterVolume;
+    public float BGMVolume => musicVolume;
+    public float SFXVolume => sfxVolume;
 
     void Awake()
     {
@@ -51,14 +62,25 @@ public class SoundManager : MonoBehaviour
         Instance = this;
 
         masterBus = RuntimeManager.GetBus("bus:/");
-        SetMasterVolume(SaveStore.MasterVolume);
+        sfxBus = RuntimeManager.GetBus("bus:/SFX");
+        musicBus = RuntimeManager.GetBus("bus:/BGM");
+
+        SetVolumes(SaveStore.MasterVolume, SaveStore.BGMVolume, SaveStore.SFXVolume);
+
+        _musicInstance = RuntimeManager.CreateInstance(MUSIC_STATE);
+        SetMusicState(0);
+
     }
 
     /// <summary>확정한 음량을 0부터 1로 제한하고 FMOD 마스터 버스와 현재 음량에 한 번 적용한다.</summary>
-    public void SetMasterVolume(float volume)
+    public void SetVolumes(float masterVolume, float bgmVolume, float sfxVolume)
     {
-        masterVolume = Mathf.Clamp01(volume);
-        masterBus.setVolume(masterVolume);
+        this.masterVolume = Mathf.Clamp01(masterVolume);
+        masterBus.setVolume(this.masterVolume);
+        this.musicVolume = Mathf.Clamp01(bgmVolume);
+        musicBus.setVolume(this.musicVolume);
+        this.sfxVolume = Mathf.Clamp01(sfxVolume);
+        sfxBus.setVolume(this.sfxVolume);
     }
 
     void OnDestroy()
@@ -116,6 +138,11 @@ public class SoundManager : MonoBehaviour
         RuntimeManager.PlayOneShot(PLAYER_HIT_SOUND);
     }
 
+    public void PlaySpawnBigScrap()
+    {
+        RuntimeManager.PlayOneShot(SPAWN_BIG_SCRAP_SOUND);
+    }
+
     /// <summary>큰 스크랩 획득 효과음을 한 번 재생한다.</summary>
     public void PlayTakeBigScrap()
     {
@@ -161,8 +188,7 @@ public class SoundManager : MonoBehaviour
     /// <summary>스킬 트리 강화 효과음을 한 번 재생한다.</summary>
     public void PlayUpgradeSkillTree()
     {
-        PlaySelectSlotItem();
-        //RuntimeManager.PlayOneShot(UPGRADE_SKILL_TREE_SOUND);
+        RuntimeManager.PlayOneShot(UPGRADE_SKILL_TREE_SOUND);
     }
 
     public void PlayBurn()
@@ -198,4 +224,31 @@ public class SoundManager : MonoBehaviour
         _shotBeamInstance.release();
         _shotBeamInstance = default;
     }
+
+    /// <summary>
+    /// 지정한 인덱스에 해당하는 음악 상태로 전환합니다.
+    /// </summary>
+    /// <remarks>index가 유효한 범위(0 ≤ index < 컬렉션 크기)를 벗어나면 ArgumentOutOfRangeException이 발생할 수 있습니다.</remarks>
+    /// <param name="index">0 = 기본 음악, 1 = 전투 음악</param>
+    public void SetMusicState(int index)
+    {
+        _musicInstance.stop(FMOD.Studio.STOP_MODE.IMMEDIATE);
+
+        switch (index)
+        {
+            case 0:
+                _musicInstance.setParameterByName("GameState", 0);
+                //RuntimeManager.StudioSystem.setParameterByName("GameState", 0);
+                break;
+            case 1:
+                _musicInstance.setParameterByName("GameState", 1);
+                //RuntimeManager.StudioSystem.setParameterByName("GameState", 1);
+                break;
+            default:
+                throw new System.ArgumentOutOfRangeException(nameof(index), "음악 인덱스 오류");
+        }
+        _musicInstance.start();
+    }
+
+
 }

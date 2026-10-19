@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -48,6 +48,7 @@ namespace RuneCode
         private readonly double _moveSpeedMultiplier;
         private readonly double _scrapGainMultiplier;
         private readonly double _scrapPickupRangeMultiplier;
+        private readonly double _scrapHealRatio;
         private readonly double _killEnergyBonus;
         private readonly List<SimulationEnemy> _enemies = new List<SimulationEnemy>();
         private readonly List<SimulationSpellEntity> _spellEntities = new List<SimulationSpellEntity>();
@@ -109,6 +110,7 @@ namespace RuneCode
         private int _collectedFragments;
         private int _normalScrapPickupEventCount;
         private int _bigScrapPickupEventCount;
+        private int _bigScrapSpawnEventCount;
         private double _scrapRemainder;
         private double _totalDamage;
         private double _statusDamage;
@@ -249,6 +251,7 @@ namespace RuneCode
         public int CollectedFragments => _collectedFragments;
         public int NormalScrapPickupEventCount => _normalScrapPickupEventCount;
         public int BigScrapPickupEventCount => _bigScrapPickupEventCount;
+        public int BigScrapSpawnEventCount => _bigScrapSpawnEventCount;
         public int Fragments => _collectedFragments;
         /// <summary>플레이어가 직접 줍거나 스테이지 클리어 시 회수한 스크랩 누계를 반환한다.</summary>
         public int EarnedFragments => _collectedFragments;
@@ -276,10 +279,10 @@ namespace RuneCode
         /// <summary>명시적으로 열린 디버그 기능에서 플레이어 무적 상태를 변경한다.</summary>
         public void SetDebugInvulnerable(bool isInvulnerable) { _debugInvulnerable = isInvulnerable; }
 
-        /// <summary>시드, 스테이지와 트리 능력치·처치 전력 보너스를 받아 독립 전투 또는 시험 도크를 생성한다. 생략한 배율은 1, 보너스는 0을 사용한다.</summary>
+        /// <summary>시드, 스테이지와 트리 능력치·처치 전력 보너스·스크랩 회복 비율을 받아 독립 전투 또는 시험 도크를 생성한다. 생략한 배율은 1, 보너스는 0을 사용한다.</summary>
         public RuneSimulation(int seed = 1, bool isMission = false, double maxHp = 0, double maxEnergy = 0, int stageNumber = 1, double energyRegen = 0,
             double damageMultiplier = 1, double moveSpeedMultiplier = 1, double scrapGainMultiplier = 1, CarrierDefinition carrier = null,
-            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0)
+            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0)
         {
             GameData.Load();
             _killEnergyBonus = Math.Max(0, killEnergyBonus);
@@ -300,6 +303,7 @@ namespace RuneCode
             _moveSpeedMultiplier = moveSpeedMultiplier;
             _scrapGainMultiplier = scrapGainMultiplier;
             _scrapPickupRangeMultiplier = scrapPickupRangeMultiplier;
+            _scrapHealRatio = Math.Max(0, Math.Min(1, scrapHealRatio));
             _spawnSlots = new SpawnSlots(NextRandom);
             _isSeparationFixed = IsSeparationFixed;
             Adaptation = new AdaptationNet(_balance);
@@ -576,6 +580,7 @@ namespace RuneCode
             _freezeStartEventCount = 0;
             _normalScrapPickupEventCount = 0;
             _bigScrapPickupEventCount = 0;
+            _bigScrapSpawnEventCount = 0;
             _actionBudgetTick = -1; _actionsThisTick = 0; _droppedExecutions = 0;
             SimulationBalance bench = _balance.Sim;
             _map = new MissionMap(_sector.Rooms[0].Tiles, _sector.TileSize); _player = new SimulationPlayer(_maxHp, _maxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
@@ -633,7 +638,7 @@ namespace RuneCode
             state.Append('|').Append(_aimPoint.HasValue);
             if (_aimPoint.HasValue) { AppendNumber(state, _aimPoint.Value.X); AppendNumber(state, _aimPoint.Value.Y); }
             AppendNumber(state, _damageMultiplier); AppendNumber(state, _moveSpeedMultiplier);
-            AppendNumber(state, _scrapGainMultiplier); AppendNumber(state, _scrapPickupRangeMultiplier); AppendNumber(state, _scrapRemainder);
+            AppendNumber(state, _scrapGainMultiplier); AppendNumber(state, _scrapPickupRangeMultiplier); AppendNumber(state, _scrapHealRatio); AppendNumber(state, _scrapRemainder);
             _player.WriteState(state);
             foreach (SimulationEnemy enemy in _enemies) enemy.WriteState(state);
             foreach (EnemyStatusEffect status in _enemyStatuses) status.WriteState(state);
@@ -802,7 +807,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>직접 공격 빔을 기존 구간 비용으로 갱신하거나 최초 비용을 결제하고 원래 분기·실행 시간 뒤 생성 예약한다.</summary>
+        /// <summary>직접 빔은 원본 구간 비용에 현재 충전 마나 배율을 적용해 갱신한다. 최초 비용은 원래대로 결제하고 생성 예약한다.</summary>
         private void ExecuteBeamCycle(SpellAction action, SpellContext context, ExecutionTracker tracker, int branchDelayTicks)
         {
             if (_actionBudgetTick != _tick) { _actionBudgetTick = _tick; _actionsThisTick = 0; }
@@ -832,6 +837,8 @@ namespace RuneCode
             ResourceCostSet costs = active != null ? active.CycleCosts
                 : root.Spell.GetBeamCycleCosts(action, _balance.Sim.ExecutionTimeScale,
                     context.Modifiers, context.CostMultiplier, context.IsManaPrepaid, context.CallEvents);
+            if (active != null)
+                costs = costs.WithAmount("mana", costs.GetAmount("mana") * active.GetManaMultiplier(_tick));
             if (!TrySpendBeamCosts(costs))
             {
                 active?.Stop();
@@ -1891,7 +1898,9 @@ namespace RuneCode
                     {
                         // 오브에 실제로 담기는 크레딧을 한 번만 산출해 나머지 누적이 이중 반영되지 않게 한다.
                         droppedCredits = ScaleKillScrap(enemy.Reward);
-                        _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits, enemy.IsElite || enemy.Boss != null));
+                        bool isBigScrap = enemy.IsElite || enemy.Boss != null;
+                        _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits, isBigScrap));
+                        if (isBigScrap) _bigScrapSpawnEventCount++;
                     }
                     string dropTableId = enemy.CarrierOwnerId == 0 ? GetDropTableId(enemy) : null;
                     if (dropTableId != null) RollDropTable(_drops.Get(dropTableId), enemy.Position);
@@ -1948,7 +1957,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>스크랩을 매 틱 플레이어에게 끌어당기고 도착한 오브의 재화와 일반·강력한 적 드롭별 획득 횟수를 더한다.</summary>
+        /// <summary>스크랩을 매 틱 끌어당기고 도착한 오브의 재화·획득 횟수를 더하며 살아 있는 플레이어의 최대 체력 비율만큼 회복한다.</summary>
         private void CollectNearbyOrbs()
         {
             for (int i = _orbs.Count - 1; i >= 0; i--)
@@ -1958,6 +1967,7 @@ namespace RuneCode
                 if (hasArrived)
                 {
                     _collectedFragments += orb.Amount;
+                    if (_scrapHealRatio > 0 && _player.Hp > 0) _player.Heal(_player.MaxHp * _scrapHealRatio);
                     if (orb.IsBigScrap) _bigScrapPickupEventCount++;
                     else _normalScrapPickupEventCount++;
                     _orbs.RemoveAt(i);

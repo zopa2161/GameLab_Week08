@@ -326,7 +326,7 @@ namespace RuneCode
             }
             if (SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
             {
-                DrawBeamPath(mesh, spell.BeamPath, spell.BoxWidth, spell.Element);
+                DrawBeamPath(mesh, spell.BeamPath, spell.BoxWidth, spell.Element, spell.BeamChargeProgress);
                 return;
             }
             Vector2 point = Point(spell.Position);
@@ -352,12 +352,13 @@ namespace RuneCode
                 mesh.AddTriangle(first + _slashTriangles[index], first + _slashTriangles[index + 1], first + _slashTriangles[index + 2]);
         }
 
-        /// <summary>지정 중심선·폭·속성으로 실제 빔과 첫 판정 표시 기록을 동일한 모양으로 그린다.</summary>
-        private void DrawBeamPath(UnityEngine.UI.VertexHelper mesh, IReadOnlyList<SimVector> path, double width, string element)
+        /// <summary>중심선·폭·속성으로 빔을 그리고 강화 상태는 경계 없이 투명해지는 발광으로 표시한다.</summary>
+        private void DrawBeamPath(UnityEngine.UI.VertexHelper mesh, IReadOnlyList<SimVector> path, double width, string element,
+            double chargeProgress = 0)
         {
             Color tint = RuneMesh.ElementColor(element);
-            for (int index = 1; index < path.Count; index++)
-                RuneMesh.Line(mesh, Point(path[index - 1]), Point(path[index]), (float)width * _scale, tint);
+            float brightness = 0.96f + 0.04f * Mathf.Sin(Time.unscaledTime * RuneMesh.BEAM_GLOW_PULSE_SPEED);
+            RuneMesh.BeamPath(mesh, path, _origin, _scale, (float)width, tint, brightness, (float)chargeProgress);
         }
 
         /// <summary>
