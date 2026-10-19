@@ -11,9 +11,10 @@ namespace RuneCode
         public override string RuneId => RUNE_ID;
         public override SpellModifierCategory Category => SpellModifierCategory.Placement;
 
-        /// <summary>발사 행동과 폭발 행동에만 장착할 수 있다.</summary>
+        /// <summary>발사·폭발·참격 행동에 장착할 수 있다.</summary>
         public override bool CanAttachTo(SpellBehaviorRules behavior)
-            => behavior != null && (behavior.RuneId == "behavior.launch" || behavior.RuneId == "behavior.burst");
+            => behavior != null && (behavior.RuneId == "behavior.launch" || behavior.RuneId == "behavior.burst"
+                || behavior.RuneId == SlashBehaviorRules.RUNE_ID);
 
         /// <summary>
         /// 등급표의 회차 수 값이 있으면 그 값으로, 없으면 모드 수치의 회차 수(0 이하면 1)로 실행 회차를 바꾼다.

@@ -101,6 +101,9 @@ namespace RuneCode
             RuneStats burst = runes.Get("form.burst").Stats;
             if (burst.Speed <= 0 || burst.Lifetime <= 0 || burst.Radius <= 0 || burst.ConeAngle != 360)
                 throw new FormatException("폭발의 속도·수명·두께 반경은 양수, 파동 각도는 360이어야 합니다.");
+            RuneStats slash = runes.Get("form.slash").Stats;
+            if (slash.Radius <= 0 || slash.BeamWidth <= 0 || slash.Lifetime <= 0 || slash.ConeAngle <= 0 || slash.ConeAngle > 360)
+                throw new FormatException("참격의 칼날 길이·두께·수명은 양수, 회전각은 0도 초과 360도 이하여야 합니다.");
         }
 
         /// <summary>

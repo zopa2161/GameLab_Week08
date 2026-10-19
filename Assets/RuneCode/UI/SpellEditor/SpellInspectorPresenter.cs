@@ -60,6 +60,7 @@ namespace RuneCode
                 case "behavior.persist": effect = "일정 시간 유지되는 장판을 생성합니다."; break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
                 case "behavior.burst": effect = GameData.L("ui.burstHint"); break;
+                case SlashBehaviorRules.RUNE_ID: effect = GameData.L("ui.slashHint"); break;
                 case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
                 default: effect = string.Empty; break;
             }
@@ -720,6 +721,14 @@ namespace RuneCode
         {
             if (action?.Stats == null) return;
             SpellStats stats = action.Stats;
+            if (action.Form == SlashBehaviorRules.KIND)
+            {
+                _view.AddNote(GameData.L("ui.slashLength") + " " + stats.Radius.ToString("0.#") + "px\n"
+                    + GameData.L("ui.slashWidth") + " " + stats.BoxWidth.ToString("0.#") + "px\n"
+                    + GameData.L("ui.slashAngle") + " " + action.ConeAngle.ToString("0.#") + "°\n"
+                    + GameData.L("ui.slashDuration") + " " + stats.Lifetime.ToString("0.##") + "s", 90, 6);
+                return;
+            }
             if (action.Rules?.DisplayType == SpellDisplayType.ExpandingRing)
             {
                 float angle = action.ConeAngle;

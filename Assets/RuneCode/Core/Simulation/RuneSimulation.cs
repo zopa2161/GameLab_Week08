@@ -156,6 +156,19 @@ namespace RuneCode
         /// <summary>다중 분산을 제외하고 포인터를 최대 사거리로만 제한한 기본 범위 미리보기 위치를 반환한다.</summary>
         public SimVector GetAreaPreviewPosition(SimVector pointer) => ClampAreaTargetPosition(pointer, _player.Position);
 
+        /// <summary>범위 조준 미리보기의 위치와 방향을 반환한다. 참격은 시전자 중심과 다중 퍼짐 방향을 사용한다.</summary>
+        public void GetRangePreview(SpellAction action, SimVector pointer, int index, out SimVector position, out SimVector direction)
+        {
+            SimVector delta = pointer - _player.Position;
+            direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : _player.AimDirection;
+            position = GetAreaPreviewPosition(pointer);
+            if (action.Form != SlashBehaviorRules.KIND) return;
+            position = _player.Position;
+            foreach (SpellModifierRules rule in action.ModifierRules)
+                if (SpellModifierRuntimeRegistry.TryGet(rule.RuneId, out SpellModifierRuntime modifier))
+                    modifier.BeforePlaceSpawn(this, action, action.Stats, index, ref position, ref direction);
+        }
+
         /// <summary>시전자 위치를 중심으로 포인터를 공통 최대 사거리 안에 제한하여 반환한다. 최소 거리는 없다.</summary>
         private SimVector ClampAreaTargetPosition(SimVector pointer, SimVector origin)
         {
@@ -1115,6 +1128,7 @@ namespace RuneCode
                 if (_spellEntities.Count >= _balance.Limits.MaxLiveSpellEntities) return;
                 SimVector direction = context.Direction;
                 SimVector position = context.Origin;
+                if (action.Form == SlashBehaviorRules.KIND && !context.FromEvent) direction = context.Caster.AimDirection;
                 foreach (SpellModifierRuntime modifier in modifiers) modifier.BeforePlaceSpawn(this, action, stats, i, ref position, ref direction);
                 behavior.PlaceSpawn(this, action, stats, i, context.FromEvent, context.Caster, ref position, ref direction);
                 foreach (SpellModifierRuntime modifier in modifiers) modifier.AfterPlaceSpawn(this, action, stats, i, ref position, ref direction);
@@ -1131,6 +1145,7 @@ namespace RuneCode
                 var entity = new SimulationSpellEntity(++_nextEntityId, action, stats, element, position, direction,
                     context.FromEvent, context.Origin, angle, context.NoiseElement, _balance.Sim.SpellVisualSeconds, warmup,
                     context.CallEvents, context.Modifiers, context.CostMultiplier, context.Caster);
+                if (entity.BehaviorState is SlashBehaviorRuntime.SlashState slash) slash.SetAnchorTarget(context.Target);
                 RecordActionSpawn(action, context);
                 _spellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _spellEntities.Count);
                 if (action.Form == SpellGrammar.FORM_BOLT) _shotLaunchEventCount++;
@@ -1341,7 +1356,7 @@ namespace RuneCode
             if (tracksDirectHit) entity.HasDirectHit = true;
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action);
-            bool isFirstEvent = tracksDirectHit && entity.TryMarkFirstEvent();
+            bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
             ExecuteCallEvent(entity, true, isFirstEvent, position, target);
@@ -1846,7 +1861,7 @@ namespace RuneCode
         {
             SpellContext context = new SpellContext(entity.Position, entity.Direction, null, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id);
-            bool isFirstEvent = entity.Behavior.TracksDirectHit && entity.TryMarkFirstEvent();
+            bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             Execute(entity.Action.OnExpire, context);
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
             ExecuteCallEvent(entity, false, isFirstEvent, entity.Position, null);

@@ -533,6 +533,16 @@ namespace RuneCode
         /// <summary>생성 위치를 중심으로 원형 파동이 확장하는 폭발 투사체인지 반환한다.</summary>
         public bool IsExpandingRing => _action.Rules?.DisplayType == SpellDisplayType.ExpandingRing;
 
+        /// <summary>중심을 따라 회전하는 참격 개체인지 반환한다.</summary>
+        public bool IsSlash => _action.Form == SlashBehaviorRules.KIND;
+
+        /// <summary>참격의 판정과 표시가 공유하는 벽으로 제한된 현재 칼날 중심선을 반환한다.</summary>
+        public IReadOnlyList<SimVector> SlashPath => _behaviorState is SlashBehaviorRuntime.SlashState slash
+            ? slash.Path : Array.Empty<SimVector>();
+
+        /// <summary>참격의 마지막 판정 회전 진행률을 반환한다. 표시는 아직 지나가지 않은 범위에 잔상을 만들지 않는다.</summary>
+        public double SlashProgress => _behaviorState is SlashBehaviorRuntime.SlashState slash ? slash.Progress : 0;
+
         /// <summary>폭발의 생성 후 시간과 확장·속도 배율을 반영한 파동 반경이다.</summary>
         public double ExplosionRadius => _stats.Speed * _age;
 

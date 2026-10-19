@@ -79,6 +79,9 @@ namespace RuneCode
 
         private readonly List<TextMeshProUGUI> _damageLabels = new List<TextMeshProUGUI>();
         private readonly BeamFlashPresentation _beamFlashPresentation = new BeamFlashPresentation();
+        private readonly List<Vector3> _slashVertices = new List<Vector3>();
+        private readonly List<Color> _slashColors = new List<Color>();
+        private readonly List<int> _slashTriangles = new List<int>();
         private readonly Vector2[] _arcPoints = new Vector2[ARC_SEGMENTS + 1];
         private Func<RuneSimulation> _simulation;
         private Func<bool> _screenShake;
@@ -164,15 +167,20 @@ namespace RuneCode
             Mouse mouse = Mouse.current;
             if (mouse == null || !TryGetPointer(mouse.position.ReadValue(), out SimVector pointer)) return;
             Vector2 center = Point(sim.Player.Position);
-            SimVector delta = pointer - sim.Player.Position;
-            SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : sim.Player.AimDirection;
             foreach (CompiledSpell spell in sim.Loadout)
             {
                 if (spell == null) continue;
                 foreach (SpellAction action in spell.Root)
                 {
                     if (!RuneSimulation.CanShowAreaPreview(action)) continue;
-                    DrawAreaPreview(mesh, action, Point(sim.GetAreaPreviewPosition(pointer)), direction);
+                    bool isSlash = action.Form == SlashBehaviorRules.KIND;
+                    int count = isSlash ? action.Count : 1;
+                    for (int index = 0; index < count; index++)
+                    {
+                        sim.GetRangePreview(action, pointer, index, out SimVector position, out SimVector direction);
+                        DrawAreaPreview(mesh, action, Point(position), direction);
+                    }
+                    if (isSlash) continue;
                     float radius = (float)sim.GetAreaPlacementRange() * _scale;
                     for (int segment = 0; segment < RANGE_SEGMENTS; segment += 2)
                     {
@@ -292,6 +300,11 @@ namespace RuneCode
         /// <summary>마법 개체를 범위형(폭발·잔류)과 이동형(발사·공전)으로 나눠 그린다.</summary>
         private void DrawSpell(UnityEngine.UI.VertexHelper mesh, SimulationSpellEntity spell)
         {
+            if (spell.IsSlash)
+            {
+                DrawSlash(mesh, spell);
+                return;
+            }
             if (spell.IsExpandingRing)
             {
                 Color explosionColor = RuneMesh.ElementColor(spell.Element);
@@ -325,6 +338,18 @@ namespace RuneCode
                 DrawAreaSpell(mesh, spell, point, radius, angle, tint);
             else
                 DrawMovingSpell(mesh, spell, point, radius, direction, angle, tint);
+        }
+
+        /// <summary>전투와 공유하는 참격 메시를 도크 중심 위치에 배치하여 곡선 잔상과 밝은 칼날을 표시한다.</summary>
+        private void DrawSlash(UnityEngine.UI.VertexHelper mesh, SimulationSpellEntity spell)
+        {
+            RuneMesh.BuildSlash(spell, _scale, _slashVertices, _slashColors, _slashTriangles);
+            Vector3 center = Point(spell.Position);
+            int first = mesh.currentVertCount;
+            for (int index = 0; index < _slashVertices.Count; index++)
+                mesh.AddVert(center + _slashVertices[index], _slashColors[index], Vector2.zero);
+            for (int index = 0; index < _slashTriangles.Count; index += 3)
+                mesh.AddTriangle(first + _slashTriangles[index], first + _slashTriangles[index + 1], first + _slashTriangles[index + 2]);
         }
 
         /// <summary>지정 중심선·폭·속성으로 실제 빔과 첫 판정 표시 기록을 동일한 모양으로 그린다.</summary>
