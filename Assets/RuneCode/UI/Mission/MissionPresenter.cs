@@ -371,6 +371,15 @@ namespace RuneCode
             object gradeValue = grades.GetGradeValue(rune.Id, grade);
             switch (grades.GetEffectType(rune.Id))
             {
+                case ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT:
+                    values.Add(GameData.L("ui.gradeEnergyConsumption") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
+                    break;
+                case "beamEmpowerMultiplier":
+                    values.Add("2초부터 강화 · 5초에 최대 충전");
+                    values.Add("최대 피해 ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
+                    values.Add("최대 마나 ×" + grades.GetBeamEmpowerManaMultiplier(rune.Id, grade).ToString("0.##"));
+                    values.Add("최대 빔 폭 ×" + grades.GetBeamEmpowerSizeMultiplier(rune.Id, grade).ToString("0.##"));
+                    break;
                 case "effectMultiplier":
                     values.Add(GameData.L("ui.gradeDamage") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
                     break;
@@ -544,9 +553,9 @@ namespace RuneCode
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
             _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount + "  ·  " + GameData.L("ui.fragments") + " " + sim.EarnedFragments);
-            string objective = sim.IsBossStage
-                ? GameData.L("ui.bossObjective") + " · " + sim.RemainingTime.ToString("0.0") + "s"
-                : GameData.L("ui.killProgress") + " " + sim.TargetKills + " / " + sim.KillTarget;
+            string objective = GameData.L(sim.IsBossStage ? "ui.bossObjective" : "ui.surviveObjective")
+                + " · " + sim.RemainingTime.ToString("0.0") + "s";
+            // 일반 스테이지는 시간이 다 되면 클리어이므로 경고 색은 보스 스테이지에만 쓴다.
             _hud.SetTimer(objective,
                 sim.IsBossStage && sim.RemainingTime <= TIMER_WARNING_SECONDS);
             string executionState = sim.HasActiveBeam(0) ? GameData.L("ui.beamActive") : sim.Player.IsSpellRunning(0)

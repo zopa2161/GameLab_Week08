@@ -15,7 +15,8 @@ namespace RuneCode
             new HomingModifierRules(),
             new PierceModifierRules(),
             new OrbitModifierRules(),
-            new SequenceModifierRules()
+            new SequenceModifierRules(),
+            new BeamEmpowerModifierRules()
         };
         private static readonly SpellModifierRules[] NONE = Array.Empty<SpellModifierRules>();
 

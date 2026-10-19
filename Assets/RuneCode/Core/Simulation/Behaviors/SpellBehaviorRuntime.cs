@@ -101,6 +101,9 @@ namespace RuneCode
         /// </summary>
         public virtual bool TracksDirectHit => false;
 
+        /// <summary>최초 적중 또는 미적중 소멸 이벤트를 추적하는지 반환한다. 직접 충돌과 별개로 추적할 수 있다.</summary>
+        public virtual bool TracksFirstEvent => TracksDirectHit;
+
         /// <summary>자연 소멸 시 OnExpire 이벤트를 내는지 나타낸다. 기본은 true다.</summary>
         public virtual bool RaisesExpireEvent => true;
 

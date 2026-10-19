@@ -47,7 +47,9 @@ namespace RuneCode
         private readonly bool[] _isStarted;
         private readonly double[] _startAngles;
         private readonly int[] _anchors;
+        private readonly SimVector[] _anchorPoints;
         private int _nextStreamTick;
+        private int _streamUnitIndex;
 
         /// <summary>
         /// 스테이지 정의의 기본 흐름과 웨이브 진형 설정을 읽고 웨이브의 첫 회차 시작 틱을 시작 시각으로 정한다.
@@ -68,6 +70,7 @@ namespace RuneCode
             _isStarted = new bool[groupCount];
             _startAngles = new double[groupCount];
             _anchors = new int[groupCount];
+            _anchorPoints = new SimVector[groupCount];
             _settings[STREAM_GROUP] = formations.Get(_stream.Formation).ToSettings();
             for (int wave = 0; wave < waveList.Count; wave++)
             {
@@ -82,8 +85,8 @@ namespace RuneCode
         public bool TryPeek(int tick, out SpawnOrder order) => TryFindNext(tick, out order, out _);
 
         /// <summary>
-        /// TryPeek로 확인한 스폰을 처리 완료로 표시한다. 기본 흐름은 밀린 스폰을 몰아서 내지 않게
-        /// 실제 스폰 틱 기준으로 다음 간격을 다시 계산하고, 웨이브 회차가 끝나면 반복 웨이브는
+        /// TryPeek로 확인한 스폰을 처리 완료로 표시한다. 기본 흐름은 묶음 크기만큼 같은 틱에 낸 뒤 진형 시작 상태를 해제하고,
+        /// 밀린 스폰을 몰아서 내지 않게 실제 스폰 틱 기준으로 다음 묶음 간격을 다시 계산한다. 웨이브 회차가 끝나면 반복 웨이브는
         /// 반복 간격만큼 뒤의 다음 회차와 진형 시작 상태를 해제하며, 1회 웨이브는 종료로 표시한다.
         /// </summary>
         public void Consume(int tick)
@@ -91,6 +94,9 @@ namespace RuneCode
             if (!TryFindNext(tick, out _, out int waveIndex)) return;
             if (waveIndex < 0)
             {
+                if (++_streamUnitIndex < _stream.GroupSize) return;
+                _streamUnitIndex = 0;
+                _isStarted[STREAM_GROUP] = false;
                 int current = Math.Max(_nextStreamTick, tick);
                 _nextStreamTick = current + _stream.GetIntervalTicks(_stageNumber, current, _tickRate);
                 return;
@@ -115,20 +121,29 @@ namespace RuneCode
         /// <summary>묶음이 처음 스폰할 때 정한 슬롯 시작 각도와 기준 슬롯을 기록한다.</summary>
         public void Start(int group, double startAngle, int anchor) { _isStarted[group] = true; _startAngles[group] = startAngle; _anchors[group] = anchor; }
 
+        /// <summary>맵형 무리 진형 묶음이 처음 스폰할 때 정한 무리 중심 맵 좌표를 기록한다. 슬롯 각도와 기준 슬롯은 쓰지 않는다.</summary>
+        public void StartAt(int group, SimVector anchorPoint) { Start(group, 0, -1); _anchorPoints[group] = anchorPoint; }
+
+        /// <summary>묶음의 무리 중심 맵 좌표를 반환한다. StartAt으로 시작한 묶음에서만 의미가 있다.</summary>
+        public SimVector GetAnchorPoint(int group) => _anchorPoints[group];
+
         /// <summary>묶음의 슬롯 시작 각도(라디안)를 반환한다.</summary>
         public double GetStartAngle(int group) => _startAngles[group];
 
         /// <summary>묶음의 기준 슬롯을 반환한다. 기준 슬롯을 쓰지 않으면 -1이다.</summary>
         public int GetAnchor(int group) => _anchors[group];
 
-        /// <summary>기본 흐름 커서, 웨이브별 회차 시작·순번·종료 여부와 시작된 묶음의 각도·기준 슬롯을 결정성 해시 버퍼에 기록한다.</summary>
+        /// <summary>기본 흐름 커서와 묶음 순번, 웨이브별 회차 시작·순번·종료 여부와 시작된 묶음의 각도·기준 슬롯·무리 중심을 결정성 해시 버퍼에 기록한다.</summary>
         public void WriteState(StringBuilder state)
         {
-            state.Append(_nextStreamTick).Append('|');
+            state.Append(_nextStreamTick).Append(':').Append(_streamUnitIndex).Append('|');
             for (int wave = 0; wave < _waves.Length; wave++)
                 state.Append(_waveStartTicks[wave]).Append(':').Append(_waveUnitIndices[wave]).Append(':').Append(_isWaveDone[wave]).Append('|');
             for (int group = 0; group < _isStarted.Length; group++)
-                if (_isStarted[group]) state.Append(group).Append(':').Append(_startAngles[group].ToString("R", CultureInfo.InvariantCulture)).Append(':').Append(_anchors[group]).Append('|');
+                if (_isStarted[group])
+                    state.Append(group).Append(':').Append(_startAngles[group].ToString("R", CultureInfo.InvariantCulture)).Append(':').Append(_anchors[group])
+                        .Append(':').Append(_anchorPoints[group].X.ToString("R", CultureInfo.InvariantCulture))
+                        .Append(':').Append(_anchorPoints[group].Y.ToString("R", CultureInfo.InvariantCulture)).Append('|');
         }
 
         /// <summary>
@@ -148,7 +163,7 @@ namespace RuneCode
                 bestTick = candidateTick; waveIndex = wave;
             }
             if (!hasStream && waveIndex < 0) { order = default; return false; }
-            if (waveIndex < 0) order = new SpawnOrder(_nextStreamTick, STREAM_GROUP, 0, 1, null);
+            if (waveIndex < 0) order = new SpawnOrder(_nextStreamTick, STREAM_GROUP, _streamUnitIndex, _stream.GroupSize, null);
             else
             {
                 WaveDefinition wave = _waves[waveIndex];

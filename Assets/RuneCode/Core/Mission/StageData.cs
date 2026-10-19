@@ -28,11 +28,9 @@ namespace RuneCode
         [SerializeField] private double _hpStageScale;
         [SerializeField] private double _damageStageScale;
         [SerializeField] private double _clearRewardStageScale;
-        [SerializeField] private double _killTargetStageScale;
         public double HpStageScale => _hpStageScale;
         public double DamageStageScale => _damageStageScale;
         public double ClearRewardStageScale => _clearRewardStageScale;
-        public double KillTargetStageScale => _killTargetStageScale;
 
         /// <summary>스테이지 번호로 체력 배율을 계산해 반환한다. 입력 stage는 1부터 시작한다.</summary>
         public double GetHpMultiplier(int stage) => 1 + (stage - 1) * _hpStageScale;
@@ -42,9 +40,6 @@ namespace RuneCode
 
         /// <summary>스테이지 기본 클리어 보상에 스테이지 번호 성장 계수를 적용한 보상을 반환한다.</summary>
         public int GetClearReward(int baseReward, int stage) => (int)Math.Round(baseReward * (1 + (stage - 1) * _clearRewardStageScale), MidpointRounding.AwayFromZero);
-
-        /// <summary>스테이지 기본 목표 처치 수에 스테이지 번호 성장 계수를 적용한 목표 처치 수를 반환한다.</summary>
-        public int GetKillTarget(int baseTarget, int stage) => (int)Math.Round(baseTarget * (1 + (stage - 1) * _killTargetStageScale), MidpointRounding.AwayFromZero);
     }
 
     [Serializable]
@@ -55,10 +50,26 @@ namespace RuneCode
         [SerializeField] private double _ringMargin;
         [SerializeField] private double _jitterScale;
         [SerializeField] private double _reinforcementGap;
+        [SerializeField] private double _warningSeconds;
+        [SerializeField] private double _minPlayerDistance;
+        [SerializeField] private double _maxPlayerDistance;
+        [SerializeField] private double _spawnGraceSeconds;
         public int RingSlots => _ringSlots;
         public double RingMargin => _ringMargin;
         public double JitterScale => _jitterScale;
         public double ReinforcementGap => _reinforcementGap;
+
+        /// <summary>맵형 스폰의 예고 표시부터 실제 생성까지의 시간(초)이다.</summary>
+        public double WarningSeconds => _warningSeconds;
+
+        /// <summary>맵형 스폰 위치가 플레이어와 떨어져야 하는 최소 거리다.</summary>
+        public double MinPlayerDistance => _minPlayerDistance;
+
+        /// <summary>맵형 스폰 위치가 플레이어와 떨어질 수 있는 최대 거리다. 0이면 제한하지 않는다.</summary>
+        public double MaxPlayerDistance => _maxPlayerDistance;
+
+        /// <summary>맵형 스폰으로 생성된 적이 접촉 피해를 주지 않는 생성 직후 시간(초)이다.</summary>
+        public double SpawnGraceSeconds => _spawnGraceSeconds;
     }
 
     [Serializable]
@@ -94,6 +105,7 @@ namespace RuneCode
         [SerializeField] private double _intraRamp;
         [SerializeField] private double _rampSeconds;
         [SerializeField] private string _formation;
+        [SerializeField] private int _groupSize;
         public IReadOnlyList<StreamCandidate> Candidates => _candidates;
         public double BaseInterval => _baseInterval;
         public double MinInterval => _minInterval;
@@ -102,7 +114,11 @@ namespace RuneCode
         public double RampSeconds => _rampSeconds;
         public string Formation => _formation;
 
-        /// <summary>스테이지 배율과 스테이지 내 경과 시간에 따른 가속을 반영해 다음 스폰까지의 틱 수를 반환한다. tick은 현재 틱 번호, tickRate는 초당 틱 수다.</summary>
+        /// <summary>한 번의 유입 간격마다 같은 틱에 묶어서 내는 적 수다. 데이터에 기재하지 않은 0은 1기로 본다.</summary>
+        public int GroupSize => _groupSize > 0 ? _groupSize : 1;
+        internal int RawGroupSize => _groupSize;
+
+        /// <summary>스테이지 배율과 스테이지 내 경과 시간에 따른 가속을 반영해 다음 묶음까지의 틱 수를 반환한다. tick은 현재 틱 번호, tickRate는 초당 틱 수다.</summary>
         public int GetIntervalTicks(int stage, int tick, int tickRate)
         {
             double time = tick * (1.0 / tickRate);
@@ -119,11 +135,12 @@ namespace RuneCode
         private readonly double _spacing;
         private readonly double _interval;
         private readonly int _slots;
+        private readonly double _radiusScale;
 
-        /// <summary>모양, 각도, 간격, 주기, 슬롯 수를 받아 읽기 전용 진형 설정을 만든다.</summary>
-        public FormationSettings(string shape, string angle, double spacing, double interval, int slots)
+        /// <summary>모양, 각도, 간격, 주기, 슬롯 수, 스폰 반경 배율을 받아 읽기 전용 진형 설정을 만든다.</summary>
+        public FormationSettings(string shape, string angle, double spacing, double interval, int slots, double radiusScale)
         {
-            _shape = shape; _angle = angle; _spacing = spacing; _interval = interval; _slots = slots;
+            _shape = shape; _angle = angle; _spacing = spacing; _interval = interval; _slots = slots; _radiusScale = radiusScale;
         }
 
         public string Shape => _shape;
@@ -131,6 +148,9 @@ namespace RuneCode
         public double Spacing => _spacing;
         public double Interval => _interval;
         public int Slots => _slots;
+
+        /// <summary>기본 스폰 반경에 곱할 배율이다. 0이면 데이터에 기재하지 않은 것으로 보고 1을 반환한다.</summary>
+        public double RadiusScale => _radiusScale > 0 ? _radiusScale : 1;
     }
 
     [Serializable]
@@ -143,16 +163,18 @@ namespace RuneCode
         [SerializeField] private double _spacing;
         [SerializeField] private double _interval;
         [SerializeField] private int _slots;
+        [SerializeField] private double _radiusScale;
         public string Id => _id;
         public string Shape => _shape;
         public string Angle => _angle;
         public double Spacing => _spacing;
         public double Interval => _interval;
         public int Slots => _slots;
+        public double RadiusScale => _radiusScale;
 
         /// <summary>직렬화 진형 정의를 런타임용 읽기 전용 설정으로 변환해 반환한다.</summary>
         public FormationSettings ToSettings()
-        { return new FormationSettings(_shape, _angle, _spacing, _interval, _slots); }
+        { return new FormationSettings(_shape, _angle, _spacing, _interval, _slots, _radiusScale); }
     }
 
     [Serializable]
@@ -170,14 +192,14 @@ namespace RuneCode
         public double Interval => _interval;
         public int Slots => _slots;
 
-        /// <summary>빈 문자열과 0인 값은 source의 원본 값을 쓰고 나머지는 이 재정의 값으로 덮어쓴 새 설정을 반환한다. shape는 항상 source를 따른다.</summary>
+        /// <summary>빈 문자열과 0인 값은 source의 원본 값을 쓰고 나머지는 이 재정의 값으로 덮어쓴 새 설정을 반환한다. shape와 스폰 반경 배율은 항상 source를 따른다.</summary>
         public FormationSettings ApplyTo(FormationSettings source)
         {
             string angle = string.IsNullOrEmpty(_angle) ? source.Angle : _angle;
             double spacing = _spacing == 0 ? source.Spacing : _spacing;
             double interval = _interval == 0 ? source.Interval : _interval;
             int slots = _slots == 0 ? source.Slots : _slots;
-            return new FormationSettings(source.Shape, angle, spacing, interval, slots);
+            return new FormationSettings(source.Shape, angle, spacing, interval, slots, source.RadiusScale);
         }
     }
 
@@ -277,7 +299,6 @@ namespace RuneCode
         [SerializeField] private string _kind;
         [SerializeField] private double _timeLimit;
         [SerializeField] private int _clearReward;
-        [SerializeField] private int _killTarget;
         [SerializeField] private StreamDefinition _stream;
         [SerializeField] private WaveDefinition[] _waves;
         [SerializeField] private int _eliteEvery;
@@ -286,9 +307,10 @@ namespace RuneCode
         public int FromStage => _fromStage;
         public int ToStage => _toStage;
         public string Kind => _kind;
+
+        /// <summary>일반 스테이지는 버티면 클리어하는 시간, 보스 스테이지는 보스를 처치해야 하는 제한 시간(초)이다.</summary>
         public double TimeLimit => _timeLimit;
         public int ClearReward => _clearReward;
-        public int KillTarget => _killTarget;
         public StreamDefinition Stream => _stream;
         public IReadOnlyList<WaveDefinition> Waves => _waves ?? Array.Empty<WaveDefinition>();
         public int EliteEvery => _eliteEvery;
@@ -328,7 +350,7 @@ namespace RuneCode
         public bool Has(string id)
         { for (int i = 0; i < _formations.Length; i++) if (_formations[i].Id == id) return true; return false; }
 
-        /// <summary>JSON 진형 설정을 읽어 배열 구성, ID 중복, 모양·각도·값 범위와 유한값을 검증한다.</summary>
+        /// <summary>JSON 진형 설정을 읽어 배열 구성, ID 중복, 모양·각도·값 범위(스폰 반경 배율 포함)와 유한값을 검증한다.</summary>
         public static FormationCatalog FromJson(string json)
         {
             var catalog = JsonUtility.FromJson<FormationCatalog>(json);
@@ -338,9 +360,14 @@ namespace RuneCode
             {
                 if (string.IsNullOrEmpty(formation.Id) || !ids.Add(formation.Id)) throw new FormatException("진형 ID가 비었거나 중복입니다: " + formation.Id);
                 if (!SpawnFormations.IsKnownShape(formation.Shape)) throw new FormatException("구현되지 않은 진형 모양입니다: " + formation.Shape + " (진형 " + formation.Id + ")");
-                if (formation.Angle != "random" && formation.Angle != "ahead") throw new FormatException("진형 각도는 random 또는 ahead여야 합니다: " + formation.Id);
-                if (!IsFinite(formation.Spacing) || !IsFinite(formation.Interval)) throw new FormatException("진형 값은 유한해야 합니다: " + formation.Id);
-                if (formation.Spacing < 0 || formation.Interval < 0 || formation.Slots < 0) throw new FormatException("진형 값 범위 오류입니다: " + formation.Id);
+                if (formation.Angle != "random" && formation.Angle != "ahead" && formation.Angle != "fixed")
+                    throw new FormatException("진형 각도는 random, ahead 또는 fixed여야 합니다: " + formation.Id);
+                if (!IsFinite(formation.Spacing) || !IsFinite(formation.Interval) || !IsFinite(formation.RadiusScale))
+                    throw new FormatException("진형 값은 유한해야 합니다: " + formation.Id);
+                if (formation.Spacing < 0 || formation.Interval < 0 || formation.Slots < 0 || formation.RadiusScale < 0)
+                    throw new FormatException("진형 값 범위 오류입니다: " + formation.Id);
+                if (formation.Slots > 0 && !SpawnFormations.IsValidSlotCount(formation.Shape, formation.Slots))
+                    throw new FormatException("반원 진형 슬롯 수는 " + SpawnFormations.HALF_RING_SLOT_STEP + "의 배수여야 합니다: " + formation.Id);
             }
             return catalog;
         }
@@ -358,7 +385,6 @@ namespace RuneCode
         internal const int ENDLESS_CYCLE_LAST_STAGE = 10;
         internal const double ENDLESS_HP_SCALE_MULTIPLIER = 1.5;
         internal const double ENDLESS_HP_BASE_MULTIPLIER = 5;
-        internal const int ENDLESS_KILL_TARGET = 50;
 
         [Header("스테이지 루트")]
         [SerializeField] private StageMapSettings _map;
@@ -406,17 +432,6 @@ namespace RuneCode
                 + (stage - ENDLESS_CYCLE_LAST_STAGE) * Growth.HpStageScale * ENDLESS_HP_SCALE_MULTIPLIER;
         }
 
-        /// <summary>
-        /// 스테이지 목표 처치 수를 반환한다. 보스 스테이지는 0이고, 11스테이지부터는 50으로 고정하며,
-        /// 그 외에는 단일 항목은 데이터 값을, 범위 항목은 스테이지 성장 배율을 적용한 값을 쓴다.
-        /// </summary>
-        public int GetKillTarget(StageDefinition stage, int stageNumber)
-        {
-            if (stage.IsBoss) return 0;
-            if (stageNumber >= ENDLESS_STAGE_START) return ENDLESS_KILL_TARGET;
-            return stage.IsSingle ? stage.KillTarget : Growth.GetKillTarget(stage.KillTarget, stageNumber);
-        }
-
         /// <summary>적 ID의 보상을 반환하고 보상표에 없는 적은 fallback 값을 돌려준다.</summary>
         public int GetReward(string enemyId, int fallback)
         {
@@ -425,7 +440,7 @@ namespace RuneCode
             return fallback;
         }
 
-        /// <summary>JSON 스테이지 설정을 읽어 맵, 성장, 스폰, 보상, 스테이지 범위, 스트림, 웨이브, 엘리트 주기와 드롭 테이블 참조를 검증한다.</summary>
+        /// <summary>JSON 스테이지 설정을 읽어 맵, 성장, 스폰, 보상, 스테이지 범위, 스트림, 웨이브, 진형 슬롯 수, 엘리트 주기와 드롭 테이블 참조를 검증한다.</summary>
         public static StageCatalog FromJson(string json, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops)
         {
             var catalog = JsonUtility.FromJson<StageCatalog>(json);
@@ -435,25 +450,34 @@ namespace RuneCode
             ValidateRoot(catalog);
             ValidateRewards(catalog._rewards, enemies);
             var singleStages = new HashSet<int>();
-            foreach (StageDefinition stage in catalog._stages) ValidateStage(stage, enemies, formations, drops, singleStages);
+            foreach (StageDefinition stage in catalog._stages)
+            {
+                ValidateStage(stage, enemies, formations, drops, singleStages);
+                ValidateFormationSlots(stage, formations, catalog._spawn.RingSlots);
+            }
             catalog.Get(1); // 1스테이지를 담는 항목이 반드시 있어야 한다.
             return catalog;
         }
 
-        /// <summary>루트의 맵 칸수, 성장 배율, 스폰 설정, 정지 전진 속도 범위와 유한값을 확인한다.</summary>
+        /// <summary>루트의 맵 칸수, 성장 배율, 스폰 설정(맵형 스폰 예고·거리·유예 포함), 정지 전진 속도 범위와 유한값을 확인한다.</summary>
         private static void ValidateRoot(StageCatalog catalog)
         {
             if (catalog._map.RoomColumns < 1 || catalog._map.RoomRows < 1 || catalog._map.RoomsX < 1 || catalog._map.RoomsY < 1)
                 throw new FormatException("맵 칸수는 1 이상이어야 합니다.");
             if (!IsFinite(catalog._growth.HpStageScale) || !IsFinite(catalog._growth.DamageStageScale)
                 || catalog._growth.HpStageScale < 0 || catalog._growth.DamageStageScale < 0
-                || !IsFinite(catalog._growth.ClearRewardStageScale) || catalog._growth.ClearRewardStageScale < 0
-                || !IsFinite(catalog._growth.KillTargetStageScale) || catalog._growth.KillTargetStageScale < 0)
+                || !IsFinite(catalog._growth.ClearRewardStageScale) || catalog._growth.ClearRewardStageScale < 0)
                 throw new FormatException("성장 배율은 0 이상의 유한값이어야 합니다.");
             if (catalog._spawn.RingSlots < 1 || !IsFinite(catalog._spawn.RingMargin) || catalog._spawn.RingMargin < 0
                 || !IsFinite(catalog._spawn.JitterScale) || catalog._spawn.JitterScale < 0
                 || !IsFinite(catalog._spawn.ReinforcementGap) || catalog._spawn.ReinforcementGap < 0)
                 throw new FormatException("스폰 설정 값이 유효하지 않습니다.");
+            StageSpawnSettings spawn = catalog._spawn;
+            if (!IsFinite(spawn.WarningSeconds) || spawn.WarningSeconds < 0 || !IsFinite(spawn.SpawnGraceSeconds) || spawn.SpawnGraceSeconds < 0
+                || !IsFinite(spawn.MinPlayerDistance) || spawn.MinPlayerDistance < 0
+                || !IsFinite(spawn.MaxPlayerDistance) || spawn.MaxPlayerDistance < 0
+                || (spawn.MaxPlayerDistance > 0 && spawn.MaxPlayerDistance < spawn.MinPlayerDistance))
+                throw new FormatException("맵형 스폰 설정은 0 이상의 유한값이고 최대 거리는 0 또는 최소 거리 이상이어야 합니다.");
             if (!IsFinite(catalog._stationaryAdvanceSpeed) || catalog._stationaryAdvanceSpeed < 0)
                 throw new FormatException("정지 전진 속도는 0 이상의 유한값이어야 합니다.");
         }
@@ -469,18 +493,15 @@ namespace RuneCode
             }
         }
 
-        /// <summary>스테이지 항목의 번호 범위, 종류, 제한시간, 클리어 보상, 목표 처치 수, 단일 항목 중복과 스트림·웨이브를 확인한다.</summary>
+        /// <summary>스테이지 항목의 번호 범위, 종류, 생존·제한 시간, 클리어 보상, 단일 항목 중복과 스트림·웨이브를 확인한다.</summary>
         private static void ValidateStage(StageDefinition stage, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops, HashSet<int> singleStages)
         {
             if (stage.FromStage < 1) throw new FormatException("시작 스테이지는 1 이상이어야 합니다: 스테이지 " + stage.FromStage);
             if (stage.ToStage != 0 && stage.ToStage < stage.FromStage) throw new FormatException("종료 스테이지가 시작보다 앞섭니다: 스테이지 " + stage.FromStage);
             if (stage.Kind != "normal" && stage.Kind != "boss") throw new FormatException("스테이지 종류는 normal 또는 boss여야 합니다: " + stage.Kind + " (스테이지 " + stage.FromStage + ")");
             if (!IsFinite(stage.TimeLimit)) throw new FormatException("제한시간은 유한값이어야 합니다: 스테이지 " + stage.FromStage);
-            if (stage.IsBoss ? stage.TimeLimit <= 0 : stage.TimeLimit != 0)
-                throw new FormatException("보스 제한시간은 0보다 크고 일반 제한시간은 0이어야 합니다: 스테이지 " + stage.FromStage);
+            if (stage.TimeLimit <= 0) throw new FormatException("생존·제한 시간은 0보다 커야 합니다: 스테이지 " + stage.FromStage);
             if (stage.ClearReward < 0) throw new FormatException("클리어 보상은 0 이상이어야 합니다: 스테이지 " + stage.FromStage);
-            if (stage.IsBoss ? stage.KillTarget != 0 : stage.KillTarget < 1)
-                throw new FormatException("일반 스테이지 목표 처치 수는 1 이상, 보스 스테이지는 0이어야 합니다: 스테이지 " + stage.FromStage);
             if (stage.IsSingle && !singleStages.Add(stage.FromStage)) throw new FormatException("같은 번호의 단일 스테이지 항목이 중복됩니다: 스테이지 " + stage.FromStage);
             ValidateStream(stage, enemies, formations);
             ValidateWaves(stage, enemies, formations);
@@ -488,7 +509,7 @@ namespace RuneCode
             ValidateModifierRewards(stage);
         }
 
-        /// <summary>스트림의 후보 적, 시작 스테이지, 가중치, 간격 공식, 가속 구간, 진형 참조를 확인한다.</summary>
+        /// <summary>스트림의 후보 적, 시작 스테이지, 가중치, 간격 공식, 가속 구간, 묶음 크기, 진형 참조를 확인한다.</summary>
         private static void ValidateStream(StageDefinition stage, EnemyCatalog enemies, FormationCatalog formations)
         {
             StreamDefinition stream = stage.Stream;
@@ -509,6 +530,7 @@ namespace RuneCode
             if (stream.BaseInterval <= 0 || stream.MinInterval <= 0 || stream.MinInterval > stream.BaseInterval
                 || stream.StageScale < 0 || stream.IntraRamp < 0 || stream.IntraRamp >= 1 || stream.RampSeconds <= 0)
                 throw new FormatException("스트림 간격 설정 오류입니다: 스테이지 " + stage.FromStage);
+            if (stream.RawGroupSize < 0) throw new FormatException("스트림 묶음 크기는 0 이상이어야 합니다: 스테이지 " + stage.FromStage);
             if (!formations.Has(stream.Formation)) throw new FormatException("등록되지 않은 스트림 진형입니다: " + stream.Formation);
         }
 
@@ -520,8 +542,8 @@ namespace RuneCode
                 if (!IsFinite(wave.At) || wave.At < 0) throw new FormatException("웨이브 시각은 0 이상의 유한값이어야 합니다: 스테이지 " + stage.FromStage);
                 FormationOverride formation = wave.Formation;
                 if (formation == null || !formations.Has(formation.Id)) throw new FormatException("웨이브 진형 참조 오류입니다: 스테이지 " + stage.FromStage);
-                if (!string.IsNullOrEmpty(formation.Angle) && formation.Angle != "random" && formation.Angle != "ahead")
-                    throw new FormatException("웨이브 진형 각도는 random 또는 ahead여야 합니다: 스테이지 " + stage.FromStage);
+                if (!string.IsNullOrEmpty(formation.Angle) && formation.Angle != "random" && formation.Angle != "ahead" && formation.Angle != "fixed")
+                    throw new FormatException("웨이브 진형 각도는 random, ahead 또는 fixed여야 합니다: 스테이지 " + stage.FromStage);
                 if (!IsFinite(formation.Spacing) || formation.Spacing < 0 || !IsFinite(formation.Interval) || formation.Interval < 0 || formation.Slots < 0)
                     throw new FormatException("웨이브 진형 값 오류입니다: 스테이지 " + stage.FromStage);
                 if (wave.Units == null || wave.Units.Count == 0) throw new FormatException("웨이브에 유닛이 없습니다: 스테이지 " + stage.FromStage);
@@ -540,6 +562,22 @@ namespace RuneCode
                 if (wave.RepeatInterval <= (wave.UnitCount - 1) * interval)
                     throw new FormatException("반복 간격은 한 회차의 유닛 배출 시간보다 길어야 합니다: 스테이지 " + stage.FromStage);
             }
+        }
+
+        /// <summary>스트림과 웨이브가 실제로 쓰는 슬롯 수(진형·재정의 값, 0이면 루트 링 슬롯 수)가 진형 모양에 맞는지 확인한다.</summary>
+        private static void ValidateFormationSlots(StageDefinition stage, FormationCatalog formations, int ringSlots)
+        {
+            CheckFormationSlots(formations.Get(stage.Stream.Formation).ToSettings(), ringSlots, stage.FromStage);
+            foreach (WaveDefinition wave in stage.Waves)
+                CheckFormationSlots(wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings()), ringSlots, stage.FromStage);
+        }
+
+        /// <summary>진형 설정의 슬롯 수(0이면 ringSlots)가 모양에 맞지 않으면 데이터 오류를 발생시킨다.</summary>
+        private static void CheckFormationSlots(FormationSettings settings, int ringSlots, int stageNumber)
+        {
+            int slots = settings.Slots > 0 ? settings.Slots : ringSlots;
+            if (!SpawnFormations.IsValidSlotCount(settings.Shape, slots))
+                throw new FormatException("반원 진형 슬롯 수는 " + SpawnFormations.HALF_RING_SLOT_STEP + "의 배수여야 합니다: 스테이지 " + stageNumber);
         }
 
         /// <summary>Modifier 보상의 룬 ID가 비어 있지 않고 수량이 1 이상인지 확인한다. 룬 존재 여부는 지급 시 확인한다.</summary>

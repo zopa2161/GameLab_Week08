@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 using UnityEngine;
 
 namespace RuneCode
@@ -5,6 +7,137 @@ namespace RuneCode
     internal static class RuneMesh
     {
         private const float EXPLOSION_SEGMENT_ANGLE = 2f;
+        private const int SLASH_TRAIL_SEGMENTS = 20;
+        private const float SLASH_TRAIL_ALPHA = 0.65f;
+        private const float SLASH_TRAIL_SECONDS = 0.12f;
+        private const float SLASH_TRAIL_LIFETIME_RATIO = 0.4f;
+
+        private const double BEAM_CLOSED_DISTANCE_SQUARED = 0.000001;
+        internal const int BEAM_GLOW_BANDS = 16;
+        internal const float BEAM_GLOW_WIDTH = 3f;
+        internal const float BEAM_GLOW_PULSE_SPEED = 3f;
+
+        /// <summary>현재 칼날과 회전 진행으로 최근 부채꼴 구간의 잔상·직사각형 칼날·밝은 날을 재사용 목록에 채운다. 오래된 잔상과 종료 직전 잔상은 투명해지며 scale로 크기를 변환한다.</summary>
+        internal static void BuildSlash(SimulationSpellEntity spell, float scale, List<Vector3> vertices,
+            List<Color> colors, List<int> triangles)
+        {
+            vertices.Clear(); colors.Clear(); triangles.Clear();
+            IReadOnlyList<SimVector> path = spell.SlashPath;
+            if (path.Count < 2) return;
+            SimVector delta = path[1] - path[0];
+            float length = (float)delta.Length * scale;
+            if (length <= 0) return;
+            Vector2 direction = new Vector2((float)delta.X, -(float)delta.Y).normalized;
+            float angle = Mathf.Atan2(direction.y, direction.x);
+            float progress = Mathf.Clamp01((float)spell.SlashProgress);
+            float lifetime = (float)spell.Lifetime;
+            float trailSeconds = Mathf.Min(SLASH_TRAIL_SECONDS, lifetime * SLASH_TRAIL_LIFETIME_RATIO);
+            float trailProgress = trailSeconds / lifetime;
+            float visibleProgress = Mathf.Min(progress, trailProgress);
+            float span = (float)spell.ConeAngle * visibleProgress * Mathf.Deg2Rad;
+            float endFade = Mathf.Clamp01((1 - progress) / trailProgress);
+            float width = (float)spell.BoxWidth * scale;
+            Color tint = ElementColor(spell.Element);
+            Color bright = Color.Lerp(tint, Color.white, 0.85f);
+            for (int index = 0; index <= SLASH_TRAIL_SEGMENTS; index++)
+            {
+                float fraction = index / (float)SLASH_TRAIL_SEGMENTS;
+                float sampleAngle = angle - span * (1 - fraction);
+                Vector2 radial = new Vector2(Mathf.Cos(sampleAngle), Mathf.Sin(sampleAngle));
+                float freshness = 1 - visibleProgress * (1 - fraction) / trailProgress;
+                float alpha = SLASH_TRAIL_ALPHA * freshness * freshness * endFade;
+                Color outer = tint; outer.a = alpha;
+                Color inner = tint; inner.a = alpha * 0.35f;
+                Color edge = bright; edge.a = alpha;
+                vertices.Add(Vector3.zero); colors.Add(inner);
+                vertices.Add(radial * Mathf.Max(0, length - width * 0.18f)); colors.Add(outer);
+                vertices.Add(radial * length); colors.Add(edge);
+                if (index == 0) continue;
+                int previous = (index - 1) * 3;
+                AddSlashQuad(triangles, previous, previous + 3, previous + 4, previous + 1);
+                AddSlashQuad(triangles, previous + 1, previous + 4, previous + 5, previous + 2);
+            }
+            Vector2 normal = new Vector2(-direction.y, direction.x);
+            int blade = vertices.Count;
+            vertices.Add(-normal * width * 0.5f); colors.Add(tint);
+            vertices.Add(direction * length - normal * width * 0.5f); colors.Add(tint);
+            vertices.Add(direction * length + normal * width * 0.5f); colors.Add(bright);
+            vertices.Add(normal * width * 0.5f); colors.Add(bright);
+            AddSlashQuad(triangles, blade, blade + 1, blade + 2, blade + 3);
+            int core = vertices.Count;
+            vertices.Add(-normal * width * 0.12f); colors.Add(bright);
+            vertices.Add(direction * length - normal * width * 0.12f); colors.Add(Color.white);
+            vertices.Add(direction * length + normal * width * 0.12f); colors.Add(Color.white);
+            vertices.Add(normal * width * 0.12f); colors.Add(bright);
+            AddSlashQuad(triangles, core, core + 1, core + 2, core + 3);
+        }
+
+        /// <summary>공유 참격 메시의 사각 구간을 네 정점 인덱스로 받아 삼각형 두 개를 추가한다.</summary>
+        private static void AddSlashQuad(List<int> triangles, int first, int second, int third, int fourth)
+        {
+            triangles.Add(first); triangles.Add(second); triangles.Add(third);
+            triangles.Add(first); triangles.Add(third); triangles.Add(fourth);
+        }
+
+        /// <summary>빔 가로 위치(-1~1), 맥동 밝기와 충전 진행률로 기본 빔에서 부드러운 발광까지 보간한 색상을 반환한다.</summary>
+        internal static Color BeamGlowColor(Color tint, float offset, float brightness, float chargeProgress = 1f)
+        {
+            float distanceSquared = offset * offset;
+            Color color = Color.Lerp(tint, Color.white, 0.8f * Mathf.Exp(-24f * distanceSquared));
+            float edge = Mathf.Exp(-5f);
+            color.a = tint.a * Mathf.Clamp01((Mathf.Exp(-5f * distanceSquared) - edge) / (1f - edge)) * brightness;
+            Color baseColor = tint;
+            baseColor.a = Mathf.Abs(offset) <= 1f / BEAM_GLOW_WIDTH ? tint.a : 0;
+            return Color.Lerp(baseColor, color, chargeProgress);
+        }
+
+        /// <summary>경로 꼭짓점의 앞뒤 방향을 합쳐 인접 선분이 공유할 폭 방향을 반환한다. 닫힌 경로의 첫·끝 방향을 맞추고 급격한 꺾임의 돌출을 제한한다.</summary>
+        internal static Vector2 BeamJoinNormal(IReadOnlyList<SimVector> path, int index)
+        {
+            if (path.Count < 2) return Vector2.zero;
+            int last = path.Count - 1;
+            bool isClosed = last > 1 && (path[0] - path[last]).LengthSquared <= BEAM_CLOSED_DISTANCE_SQUARED;
+            int previous = index > 0 ? index - 1 : isClosed ? last - 1 : 0;
+            int next = index < last ? index + 1 : isClosed ? 1 : last;
+            SimVector incoming = path[index] - path[previous];
+            SimVector outgoing = path[next] - path[index];
+            Vector2 before = new Vector2((float)incoming.X, -(float)incoming.Y).normalized;
+            Vector2 after = new Vector2((float)outgoing.X, -(float)outgoing.Y).normalized;
+            if (before.sqrMagnitude == 0) before = after;
+            if (after.sqrMagnitude == 0) after = before;
+            Vector2 tangent = (before + after).normalized;
+            if (tangent.sqrMagnitude == 0) tangent = after;
+            Vector2 normal = new Vector2(-tangent.y, tangent.x);
+            Vector2 outgoingNormal = new Vector2(-after.y, after.x);
+            return normal / Mathf.Max(0.5f, Vector2.Dot(normal, outgoingNormal));
+        }
+
+        /// <summary>경로·화면 원점·배율·폭으로 꼭짓점을 공유하는 연속 빔 띠를 추가한다. 충전 진행률과 밝기를 발광 색상에 반영한다.</summary>
+        internal static void BeamPath(UnityEngine.UI.VertexHelper mesh, IReadOnlyList<SimVector> path, Vector2 origin, float scale,
+            float width, Color tint, float brightness, float chargeProgress)
+        {
+            bool isEmpowered = chargeProgress > 0;
+            int bands = isEmpowered ? BEAM_GLOW_BANDS : 1;
+            int rowSize = bands + 1;
+            float halfWidth = width * scale * 0.5f * (isEmpowered ? BEAM_GLOW_WIDTH : 1f);
+            int firstVertex = mesh.currentVertCount;
+            for (int index = 0; index < path.Count; index++)
+            {
+                Vector2 point = origin + new Vector2((float)path[index].X, -(float)path[index].Y) * scale;
+                Vector2 normal = BeamJoinNormal(path, index) * halfWidth;
+                for (int band = 0; band <= bands; band++)
+                {
+                    float offset = -1f + 2f * band / bands;
+                    Color color = isEmpowered ? BeamGlowColor(tint, offset, brightness, chargeProgress) : tint;
+                    mesh.AddVert(point + normal * offset, color, Vector2.zero);
+                    if (index == 0 || band == 0) continue;
+                    int current = firstVertex + index * rowSize + band;
+                    int previous = current - rowSize;
+                    mesh.AddTriangle(previous - 1, previous, current);
+                    mesh.AddTriangle(previous - 1, current, current - 1);
+                }
+            }
+        }
 
         /// <summary>전투와 도크에서 같은 각도 간격으로 호를 표시할 선분 수를 반환한다.</summary>
         internal static int ExplosionSegmentCount(double angle) => Mathf.Max(1, Mathf.CeilToInt((float)angle / EXPLOSION_SEGMENT_ANGLE));

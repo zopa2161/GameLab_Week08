@@ -11,13 +11,13 @@ const VOCAB = {
   enemyMovement: ["chase", "turret", "anchor", "dashChase", "keepDistance", "sniper", "interceptor"],
   enemyAttack: ["none", "contact", "burst", "dashContact", "sniper", "interceptor"],
   enemyTrait: ["aegisShield", "relayAura", "deathExplosion", "circleShield", "carrier"],
-  formationShape: ["ringRandomSlot", "ringAllSlots", "ringDouble", "pointSequence"],
-  angle: ["random", "ahead"],
+  formationShape: ["ringRandomSlot", "ringAllSlots", "ringDouble", "pointSequence", "ringHalf", "ringSectorBlock", "arenaRandom", "arenaCluster"],
+  angle: ["random", "ahead", "fixed"],
   stageKind: ["normal", "boss"],
   stageType: ["normal", "boss"],
   dropType: ["fragments", "modifier", "none"],
   ramMode: ["shared", "perSpell"],
-  effectType: ["effectMultiplier", "multipleCount", "pierceCount", "radiusMultiplier", "durationMultiplier", "speedMultiplier", "homingTier", "waveCount"],
+  effectType: ["effectMultiplier", "energyCostMultiplier", "multipleCount", "pierceCount", "radiusMultiplier", "durationMultiplier", "speedMultiplier", "homingTier", "waveCount", "beamEmpowerMultiplier"],
   grade: ["C", "B", "A", "S"],
 };
 
@@ -82,14 +82,16 @@ const LABELS = {
   // 스테이지
   _roomColumns: "방 열 수", _roomRows: "방 행 수", _roomsX: "가로 방 수", _roomsY: "세로 방 수",
   _hpStageScale: "체력 스케일", _damageStageScale: "피해 스케일", _clearRewardStageScale: "클리어 보상 스케일",
-  _killTargetStageScale: "처치 목표 스케일", _ringSlots: "링 슬롯", _ringMargin: "링 여백",
+  _ringSlots: "링 슬롯", _ringMargin: "링 여백",
   _jitterScale: "지터 스케일", _reinforcementGap: "증원 간격", _stationaryAdvanceSpeed: "정지 전진 속도",
+  _warningSeconds: "스폰 예고 시간", _minPlayerDistance: "스폰 최소 거리", _maxPlayerDistance: "스폰 최대 거리(0=무제한)",
+  _spawnGraceSeconds: "스폰 접촉 유예", _groupSize: "묶음 크기",
   _firstStage: "시작 스테이지", _baseInterval: "기본 간격", _minInterval: "최소 간격", _stageScale: "스테이지 스케일",
   _intraRamp: "내부 램프", _rampSeconds: "램프 시간", _shape: "모양", _angle: "각도", _spacing: "간격",
-  _interval: "간격(초)", _slots: "슬롯", _at: "시점", _repeatInterval: "반복 간격", _units: "유닛",
+  _interval: "간격(초)", _slots: "슬롯", _radiusScale: "스폰 반경 배율", _at: "시점", _repeatInterval: "반복 간격", _units: "유닛",
   _hpMultiplier: "체력 배율", _rewardMultiplier: "보상 배율", _speedMultiplier: "속도 배율",
   _radiusMultiplier: "반경 배율", _fromStage: "시작 스테이지", _toStage: "끝 스테이지(0=무한)", _kind: "종류",
-  _timeLimit: "제한 시간", _clearReward: "클리어 보상", _killTarget: "처치 목표", _stream: "스트림",
+  _timeLimit: "생존·제한 시간", _clearReward: "클리어 보상", _stream: "스트림",
   _waves: "웨이브", _eliteEvery: "엘리트 주기", _eliteTypes: "엘리트 종류", _modifierRewards: "Modifier 보상",
   _candidates: "후보", _rewards: "보상표", _map: "맵", _growth: "성장", _spawn: "스폰",
   // 보스·드롭·등급표
@@ -204,13 +206,14 @@ const SCHEMAS = {
     ],
   },
   formations: {
-    columns: ["_id", "_shape", "_angle", "_spacing", "_interval", "_slots"],
+    columns: ["_id", "_shape", "_angle", "_spacing", "_interval", "_slots", "_radiusScale"],
     groups: [ { title: "진형", fields: [
       { k: "_id", label: "ID", type: "text" },
       { k: "_shape", label: "모양", type: "select", vocab: "formationShape" },
       { k: "_angle", label: "각도", type: "select", vocab: "angle" },
       { k: "_spacing", label: "간격", type: "number" }, { k: "_interval", label: "간격(초)", type: "number" },
-      { k: "_slots", label: "슬롯", type: "number" } ] } ],
+      { k: "_slots", label: "슬롯", type: "number" },
+      { k: "_radiusScale", label: "스폰 반경 배율(0=1)", type: "number" } ] } ],
   },
   bosses: {
     columns: ["_enemyId", "_pattern", "_phaseTwoThreshold", "_phaseThreeThreshold", "_dropTable"],
@@ -251,18 +254,19 @@ const SCHEMAS = {
     { k: "_max", label: "최대", type: "number" }, { k: "_weight", label: "가중치", type: "number" },
   ],
   stages: {
-    columns: ["_fromStage", "_toStage", "_kind", "_timeLimit", "_clearReward", "_killTarget"],
+    columns: ["_fromStage", "_toStage", "_kind", "_timeLimit", "_clearReward"],
     head: [
       { k: "_map", label: "맵", type: "object", fields: [
         { k: "_roomColumns", label: "방 열 수", type: "number" }, { k: "_roomRows", label: "방 행 수", type: "number" },
         { k: "_roomsX", label: "가로 방 수", type: "number" }, { k: "_roomsY", label: "세로 방 수", type: "number" } ] },
       { k: "_growth", label: "성장", type: "object", fields: [
         { k: "_hpStageScale", label: "체력 스케일", type: "number" }, { k: "_damageStageScale", label: "피해 스케일", type: "number" },
-        { k: "_clearRewardStageScale", label: "클리어 보상 스케일", type: "number" },
-        { k: "_killTargetStageScale", label: "처치 목표 스케일", type: "number" } ] },
+        { k: "_clearRewardStageScale", label: "클리어 보상 스케일", type: "number" } ] },
       { k: "_spawn", label: "스폰", type: "object", fields: [
         { k: "_ringSlots", label: "링 슬롯", type: "number" }, { k: "_ringMargin", label: "링 여백", type: "number" },
-        { k: "_jitterScale", label: "지터 스케일", type: "number" }, { k: "_reinforcementGap", label: "증원 간격", type: "number" } ] },
+        { k: "_jitterScale", label: "지터 스케일", type: "number" }, { k: "_reinforcementGap", label: "증원 간격", type: "number" },
+        { k: "_warningSeconds", label: "스폰 예고 시간", type: "number" }, { k: "_spawnGraceSeconds", label: "스폰 접촉 유예", type: "number" },
+        { k: "_minPlayerDistance", label: "스폰 최소 거리", type: "number" }, { k: "_maxPlayerDistance", label: "스폰 최대 거리(0=무제한)", type: "number" } ] },
       { k: "_stationaryAdvanceSpeed", label: "정지 전진 속도", type: "number" },
       { k: "_rewards", label: "보상표", type: "list", item: [
         { k: "_enemyId", label: "적 ID", type: "ref", ref: "enemy" }, { k: "_reward", label: "보상", type: "number" } ] },
@@ -271,14 +275,14 @@ const SCHEMAS = {
       { title: "스테이지", fields: [
         { k: "_fromStage", label: "시작 스테이지", type: "number" }, { k: "_toStage", label: "끝 스테이지(0=무한)", type: "number" },
         { k: "_kind", label: "종류", type: "select", vocab: "stageKind" },
-        { k: "_timeLimit", label: "제한 시간", type: "number" }, { k: "_clearReward", label: "클리어 보상", type: "number" },
-        { k: "_killTarget", label: "처치 목표", type: "number" },
+        { k: "_timeLimit", label: "생존·제한 시간", type: "number" }, { k: "_clearReward", label: "클리어 보상", type: "number" },
         { k: "_eliteEvery", label: "엘리트 주기", type: "number" } ] },
       { title: "스트림", fields: [
         { k: "_stream", label: "스트림", type: "object", fields: [
           { k: "_baseInterval", label: "기본 간격", type: "number" }, { k: "_minInterval", label: "최소 간격", type: "number" },
           { k: "_stageScale", label: "스테이지 스케일", type: "number" }, { k: "_intraRamp", label: "내부 램프", type: "number" },
           { k: "_rampSeconds", label: "램프 시간", type: "number" }, { k: "_formation", label: "진형", type: "ref", ref: "formation" },
+          { k: "_groupSize", label: "묶음 크기", type: "number" },
           { k: "_candidates", label: "후보", type: "list", item: [
             { k: "_enemyId", label: "적 ID", type: "ref", ref: "enemy" },
             { k: "_firstStage", label: "시작 스테이지", type: "number" }, { k: "_weight", label: "가중치", type: "number" } ] } ] } ] },
@@ -353,6 +357,6 @@ VOCAB.portStatus = ["active", "deprecated"];
 // Modifier 등급 값의 형식이다. 게임(ModifierGradeTable)이 효과 종류마다 받는 값 형식과 같다. 없는 등급은 모두 null이다.
 // decimal: 배율 소수, integer: 0 이상 정수, integerOrAll: 0 이상 정수 또는 "ALL"(무제한), homingTier: mod.homing의 유도 단계 이름.
 const GRADE_VALUE_KINDS = {
-  effectMultiplier: "decimal", radiusMultiplier: "decimal", durationMultiplier: "decimal", speedMultiplier: "decimal",
+  effectMultiplier: "decimal", energyCostMultiplier: "decimal", radiusMultiplier: "decimal", durationMultiplier: "decimal", speedMultiplier: "decimal", beamEmpowerMultiplier: "decimal",
   multipleCount: "integer", pierceCount: "integerOrAll", homingTier: "homingTier",
 };

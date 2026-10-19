@@ -112,7 +112,7 @@ namespace RuneCode
                 if (action.Kind == "spawn")
                 {
                     var stats = action.Stats;
-                    candidate = action.GetReach(stats) + stats.Radius;
+                    candidate = action.GetReach(stats) + (action.Form == SlashBehaviorRules.KIND ? 0 : stats.Radius);
                 }
                 else if (action.Kind == "blink") candidate = action.Distance + GetActionRange(action.Next);
                 else if (action.Kind == "repeat") candidate = Math.Max(GetActionRange(action.Body), GetActionRange(action.OnComplete));
@@ -151,7 +151,6 @@ namespace RuneCode
         [SerializeField] private int _stage;
         [SerializeField] private double _timeLimit;
         [SerializeField] private double _remainingTime;
-        [SerializeField] private int _killTarget;
         [SerializeField] private int _targetKills;
         [SerializeField] private string _result;
         [SerializeField] private int _kills;
@@ -172,7 +171,7 @@ namespace RuneCode
             _nodeExecutionCount = simulation.NodeExecutionCount; _elapsedMilliseconds = elapsedMilliseconds;
             _stateHash = simulation.StateHash();
             _stage = simulation.StageNumber; _timeLimit = simulation.TimeLimit; _remainingTime = simulation.RemainingTime;
-            _killTarget = simulation.KillTarget; _targetKills = simulation.TargetKills;
+            _targetKills = simulation.TargetKills;
             _result = simulation.Stage.ToString(); _kills = simulation.KillCount; _earnedRam = simulation.EarnedFragments;
             _settledRam = simulation.Completed || simulation.IsFailed ? simulation.SettlementFragments : 0;
             _clearReward = simulation.ClearReward;

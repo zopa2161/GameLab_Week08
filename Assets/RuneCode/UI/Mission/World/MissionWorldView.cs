@@ -25,11 +25,13 @@ namespace RuneCode
         private const int HEAL_PULSE_TICKS = 40;
         private const int HEAL_PULSE_ORDER = 70;
         private const int MAX_ARC_LINKS = 32;
+        private const int MAX_SPAWN_WARNINGS = 32;
         private const float WALL_EDGE_WIDTH = 1f;
         private const float GRID_LINE_WIDTH = 1f;
         private const int GRID_ORDER = 0;
         private const int WALL_ORDER = 1;
         private const int WALL_EDGE_ORDER = 2;
+        private const int SPAWN_WARNING_ORDER = 10;
         private const int RANGE_SEGMENTS = 96;
         private const float RANGE_LINE_WIDTH = 1.8f;
         private const int RANGE_ORDER = 65;
@@ -40,6 +42,8 @@ namespace RuneCode
         private static readonly Color WallEdgeColor = new Color(0.23f, 0.40f, 0.47f);
         private static readonly Color GridColor = new Color(0.15f, 0.22f, 0.29f);
         private static readonly Color HealPulseColor = new Color(0.45f, 0.95f, 0.55f);
+        private static readonly Color SpawnWarningColor = new Color(0.95f, 0.2f, 0.2f);
+        private static readonly Color EliteSpawnWarningColor = new Color(1f, 0.72f, 0.15f);
 
         [Header("연결")]
         [SerializeField] private MissionCamera _camera;
@@ -76,6 +80,7 @@ namespace RuneCode
         private readonly List<ItemDropView> _itemDropViews = new List<ItemDropView>();
         private readonly List<DamageNumberView> _damageNumberViews = new List<DamageNumberView>();
         private readonly List<HealPulseView> _healPulseViews = new List<HealPulseView>();
+        private readonly List<SpawnWarningView> _spawnWarningViews = new List<SpawnWarningView>();
         private readonly List<ArcLinkView> _arcLinkViews = new List<ArcLinkView>();
         private readonly List<SpriteRenderer> _rangeLines = new List<SpriteRenderer>();
         private readonly List<SpellEntityView> _rangePreviews = new List<SpellEntityView>();
@@ -184,6 +189,13 @@ namespace RuneCode
                 GetHealPulseView(count++).Apply(pulse, elapsed, origin);
             }
             HideFrom(_healPulseViews, count);
+            count = 0;
+            foreach (SpawnWarning warning in sim.SpawnWarnings)
+            {
+                if (count >= MAX_SPAWN_WARNINGS) break;
+                GetSpawnWarningView(count++).Apply(warning, origin, Time.unscaledTime);
+            }
+            HideFrom(_spawnWarningViews, count);
             count = 0;
             foreach (ArcLink link in sim.ArcLinks)
             {
@@ -310,16 +322,20 @@ namespace RuneCode
             if (mouse != null && _camera.TryGetSimPoint(mouse.position.ReadValue(), out SimVector pointer))
             {
                 Vector2 center = MissionWorldSpace.ToWorld(sim.Player.Position, sim.MapCenter) * MissionWorldSpace.PIXELS_PER_UNIT;
-                SimVector delta = pointer - sim.Player.Position;
-                SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : sim.Player.AimDirection;
                 foreach (CompiledSpell spell in sim.Loadout)
                 {
                     if (spell == null) continue;
                     foreach (SpellAction action in spell.Root)
                     {
                         if (!RuneSimulation.CanShowAreaPreview(action)) continue;
-                        GetView(_rangePreviews, _spellPrefab, previewCount++).ApplyPreview(action,
-                            sim.GetAreaPreviewPosition(pointer), direction, sim.MapCenter);
+                        bool isSlash = action.Form == SlashBehaviorRules.KIND;
+                        int count = isSlash ? action.Count : 1;
+                        for (int index = 0; index < count; index++)
+                        {
+                            sim.GetRangePreview(action, pointer, index, out SimVector position, out SimVector direction);
+                            GetView(_rangePreviews, _spellPrefab, previewCount++).ApplyPreview(action, position, direction, sim.MapCenter);
+                        }
+                        if (isSlash) continue;
                         float radius = (float)sim.GetAreaPlacementRange();
                         for (int segment = 0; segment < RANGE_SEGMENTS; segment += 2)
                         {
@@ -451,6 +467,20 @@ namespace RuneCode
             HealPulseView pulse = _healPulseViews[index];
             MissionWorldSpace.SetVisible(pulse, true);
             return pulse;
+        }
+
+        /// <summary>목록의 index번째 스폰 예고 표시를 반환하며 없으면 맵 스프라이트로 X를 새로 만든다. 색은 표시마다 엘리트 여부로 View가 고른다.</summary>
+        private SpawnWarningView GetSpawnWarningView(int index)
+        {
+            if (index == _spawnWarningViews.Count)
+            {
+                var view = new GameObject("SpawnWarning", typeof(SpawnWarningView)).GetComponent<SpawnWarningView>();
+                view.Initialize(transform, _squareSprite, _spriteMaterial, SpawnWarningColor, EliteSpawnWarningColor, SPAWN_WARNING_ORDER);
+                _spawnWarningViews.Add(view);
+            }
+            SpawnWarningView warningView = _spawnWarningViews[index];
+            MissionWorldSpace.SetVisible(warningView, true);
+            return warningView;
         }
 
         /// <summary>목록에서 count번째 이후 뷰를 숨긴다.</summary>
