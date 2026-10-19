@@ -14,7 +14,8 @@ namespace RuneCode
             new HomingModifierRuntime(),
             new PierceModifierRuntime(),
             new OrbitModifierRuntime(),
-            new SequenceModifierRuntime()
+            new SequenceModifierRuntime(),
+            new BeamEmpowerModifierRuntime()
         };
         private static readonly SpellModifierRuntime[] NONE = Array.Empty<SpellModifierRuntime>();
 

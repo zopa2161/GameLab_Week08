@@ -77,6 +77,12 @@ namespace RuneCode
                     switch (GameData.ModifierGrades.GetEffectType(rune.Id))
                     {
                         case "effectMultiplier": label = " 효과 배율 ×"; break;
+                        case "beamEmpowerMultiplier":
+                            effect += " 채널링을 오래할수록 피해·마나·빔 폭 증가 · 2초부터 강화 · 5초 최대 피해 ×" + value
+                                + " · 마나 ×" + GameData.ModifierGrades.GetBeamEmpowerManaMultiplier(rune.Id, grade).ToString("0.##")
+                                + " · 빔 폭 ×" + GameData.ModifierGrades.GetBeamEmpowerSizeMultiplier(rune.Id, grade).ToString("0.##");
+                            label = null;
+                            break;
                         case "multipleCount": label = " 생성 개수 "; break;
                         case "waveCount": label = " 실행 회차 "; break;
                         case "pierceCount": label = " 관통 횟수 "; break;
@@ -631,6 +637,13 @@ namespace RuneCode
             switch (effectType)
             {
                 case "effectMultiplier": AddMultiplier(values, "ui.gradeDamage", gradeValue); break;
+                case "beamEmpowerMultiplier":
+                    values.Add("채널링을 오래할수록 피해·마나·빔 폭 증가");
+                    values.Add("2초부터 강화 · 5초에 최대 충전");
+                    values.Add("최대 피해 ×" + gradeValue);
+                    values.Add("최대 마나 ×" + grades.GetBeamEmpowerManaMultiplier(rune.Id, grade).ToString("0.##"));
+                    values.Add("최대 빔 폭 ×" + grades.GetBeamEmpowerSizeMultiplier(rune.Id, grade).ToString("0.##"));
+                    break;
                 case "multipleCount": values.Add(GameData.L("ui.gradeCount") + " " + gradeValue); break;
                 case "waveCount": values.Add(GameData.L("ui.gradeWaveCount") + " " + gradeValue); break;
                 case "pierceCount": values.Add(GameData.L("ui.gradePierce") + " " + gradeValue); break;
