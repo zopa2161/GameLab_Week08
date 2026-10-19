@@ -27,6 +27,7 @@ public class SoundManager : MonoBehaviour
     private const string SHOT_BEAM_SOUND = "event:/SFX/Player/Behavior/ShotBeam";
     private const string SHOT_PERSIST_SOUND = "event:/SFX/Player/Behavior/ShotPersist";
     private const string SHOT_BURST_SOUND = "event:/SFX/Player/Behavior/ShotBurst";
+    private const string SHOT_SLASH_SOUND = "event:/SFX/Player/Behavior/ShotKnife";
     private const string PLAYER_HIT_SOUND = "event:/SFX/Player/Hit";
     private const string SPAWN_BIG_SCRAP_SOUND = "event:/SFX/Player/SpawnBigScrap";
     private const string TAKE_BIG_SCRAP_SOUND = "event:/SFX/Player/TakeBigScrap";
@@ -130,6 +131,11 @@ public class SoundManager : MonoBehaviour
     public void PlayShotBurst()
     {
         RuntimeManager.PlayOneShot(SHOT_BURST_SOUND);
+    }
+
+    public void PlayShotSlash()
+    {
+        RuntimeManager.PlayOneShot(SHOT_SLASH_SOUND);
     }
 
     /// <summary>플레이어 피격 효과음을 한 번 재생한다.</summary>
