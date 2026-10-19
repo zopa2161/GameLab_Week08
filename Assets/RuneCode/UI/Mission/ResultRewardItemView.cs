@@ -206,8 +206,10 @@ namespace RuneCode
             {
                 Image particle = _particles[index];
                 float angle = index * Mathf.PI * 2 / _particles.Count;
-                particle.rectTransform.anchoredPosition = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle))
-                    * (15f + progress * (20f + _particles.Count));
+                float radius = 15f + progress * (20f + _particles.Count);
+                float verticalRadius = Mathf.Min(radius,
+                    (((RectTransform)transform).rect.height - particle.rectTransform.sizeDelta.y) * 0.5f);
+                particle.rectTransform.anchoredPosition = new Vector2(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * verticalRadius);
                 particle.rectTransform.localRotation = Quaternion.Euler(0, 0, index * 37f + progress * 90f);
                 Color tint = _burstColor;
                 tint.a = 1f - progress;
