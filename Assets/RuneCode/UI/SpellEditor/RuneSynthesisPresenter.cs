@@ -81,7 +81,7 @@ namespace RuneCode
                 entry.callback.AddListener(data => OnSlotPointerClick(slot, data));
                 trigger.triggers.Add(entry);
             }
-            _synthesizeButton = factory.Button(panel, 145, 216 + AUTOMATIC_BUTTON_SPACE, 110, 40, "합성\n" + RuneSynthesisRules.SCRAP_COST + " 스크랩", Synthesize, 13, "Synthesize");
+            _synthesizeButton = factory.Button(panel, 145, 216 + AUTOMATIC_BUTTON_SPACE, 110, 40, "합성", Synthesize, 13, "Synthesize");
             _hint = factory.Text(panel, 16, 336 + AUTOMATIC_BUTTON_SPACE, 368, 56, "", 12);
             _hint.richText = true;
 
@@ -356,7 +356,10 @@ namespace RuneCode
         /// <summary>예약한 재료와 잠금 조건을 표시하고 미사용 재고 3개와 스크랩 비용이 있을 때만 합성 버튼을 활성화한다.</summary>
         private void RefreshSlots()
         {
-            bool hasEnoughScrap = _host.SynthesisScrap >= RuneSynthesisRules.SCRAP_COST;
+            int scrapCost = RuneSynthesisRules.GetScrapCost(_grade);
+            bool hasEnoughScrap = _host.SynthesisScrap >= scrapCost;
+            _synthesizeButton.GetComponentInChildren<TextMeshProUGUI>().text = _grade == null
+                ? "합성" : "합성\n" + scrapCost + " 스크랩";
             bool canSynthesize = !_isProcessing && _host.CanSynthesizeRunes && hasEnoughScrap;
             for (int index = 0; index < _materials.Length; index++)
             {
@@ -378,8 +381,8 @@ namespace RuneCode
                 : _category == SpellGrammar.CATEGORY_ELEMENT
                     ? "속성 3개: " + RuneRewardRoller.GetRewardStage(_host.SynthesisStage) + "스테이지 확률로 행동/모드 생성\n좌클릭: 교체 / 우클릭: 비우기"
                     : (_category == SpellGrammar.CATEGORY_BEHAVIOR ? "행동 " : "모드 ") + _grade + "등급만 선택할 수 있습니다.\n좌클릭: 교체 / 우클릭: 비우기";
-            if (!hasEnoughScrap)
-                _hint.text = "스크랩이 부족합니다. 합성에는 " + RuneSynthesisRules.SCRAP_COST
+            if (_grade != null && !hasEnoughScrap)
+                _hint.text = "스크랩이 부족합니다. 합성에는 " + scrapCost
                     + "개가 필요합니다. (보유: " + _host.SynthesisScrap + "개)";
         }
 

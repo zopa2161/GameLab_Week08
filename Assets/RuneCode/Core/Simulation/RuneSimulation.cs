@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -1362,7 +1362,7 @@ namespace RuneCode
                 });
                 for (int i = 0; i < Math.Min(arc.ArcTargets, chain.Count); i++)
                 {
-                    actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action);
+                    actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action, damageStatus: "arc_chain");
                     _arcLinks.Add(new ArcLink(enemy.Position, chain[i].Position, _tick));
                 }
                 if (actual > 0) _arcDamageEventCount++;
@@ -2520,7 +2520,7 @@ namespace RuneCode
             private readonly Dictionary<string, double> _directDamageByElement = new Dictionary<string, double>
             { ["raw"] = 0d, ["fire"] = 0d, ["ice"] = 0d, ["arc"] = 0d };
             private readonly Dictionary<string, double> _statusDamageByType = new Dictionary<string, double>
-            { ["burn"] = 0d, ["chill"] = 0d, ["freeze"] = 0d, ["emp"] = 0d };
+            { ["burn"] = 0d, ["chill"] = 0d, ["freeze"] = 0d, ["emp"] = 0d, ["arc_chain"] = 0d };
             private long _spawnCount;
             private long _damageCount;
             private long _hitCount;
@@ -2568,6 +2568,7 @@ namespace RuneCode
                     _statusDamage += actual;
                     _statusDamageByType.TryGetValue(damageStatus, out double previous);
                     _statusDamageByType[damageStatus] = previous + actual;
+                    if (damageStatus != "burn") _hitCount++;
                 }
                 else
                 {
