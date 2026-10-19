@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -349,6 +349,16 @@ namespace RuneCode
             {
                 var pairs = new List<string>();
                 foreach (KeyValuePair<string, object> field in fields) pairs.Add(Quote(field.Key) + ":" + Json(field.Value));
+                return "{" + string.Join(",", pairs) + "}";
+            }
+            if (value is IDictionary numericFields)
+            {
+                var pairs = new List<string>();
+                foreach (DictionaryEntry field in numericFields)
+                {
+                    if (!(field.Key is string key)) throw new ArgumentException("JSON object keys must be strings.");
+                    pairs.Add(Quote(key) + ":" + Json(field.Value));
+                }
                 return "{" + string.Join(",", pairs) + "}";
             }
             if (value is IEnumerable sequence)
