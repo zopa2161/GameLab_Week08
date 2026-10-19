@@ -66,17 +66,26 @@ namespace RuneCode
             _result.ClearModifierChoiceClicked += ChooseClearModifier;
         }
 
-        /// <summary>미션 화면에 들어올 때 새 미션을 시작한다. 마법 준비에 실패하면 작업실 전환을 요청한다.</summary>
+        /// <summary>미션 화면에 들어올 때 새 미션을 시작하고 전투 음악으로 전환한다. 준비에 실패하면 작업실 전환을 요청한다.</summary>
         public void Begin()
         {
-            if (!StartRun()) _session.RequestScreen(AppScreen.Workshop);
+            if (!StartRun())
+            {
+                _session.RequestScreen(AppScreen.Workshop);
+                return;
+            }
+            SoundManager.Instance.SetMusicState(1);
         }
 
-        /// <summary>미션 화면을 떠날 때 진행 중인 미션을 놓는다.</summary>
+        /// <summary>미션 화면을 떠날 때 빔 음원을 정지하고 기본 음악으로 복원한 뒤 진행 중인 미션을 놓는다.</summary>
         public void End()
         {
             SoundManager soundManager = SoundManager.Instance;
-            if (soundManager != null) soundManager.StopShotBeam();
+            if (soundManager != null)
+            {
+                soundManager.StopShotBeam();
+                soundManager.SetMusicState(0);
+            }
             _run = null;
         }
 
