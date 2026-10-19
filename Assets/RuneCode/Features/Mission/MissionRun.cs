@@ -307,6 +307,8 @@ namespace RuneCode
                 clearRuneReward = new ModifierRewardDefinition(roll.RuneId, roll.Grade, roll.Count);
             }
             var modifierRewards = _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts, clearRuneReward);
+            // 사망·시간 초과로 끝난 패배만 첫 패배 안내 대상이다. 중단(후퇴)은 AbandonMission에서 정산한다.
+            if (_simulation.IsFailed) _session.TryTriggerOnboardingEvent(PlayerSave.ONBOARDING_FIRST_DEFEAT);
             if (!_session.IsTestMode) AddFragmentReward(fragments);
             foreach (ModifierRewardDefinition reward in modifierRewards)
             {

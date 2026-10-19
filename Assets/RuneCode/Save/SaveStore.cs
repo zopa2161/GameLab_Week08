@@ -260,7 +260,8 @@ namespace RuneCode
             if (save.Version == 1) save.MigrateToIncremental();
             if (save.Version == 2) save.MigrateToHardwareTree();
             if (save.Version == 3) save.MigrateToUpgradeTreeV4();
-            if (save.Version != 4) throw new FormatException("지원하지 않는 룬 코드 저장 버전입니다.");
+            if (save.Version == 4) save.MigrateToOnboarding();
+            if (save.Version != 5) throw new FormatException("지원하지 않는 룬 코드 저장 버전입니다.");
             save.MigrateSpellGrammar();
             return save;
         }

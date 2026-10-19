@@ -9,12 +9,15 @@ namespace RuneCode
     [Serializable]
     public sealed class PlayerSave : ISerializationCallbackReceiver
     {
+        public const int ONBOARDING_LAST_STEP = 6;
+        public const string ONBOARDING_FIRST_DEFEAT = "firstDefeat";
+
         private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
         // 기본 마법 메소드 템플릿 ID다. 매직 미사일은 시작 마법 에너지 볼트와 같아 통합했으므로 지금은 비어 있다.
         private static readonly string[] DEFAULT_METHOD_IDS = Array.Empty<string>();
 
         [Header("저장 버전")]
-        [SerializeField] private int _version = 4;
+        [SerializeField] private int _version = 5;
 
         [Header("완드 및 진행")]
         [SerializeField] private int _currency;
@@ -35,7 +38,10 @@ namespace RuneCode
         [Header("피드백 설정")]
         [SerializeField] private bool _screenShake = true;
         [SerializeField] private bool _hitStop = true;
-        [SerializeField] private int _tutorialStep;
+
+        [Header("온보딩")]
+        [SerializeField] private int _onboardingStep;
+        [SerializeField] private List<string> _seenOnboardingEvents = new List<string>();
 
         private List<SpellGraph> _graphs = new List<SpellGraph>();
 
@@ -52,7 +58,7 @@ namespace RuneCode
         public IReadOnlyList<KillRecord> KillCounts => _killCounts;
         public bool ScreenShake => _screenShake;
         public bool HitStop => _hitStop;
-        public int TutorialStep => _tutorialStep;
+        public int OnboardingStep => _onboardingStep;
 
         /// <summary>Modifier 룬의 지정 문자열 등급 소지량(보관함 전체 공유)을 반환하고 기록이 없으면 0을 반환한다.</summary>
         public int GetModifierStock(string runeId, string grade)
@@ -269,6 +275,7 @@ namespace RuneCode
         public void OnAfterDeserialize()
         {
             if (_upgradeNodeProgress == null) _upgradeNodeProgress = new List<UpgradeNodeProgress>();
+            if (_seenOnboardingEvents == null) _seenOnboardingEvents = new List<string>();
             _graphs = new List<SpellGraph>();
             if (_library == null)
             {
@@ -417,10 +424,10 @@ namespace RuneCode
         {
             error = null;
             var economy = GameData.Balance.Economy;
-            if (_version != 4 || _currency < 0 || _currency > 100000000 ||
+            if (_version != 5 || _currency < 0 || _currency > 100000000 ||
                 _highestClearedStage < 0 || _highestClearedStage >= 1000000 ||
                 _selectedStage < 1 || _selectedStage > _highestClearedStage + 1 ||
-                _slotCount != 1 || _tutorialStep < 0 || _tutorialStep > 3)
+                _slotCount != 1 || _onboardingStep < 0 || _onboardingStep > ONBOARDING_LAST_STEP)
             {
                 error = "save.invalidValues";
                 return false;
@@ -511,6 +518,15 @@ namespace RuneCode
             _unlockedRunes = new List<string>();
             AddStarterRunes();
             _version = 4;
+        }
+
+        /// <summary>버전 4 저장을 온보딩 전체 개방 상태로 표시해 버전 5로 이전한다. 기존 진행에는 챕터·이벤트 자동 안내를 띄우지 않는다.</summary>
+        public void MigrateToOnboarding()
+        {
+            if (_version != 4) return;
+            _onboardingStep = ONBOARDING_LAST_STEP;
+            MarkOnboardingEvent(ONBOARDING_FIRST_DEFEAT);
+            _version = 5;
         }
 
         /// <summary>전투 스테이지 선택 상태를 변경한다. canSelectLockedStage가 참이면 해금 범위 제한을 무시한다.</summary>
@@ -690,10 +706,19 @@ namespace RuneCode
             }
         }
 
-        /// <summary>진행한 튜토리얼 단계를 완료 범위 안에서 저장한다.</summary>
-        public void SetTutorialStep(int step)
+        /// <summary>id 이벤트 안내를 이미 띄웠는지 반환한다.</summary>
+        public bool HasSeenOnboardingEvent(string id) => _seenOnboardingEvents.Contains(id);
+
+        /// <summary>id 이벤트 안내를 띄운 것으로 중복 없이 기록한다.</summary>
+        public void MarkOnboardingEvent(string id)
         {
-            _tutorialStep = Math.Max(_tutorialStep, Math.Min(3, step));
+            if (!_seenOnboardingEvents.Contains(id)) _seenOnboardingEvents.Add(id);
+        }
+
+        /// <summary>개방한 온보딩 단계를 줄이지 않고 마지막 단계 이내로 저장한다.</summary>
+        public void UnlockOnboarding(int step)
+        {
+            _onboardingStep = Math.Max(_onboardingStep, Math.Min(ONBOARDING_LAST_STEP, step));
         }
 
         /// <summary>화면 흔들림과 히트스톱의 사용자 설정을 갱신한다.</summary>

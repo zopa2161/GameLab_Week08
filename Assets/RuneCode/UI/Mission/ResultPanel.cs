@@ -16,6 +16,9 @@ namespace RuneCode
     /// </summary>
     public sealed class ResultPanel : UiView
     {
+        private const float HIGHLIGHT_MIN_ALPHA = 0.25f;
+        private const float HIGHLIGHT_MAX_ALPHA = 1f;
+
         [Header("보상 공개 연출")]
         [SerializeField, Min(0.05f)] private float _rewardRevealInterval = 0.3f;
         [SerializeField, Min(0)] private float _rewardRevealFinishDelay = 0.7f;
@@ -37,6 +40,12 @@ namespace RuneCode
         [SerializeField] private Button _nextStageButton;
         [SerializeField] private Button _improveButton;
         [SerializeField] private Button _retryButton;
+
+        [Header("온보딩 안내")]
+        [SerializeField] private GameObject _guideRoot;
+        [SerializeField] private TextMeshProUGUI _guideLabel;
+        [SerializeField] private CanvasGroup _improveHighlight;
+        [SerializeField, Min(0.1f)] private float _highlightPeriod = 1f;
 
         [Header("클리어 보상 팝업")]
         [SerializeField] private GameObject _clearChoicePopup;
@@ -62,6 +71,7 @@ namespace RuneCode
         private float _revealFinishedAt;
         private bool _isRevealing;
         private bool _isWaitingForRelease;
+        private bool _isReturnOnly;
 
         public bool CanContinue => !_isRevealing && !_isWaitingForRelease && Time.frameCount > _revealCompletedFrame;
 
@@ -81,9 +91,9 @@ namespace RuneCode
         public void Bind()
         {
             if (_isBound) return;
-            _nextStageButton.onClick.AddListener(() => { if (CanContinue) NextStageClicked?.Invoke(); });
+            _nextStageButton.onClick.AddListener(() => { if (CanContinue && !_isReturnOnly) NextStageClicked?.Invoke(); });
             _improveButton.onClick.AddListener(() => { if (CanContinue) ImproveClicked?.Invoke(); });
-            _retryButton.onClick.AddListener(() => { if (CanContinue) RetryClicked?.Invoke(); });
+            _retryButton.onClick.AddListener(() => { if (CanContinue && !_isReturnOnly) RetryClicked?.Invoke(); });
             for (int i = 0; i < _clearChoiceButtons.Length; i++)
             {
                 int index = i;
@@ -100,6 +110,16 @@ namespace RuneCode
             _stageLabel.text = stage;
             _progressLabel.text = progress;
             _winOnlyButtonRoot.SetActive(isVictory);
+        }
+
+        /// <summary>온보딩 첫 승리 결과에서 다음 스테이지·재도전을 잠그고 작업실 복귀 안내 문구와 복귀 버튼 강조 표시를 바꾼다.</summary>
+        public void SetReturnOnly(bool isReturnOnly, string guide)
+        {
+            _isReturnOnly = isReturnOnly;
+            _guideRoot.SetActive(isReturnOnly);
+            _guideLabel.text = guide;
+            _improveHighlight.gameObject.SetActive(isReturnOnly);
+            SetNavigationEnabled(!_isRevealing && !_isWaitingForRelease);
         }
 
         /// <summary>정렬된 보상 목록을 만들고 animate이면 순차 공개를 준비하며, 아니면 연출 없이 모두 표시한다.</summary>
@@ -168,12 +188,19 @@ namespace RuneCode
             SetNavigationEnabled(false);
         }
 
-        /// <summary>정산 화면 이동 버튼을 보상 공개 및 보스 선택 상태에 맞게 활성화한다.</summary>
+        /// <summary>정산 화면 이동 버튼을 보상 공개 및 보스 선택 상태에 맞게 활성화한다. 온보딩 복귀 유도 중이면 다음 스테이지·재도전 잠금을 유지한다.</summary>
         private void SetNavigationEnabled(bool isEnabled)
         {
-            _nextStageButton.interactable = isEnabled;
             _improveButton.interactable = isEnabled;
-            _retryButton.interactable = isEnabled;
+            _nextStageButton.interactable = isEnabled && !_isReturnOnly;
+            _retryButton.interactable = isEnabled && !_isReturnOnly;
+        }
+
+        void Update()
+        {
+            if (!_isReturnOnly) return;
+            _improveHighlight.alpha = HIGHLIGHT_MIN_ALPHA + (HIGHLIGHT_MAX_ALPHA - HIGHLIGHT_MIN_ALPHA)
+                * (0.5f + 0.5f * Mathf.Cos(2f * Mathf.PI * Time.unscaledTime / _highlightPeriod));
         }
 
         /// <summary>화면을 숨길 때 진행 중인 공개 상태와 툴팁을 정리한다.</summary>
@@ -181,6 +208,9 @@ namespace RuneCode
         {
             _isRevealing = false;
             _isWaitingForRelease = false;
+            _isReturnOnly = false;
+            _guideRoot.SetActive(false);
+            _improveHighlight.gameObject.SetActive(false);
             HideRewardTooltip();
         }
 
