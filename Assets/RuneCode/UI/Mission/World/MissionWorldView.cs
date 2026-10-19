@@ -322,16 +322,20 @@ namespace RuneCode
             if (mouse != null && _camera.TryGetSimPoint(mouse.position.ReadValue(), out SimVector pointer))
             {
                 Vector2 center = MissionWorldSpace.ToWorld(sim.Player.Position, sim.MapCenter) * MissionWorldSpace.PIXELS_PER_UNIT;
-                SimVector delta = pointer - sim.Player.Position;
-                SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : sim.Player.AimDirection;
                 foreach (CompiledSpell spell in sim.Loadout)
                 {
                     if (spell == null) continue;
                     foreach (SpellAction action in spell.Root)
                     {
                         if (!RuneSimulation.CanShowAreaPreview(action)) continue;
-                        GetView(_rangePreviews, _spellPrefab, previewCount++).ApplyPreview(action,
-                            sim.GetAreaPreviewPosition(pointer), direction, sim.MapCenter);
+                        bool isSlash = action.Form == SlashBehaviorRules.KIND;
+                        int count = isSlash ? action.Count : 1;
+                        for (int index = 0; index < count; index++)
+                        {
+                            sim.GetRangePreview(action, pointer, index, out SimVector position, out SimVector direction);
+                            GetView(_rangePreviews, _spellPrefab, previewCount++).ApplyPreview(action, position, direction, sim.MapCenter);
+                        }
+                        if (isSlash) continue;
                         float radius = (float)sim.GetAreaPlacementRange();
                         for (int segment = 0; segment < RANGE_SEGMENTS; segment += 2)
                         {

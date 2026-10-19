@@ -47,6 +47,7 @@ namespace RuneCode
                 case "element.healing": effect = "회복 효과를 적용합니다."; break;
                 case "element.protection": effect = "장착한 행동에 따라 보호 효과를 적용합니다."; break;
                 case "mod.amplify": effect = "피해·회복 등 효과의 위력을 높입니다."; break;
+                case "mod.saving": effect = GameData.L("ui.savingHint"); break;
                 case "mod.multi": effect = "생성 개수를 늘립니다. 발사는 전용 개수와 퍼짐을 사용합니다."; break;
                 case "mod.pierce": effect = "적을 관통해 뒤쪽 대상도 타격합니다."; break;
                 case "mod.homing": effect = "탐색 범위 안의 적을 향해 방향을 조정합니다."; break;
@@ -60,6 +61,7 @@ namespace RuneCode
                 case "behavior.persist": effect = "일정 시간 유지되는 장판을 생성합니다."; break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
                 case "behavior.burst": effect = GameData.L("ui.burstHint"); break;
+                case SlashBehaviorRules.RUNE_ID: effect = GameData.L("ui.slashHint"); break;
                 case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
                 default: effect = string.Empty; break;
             }
@@ -77,6 +79,13 @@ namespace RuneCode
                     switch (GameData.ModifierGrades.GetEffectType(rune.Id))
                     {
                         case "effectMultiplier": label = " 효과 배율 ×"; break;
+                        case ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT: label = " 전력 소비 배율 ×"; break;
+                        case "beamEmpowerMultiplier":
+                            effect += " 채널링을 오래할수록 피해·마나·빔 폭 증가 · 2초부터 강화 · 5초 최대 피해 ×" + value
+                                + " · 마나 ×" + GameData.ModifierGrades.GetBeamEmpowerManaMultiplier(rune.Id, grade).ToString("0.##")
+                                + " · 빔 폭 ×" + GameData.ModifierGrades.GetBeamEmpowerSizeMultiplier(rune.Id, grade).ToString("0.##");
+                            label = null;
+                            break;
                         case "multipleCount": label = " 생성 개수 "; break;
                         case "waveCount": label = " 실행 회차 "; break;
                         case "pierceCount": label = " 관통 횟수 "; break;
@@ -631,6 +640,16 @@ namespace RuneCode
             switch (effectType)
             {
                 case "effectMultiplier": AddMultiplier(values, "ui.gradeDamage", gradeValue); break;
+                case ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT:
+                    AddMultiplier(values, "ui.gradeEnergyConsumption", gradeValue);
+                    break;
+                case "beamEmpowerMultiplier":
+                    values.Add("채널링을 오래할수록 피해·마나·빔 폭 증가");
+                    values.Add("2초부터 강화 · 5초에 최대 충전");
+                    values.Add("최대 피해 ×" + gradeValue);
+                    values.Add("최대 마나 ×" + grades.GetBeamEmpowerManaMultiplier(rune.Id, grade).ToString("0.##"));
+                    values.Add("최대 빔 폭 ×" + grades.GetBeamEmpowerSizeMultiplier(rune.Id, grade).ToString("0.##"));
+                    break;
                 case "multipleCount": values.Add(GameData.L("ui.gradeCount") + " " + gradeValue); break;
                 case "waveCount": values.Add(GameData.L("ui.gradeWaveCount") + " " + gradeValue); break;
                 case "pierceCount": values.Add(GameData.L("ui.gradePierce") + " " + gradeValue); break;
@@ -659,7 +678,8 @@ namespace RuneCode
                     break;
             }
             RuneStats stats = rune.Stats;
-            values.Add(GameData.L("ui.costMultiplier") + " ×" + grades.GetEnergyMultiplier(rune.Id, grade).ToString("0.##"));
+            if (effectType != ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT)
+                values.Add(GameData.L("ui.costMultiplier") + " ×" + grades.GetEnergyMultiplier(rune.Id, grade).ToString("0.##"));
             if (rune.Id == "mod.multi")
             {
                 if (grades.TryGetCountValue(rune.Id, grade, true, out int launchCount)
@@ -720,6 +740,14 @@ namespace RuneCode
         {
             if (action?.Stats == null) return;
             SpellStats stats = action.Stats;
+            if (action.Form == SlashBehaviorRules.KIND)
+            {
+                _view.AddNote(GameData.L("ui.slashLength") + " " + stats.Radius.ToString("0.#") + "px\n"
+                    + GameData.L("ui.slashWidth") + " " + stats.BoxWidth.ToString("0.#") + "px\n"
+                    + GameData.L("ui.slashAngle") + " " + action.ConeAngle.ToString("0.#") + "°\n"
+                    + GameData.L("ui.slashDuration") + " " + stats.Lifetime.ToString("0.##") + "s", 90, 6);
+                return;
+            }
             if (action.Rules?.DisplayType == SpellDisplayType.ExpandingRing)
             {
                 float angle = action.ConeAngle;

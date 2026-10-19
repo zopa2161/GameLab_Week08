@@ -72,7 +72,7 @@ namespace RuneCode
         public override double GetLifetime(SimulationSpellEntity entity) => double.PositiveInfinity;
 
         /// <summary>
-        /// 맵 경계·벽을 반영한 중심선 경로를 빔 상태에 재사용해 저장한다. 각 칸의 방향은 장착된 이동 모드(유도 등)가 경로 개입으로 고친다.
+        /// 벽을 통과하는 중심선 경로를 빔 상태에 재사용해 저장한다. 각 칸의 방향은 장착된 이동 모드(유도 등)가 경로 개입으로 고친다.
         /// 공전은 현재 공전 중심의 원 한 바퀴(유도가 있으면 고른 대상 쪽으로 휜 원), 그 외에는 유도 수치가 있으면 빔 길이, 없으면 맵 대각선을 경로 길이로 쓴다.
         /// </summary>
         private static void BuildPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
@@ -86,9 +86,8 @@ namespace RuneCode
             }
             SimVector point = entity.Position;
             SimVector direction = entity.Direction;
-            double halfWidth = entity.Stats.BoxWidth * 0.5;
+            double halfWidth = entity.BoxWidth * 0.5;
             state.AddPoint(point);
-            if (!simulation.Map.CanOccupy(point, halfWidth)) return;
             double diagonal = Math.Sqrt(simulation.Map.Width * simulation.Map.Width + simulation.Map.Height * simulation.Map.Height);
             bool isHoming = entity.Stats.HomingRange > 0 && entity.Stats.HomingTurn > 0;
             double pathSpeed = GameData.Runes.Get("form.beam").Stats.Speed;
@@ -98,12 +97,6 @@ namespace RuneCode
                 double step = Math.Min(PATH_STEP, remaining);
                 entity.SteerPathStep(simulation, point, ref direction, step, pathSpeed, halfWidth);
                 SimVector next = point + direction * step;
-                double wall = simulation.FirstWallFraction(point, next, halfWidth);
-                if (!double.IsPositiveInfinity(wall))
-                {
-                    state.AddPoint(point + (next - point) * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON));
-                    break;
-                }
                 state.AddPoint(next);
                 point = next;
                 remaining -= step;
@@ -112,7 +105,7 @@ namespace RuneCode
 
         /// <summary>
         /// 현재 공전 중심의 원을 반경에 비례한 등각 표본(ORBIT_MIN_SEGMENTS~ORBIT_MAX_SEGMENTS개)으로 만들고, 유도가 고른 대상 각도에도
-        /// 표본을 끼워 넣어 휜 원이 대상 위치를 정확히 지나게 한다. 벽에 닿으면 그 앞에서 멈추고, 벽이 없으면 마지막 점을 첫 점과 정확히 연결한다.
+        /// 표본을 끼워 넣어 휜 원이 대상 위치를 정확히 지나게 한다. 벽을 통과하며 마지막 점을 첫 점과 정확히 연결한다.
         /// 다중 빔은 순번마다 반경을 조금씩 달리해 겹치지 않게 한다.
         /// </summary>
         private static void BuildOrbitPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
@@ -121,13 +114,10 @@ namespace RuneCode
             int segments = Math.Max(ORBIT_MIN_SEGMENTS, Math.Min(ORBIT_MAX_SEGMENTS, (int)Math.Ceiling(2 * Math.PI * radius / ORBIT_PATH_STEP)));
             double angleStep = 2 * Math.PI / segments;
             SimVector radial = (entity.Position - OrbitModifierRuntime.GetCenter(entity)).Normalized();
-            double halfWidth = entity.Stats.BoxWidth * 0.5;
             List<HomingModifierRuntime.OrbitBend> bends = state.Bends;
             double bendWidth = HomingModifierRuntime.SelectOrbitBends(simulation, entity, radial, radius, bends);
             SimVector first = HomingModifierRuntime.GetOrbitPathPoint(entity, radial, radius, 0, bends, bendWidth);
-            SimVector point = first;
             state.AddPoint(first);
-            if (!simulation.Map.CanOccupy(first, halfWidth)) return;
             int bendIndex = 0;
             for (int index = 1; index <= segments; index++)
             {
@@ -137,11 +127,10 @@ namespace RuneCode
                 {
                     double bendAngle = bends[bendIndex++].Angle;
                     if (bendAngle <= RuneSimulation.COLLISION_EPSILON || bendAngle >= sampleAngle - RuneSimulation.COLLISION_EPSILON) continue;
-                    if (!TryAddOrbitPoint(simulation, state, ref point,
-                        HomingModifierRuntime.GetOrbitPathPoint(entity, radial, radius, bendAngle, bends, bendWidth), halfWidth)) return;
+                    state.AddPoint(HomingModifierRuntime.GetOrbitPathPoint(entity, radial, radius, bendAngle, bends, bendWidth));
                 }
                 SimVector next = index == segments ? first : HomingModifierRuntime.GetOrbitPathPoint(entity, radial, radius, sampleAngle, bends, bendWidth);
-                if (!TryAddOrbitPoint(simulation, state, ref point, next, halfWidth)) return;
+                state.AddPoint(next);
             }
         }
 
@@ -158,20 +147,6 @@ namespace RuneCode
             return radius * (1 + ORBIT_RADIUS_STEP * (index - (count - 1) * 0.5));
         }
 
-        /// <summary>point에서 next까지 벽을 검사해 막히지 않으면 next를 경로에 추가하고 point를 옮긴 뒤 true를 반환한다. 막히면 벽 앞 점을 추가하고 false를 반환한다.</summary>
-        private static bool TryAddOrbitPoint(RuneSimulation simulation, BeamState state, ref SimVector point, SimVector next, double halfWidth)
-        {
-            double wall = simulation.FirstWallFraction(point, next, halfWidth);
-            if (!double.IsPositiveInfinity(wall))
-            {
-                state.AddPoint(point + (next - point) * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON));
-                return false;
-            }
-            state.AddPoint(next);
-            point = next;
-            return true;
-        }
-
         /// <summary>경로에 겹친 적을 경로 거리·ID 순으로 한 번씩 타격하고 실제 피해를 준 대상별 1·3·5번째 타격에 OnHit을 발생시킨다.</summary>
         private static void HitPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
         {
@@ -183,9 +158,9 @@ namespace RuneCode
                 for (int index = 1; index < state.Path.Count; index++)
                 {
                     SimVector start = state.Path[index - 1], end = state.Path[index];
-                    if (SpellGeometry.SegmentDistance(start, end, enemy.Position) <= entity.Stats.BoxWidth * 0.5 + enemy.Radius)
+                    if (SpellGeometry.SegmentDistance(start, end, enemy.Position) <= entity.BoxWidth * 0.5 + enemy.Radius)
                     {
-                        double fraction = SpellGeometry.CircleContactFraction(start, end, enemy.Position, entity.Stats.BoxWidth * 0.5 + enemy.Radius);
+                        double fraction = SpellGeometry.CircleContactFraction(start, end, enemy.Position, entity.BoxWidth * 0.5 + enemy.Radius);
                         if (double.IsPositiveInfinity(fraction))
                         {
                             SimVector segment = end - start;
@@ -205,7 +180,10 @@ namespace RuneCode
                 SimulationEnemy enemy = target.Enemy;
                 if (!enemy.IsAlive) continue;
                 double previousHp = enemy.Hp;
-                simulation.Hit(entity, enemy, entity.Stats.Damage, true, target.Direction);
+                double damage = entity.Stats.Damage;
+                bool isConsumed = false;
+                entity.ApplyHitModifiers(simulation, enemy, ref damage, ref isConsumed);
+                simulation.Hit(entity, enemy, damage, true, target.Direction);
                 if (enemy.Hp >= previousHp) continue;
                 entity.HitTimes[enemy.Id] = simulation.Time;
                 if ((state.RecordHit(enemy.Id) - 1) % HITS_PER_EVENT == 0)
@@ -244,6 +222,17 @@ namespace RuneCode
             public bool UsesSlotCycle => _usesSlotCycle;
             public ResourceCostSet CycleCosts => _cycleCosts;
             public int PaidUntilTick => _paidUntilTick;
+            internal int ElapsedTicks => Math.Max(0, _lastTick - _startedTick);
+            internal double EmpowerProgress => GetEmpowerProgress(_lastTick);
+
+            /// <summary>지정 틱의 연속 채널 시간을 기준으로 과충전 진행률을 반환한다. 모드가 없거나 채널이 종료되면 0이다.</summary>
+            internal double GetEmpowerProgress(int tick)
+                => _isStopped || _action.BeamEmpowerMultiplier <= 1f ? 0
+                    : BeamEmpowerModifierRules.GetChargeProgress(Math.Max(0, tick - _startedTick) / (double)RuneSimulation.TICK_RATE);
+
+            /// <summary>지정 결제 틱의 과충전 진행률을 반영한 마나 유지 비용 배율을 반환한다.</summary>
+            internal double GetManaMultiplier(int tick)
+                => 1 + (_action.BeamEmpowerManaMultiplier - 1) * GetEmpowerProgress(tick);
 
             /// <summary>최초 결제 비용과 슬롯 주기 종료 틱을 저장한다. 비슬롯 빔의 수명은 기존 최소 유지 시간으로 정한다.</summary>
             internal BeamChannel(int tick, SpellStats stats, int slot, bool followsPlayer, SpellAction action,

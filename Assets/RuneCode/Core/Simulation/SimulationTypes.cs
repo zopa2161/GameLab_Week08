@@ -511,8 +511,8 @@ namespace RuneCode
         public SimVector Direction => _direction;
         /// <summary>현재 판정 반경이다. 행동 실행 동작이 정한다(Burst는 확장 시간 동안 0에서 최종 반경까지 커진다).</summary>
         public double Radius => _behavior.GetRadius(this);
-        /// <summary>Beam 범위의 폭이다. Burst도 확장 중 폭은 그대로다.</summary>
-        public double BoxWidth => _stats.BoxWidth;
+        /// <summary>과충전 진행률을 반영한 빔 판정·표시 폭이다. 다른 행동은 원래 폭을 유지한다.</summary>
+        public double BoxWidth => _stats.BoxWidth * (1 + (_action.BeamEmpowerSizeMultiplier - 1) * BeamChargeProgress);
 
         /// <summary>Beam 범위의 현재 길이다. 행동의 확장 진행률을 곱한다(Burst는 확장 시간 동안 0에서 최종 길이까지 늘어난다).</summary>
         public double BoxLength => _stats.BoxLength * _behavior.GetExpansionProgress(this);
@@ -536,6 +536,16 @@ namespace RuneCode
 
         /// <summary>생성 위치를 중심으로 원형 파동이 확장하는 폭발 투사체인지 반환한다.</summary>
         public bool IsExpandingRing => _action.Rules?.DisplayType == SpellDisplayType.ExpandingRing;
+
+        /// <summary>중심을 따라 회전하는 참격 개체인지 반환한다.</summary>
+        public bool IsSlash => _action.Form == SlashBehaviorRules.KIND;
+
+        /// <summary>참격의 판정과 표시가 공유하는 벽으로 제한된 현재 칼날 중심선을 반환한다.</summary>
+        public IReadOnlyList<SimVector> SlashPath => _behaviorState is SlashBehaviorRuntime.SlashState slash
+            ? slash.Path : Array.Empty<SimVector>();
+
+        /// <summary>참격의 마지막 판정 회전 진행률을 반환한다. 표시는 아직 지나가지 않은 범위에 잔상을 만들지 않는다.</summary>
+        public double SlashProgress => _behaviorState is SlashBehaviorRuntime.SlashState slash ? slash.Progress : 0;
 
         /// <summary>폭발의 생성 후 시간과 확장·속도 배율을 반영한 파동 반경이다.</summary>
         public double ExplosionRadius => _stats.Speed * _age;
@@ -595,6 +605,12 @@ namespace RuneCode
         /// <summary>빔 표시와 충돌이 공유하는 중심선이다. 빔이 아닌 개체는 빈 목록을 반환한다.</summary>
         public IReadOnlyList<SimVector> BeamPath => _behaviorState is BeamBehaviorRuntime.BeamState beam
             ? beam.Path : Array.Empty<SimVector>();
+
+        /// <summary>같은 빔 채널의 강화 시작부터 최대 충전까지의 진행률이다. 빔이 아니거나 종료되면 0이다.</summary>
+        public double BeamChargeProgress => _behaviorState is BeamBehaviorRuntime.BeamState beam ? beam.Channel.EmpowerProgress : 0;
+
+        public bool IsBeamEmpowered => BeamChargeProgress > 0;
+        public double BeamDamageMultiplier => 1 + (_action.BeamEmpowerMultiplier - 1) * BeamChargeProgress;
 
         /// <summary>판정 전 대기 시간이다. Burst의 확장 시간 또는 Persist의 예고 시간이며 그 외 행동은 0이다.</summary>
         internal double WarmupSeconds => _warmupSeconds;

@@ -39,7 +39,7 @@ namespace RuneCode
             if (!string.IsNullOrEmpty(_hoveredNodeId)) RefreshTooltip(_hoveredNodeId);
         }
 
-        /// <summary>트리로 획득한 능력치 아홉 종류의 누적 증가량을 좌측 상단 표시로 갱신한다.</summary>
+        /// <summary>트리로 획득한 능력치 열 종류의 누적 증가량을 좌측 상단 표시로 갱신한다.</summary>
         private void RefreshStatsSummary()
         {
             _statsBuilder.Clear();
@@ -56,6 +56,7 @@ namespace RuneCode
             AppendStat(UpgradeEffectType.KillEnergy, "ui.tree.killEnergy", "");
             AppendStat(UpgradeEffectType.ScrapPickupRange, "ui.tree.scrapPickupRange", "%", true);
             AppendStat(UpgradeEffectType.ScrapGain, "ui.tree.scrapGain", "%", true);
+            AppendStat(UpgradeEffectType.ScrapHeal, "ui.tree.scrapHeal", "%", true);
             _view.SetStatsSummary(_statsBuilder.ToString());
         }
 
@@ -127,6 +128,7 @@ namespace RuneCode
                 case UpgradeEffectType.RamCapacity: unit = " RAM"; break;
                 case UpgradeEffectType.MaxHp: unit = " HP"; break;
                 case UpgradeEffectType.Damage:
+                case UpgradeEffectType.ScrapHeal:
                 case UpgradeEffectType.ScrapGain:
                 case UpgradeEffectType.ScrapPickupRange:
                 case UpgradeEffectType.MoveSpeed:

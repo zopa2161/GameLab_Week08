@@ -7164,6 +7164,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 3327692301722210065}
     m_Modifications:
+    - target: {fileID: 1656388761840003713, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 4d31620164208854daac1d5cf27f7046, type: 3}
     - target: {fileID: 1589036622568036755, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
       propertyPath: m_Name
       value: Inspector
@@ -11383,6 +11387,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 5638619975720861793}
     m_Modifications:
+    - target: {fileID: 1656388761840003713, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 4d31620164208854daac1d5cf27f7046, type: 3}
     - target: {fileID: 1589036622568036755, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
       propertyPath: m_Name
       value: UpgradeTreeHoverInfo

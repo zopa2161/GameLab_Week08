@@ -495,3 +495,26 @@ MonoBehaviour:
       _amount: 10
     - _cost: 210
       _amount: 10
+  - _id: upgrade.scrapHeal.0
+    _requiredStage: 1
+    _titleKey: ui.tree.scrapHeal
+    _descriptionKey: ui.tree.scrapHealDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 3, y: 3}
+    _effectType: 11
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.scrapGain.0
+      _requiredLevel: 1
+    _levels:
+    - _cost: 60
+      _amount: 0.01
+    - _cost: 85
+      _amount: 0.01
+    - _cost: 110
+      _amount: 0.01
+    - _cost: 135
+      _amount: 0.01
+    - _cost: 160
+      _amount: 0.01

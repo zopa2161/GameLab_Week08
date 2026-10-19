@@ -628,8 +628,8 @@ function renderGradesView(table, main) {
   orderInput.addEventListener("change", () => {
     g._gradeOrder = orderInput.value.split(",").map(s => s.trim()).filter(Boolean);
     for (const effect of g._modifierGradeEffects || []) {
-      effect._gradeValues = effect._gradeValues || {};
-      for (const grade of g._gradeOrder) if (!(grade in effect._gradeValues)) effect._gradeValues[grade] = null;
+      const values = gradeValuesForEffect(effect);
+      for (const grade of g._gradeOrder) if (!(grade in values)) values[grade] = effect._effectType === "energyCostMultiplier" ? 0.8 : null;
     }
     touch(); renderView();
   });
@@ -658,12 +658,28 @@ function renderGradesView(table, main) {
     effectSelect.value = effect._effectType || "";
     effectSelect.addEventListener("change", () => {
       effect._effectType = effectSelect.value;
-      for (const grade of Object.keys(effect._gradeValues || {}))
-        if (gradeValueError(effect._effectType, effect._gradeValues[grade]) !== null) effect._gradeValues[grade] = null;
+      const values = gradeValuesForEffect(effect);
+      for (const grade of grades)
+        if (gradeValueError(effect._effectType, values[grade]) !== null) values[grade] = effect._effectType === "energyCostMultiplier" ? 0.8 : null;
       touch(); renderView();
     });
     row.appendChild(el("td", {}, effectSelect));
-    for (const grade of grades) row.appendChild(el("td", {}, gradeValueControl(effect, grade)));
+    for (const grade of grades) {
+      const cell = el("td", {}, gradeValueControl(effect, grade));
+      if (effect._effectType === "beamEmpowerMultiplier") {
+        for (const [key, label] of [["_beamEmpowerManaMultByGrade", "최대 마나"], ["_beamEmpowerSizeMultByGrade", "최대 빔 폭"]]) {
+          const values = effect[key] || {};
+          const input = el("input", { type: "number", min: "1", step: "0.01", value: values[grade] ?? "", style: "width:72px" });
+          input.addEventListener("change", () => {
+            effect[key] = effect[key] || {};
+            effect[key][grade] = Number(input.value);
+            touch();
+          });
+          cell.appendChild(el("div", {}, el("span", { class: "muted", text: label + " × " }), input));
+        }
+      }
+      row.appendChild(cell);
+    }
     const actions = el("td", { class: "item-actions" });
     actions.appendChild(el("button", { text: "삭제", onclick: () => { g._modifierGradeEffects.splice(index, 1); touch(); renderView(); } }));
     row.appendChild(actions);
@@ -756,8 +772,15 @@ function homingTierNames() {
   return ((homing && homing._homingTiers) || []).map(tier => tier._tier).filter(Boolean);
 }
 
-// 효과 종류에 맞지 않는 등급 값이면 오류 문구를, 맞거나 null(등급 없음)이면 null을 반환한다.
+// 절약은 기존 비용 배율을 원본으로 사용하고 다른 효과는 별도 등급 효과 값을 편집한다.
+function gradeValuesForEffect(effect) {
+  const key = effect._effectType === "energyCostMultiplier" ? "_energyMultByGrade" : "_gradeValues";
+  return effect[key] || (effect[key] = {});
+}
+
+// 효과 종류에 맞지 않는 등급 값이면 오류 문구를, 유효한 값이면 null을 반환한다.
 function gradeValueError(effectType, value) {
+  if (effectType === "energyCostMultiplier") return typeof value === "number" && isFinite(value) && value > 0 && value < 1 ? null : "0보다 크고 1보다 작은 전력 소비 배율이어야 합니다.";
   if (value === null || value === undefined) return null;
   const kind = GRADE_VALUE_KINDS[effectType];
   if (kind === "decimal") return typeof value === "number" && isFinite(value) && value > 0 ? null : "0보다 큰 숫자(배율)여야 합니다.";
@@ -770,8 +793,7 @@ function gradeValueError(effectType, value) {
 // 효과 종류마다 값 형식이 정해진 등급 값 입력을 만든다. 체크를 끄면 그 등급이 없음(null)이다.
 // 배율은 소수, 개수는 정수, 관통은 정수 또는 무제한(ALL), 유도는 단계 선택으로만 입력한다.
 function gradeValueControl(effect, grade) {
-  effect._gradeValues = effect._gradeValues || {};
-  const values = effect._gradeValues;
+  const values = gradeValuesForEffect(effect);
   const kind = GRADE_VALUE_KINDS[effect._effectType];
   const wrap = el("div", { class: "field", style: "gap:4px" });
   const value = values[grade];
@@ -781,7 +803,7 @@ function gradeValueControl(effect, grade) {
   wrap.appendChild(check);
   const defaults = { decimal: 1, integer: 1, integerOrAll: 1, homingTier: homingTierNames()[0] ?? null };
   check.addEventListener("change", () => {
-    values[grade] = check.checked ? (defaults[kind] ?? null) : null;
+    values[grade] = check.checked ? (effect._effectType === "energyCostMultiplier" ? 0.8 : (defaults[kind] ?? null)) : null;
     touch(); renderView();
   });
   if (!has) return wrap;
@@ -1077,13 +1099,22 @@ const VALIDATORS = {
       const p = `grades:${effect._modifierId || "?"}`;
       checkRef(errors, "error", `${p}:_modifierId`, effect._modifierId, "modifier");
       if (!GRADE_VALUE_KINDS[effect._effectType]) errors.push({ level: "error", path: `${p}:_effectType`, msg: `알 수 없는 효과 종류: ${effect._effectType}` });
-      const values = effect._gradeValues || {};
+      const values = gradeValuesForEffect(effect);
       for (const grade of grades) {
         const message = gradeValueError(effect._effectType, values[grade]);
         if (message && GRADE_VALUE_KINDS[effect._effectType]) errors.push({ level: "error", path: `${p}:_gradeValues.${grade}`, msg: message });
       }
       if (!grades.some(grade => values[grade] !== null && values[grade] !== undefined))
         errors.push({ level: "error", path: `${p}:_gradeValues`, msg: "값이 있는 등급이 하나 이상 있어야 합니다." });
+      if (effect._effectType === "beamEmpowerMultiplier") {
+        for (const key of ["_beamEmpowerManaMultByGrade", "_beamEmpowerSizeMultByGrade"]) {
+          for (const grade of grades) {
+            const multiplier = effect[key]?.[grade];
+            if (typeof multiplier !== "number" || !Number.isFinite(multiplier) || multiplier < 1)
+              errors.push({ level: "error", path: `${p}:${key}.${grade}`, msg: "1 이상의 유한한 배율이 필요합니다." });
+          }
+        }
+      }
     }
     for (const row of g._stageDropTables || []) {
       const p = `grades:${row._stage}스테이지`;

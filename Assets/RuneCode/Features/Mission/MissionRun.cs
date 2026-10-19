@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using UnityEngine.InputSystem;
@@ -118,7 +118,7 @@ namespace RuneCode
             _simulation = new RuneSimulation(seed, true, session.MaxHp, session.MaxEnergy, session.SelectedStage, session.EnergyRegen,
                 session.DamageMultiplier, session.MoveSpeedMultiplier, session.ScrapGainMultiplier,
                 carrier: CarrierSpawnSettings.LoadDefinition(), scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
-                killEnergyBonus: session.KillEnergyBonus);
+                killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio);
             _simulation.SetLoadout(new[] { spell });
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
             _coreNodeId = null;

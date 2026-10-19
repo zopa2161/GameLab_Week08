@@ -49,6 +49,7 @@ namespace RuneCode
         private readonly double _moveSpeedMultiplier;
         private readonly double _scrapGainMultiplier;
         private readonly double _scrapPickupRangeMultiplier;
+        private readonly double _scrapHealRatio;
         private readonly double _killEnergyBonus;
         private readonly List<SimulationEnemy> _enemies = new List<SimulationEnemy>();
         private readonly List<SimulationSpellEntity> _spellEntities = new List<SimulationSpellEntity>();
@@ -113,6 +114,7 @@ namespace RuneCode
         private int _collectedFragments;
         private int _normalScrapPickupEventCount;
         private int _bigScrapPickupEventCount;
+        private int _bigScrapSpawnEventCount;
         private double _scrapRemainder;
         private double _totalDamage;
         private double _statusDamage;
@@ -159,6 +161,19 @@ namespace RuneCode
 
         /// <summary>다중 분산을 제외하고 포인터를 최대 사거리로만 제한한 기본 범위 미리보기 위치를 반환한다.</summary>
         public SimVector GetAreaPreviewPosition(SimVector pointer) => ClampAreaTargetPosition(pointer, _player.Position);
+
+        /// <summary>범위 조준 미리보기의 위치와 방향을 반환한다. 참격은 시전자 중심과 다중 퍼짐 방향을 사용한다.</summary>
+        public void GetRangePreview(SpellAction action, SimVector pointer, int index, out SimVector position, out SimVector direction)
+        {
+            SimVector delta = pointer - _player.Position;
+            direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : _player.AimDirection;
+            position = GetAreaPreviewPosition(pointer);
+            if (action.Form != SlashBehaviorRules.KIND) return;
+            position = _player.Position;
+            foreach (SpellModifierRules rule in action.ModifierRules)
+                if (SpellModifierRuntimeRegistry.TryGet(rule.RuneId, out SpellModifierRuntime modifier))
+                    modifier.BeforePlaceSpawn(this, action, action.Stats, index, ref position, ref direction);
+        }
 
         /// <summary>시전자 위치를 중심으로 포인터를 공통 최대 사거리 안에 제한하여 반환한다. 최소 거리는 없다.</summary>
         private SimVector ClampAreaTargetPosition(SimVector pointer, SimVector origin)
@@ -242,6 +257,7 @@ namespace RuneCode
         public int CollectedFragments => _collectedFragments;
         public int NormalScrapPickupEventCount => _normalScrapPickupEventCount;
         public int BigScrapPickupEventCount => _bigScrapPickupEventCount;
+        public int BigScrapSpawnEventCount => _bigScrapSpawnEventCount;
         public int Fragments => _collectedFragments;
         /// <summary>플레이어가 직접 줍거나 스테이지 클리어 시 회수한 스크랩 누계를 반환한다.</summary>
         public int EarnedFragments => _collectedFragments;
@@ -269,10 +285,10 @@ namespace RuneCode
         /// <summary>명시적으로 열린 디버그 기능에서 플레이어 무적 상태를 변경한다.</summary>
         public void SetDebugInvulnerable(bool isInvulnerable) { _debugInvulnerable = isInvulnerable; }
 
-        /// <summary>시드, 스테이지와 트리 능력치·처치 전력 보너스를 받아 독립 전투 또는 시험 도크를 생성한다. 생략한 배율은 1, 보너스는 0을 사용한다.</summary>
+        /// <summary>시드, 스테이지와 트리 능력치·처치 전력 보너스·스크랩 회복 비율을 받아 독립 전투 또는 시험 도크를 생성한다. 생략한 배율은 1, 보너스는 0을 사용한다.</summary>
         public RuneSimulation(int seed = 1, bool isMission = false, double maxHp = 0, double maxEnergy = 0, int stageNumber = 1, double energyRegen = 0,
             double damageMultiplier = 1, double moveSpeedMultiplier = 1, double scrapGainMultiplier = 1, CarrierDefinition carrier = null,
-            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0)
+            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0)
         {
             GameData.Load();
             _killEnergyBonus = Math.Max(0, killEnergyBonus);
@@ -296,6 +312,8 @@ namespace RuneCode
             _spawnSlots = new SpawnSlots(NextRandom, _enemies);
             _arenaSpawnPoints = new ArenaSpawnPoints(NextRandom, _enemies);
             _isArenaPointReserved = IsArenaPointReserved;
+            _scrapHealRatio = Math.Max(0, Math.Min(1, scrapHealRatio));
+            _spawnSlots = new SpawnSlots(NextRandom);
             _isSeparationFixed = IsSeparationFixed;
             Adaptation = new AdaptationNet(_balance);
             if (isMission) BeginTimedBattle();
@@ -571,6 +589,7 @@ namespace RuneCode
             _freezeStartEventCount = 0;
             _normalScrapPickupEventCount = 0;
             _bigScrapPickupEventCount = 0;
+            _bigScrapSpawnEventCount = 0;
             _actionBudgetTick = -1; _actionsThisTick = 0; _droppedExecutions = 0;
             SimulationBalance bench = _balance.Sim;
             _map = new MissionMap(_sector.Rooms[0].Tiles, _sector.TileSize); _player = new SimulationPlayer(_maxHp, _maxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
@@ -628,7 +647,7 @@ namespace RuneCode
             state.Append('|').Append(_aimPoint.HasValue);
             if (_aimPoint.HasValue) { AppendNumber(state, _aimPoint.Value.X); AppendNumber(state, _aimPoint.Value.Y); }
             AppendNumber(state, _damageMultiplier); AppendNumber(state, _moveSpeedMultiplier);
-            AppendNumber(state, _scrapGainMultiplier); AppendNumber(state, _scrapPickupRangeMultiplier); AppendNumber(state, _scrapRemainder);
+            AppendNumber(state, _scrapGainMultiplier); AppendNumber(state, _scrapPickupRangeMultiplier); AppendNumber(state, _scrapHealRatio); AppendNumber(state, _scrapRemainder);
             _player.WriteState(state);
             foreach (SimulationEnemy enemy in _enemies) enemy.WriteState(state);
             foreach (EnemyStatusEffect status in _enemyStatuses) status.WriteState(state);
@@ -803,7 +822,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>직접 공격 빔을 기존 구간 비용으로 갱신하거나 최초 비용을 결제하고 원래 분기·실행 시간 뒤 생성 예약한다.</summary>
+        /// <summary>직접 빔은 원본 구간 비용에 현재 충전 마나 배율을 적용해 갱신한다. 최초 비용은 원래대로 결제하고 생성 예약한다.</summary>
         private void ExecuteBeamCycle(SpellAction action, SpellContext context, ExecutionTracker tracker, int branchDelayTicks)
         {
             if (_actionBudgetTick != _tick) { _actionBudgetTick = _tick; _actionsThisTick = 0; }
@@ -833,6 +852,8 @@ namespace RuneCode
             ResourceCostSet costs = active != null ? active.CycleCosts
                 : root.Spell.GetBeamCycleCosts(action, _balance.Sim.ExecutionTimeScale,
                     context.Modifiers, context.CostMultiplier, context.IsManaPrepaid, context.CallEvents);
+            if (active != null)
+                costs = costs.WithAmount("mana", costs.GetAmount("mana") * active.GetManaMultiplier(_tick));
             if (!TrySpendBeamCosts(costs))
             {
                 active?.Stop();
@@ -1129,6 +1150,7 @@ namespace RuneCode
                 if (_spellEntities.Count >= _balance.Limits.MaxLiveSpellEntities) return;
                 SimVector direction = context.Direction;
                 SimVector position = context.Origin;
+                if (action.Form == SlashBehaviorRules.KIND && !context.FromEvent) direction = context.Caster.AimDirection;
                 foreach (SpellModifierRuntime modifier in modifiers) modifier.BeforePlaceSpawn(this, action, stats, i, ref position, ref direction);
                 behavior.PlaceSpawn(this, action, stats, i, context.FromEvent, context.Caster, ref position, ref direction);
                 foreach (SpellModifierRuntime modifier in modifiers) modifier.AfterPlaceSpawn(this, action, stats, i, ref position, ref direction);
@@ -1145,6 +1167,7 @@ namespace RuneCode
                 var entity = new SimulationSpellEntity(++_nextEntityId, action, stats, element, position, direction,
                     context.FromEvent, context.Origin, angle, context.NoiseElement, _balance.Sim.SpellVisualSeconds, warmup,
                     context.CallEvents, context.Modifiers, context.CostMultiplier, context.Caster);
+                if (entity.BehaviorState is SlashBehaviorRuntime.SlashState slash) slash.SetAnchorTarget(context.Target);
                 RecordActionSpawn(action, context);
                 _spellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _spellEntities.Count);
                 if (action.Form == SpellGrammar.FORM_BOLT) _shotLaunchEventCount++;
@@ -1355,7 +1378,7 @@ namespace RuneCode
             if (tracksDirectHit) entity.HasDirectHit = true;
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action);
-            bool isFirstEvent = tracksDirectHit && entity.TryMarkFirstEvent();
+            bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
             ExecuteCallEvent(entity, true, isFirstEvent, position, target);
@@ -1405,7 +1428,7 @@ namespace RuneCode
 
         /// <summary>피해에 적응·이지스 방패와 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
         private double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
-            double minimumDamage = 0d, SpellAction sourceAction = null)
+            double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null)
         {
             if (!enemy.IsAlive || enemy.IsPatching) return 0;
             double actual = damage * _damageMultiplier * Adaptation.GetMultiplier(element, form);
@@ -1418,10 +1441,10 @@ namespace RuneCode
                 break;
             }
             actual = enemy.Hurt(Math.Max(minimumDamage, actual), Time);
-            if (applyStatus) ApplyStatus(enemy, element, form, noise, damage);
+            if (applyStatus) ApplyStatus(enemy, element, form, noise, damage, sourceAction);
             if (actual > 0)
             {
-                if (sourceAction != null) GetActionCombatStats(sourceAction).RecordDamage(actual, !applyStatus);
+                if (sourceAction != null) GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
                 _enemyDamageEventCount++;
                 enemy.SetDamageTags(element, form);
                 _totalDamage += actual; _rollingDamage += actual; _damageWindow.Enqueue(new DamageSample(_tick, actual));
@@ -1465,7 +1488,7 @@ namespace RuneCode
                 if (burn == null) continue;
                 while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && Time + 0.000001 >= burn.NextTickTime)
                 {
-                    double actual = ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false);
+                    double actual = ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false, sourceAction: burn.DamageSourceAction, damageStatus: "burn");
                     _statusDamage += actual;
                     if (actual > 0) _burnTickDamageEventCount++;
                     burn.NextTickTime += _balance.Combat.BurnInterval;
@@ -1490,15 +1513,15 @@ namespace RuneCode
         }
 
         /// <summary>피해 속성에 맞는 상태 이상을 부여한다. 화염은 전투 공통 보정 전 공격 피해 sourceDamage를 틱 피해 계산에 전달한다.</summary>
-        private void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise, double sourceDamage)
+        private void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise, double sourceDamage, SpellAction sourceAction)
         {
-            if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage);
+            if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage, sourceAction);
             else if (element == "ice") ApplyChill(enemy);
             else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = Time + _balance.Combat.EmpSeconds;
         }
 
         /// <summary>공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 계산하고, 새 화상이거나 기존보다 클 때만 피해·출처를 갱신한다. 재점화 때마다 지속시간은 갱신하며 진행 중인 화상의 다음 틱 시각은 유지한다.</summary>
-        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage)
+        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage, SpellAction sourceAction)
         {
             EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
             bool isNewBurn = burn == null || Time >= burn.Until;
@@ -1512,6 +1535,7 @@ namespace RuneCode
             if (isNewBurn || tickDamage > burn.TickDamage)
             {
                 burn.TickDamage = tickDamage;
+                burn.DamageSourceAction = sourceAction;
                 burn.SourceForm = form;
                 burn.IsNoise = noise;
             }
@@ -1862,7 +1886,7 @@ namespace RuneCode
         {
             SpellContext context = new SpellContext(entity.Position, entity.Direction, null, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id);
-            bool isFirstEvent = entity.Behavior.TracksDirectHit && entity.TryMarkFirstEvent();
+            bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             Execute(entity.Action.OnExpire, context);
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
             ExecuteCallEvent(entity, false, isFirstEvent, entity.Position, null);
@@ -1892,7 +1916,9 @@ namespace RuneCode
                     {
                         // 오브에 실제로 담기는 크레딧을 한 번만 산출해 나머지 누적이 이중 반영되지 않게 한다.
                         droppedCredits = ScaleKillScrap(enemy.Reward);
-                        _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits, enemy.IsElite || enemy.Boss != null));
+                        bool isBigScrap = enemy.IsElite || enemy.Boss != null;
+                        _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits, isBigScrap));
+                        if (isBigScrap) _bigScrapSpawnEventCount++;
                     }
                     string dropTableId = enemy.CarrierOwnerId == 0 ? GetDropTableId(enemy) : null;
                     if (dropTableId != null) RollDropTable(_drops.Get(dropTableId), enemy.Position);
@@ -1949,7 +1975,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>스크랩을 매 틱 플레이어에게 끌어당기고 도착한 오브의 재화와 일반·강력한 적 드롭별 획득 횟수를 더한다.</summary>
+        /// <summary>스크랩을 매 틱 끌어당기고 도착한 오브의 재화·획득 횟수를 더하며 살아 있는 플레이어의 최대 체력 비율만큼 회복한다.</summary>
         private void CollectNearbyOrbs()
         {
             for (int i = _orbs.Count - 1; i >= 0; i--)
@@ -1959,6 +1985,7 @@ namespace RuneCode
                 if (hasArrived)
                 {
                     _collectedFragments += orb.Amount;
+                    if (_scrapHealRatio > 0 && _player.Hp > 0) _player.Heal(_player.MaxHp * _scrapHealRatio);
                     if (orb.IsBigScrap) _bigScrapPickupEventCount++;
                     else _normalScrapPickupEventCount++;
                     _orbs.RemoveAt(i);
@@ -2438,6 +2465,8 @@ namespace RuneCode
                     ["spawn_count"] = stats.SpawnCount,
                     ["damage_dealt"] = stats.Damage,
                     ["status_damage"] = stats.StatusDamage,
+                    ["direct_damage_by_element"] = new Dictionary<string, double>(stats.DirectDamageByElement),
+                    ["status_damage_by_type"] = new Dictionary<string, double>(stats.StatusDamageByType),
                     ["damage_count"] = stats.DamageCount,
                     ["hit_count"] = stats.HitCount,
                     ["on_hit_events"] = stats.OnHitEvents,
@@ -2485,6 +2514,10 @@ namespace RuneCode
         {
             private readonly string _key;
             private readonly Dictionary<SpellAction, long> _onHitTargets = new Dictionary<SpellAction, long>();
+            private readonly Dictionary<string, double> _directDamageByElement = new Dictionary<string, double>
+            { ["raw"] = 0d, ["fire"] = 0d, ["ice"] = 0d, ["arc"] = 0d };
+            private readonly Dictionary<string, double> _statusDamageByType = new Dictionary<string, double>
+            { ["burn"] = 0d, ["chill"] = 0d, ["freeze"] = 0d, ["emp"] = 0d };
             private long _spawnCount;
             private long _damageCount;
             private long _hitCount;
@@ -2502,6 +2535,8 @@ namespace RuneCode
             public long TriggeredByOnHitCount => _triggeredByOnHitCount;
             public double Damage => _damage;
             public double StatusDamage => _statusDamage;
+            public IReadOnlyDictionary<string, double> DirectDamageByElement => _directDamageByElement;
+            public IReadOnlyDictionary<string, double> StatusDamageByType => _statusDamageByType;
             public IReadOnlyDictionary<SpellAction, long> OnHitTargets => _onHitTargets;
 
             /// <summary>로그 내 행동 키를 저장하고 빈 전투 누계를 만든다.</summary>
@@ -2521,12 +2556,23 @@ namespace RuneCode
                 _onHitTargets[target] = count + 1;
             }
 
-            /// <summary>적 HP에서 실제 차감된 피해와 양수 피해 횟수를 누적하고 화상 피해를 별도로 구분한다.</summary>
-            public void RecordDamage(double actual, bool isStatus)
+            /// <summary>실제 차감 피해 actual을 누적하고 실제 속성 element와 상태 종류 damageStatus별로 분리한다.</summary>
+            public void RecordDamage(double actual, string element, string damageStatus)
             {
                 _damage += actual; _damageCount++;
-                if (isStatus) _statusDamage += actual;
-                else _hitCount++;
+                if (damageStatus != null)
+                {
+                    _statusDamage += actual;
+                    _statusDamageByType.TryGetValue(damageStatus, out double previous);
+                    _statusDamageByType[damageStatus] = previous + actual;
+                }
+                else
+                {
+                    _hitCount++;
+                    string key = string.IsNullOrEmpty(element) ? "unknown" : element;
+                    _directDamageByElement.TryGetValue(key, out double previous);
+                    _directDamageByElement[key] = previous + actual;
+                }
             }
         }
 

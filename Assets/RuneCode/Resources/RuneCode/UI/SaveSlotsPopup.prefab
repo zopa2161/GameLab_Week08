@@ -52,4 +52,5 @@ MonoBehaviour:
   _isEscapeClosable: 1
   _font: {fileID: 11400000, guid: 6e22b7e028833a74aaf22c6466fb8f2f, type: 2}
   _panelPrefab: {fileID: 1589036622568036755, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
+  _panelSprite: {fileID: 21300000, guid: 4d31620164208854daac1d5cf27f7046, type: 3}
   _buttonPrefab: {fileID: 8208534833691763984, guid: 0c38440755903e6479644e3872006499, type: 3}

@@ -13,7 +13,8 @@ namespace RuneCode
             new LegacyBurstBehaviorRules(),
             new PersistBehaviorRules(),
             new BeamBehaviorRules(),
-            new ExplosionBehaviorRules()
+            new ExplosionBehaviorRules(),
+            new SlashBehaviorRules()
         };
 
         /// <summary>등록된 모든 행동 규칙이다.</summary>
