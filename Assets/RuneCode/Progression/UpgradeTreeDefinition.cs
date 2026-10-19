@@ -17,7 +17,8 @@ namespace RuneCode
         MoveSpeed,
         RuneUnlock,
         ScrapPickupRange,
-        KillEnergy
+        KillEnergy,
+        ScrapHeal
     }
 
     [Serializable]

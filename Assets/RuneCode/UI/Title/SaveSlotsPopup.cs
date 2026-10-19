@@ -25,6 +25,7 @@ namespace RuneCode
         [Header("팝업 구성")]
         [SerializeField] private TMP_FontAsset _font;
         [SerializeField] private GameObject _panelPrefab;
+        [SerializeField] private Sprite _panelSprite;
         [SerializeField] private GameObject _buttonPrefab;
 
         private readonly TextMeshProUGUI[] _slotLabels = new TextMeshProUGUI[SLOT_COUNT];
@@ -102,10 +103,12 @@ namespace RuneCode
             if (_isBuilt) return;
             UiFactory factory = new UiFactory(_font, _panelPrefab, _buttonPrefab);
             Image shade = factory.Panel(transform, 0, 0, UiTheme.SCREEN_WIDTH, UiTheme.SCREEN_HEIGHT, "Shade").GetComponent<Image>();
+            shade.sprite = null;
             shade.color = new Color(0.025f, 0.055f, 0.09f, 0.86f);
             shade.raycastTarget = true;
 
             RectTransform panel = factory.Panel(transform, 230, 78, 820, 564, "SaveSlotsPanel");
+            panel.GetComponent<Image>().sprite = _panelSprite;
             _titleLabel = factory.Text(panel, 32, 22, 756, 42, GameData.L("save.manage"), 28, FontStyles.Bold, "Title");
             _hintLabel = factory.Text(panel, 32, 68, 756, 28, GameData.L("save.slotHint"), 15, FontStyles.Normal, "Hint");
 
@@ -115,6 +118,7 @@ namespace RuneCode
                 float rowY = 112 + index * 108;
                 RectTransform row = factory.Panel(panel, 32, rowY, 756, 90, "SlotRow" + slot);
                 Image rowImage = row.GetComponent<Image>();
+                rowImage.sprite = _panelSprite;
                 rowImage.raycastTarget = true;
                 Button rowButton = row.gameObject.AddComponent<Button>();
                 rowButton.targetGraphic = rowImage;
