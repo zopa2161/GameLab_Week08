@@ -71,7 +71,7 @@ namespace RuneCode
         {
             transform.localPosition = MissionWorldSpace.ToWorld(spell.Position, origin);
             Color tint = RuneMesh.ElementColor(spell.Element);
-            if (spell.IsExpandingRing || SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
+            if (spell.IsExpandingRing || spell.IsSlash || SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.Beam)
             {
                 MissionWorldSpace.SetVisible(_trail, false);
                 MissionWorldSpace.SetVisible(_shape, false);
@@ -80,6 +80,7 @@ namespace RuneCode
                 MissionWorldSpace.SetVisible(_inner, false);
                 MissionWorldSpace.SetVisible(_coneRenderer, true);
                 if (spell.IsExpandingRing) ApplyExplosionRing(spell, tint, origin);
+                else if (spell.IsSlash) ApplySlash(spell);
                 else ApplyBeam(spell.BeamPath, spell.Position, spell.BoxWidth, tint, origin, spell.BeamChargeProgress);
                 return;
             }
@@ -179,6 +180,16 @@ namespace RuneCode
             MissionWorldSpace.SetVisible(_inner, false);
             MissionWorldSpace.SetVisible(_coneRenderer, true);
             ApplyBeam(flash.Path, flash.Path[0], flash.Width, RuneMesh.ElementColor(flash.Element), origin);
+        }
+
+        /// <summary>공통 참격 메시를 월드 단위로 변환하여 부채꼴 잔상과 직사각형의 밝은 칼날을 표시한다.</summary>
+        private void ApplySlash(SimulationSpellEntity spell)
+        {
+            RuneMesh.BuildSlash(spell, 1f / MissionWorldSpace.PIXELS_PER_UNIT, _coneVertices, _coneColors, _coneTriangles);
+            _coneMesh.Clear();
+            _coneMesh.SetVertices(_coneVertices);
+            _coneMesh.SetColors(_coneColors);
+            _coneMesh.SetTriangles(_coneTriangles, 0);
         }
 
         /// <summary>중심선 꼭짓점을 공유하는 연속 빔 메시를 위치·폭·색상으로 갱신한다. 충전 발광도 같은 띠로 연결해 굽은 구간의 틈과 중첩을 방지한다.</summary>

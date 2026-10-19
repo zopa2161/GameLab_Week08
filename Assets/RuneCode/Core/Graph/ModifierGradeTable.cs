@@ -7,6 +7,8 @@ namespace RuneCode
     /// <summary>elite_modifier_drops.json의 Modifier 등급 효과와 스테이지 보상 데이터를 보관한다.</summary>
     public sealed class ModifierGradeTable
     {
+        public const string ENERGY_COST_MULTIPLIER_EFFECT = "energyCostMultiplier";
+
         private const string TABLE_FILE = "elite_modifier_drops.json";
         private const string LAUNCH_COUNT_KEY = "_launchGradeValues";
         private const string LAUNCH_SPREAD_KEY = "_launchSpreadAngles";
@@ -304,8 +306,10 @@ namespace RuneCode
                 }
                 string name = ReadString(row, "_name", string.Empty, log, modifierId);
                 string effectType = ReadString(row, "_effectType", string.Empty, log, modifierId);
-                Dictionary<string, object> values = ReadGradeValues(row, modifierId, gradeOrder, log);
                 Dictionary<string, float> energyMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log);
+                Dictionary<string, object> values = effectType == ENERGY_COST_MULTIPLIER_EFFECT
+                    ? ReadGradeValues(row, modifierId, gradeOrder, log, ENERGY_MULT_BY_GRADE_KEY)
+                    : ReadGradeValues(row, modifierId, gradeOrder, log);
                 if (!HasAvailableValue(values)) log.Add(modifierId, "_gradeValues", "값이 있는 등급이 하나 이상 있어야 합니다.");
                 ValidateGradeValueTypes(modifierId, effectType, values, rune, log);
                 Dictionary<string, object> launchValues = ReadLaunchGradeValues(row, modifierId, effectType, gradeOrder, values, log, LAUNCH_COUNT_KEY);
@@ -437,15 +441,19 @@ namespace RuneCode
             bool isKnownEffect = effectType == "effectMultiplier" || effectType == "multipleCount" || effectType == "pierceCount"
                 || effectType == "radiusMultiplier" || effectType == "durationMultiplier" || effectType == "speedMultiplier"
                 || effectType == "homingTier" || effectType == "orbitPath" || effectType == "knockbackDistance"
-                || effectType == "waveCount" || effectType == "beamEmpowerMultiplier";
+                || effectType == "waveCount" || effectType == ENERGY_COST_MULTIPLIER_EFFECT || effectType == "beamEmpowerMultiplier";
             if (!isKnownEffect) log.Add(modifierId, "_effectType", "지원하지 않는 효과 종류입니다: " + effectType);
             foreach (KeyValuePair<string, object> pair in values)
             {
                 if (pair.Value == null) continue;
                 string field = key + "." + pair.Key;
-                if (effectType == "effectMultiplier" || effectType == "radiusMultiplier" || effectType == "durationMultiplier"
-                    || effectType == "speedMultiplier" || effectType == "orbitPath" || effectType == "knockbackDistance"
-                    || effectType == "beamEmpowerMultiplier")
+                if (effectType == ENERGY_COST_MULTIPLIER_EFFECT)
+                {
+                    if (!(pair.Value is double multiplier) || multiplier <= 0d || multiplier >= 1d)
+                        log.Add(modifierId, field, "0보다 크고 1보다 작은 전력 소비 배율이어야 합니다.");
+                }
+                else if (effectType == "effectMultiplier" || effectType == "radiusMultiplier" || effectType == "durationMultiplier"
+                    || effectType == "speedMultiplier" || effectType == "orbitPath" || effectType == "knockbackDistance" || effectType == "beamEmpowerMultiplier")
                 {
                     if (!(pair.Value is double number) || number <= 0d || number > float.MaxValue)
                         log.Add(modifierId, field, "float 범위의 양수 숫자여야 합니다.");

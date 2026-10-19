@@ -232,6 +232,7 @@ namespace RuneCode
         private readonly float _speedMultiplier;
         private readonly float _radiusMultiplier;
         private readonly bool _isExpandingRing;
+        private readonly bool _isSlash;
         private readonly float _radius;
         private readonly float _shapeRadius;
         private readonly float _boxWidth;
@@ -302,6 +303,7 @@ namespace RuneCode
             _learningMultiplier = 1f;
             SpellBehaviorRuleRegistry.TryGetByKind(formKind, out SpellBehaviorRules rules);
             _isExpandingRing = rules?.DisplayType == SpellDisplayType.ExpandingRing;
+            _isSlash = formKind == SlashBehaviorRules.KIND;
             // 다중의 발사 전용 개수·퍼짐 값은 지팡이 앞에서 생성되는 행동(발사·빔)이 쓴다.
             bool usesLaunchGradeValues = rules != null && rules.SpawnOrigin == SpellSpawnOrigin.Wand;
             for (int index = 0; index < mods.Count; index++)
@@ -357,7 +359,7 @@ namespace RuneCode
             _radiusMultiplier = lengthMult;
             _shapeRadius = (shapeRadius >= 0f ? shapeRadius : form.Radius) * lengthMult;
             _boxWidth = (boxWidth >= 0f ? boxWidth : form.Radius * 2f)
-                * (formKind == BeamBehaviorRules.BEAM_KIND ? radiusMult : lengthMult);
+                * (_isSlash ? 1f : formKind == BeamBehaviorRules.BEAM_KIND ? radiusMult : lengthMult);
             _boxLength = (boxLength >= 0f ? boxLength : form.Radius * 2f) * lengthMult;
             if (formKind == BeamBehaviorRules.BEAM_KIND) _boxLength = form.BeamLength;
             _radius = magicType == SpellGrammar.MAGIC_TYPE_SPHERE || magicType == SpellGrammar.MAGIC_TYPE_CONE
@@ -387,22 +389,24 @@ namespace RuneCode
         /// <summary>SpellCall의 상속 수식을 기본 효과 수치에 적용한 새 읽기 전용 통계를 반환한다.</summary>
         public SpellStats Apply(SpellModifierValues modifiers) => new SpellStats(this, modifiers);
 
-        /// <summary>호출부의 확장 면적 배율을 길이로 변환해 기존 수치에 곱하고 관통·유도 값을 적용한다. 고정 길이 빔은 폭만 늘린다.</summary>
+        /// <summary>호출부의 확장 면적 배율을 길이로 변환해 기존 수치에 곱하고 관통·유도 값을 적용한다. 참격은 두께를 유지하고 고정 길이 빔은 폭만 늘린다.</summary>
         private SpellStats(SpellStats source, SpellModifierValues modifiers)
         {
             float lengthMult = (float)Math.Sqrt(modifiers.RadiusMultiplier);
             _damage = source._damage * modifiers.DamageMultiplier;
             _isExpandingRing = source._isExpandingRing;
+            _isSlash = source._isSlash;
             _speed = source._speed * modifiers.SpeedMultiplier;
             if (_isExpandingRing) _speed *= lengthMult;
             _speedMultiplier = source._speedMultiplier * modifiers.SpeedMultiplier;
             _radiusMultiplier = source._radiusMultiplier * lengthMult;
             _shapeRadius = source._shapeRadius * lengthMult;
-            _boxWidth = source._boxWidth * lengthMult;
+            _boxWidth = _isSlash ? source._boxWidth : source._boxWidth * lengthMult;
             _boxLength = source._boxLength * lengthMult;
             _radius = source._radius * lengthMult;
             _lifetime = source._lifetime * modifiers.DurationMultiplier * modifiers.RangeMultiplier;
             if (_isExpandingRing) _lifetime /= modifiers.SpeedMultiplier;
+            if (_isSlash) _lifetime = source._lifetime / modifiers.SpeedMultiplier;
             _minimumLifetime = source._minimumLifetime;
             if (_minimumLifetime > 0)
             {
@@ -610,7 +614,8 @@ namespace RuneCode
             _form = rune.Id == "magic.inline" ? SpellGrammar.KindOf(node.GetText("form", "launch")) : rune.Category == "form" ? rune.Id.Substring(5) : "";
             SpellBehaviorRuleRegistry.TryGetByKind(_form, out _rules);
             _coneAngle = _magicType == SpellGrammar.MAGIC_TYPE_CONE ? shape?.Stats.ConeAngle ?? coneAngle : 0f;
-            if (_rules?.DisplayType == SpellDisplayType.ExpandingRing) _coneAngle = effectForm.Stats.ConeAngle;
+            if (_rules?.DisplayType == SpellDisplayType.ExpandingRing || _form == SlashBehaviorRules.KIND)
+                _coneAngle = effectForm.Stats.ConeAngle;
             _sourceElement = rune.Id == "magic.inline" ? node.GetText("element", "normal") : element == null ? "normal" : SourceElementFromRune(element.Id);
             _element = rune.Id == "magic.inline" ? RuntimeElement(_sourceElement) : element == null ? "raw" : element.Id.Substring(5);
             _calledSpellId = rune.Id == "spell.call" ? node.GetText("spellId").Trim() : "";
@@ -659,9 +664,11 @@ namespace RuneCode
                 float behaviorRadius = effectForm.Stats.Radius;
                 float coneRadius = _magicType == SpellGrammar.MAGIC_TYPE_CONE && shape != null
                     ? behaviorRadius * shape.Stats.RadiusMultiplier : behaviorRadius;
-                if (_rules?.DisplayType == SpellDisplayType.ExpandingRing) coneRadius = behaviorRadius;
+                if (_rules?.DisplayType == SpellDisplayType.ExpandingRing || _form == SlashBehaviorRules.KIND)
+                    coneRadius = behaviorRadius;
                 float boxWidth = shape != null && shape.Stats.BeamWidth > 0f ? shape.Stats.BeamWidth : behaviorRadius * 2f;
                 float boxLength = shape != null && shape.Stats.BeamLength > 0f ? shape.Stats.BeamLength : behaviorRadius * 2f;
+                if (_form == SlashBehaviorRules.KIND) boxWidth = effectForm.Stats.BeamWidth;
                 if (_form == BeamBehaviorRules.BEAM_KIND)
                 {
                     boxWidth = beamWidth;

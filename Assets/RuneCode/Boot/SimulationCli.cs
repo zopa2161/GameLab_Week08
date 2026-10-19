@@ -112,7 +112,7 @@ namespace RuneCode
                 if (action.Kind == "spawn")
                 {
                     var stats = action.Stats;
-                    candidate = action.GetReach(stats) + stats.Radius;
+                    candidate = action.GetReach(stats) + (action.Form == SlashBehaviorRules.KIND ? 0 : stats.Radius);
                 }
                 else if (action.Kind == "blink") candidate = action.Distance + GetActionRange(action.Next);
                 else if (action.Kind == "repeat") candidate = Math.Max(GetActionRange(action.Body), GetActionRange(action.OnComplete));

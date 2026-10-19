@@ -7,6 +7,7 @@ namespace RuneCode
         InstantArea,
         LastingArea,
         Beam,
-        ExpandingRing
+        ExpandingRing,
+        Slash
     }
 }

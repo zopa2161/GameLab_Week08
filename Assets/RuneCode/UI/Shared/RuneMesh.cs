@@ -7,10 +7,77 @@ namespace RuneCode
     internal static class RuneMesh
     {
         private const float EXPLOSION_SEGMENT_ANGLE = 2f;
+        private const int SLASH_TRAIL_SEGMENTS = 20;
+        private const float SLASH_TRAIL_ALPHA = 0.65f;
+        private const float SLASH_TRAIL_SECONDS = 0.12f;
+        private const float SLASH_TRAIL_LIFETIME_RATIO = 0.4f;
+
         private const double BEAM_CLOSED_DISTANCE_SQUARED = 0.000001;
         internal const int BEAM_GLOW_BANDS = 16;
         internal const float BEAM_GLOW_WIDTH = 3f;
         internal const float BEAM_GLOW_PULSE_SPEED = 3f;
+
+        /// <summary>현재 칼날과 회전 진행으로 최근 부채꼴 구간의 잔상·직사각형 칼날·밝은 날을 재사용 목록에 채운다. 오래된 잔상과 종료 직전 잔상은 투명해지며 scale로 크기를 변환한다.</summary>
+        internal static void BuildSlash(SimulationSpellEntity spell, float scale, List<Vector3> vertices,
+            List<Color> colors, List<int> triangles)
+        {
+            vertices.Clear(); colors.Clear(); triangles.Clear();
+            IReadOnlyList<SimVector> path = spell.SlashPath;
+            if (path.Count < 2) return;
+            SimVector delta = path[1] - path[0];
+            float length = (float)delta.Length * scale;
+            if (length <= 0) return;
+            Vector2 direction = new Vector2((float)delta.X, -(float)delta.Y).normalized;
+            float angle = Mathf.Atan2(direction.y, direction.x);
+            float progress = Mathf.Clamp01((float)spell.SlashProgress);
+            float lifetime = (float)spell.Lifetime;
+            float trailSeconds = Mathf.Min(SLASH_TRAIL_SECONDS, lifetime * SLASH_TRAIL_LIFETIME_RATIO);
+            float trailProgress = trailSeconds / lifetime;
+            float visibleProgress = Mathf.Min(progress, trailProgress);
+            float span = (float)spell.ConeAngle * visibleProgress * Mathf.Deg2Rad;
+            float endFade = Mathf.Clamp01((1 - progress) / trailProgress);
+            float width = (float)spell.BoxWidth * scale;
+            Color tint = ElementColor(spell.Element);
+            Color bright = Color.Lerp(tint, Color.white, 0.85f);
+            for (int index = 0; index <= SLASH_TRAIL_SEGMENTS; index++)
+            {
+                float fraction = index / (float)SLASH_TRAIL_SEGMENTS;
+                float sampleAngle = angle - span * (1 - fraction);
+                Vector2 radial = new Vector2(Mathf.Cos(sampleAngle), Mathf.Sin(sampleAngle));
+                float freshness = 1 - visibleProgress * (1 - fraction) / trailProgress;
+                float alpha = SLASH_TRAIL_ALPHA * freshness * freshness * endFade;
+                Color outer = tint; outer.a = alpha;
+                Color inner = tint; inner.a = alpha * 0.35f;
+                Color edge = bright; edge.a = alpha;
+                vertices.Add(Vector3.zero); colors.Add(inner);
+                vertices.Add(radial * Mathf.Max(0, length - width * 0.18f)); colors.Add(outer);
+                vertices.Add(radial * length); colors.Add(edge);
+                if (index == 0) continue;
+                int previous = (index - 1) * 3;
+                AddSlashQuad(triangles, previous, previous + 3, previous + 4, previous + 1);
+                AddSlashQuad(triangles, previous + 1, previous + 4, previous + 5, previous + 2);
+            }
+            Vector2 normal = new Vector2(-direction.y, direction.x);
+            int blade = vertices.Count;
+            vertices.Add(-normal * width * 0.5f); colors.Add(tint);
+            vertices.Add(direction * length - normal * width * 0.5f); colors.Add(tint);
+            vertices.Add(direction * length + normal * width * 0.5f); colors.Add(bright);
+            vertices.Add(normal * width * 0.5f); colors.Add(bright);
+            AddSlashQuad(triangles, blade, blade + 1, blade + 2, blade + 3);
+            int core = vertices.Count;
+            vertices.Add(-normal * width * 0.12f); colors.Add(bright);
+            vertices.Add(direction * length - normal * width * 0.12f); colors.Add(Color.white);
+            vertices.Add(direction * length + normal * width * 0.12f); colors.Add(Color.white);
+            vertices.Add(normal * width * 0.12f); colors.Add(bright);
+            AddSlashQuad(triangles, core, core + 1, core + 2, core + 3);
+        }
+
+        /// <summary>공유 참격 메시의 사각 구간을 네 정점 인덱스로 받아 삼각형 두 개를 추가한다.</summary>
+        private static void AddSlashQuad(List<int> triangles, int first, int second, int third, int fourth)
+        {
+            triangles.Add(first); triangles.Add(second); triangles.Add(third);
+            triangles.Add(first); triangles.Add(third); triangles.Add(fourth);
+        }
 
         /// <summary>빔 가로 위치(-1~1), 맥동 밝기와 충전 진행률로 기본 빔에서 부드러운 발광까지 보간한 색상을 반환한다.</summary>
         internal static Color BeamGlowColor(Color tint, float offset, float brightness, float chargeProgress = 1f)

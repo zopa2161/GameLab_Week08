@@ -9,6 +9,12 @@
   ],
   "_modifierGradeEffects": [
     {
+      "_modifierId": "mod.saving",
+      "_name": "절약",
+      "_effectType": "energyCostMultiplier",
+      "_energyMultByGrade": { "C": 0.95, "B": 0.9, "A": 0.8, "S": 0.7 }
+    },
+    {
       "_modifierId": "mod.beamEmpower",
       "_name": "과충전",
       "_effectType": "beamEmpowerMultiplier",
