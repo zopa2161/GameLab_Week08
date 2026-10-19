@@ -320,7 +320,8 @@ namespace RuneCode
                 AddModifierReward(reward.RuneId, grade, reward.Count);
             }
             var result = cleared ? "clear" : _simulation.IsTimedOut ? "timeout" : "death";
-            var resultKey = cleared ? "result.stageCleared" : _simulation.IsTimedOut ? "result.timeout" : "result.dead";
+            var resultKey = cleared ? (_simulation.IsBossStage ? "result.bossDefeated" : "result.survived")
+                : _simulation.IsTimedOut ? "result.timeout" : "result.dead";
             _lastResult = GameData.L(resultKey);
             if (!_session.IsTestMode) _lastResult += "\n" + GameData.L("result.fragments") + " " + fragments;
             if (cleared) _lastResult += "  ·  " + GameData.L("result.clearReward") + " " + _simulation.ClearReward;

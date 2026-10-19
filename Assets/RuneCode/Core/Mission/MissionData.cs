@@ -291,14 +291,16 @@ namespace RuneCode
         public string DropTable => _dropTable;
         public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN;
 
-        /// <summary>패턴 이름, 페이즈 문턱, 공격 주기와 증원의 적·진형 참조를 검증하고 모르는 값에는 데이터 오류를 발생시킨다.</summary>
+        /// <summary>패턴 이름, 페이즈 문턱, 공격 주기와 증원의 적·진형 참조를 검증하고 모르는 값이나 증원에 쓸 수 없는 맵형 진형에는 데이터 오류를 발생시킨다.</summary>
         public void Validate(EnemyCatalog enemies, FormationCatalog formations)
         {
             if (_pattern != GOVERNOR_PATTERN) throw new FormatException("알 수 없는 보스 패턴입니다: " + _enemyId + ", " + _pattern);
             if (_phaseTwoThreshold <= _phaseThreeThreshold || _patchSeconds <= 0 || _radialCount < 1 || _radialInterval <= 0) throw new FormatException("보스 패턴 설정 오류입니다: " + _enemyId);
             if (_reinforcement == null || _reinforcement.Count < 1 || _reinforcement.Interval <= 0) throw new FormatException("보스 증원 설정 오류입니다: " + _enemyId);
             enemies.Get(_reinforcement.EnemyId);
-            formations.Get(_reinforcement.Formation);
+            // 증원은 보스 주변 원형 슬롯에 즉시 생성하므로 예고를 거치는 맵형 진형은 쓸 수 없다.
+            if (SpawnFormations.Get(formations.Get(_reinforcement.Formation).Shape).IsArena)
+                throw new FormatException("보스 증원에는 맵형 진형을 쓸 수 없습니다: " + _enemyId + ", " + _reinforcement.Formation);
         }
     }
 

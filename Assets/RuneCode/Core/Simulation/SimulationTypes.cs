@@ -294,6 +294,7 @@ namespace RuneCode
         private double _maxHp;
         private double _attackAt;
         private double _warningUntil;
+        private double _contactGraceUntil;
         private double _dashUntil;
         private SimVector _attackDirection;
         private double _flashUntil;
@@ -357,6 +358,9 @@ namespace RuneCode
         internal EliteSpawnDefinition Elite => _elite;
         internal double AttackAt { get => _attackAt; set => _attackAt = value; }
         internal double WarningUntil { get => _warningUntil; set => _warningUntil = value; }
+
+        /// <summary>이 시각 전까지는 접촉 피해를 주지 않는다. 맵형 스폰 직후 유예에 쓴다.</summary>
+        internal double ContactGraceUntil { get => _contactGraceUntil; set => _contactGraceUntil = value; }
         internal double DashUntil { get => _dashUntil; set => _dashUntil = value; }
         internal SimVector AttackDirection { get => _attackDirection; set => _attackDirection = value; }
         internal double ReinforcementAt { get => _reinforcementAt; set => _reinforcementAt = value; }
@@ -458,7 +462,7 @@ namespace RuneCode
                 state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));
             state.Append(FormattableString.Invariant($"|{_damage:R}|{_damageMultiplier:R}|{_reward}"));
             state.Append('|').Append(_lastDamageElement).Append('|').Append(_lastDamageForm);
-            state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_facing.X:R}|{_facing.Y:R}|{_hp:R}|{_maxHp:R}|{_shieldHp:R}|{_attackAt:R}|{_warningUntil:R}|{_dashUntil:R}|{_attackDirection.X:R}|{_attackDirection.Y:R}|{_flashUntil:R}|{_phase}|{_patchUntil:R}|{_reinforcementAt:R}|{_hazardAt:R}|{_observedTime:R}"));
+            state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_facing.X:R}|{_facing.Y:R}|{_hp:R}|{_maxHp:R}|{_shieldHp:R}|{_attackAt:R}|{_warningUntil:R}|{_contactGraceUntil:R}|{_dashUntil:R}|{_attackDirection.X:R}|{_attackDirection.Y:R}|{_flashUntil:R}|{_phase}|{_patchUntil:R}|{_reinforcementAt:R}|{_hazardAt:R}|{_observedTime:R}"));
             if (_definition.Attack == EnemyDefinition.ATTACK_SNIPER || _definition.Attack == EnemyDefinition.ATTACK_INTERCEPTOR || _definition.HasTrait(EnemyDefinition.TRAIT_CARRIER) || _carrierOwnerId != 0)
                 state.Append(FormattableString.Invariant($"|extra:{_attackOrigin.X:R}:{_attackOrigin.Y:R}:{_aimUntil:R}:{_behaviorRemaining:R}:{_isStopping}:{_carrierOwnerId}:{_spawnCursor}:{_spawnRemaining}:{_spawnRemainingSeconds:R}"));
         }
@@ -927,6 +931,24 @@ namespace RuneCode
         public int Tick => _tick;
         /// <summary>적이 실제로 체력을 회복한 위치와 틱을 표시용 기록으로 보관한다.</summary>
         internal HealPulse(SimVector position, int tick) { _position = position; _tick = tick; }
+    }
+
+    public readonly struct SpawnWarning
+    {
+        private readonly SimVector _position;
+        private readonly double _radius;
+        private readonly double _progress;
+        private readonly bool _isElite;
+        public SimVector Position => _position;
+        public double Radius => _radius;
+
+        /// <summary>예고 시작 0에서 생성 직전 1까지의 진행도다.</summary>
+        public double Progress => _progress;
+        public bool IsElite => _isElite;
+
+        /// <summary>맵 좌표 중심, 표시 반경, 진행도(0~1), 엘리트 포함 여부로 스폰 예고 표시 정보를 만든다.</summary>
+        internal SpawnWarning(SimVector position, double radius, double progress, bool isElite)
+        { _position = position; _radius = radius; _progress = progress; _isElite = isElite; }
     }
 
     public readonly struct NodeExecutionEvent
