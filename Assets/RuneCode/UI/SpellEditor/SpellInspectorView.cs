@@ -43,14 +43,14 @@ namespace RuneCode
         /// <summary>노드 이름 줄을 추가한다.</summary>
         public void AddTitle(string text)
         {
-            _ui.Text(_panel, LEFT, _top, WIDTH, 28, text, 17, prefabName: "InspectorTitle");
+            _ui.Text(_panel, LEFT, _top, WIDTH, 28, text, 22, prefabName: "InspectorTitle");
             _top += 37;
         }
 
         /// <summary>안내·정보 문구를 내용이 들어갈 높이로 추가하고 실제 높이와 간격만큼 아래로 내려간다.</summary>
         public void AddNote(string text, float height, float spacing)
         {
-            TextMeshProUGUI note = _ui.Text(_panel, LEFT, _top, WIDTH, height, text, 12, prefabName: "InspectorNote");
+            TextMeshProUGUI note = _ui.Text(_panel, LEFT, _top, WIDTH, height, text, 16, prefabName: "InspectorNote");
             float contentHeight = note.GetPreferredValues(text, WIDTH, Mathf.Infinity).y;
             float actualHeight = Mathf.Max(height, Mathf.Ceil(contentHeight) + 2f);
             ((RectTransform)note.transform).SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, actualHeight);
@@ -60,7 +60,7 @@ namespace RuneCode
         /// <summary>노드 미선택 안내 문구를 추가한다.</summary>
         public void AddEmptyHint(string text)
         {
-            _ui.Text(_panel, LEFT, _top, 224, 62, text, 13, prefabName: "InspectorHint");
+            _ui.Text(_panel, LEFT, _top, 224, 62, text, 16, prefabName: "InspectorHint");
             _top += 72;
         }
 

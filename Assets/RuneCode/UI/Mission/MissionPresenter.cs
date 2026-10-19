@@ -21,6 +21,7 @@ namespace RuneCode
         private const float LOW_HEALTH_FRACTION = 0.3f;
         private const float LOW_HEALTH_MAX_LEVEL = 0.4f;
         private const double PLAYER_DAMAGE_EPSILON = 0.000001;
+        private const int ONBOARDING_ENTER_STAGE = 5;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -525,7 +526,29 @@ namespace RuneCode
             _hud.SetToast("");
             _hud.SetStage(GameData.L("ui.stage") + " " + _run.Simulation.StageNumber);
             RenderHud();
+            ShowStageEnterOnboarding();
             return true;
+        }
+
+        /// <summary>
+        /// 온보딩 스테이지에 처음 들어왔으면 미션을 일시정지하고 이벤트 안내 팝업을 연다. 팝업이 닫히면 일시정지를 푼다.
+        /// 이미 본 안내이거나 도움말 데이터에 해당 이벤트가 없으면 열지 않는다.
+        /// </summary>
+        private void ShowStageEnterOnboarding()
+        {
+            if (_run.Simulation.StageNumber != ONBOARDING_ENTER_STAGE
+                || !_session.TryMarkOnboardingEvent(PlayerSave.ONBOARDING_STAGE_FIVE_ENTER)) return;
+            EncyclopediaEvent onboardingEvent = EncyclopediaData.LoadResource()?.FindEvent(PlayerSave.ONBOARDING_STAGE_FIVE_ENTER);
+            if (onboardingEvent == null)
+            {
+                Debug.LogWarning("게임 도움말 JSON에 이벤트 안내가 없습니다: " + PlayerSave.ONBOARDING_STAGE_FIVE_ENTER);
+                return;
+            }
+            MissionRun run = _run;
+            if (!run.IsPaused) run.TogglePause();
+            OnboardingPopup popup = _ui.OpenPopup<OnboardingPopup>();
+            popup.Configure(onboardingEvent.Title, onboardingEvent.Pages);
+            popup.Closed += () => { if (_run == run && run.IsPaused) run.TogglePause(); };
         }
 
         /// <summary>포인터가 버튼 등 UI 입력 대상 위에 있는지 반환한다.</summary>
