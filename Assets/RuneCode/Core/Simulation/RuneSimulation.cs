@@ -127,6 +127,7 @@ namespace RuneCode
         private int _shotLaunchEventCount;
         private int _shotBurstEventCount;
         private int _shotPersistEventCount;
+        private int _shotSlashEventCount;
         private int _burnTickDamageEventCount;
         private int _arcDamageEventCount;
         private int _freezeStartEventCount;
@@ -216,6 +217,7 @@ namespace RuneCode
         public int ShotLaunchEventCount => _shotLaunchEventCount;
         public int ShotBurstEventCount => _shotBurstEventCount;
         public int ShotPersistEventCount => _shotPersistEventCount;
+        public int ShotSlashEventCount => _shotSlashEventCount;
         public int BurnTickDamageEventCount => _burnTickDamageEventCount;
         public int ArcDamageEventCount => _arcDamageEventCount;
         public int FreezeStartEventCount => _freezeStartEventCount;
@@ -583,6 +585,7 @@ namespace RuneCode
             _shotLaunchEventCount = 0;
             _shotBurstEventCount = 0;
             _shotPersistEventCount = 0;
+            _shotSlashEventCount = 0;
             _burnTickDamageEventCount = 0;
             _arcDamageEventCount = 0;
             _freezeStartEventCount = 0;
@@ -1172,6 +1175,7 @@ namespace RuneCode
                 if (action.Form == SpellGrammar.FORM_BOLT) _shotLaunchEventCount++;
                 else if (action.Form == SpellGrammar.FORM_BURST || action.Form == SpellGrammar.FORM_LEGACY_BURST) _shotBurstEventCount++;
                 else if (action.Form == SpellGrammar.FORM_ZONE) _shotPersistEventCount++;
+                else if (action.Form == SlashBehaviorRules.KIND) _shotSlashEventCount++;
                 if (channel != null) ((BeamBehaviorRuntime.BeamState)entity.BehaviorState).Attach(channel);
                 behavior.OnSpawned(this, entity);
             }
