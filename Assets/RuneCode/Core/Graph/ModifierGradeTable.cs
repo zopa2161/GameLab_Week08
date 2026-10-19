@@ -11,6 +11,8 @@ namespace RuneCode
         private const string LAUNCH_COUNT_KEY = "_launchGradeValues";
         private const string LAUNCH_SPREAD_KEY = "_launchSpreadAngles";
         private const string ENERGY_MULT_BY_GRADE_KEY = "_energyMultByGrade";
+        private const string BEAM_MANA_MULT_BY_GRADE_KEY = "_beamEmpowerManaMultByGrade";
+        private const string BEAM_SIZE_MULT_BY_GRADE_KEY = "_beamEmpowerSizeMultByGrade";
         private const string PIERCE_DAMAGE_MULTIPLIER_KEY = "_pierceDamageMultiplierByGrade";
         private const string SLOT_GRADE_CHANCES_KEY = "_slotGradeChancesPercent";
         private const string ELITE_GRADE_CHANCES_KEY = "_eliteModifierGradeChancesPercent";
@@ -125,6 +127,18 @@ namespace RuneCode
                 return DEFAULT_ENERGY_MULTIPLIER;
             return multiplier;
         }
+
+        /// <summary>과충전 모드와 등급의 최대 마나 배율을 반환한다. 해당 효과가 없으면 1이다.</summary>
+        public float GetBeamEmpowerManaMultiplier(string modifierId, string grade)
+            => _effects.TryGetValue(modifierId, out ModifierGradeEffect effect)
+                && effect.BeamEmpowerManaMultipliers != null && grade != null
+                && effect.BeamEmpowerManaMultipliers.TryGetValue(grade, out float value) ? value : 1f;
+
+        /// <summary>과충전 모드와 등급의 최대 크기 배율을 반환한다. 해당 효과가 없으면 1이다.</summary>
+        public float GetBeamEmpowerSizeMultiplier(string modifierId, string grade)
+            => _effects.TryGetValue(modifierId, out ModifierGradeEffect effect)
+                && effect.BeamEmpowerSizeMultipliers != null && grade != null
+                && effect.BeamEmpowerSizeMultipliers.TryGetValue(grade, out float value) ? value : 1f;
 
         /// <summary>숫자 등급 효과를 읽으며 타입이 다르거나 값이 없으면 false를 반환한다.</summary>
         public bool TryGetNumberValue(string modifierId, string grade, out float value)
@@ -306,20 +320,28 @@ namespace RuneCode
                         if (!(pair.Value is double multiplier) || double.IsNaN(multiplier) || multiplier <= 0d || multiplier > 1d)
                             log.Add(modifierId, PIERCE_DAMAGE_MULTIPLIER_KEY + "." + pair.Key, "0보다 크고 1 이하인 숫자여야 합니다.");
                 }
-                result.Add(modifierId, new ModifierGradeEffect(name, effectType, values, energyMultipliers, launchValues, spreadAngles, pierceMultipliers));
+                Dictionary<string, float> beamManaMultipliers = null;
+                Dictionary<string, float> beamSizeMultipliers = null;
+                if (effectType == "beamEmpowerMultiplier")
+                {
+                    beamManaMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log, BEAM_MANA_MULT_BY_GRADE_KEY);
+                    beamSizeMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log, BEAM_SIZE_MULT_BY_GRADE_KEY);
+                }
+                result.Add(modifierId, new ModifierGradeEffect(name, effectType, values, energyMultipliers, launchValues, spreadAngles,
+                    pierceMultipliers, beamManaMultipliers, beamSizeMultipliers));
                 modifierOrder.Add(modifierId);
             }
             return result;
         }
 
-        /// <summary>Modifier별 등급 에너지 배율을 읽고 모든 등급 키와 양수 범위를 검증한다.</summary>
+        /// <summary>지정 필드의 등급 배율을 읽고 모든 등급 키와 유한한 양수 범위를 검증한다. 기본 필드는 에너지 배율이다.</summary>
         private static Dictionary<string, float> ReadEnergyMultipliers(Dictionary<string, object> row, string modifierId,
-            IReadOnlyList<string> gradeOrder, TableErrorLog log)
+            IReadOnlyList<string> gradeOrder, TableErrorLog log, string key = ENERGY_MULT_BY_GRADE_KEY)
         {
             var result = new Dictionary<string, float>(StringComparer.Ordinal);
-            if (!TryObject(Get(row, ENERGY_MULT_BY_GRADE_KEY), out Dictionary<string, object> values))
+            if (!TryObject(Get(row, key), out Dictionary<string, object> values))
             {
-                log.Add(modifierId, ENERGY_MULT_BY_GRADE_KEY, "등급별 에너지 배율 객체가 필요합니다.");
+                log.Add(modifierId, key, "등급별 배율 객체가 필요합니다.");
                 return result;
             }
 
@@ -330,13 +352,13 @@ namespace RuneCode
                     || !(rawValue is double multiplier) || double.IsNaN(multiplier) || double.IsInfinity(multiplier)
                     || multiplier <= 0d || multiplier > float.MaxValue)
                 {
-                    log.Add(modifierId, ENERGY_MULT_BY_GRADE_KEY + "." + grade, "0보다 큰 float 범위 숫자여야 합니다.");
+                    log.Add(modifierId, key + "." + grade, "0보다 큰 float 범위 숫자여야 합니다.");
                     continue;
                 }
                 result.Add(grade, (float)multiplier);
             }
             foreach (string grade in values.Keys)
-                if (!expected.Contains(grade)) log.Add(modifierId, ENERGY_MULT_BY_GRADE_KEY + "." + grade, "_gradeOrder에 없는 등급 키입니다.");
+                if (!expected.Contains(grade)) log.Add(modifierId, key + "." + grade, "_gradeOrder에 없는 등급 키입니다.");
             return result;
         }
 
@@ -415,14 +437,15 @@ namespace RuneCode
             bool isKnownEffect = effectType == "effectMultiplier" || effectType == "multipleCount" || effectType == "pierceCount"
                 || effectType == "radiusMultiplier" || effectType == "durationMultiplier" || effectType == "speedMultiplier"
                 || effectType == "homingTier" || effectType == "orbitPath" || effectType == "knockbackDistance"
-                || effectType == "waveCount";
+                || effectType == "waveCount" || effectType == "beamEmpowerMultiplier";
             if (!isKnownEffect) log.Add(modifierId, "_effectType", "지원하지 않는 효과 종류입니다: " + effectType);
             foreach (KeyValuePair<string, object> pair in values)
             {
                 if (pair.Value == null) continue;
                 string field = key + "." + pair.Key;
                 if (effectType == "effectMultiplier" || effectType == "radiusMultiplier" || effectType == "durationMultiplier"
-                    || effectType == "speedMultiplier" || effectType == "orbitPath" || effectType == "knockbackDistance")
+                    || effectType == "speedMultiplier" || effectType == "orbitPath" || effectType == "knockbackDistance"
+                    || effectType == "beamEmpowerMultiplier")
                 {
                     if (!(pair.Value is double number) || number <= 0d || number > float.MaxValue)
                         log.Add(modifierId, field, "float 범위의 양수 숫자여야 합니다.");
@@ -655,6 +678,8 @@ namespace RuneCode
         public IReadOnlyDictionary<string, object> GradeValues { get; }
         public IReadOnlyDictionary<string, float> EnergyMultipliersByGrade { get; }
         public IReadOnlyDictionary<string, object> PierceDamageMultipliers { get; }
+        public IReadOnlyDictionary<string, float> BeamEmpowerManaMultipliers { get; }
+        public IReadOnlyDictionary<string, float> BeamEmpowerSizeMultipliers { get; }
 
         /// <summary>발사 Behavior에만 쓰는 등급값이다. 없으면 null이며 발사도 GradeValues를 쓴다.</summary>
         public IReadOnlyDictionary<string, object> LaunchGradeValues { get; }
@@ -666,13 +691,17 @@ namespace RuneCode
         public ModifierGradeEffect(string name, string effectType, IReadOnlyDictionary<string, object> gradeValues,
             IReadOnlyDictionary<string, float> energyMultipliersByGrade,
             IReadOnlyDictionary<string, object> launchGradeValues = null, IReadOnlyDictionary<string, object> launchSpreadAngles = null,
-            IReadOnlyDictionary<string, object> pierceDamageMultipliers = null)
+            IReadOnlyDictionary<string, object> pierceDamageMultipliers = null,
+            IReadOnlyDictionary<string, float> beamEmpowerManaMultipliers = null,
+            IReadOnlyDictionary<string, float> beamEmpowerSizeMultipliers = null)
         {
             Name = name;
             EffectType = effectType;
             GradeValues = gradeValues;
             EnergyMultipliersByGrade = energyMultipliersByGrade;
             PierceDamageMultipliers = pierceDamageMultipliers;
+            BeamEmpowerManaMultipliers = beamEmpowerManaMultipliers;
+            BeamEmpowerSizeMultipliers = beamEmpowerSizeMultipliers;
             LaunchGradeValues = launchGradeValues;
             LaunchSpreadAngles = launchSpreadAngles;
         }

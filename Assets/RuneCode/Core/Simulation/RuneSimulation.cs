@@ -794,7 +794,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>직접 공격 빔을 기존 구간 비용으로 갱신하거나 최초 비용을 결제하고 원래 분기·실행 시간 뒤 생성 예약한다.</summary>
+        /// <summary>직접 빔은 원본 구간 비용에 현재 충전 마나 배율을 적용해 갱신한다. 최초 비용은 원래대로 결제하고 생성 예약한다.</summary>
         private void ExecuteBeamCycle(SpellAction action, SpellContext context, ExecutionTracker tracker, int branchDelayTicks)
         {
             if (_actionBudgetTick != _tick) { _actionBudgetTick = _tick; _actionsThisTick = 0; }
@@ -824,6 +824,8 @@ namespace RuneCode
             ResourceCostSet costs = active != null ? active.CycleCosts
                 : root.Spell.GetBeamCycleCosts(action, _balance.Sim.ExecutionTimeScale,
                     context.Modifiers, context.CostMultiplier, context.IsManaPrepaid, context.CallEvents);
+            if (active != null)
+                costs = costs.WithAmount("mana", costs.GetAmount("mana") * active.GetManaMultiplier(_tick));
             if (!TrySpendBeamCosts(costs))
             {
                 active?.Stop();
