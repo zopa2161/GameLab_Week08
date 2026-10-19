@@ -161,8 +161,7 @@ public class SoundManager : MonoBehaviour
     /// <summary>스킬 트리 강화 효과음을 한 번 재생한다.</summary>
     public void PlayUpgradeSkillTree()
     {
-        PlaySelectSlotItem();
-        //RuntimeManager.PlayOneShot(UPGRADE_SKILL_TREE_SOUND);
+        RuntimeManager.PlayOneShot(UPGRADE_SKILL_TREE_SOUND);
     }
 
     public void PlayBurn()
