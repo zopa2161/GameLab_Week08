@@ -109,6 +109,7 @@ namespace RuneCode
         private int _collectedFragments;
         private int _normalScrapPickupEventCount;
         private int _bigScrapPickupEventCount;
+        private int _bigScrapSpawnEventCount;
         private double _scrapRemainder;
         private double _totalDamage;
         private double _statusDamage;
@@ -236,6 +237,7 @@ namespace RuneCode
         public int CollectedFragments => _collectedFragments;
         public int NormalScrapPickupEventCount => _normalScrapPickupEventCount;
         public int BigScrapPickupEventCount => _bigScrapPickupEventCount;
+        public int BigScrapSpawnEventCount => _bigScrapSpawnEventCount;
         public int Fragments => _collectedFragments;
         /// <summary>플레이어가 직접 줍거나 스테이지 클리어 시 회수한 스크랩 누계를 반환한다.</summary>
         public int EarnedFragments => _collectedFragments;
@@ -563,6 +565,7 @@ namespace RuneCode
             _freezeStartEventCount = 0;
             _normalScrapPickupEventCount = 0;
             _bigScrapPickupEventCount = 0;
+            _bigScrapSpawnEventCount = 0;
             _actionBudgetTick = -1; _actionsThisTick = 0; _droppedExecutions = 0;
             SimulationBalance bench = _balance.Sim;
             _map = new MissionMap(_sector.Rooms[0].Tiles, _sector.TileSize); _player = new SimulationPlayer(_maxHp, _maxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
@@ -1876,7 +1879,9 @@ namespace RuneCode
                     {
                         // 오브에 실제로 담기는 크레딧을 한 번만 산출해 나머지 누적이 이중 반영되지 않게 한다.
                         droppedCredits = ScaleKillScrap(enemy.Reward);
-                        _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits, enemy.IsElite || enemy.Boss != null));
+                        bool isBigScrap = enemy.IsElite || enemy.Boss != null;
+                        _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits, isBigScrap));
+                        if (isBigScrap) _bigScrapSpawnEventCount++;
                     }
                     string dropTableId = enemy.CarrierOwnerId == 0 ? GetDropTableId(enemy) : null;
                     if (dropTableId != null) RollDropTable(_drops.Get(dropTableId), enemy.Position);

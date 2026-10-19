@@ -28,6 +28,7 @@ public class SoundManager : MonoBehaviour
     private const string SHOT_PERSIST_SOUND = "event:/SFX/Player/Behavior/ShotPersist";
     private const string SHOT_BURST_SOUND = "event:/SFX/Player/Behavior/ShotBurst";
     private const string PLAYER_HIT_SOUND = "event:/SFX/Player/Hit";
+    private const string SPAWN_BIG_SCRAP_SOUND = "event:/SFX/Player/SpawnBigScrap";
     private const string TAKE_BIG_SCRAP_SOUND = "event:/SFX/Player/TakeBigScrap";
     private const string TAKE_SCRAP_SOUND = "event:/SFX/Player/TakeScrap";
     private const string BURN_SOUND = "event:/SFX/Player/Elemental/Burn";
@@ -135,6 +136,11 @@ public class SoundManager : MonoBehaviour
     public void PlayPlayerHit()
     {
         RuntimeManager.PlayOneShot(PLAYER_HIT_SOUND);
+    }
+
+    public void PlaySpawnBigScrap()
+    {
+        RuntimeManager.PlayOneShot(SPAWN_BIG_SCRAP_SOUND);
     }
 
     /// <summary>큰 스크랩 획득 효과음을 한 번 재생한다.</summary>
