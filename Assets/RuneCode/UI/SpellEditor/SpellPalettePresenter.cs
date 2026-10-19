@@ -163,6 +163,38 @@ namespace RuneCode
             FillSlotPicker(popup, popup.Query, nodeId, slotKey, category, selectedGrade);
         }
 
+        /// <summary>
+        /// 행동 노드의 등급 변경 팝업을 연다. 같은 행동의 다른 등급 중 남은 수가 있고 바꿀 수 있는 등급만 표시하며,
+        /// 슬롯 한도를 넘어 해제될 룬 수를 함께 표시한다. 표시할 등급이 없으면 상태 문구만 띄운다.
+        /// </summary>
+        public void OpenGradePicker(string nodeId)
+        {
+            if (_selectMaterial != null) return;
+            GraphNode node = _editor.Graph.FindNode(nodeId);
+            if (node == null || !GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune)) return;
+            QuickPalettePopup popup = null;
+            foreach (string grade in GameData.Runes.BehaviorGradeOrder)
+            {
+                if (!TryGetStock(rune.Id, grade, out int remaining, out int owned) || remaining <= 0
+                    || !_editor.CanChangeBehaviorGrade(nodeId, grade, out int removedCount)) continue;
+                if (popup == null)
+                {
+                    popup = _ui.OpenPopup<QuickPalettePopup>();
+                    popup.Begin();
+                    popup.ClearResults();
+                }
+                string label = StockLabel(rune, grade, remaining, owned);
+                if (removedCount > 0) label += "  " + string.Format(GameData.L("editor.gradeSlotsRemoved"), removedCount);
+                string targetGrade = grade;
+                popup.AddResult(label, () =>
+                {
+                    popup.Close();
+                    if (_editor.ChangeBehaviorGrade(nodeId, targetGrade)) SoundManager.Instance.PlaySelectSlotItem();
+                }, rune.Category);
+            }
+            if (popup == null) _editor.ReportStatus("editor.gradeUnavailable");
+        }
+
         /// <summary>보유 행동 중 검색어와 일치하는 등급별 항목으로 빠른 검색 결과를 채운다.</summary>
         private void FillQuickPalette(QuickPalettePopup popup, string query, Vector2 graphPosition)
         {

@@ -138,6 +138,8 @@ namespace RuneCode
             RuneMesh.Polygon(mesh, iconCenter, ICON_RADIUS * zoom, accent, CategoryIconSides(rune.Category));
             DrawPorts(mesh, node, rune, rect);
             DrawSlots(mesh, node, rune, fill);
+            if (_layout.TryGetGradeButtonRect(node, rune, out Rect gradeButton))
+                RuneMesh.Rect(mesh, gradeButton, Color.Lerp(fill, accent, SLOT_CATEGORY_TINT));
         }
 
         /// <summary>행동 노드의 속성·모디 슬롯 셀을 카테고리 강조색과 잠금색으로 그린다.</summary>

@@ -504,7 +504,7 @@ namespace RuneCode
             if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_RELAY_AURA)) RuneMesh.Ring(mesh, point, GameData.Balance.Combat.RelayRadius * _scale, _scale, RELAY_AURA_COLOR);
             if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_AEGIS_SHIELD) && !sim.HasEnemyStatus(enemy, EnemyStatusType.Emp)) DrawAegisShield(mesh, point, radius, facing);
             if (enemy.IsPatching) RuneMesh.Ring(mesh, point, radius + 12 * _scale, 3 * _scale, PATCH_COLOR, 12);
-            if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD))
+            if (enemy.HasCircleShield)
                 RuneMesh.Ring(mesh, point, (float)enemy.Definition.ShieldRadius * _scale, 2 * _scale, new Color(0.3f, 0.95f, 0.85f, 0.7f));
             if (enemy.IsAiming)
                 RuneMesh.Line(mesh, Point(enemy.AttackOrigin), Point(sim.GetSniperEnd(enemy)), 2 * _scale,

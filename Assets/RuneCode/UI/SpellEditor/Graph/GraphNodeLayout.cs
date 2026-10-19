@@ -25,6 +25,7 @@ namespace RuneCode
         private const float SLOT_PADDING = 6f;
         private const int MODIFIER_SLOT_COLUMNS = 2;
         private const int MODIFIER_SLOT_ROWS = SpellGrammar.MAX_MODIFIER_SLOTS / MODIFIER_SLOT_COLUMNS;
+        private const int GRADE_BUTTON_ROWS = 1;
 
         // 행동 노드 슬롯 키를 속성 슬롯과 모디 슬롯 순서로 나열한다.
         private static readonly string[] SLOT_KEYS = BuildSlotKeys();
@@ -103,16 +104,33 @@ namespace RuneCode
                 columns = MODIFIER_SLOT_COLUMNS;
             }
 
-            float zoom = _viewport.Zoom;
-            Rect nodeRect = NodeRect(node, rune);
-            float sectionTop = nodeRect.yMin + SlotSectionHeight(node) * zoom;
-            float rowTop = sectionTop - (SLOT_PADDING * 0.5f + row * SLOT_ROW_HEIGHT) * zoom;
-            float cellHeight = (SLOT_ROW_HEIGHT - SLOT_GAP) * zoom;
-            float innerWidth = nodeRect.width - SLOT_MARGIN * 2f * zoom;
-            float cellWidth = innerWidth / columns;
-            rect = new Rect(nodeRect.x + SLOT_MARGIN * zoom + column * cellWidth, rowTop - cellHeight,
-                cellWidth - SLOT_GAP * zoom, cellHeight);
+            rect = CellRect(node, rune, row, column, columns);
             return true;
+        }
+
+        /// <summary>행동 노드 슬롯 영역 맨 아래 행의 등급 변경 버튼 사각형을 구한다. 행동 노드가 아니면 false를 반환한다.</summary>
+        public bool TryGetGradeButtonRect(GraphNode node, RuneDefinition rune, out Rect rect)
+        {
+            rect = default;
+            if (!HasSlots(rune)) return false;
+            rect = CellRect(node, rune, ElementSlotCount(node) + MODIFIER_SLOT_ROWS, 0, 1);
+            return true;
+        }
+
+        /// <summary>캔버스 로컬 위치에 있는 가장 앞쪽 노드가 행동 노드이고 위치가 등급 변경 버튼 안이면 그 노드를 반환한다.</summary>
+        public bool FindGradeButton(Vector2 point, out GraphNode foundNode)
+        {
+            foundNode = null;
+            IReadOnlyList<GraphNode> nodes = _graph().Nodes;
+            for (int i = nodes.Count - 1; i >= 0; i--)
+            {
+                RuneDefinition rune = GameData.Runes.Get(nodes[i].RuneId);
+                if (!NodeRect(nodes[i], rune).Contains(point)) continue;
+                if (!TryGetGradeButtonRect(nodes[i], rune, out Rect rect) || !rect.Contains(point)) return false;
+                foundNode = nodes[i];
+                return true;
+            }
+            return false;
         }
 
         /// <summary>캔버스 로컬 위치에 있는 가장 앞쪽 행동 노드의 슬롯 셀을 찾아 노드와 슬롯 키를 반환한다.</summary>
@@ -294,9 +312,26 @@ namespace RuneCode
             return -1;
         }
 
-        /// <summary>행동 등급의 속성 행과 Modifier 여섯 칸의 세 행을 포함한 슬롯 영역 높이를 반환한다.</summary>
+        /// <summary>
+        /// 슬롯 영역 위쪽부터 행 순번과 열 순번에 해당하는 셀 사각형을 캔버스 로컬 좌표로 반환한다.
+        /// columns는 그 행을 나눌 열 수다.
+        /// </summary>
+        private Rect CellRect(GraphNode node, RuneDefinition rune, int row, int column, int columns)
+        {
+            float zoom = _viewport.Zoom;
+            Rect nodeRect = NodeRect(node, rune);
+            float sectionTop = nodeRect.yMin + SlotSectionHeight(node) * zoom;
+            float rowTop = sectionTop - (SLOT_PADDING * 0.5f + row * SLOT_ROW_HEIGHT) * zoom;
+            float cellHeight = (SLOT_ROW_HEIGHT - SLOT_GAP) * zoom;
+            float innerWidth = nodeRect.width - SLOT_MARGIN * 2f * zoom;
+            float cellWidth = innerWidth / columns;
+            return new Rect(nodeRect.x + SLOT_MARGIN * zoom + column * cellWidth, rowTop - cellHeight,
+                cellWidth - SLOT_GAP * zoom, cellHeight);
+        }
+
+        /// <summary>행동 등급의 속성 행, Modifier 여섯 칸의 세 행과 등급 변경 버튼 행을 포함한 슬롯 영역 높이를 반환한다.</summary>
         private static float SlotSectionHeight(GraphNode node)
-            => (ElementSlotCount(node) + MODIFIER_SLOT_ROWS) * SLOT_ROW_HEIGHT + SLOT_PADDING;
+            => (ElementSlotCount(node) + MODIFIER_SLOT_ROWS + GRADE_BUTTON_ROWS) * SLOT_ROW_HEIGHT + SLOT_PADDING;
 
         /// <summary>최대 속성 슬롯과 Modifier 슬롯에 해당하는 셀 키 배열을 만든다.</summary>
         private static string[] BuildSlotKeys()

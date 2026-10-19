@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -1348,11 +1348,15 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 원형 쉴드에 막아 소멸한 발사체의 명중·소멸 이벤트를 모두 실행한다.
+        /// 발사체의 적중 보정과 피해 배율을 보호막 체력에 적용하고 명중·소멸 이벤트를 실행한다.
         /// OnHit과 첫 이벤트는 접촉 위치와 쉴드 소유자 대상으로, OnExpire는 개체 위치와 대상 없이 낸다.
         /// </summary>
         internal void RaiseShieldHitEvent(SimulationSpellEntity entity, SimVector contact, SimulationEnemy shieldOwner)
         {
+            double damage = entity.Stats.Damage;
+            bool isConsumed = true;
+            entity.ApplyHitModifiers(this, shieldOwner, ref damage, ref isConsumed);
+            shieldOwner.HurtShield(damage * _damageMultiplier * Adaptation.GetMultiplier(entity.Element, entity.Kind));
             RaiseHitEvent(entity, contact, shieldOwner);
             RaiseExpireEvent(entity);
         }
@@ -1387,7 +1391,7 @@ namespace RuneCode
 
         /// <summary>피해에 적응·이지스 방패와 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
         private double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
-            double minimumDamage = 0d, SpellAction sourceAction = null)
+            double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null)
         {
             if (!enemy.IsAlive || enemy.IsPatching) return 0;
             double actual = damage * _damageMultiplier * Adaptation.GetMultiplier(element, form);
@@ -1400,10 +1404,10 @@ namespace RuneCode
                 break;
             }
             actual = enemy.Hurt(Math.Max(minimumDamage, actual), Time);
-            if (applyStatus) ApplyStatus(enemy, element, form, noise, damage);
+            if (applyStatus) ApplyStatus(enemy, element, form, noise, damage, sourceAction);
             if (actual > 0)
             {
-                if (sourceAction != null) GetActionCombatStats(sourceAction).RecordDamage(actual, !applyStatus);
+                if (sourceAction != null) GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
                 _enemyDamageEventCount++;
                 enemy.SetDamageTags(element, form);
                 _totalDamage += actual; _rollingDamage += actual; _damageWindow.Enqueue(new DamageSample(_tick, actual));
@@ -1447,7 +1451,7 @@ namespace RuneCode
                 if (burn == null) continue;
                 while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && Time + 0.000001 >= burn.NextTickTime)
                 {
-                    double actual = ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false);
+                    double actual = ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false, sourceAction: burn.DamageSourceAction, damageStatus: "burn");
                     _statusDamage += actual;
                     if (actual > 0) _burnTickDamageEventCount++;
                     burn.NextTickTime += _balance.Combat.BurnInterval;
@@ -1472,15 +1476,15 @@ namespace RuneCode
         }
 
         /// <summary>피해 속성에 맞는 상태 이상을 부여한다. 화염은 전투 공통 보정 전 공격 피해 sourceDamage를 틱 피해 계산에 전달한다.</summary>
-        private void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise, double sourceDamage)
+        private void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise, double sourceDamage, SpellAction sourceAction)
         {
-            if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage);
+            if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage, sourceAction);
             else if (element == "ice") ApplyChill(enemy);
             else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = Time + _balance.Combat.EmpSeconds;
         }
 
         /// <summary>공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 계산하고, 새 화상이거나 기존보다 클 때만 피해·출처를 갱신한다. 재점화 때마다 지속시간은 갱신하며 진행 중인 화상의 다음 틱 시각은 유지한다.</summary>
-        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage)
+        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage, SpellAction sourceAction)
         {
             EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
             bool isNewBurn = burn == null || Time >= burn.Until;
@@ -1494,6 +1498,7 @@ namespace RuneCode
             if (isNewBurn || tickDamage > burn.TickDamage)
             {
                 burn.TickDamage = tickDamage;
+                burn.DamageSourceAction = sourceAction;
                 burn.SourceForm = form;
                 burn.IsNoise = noise;
             }
@@ -2316,6 +2321,8 @@ namespace RuneCode
                     ["spawn_count"] = stats.SpawnCount,
                     ["damage_dealt"] = stats.Damage,
                     ["status_damage"] = stats.StatusDamage,
+                    ["direct_damage_by_element"] = new Dictionary<string, double>(stats.DirectDamageByElement),
+                    ["status_damage_by_type"] = new Dictionary<string, double>(stats.StatusDamageByType),
                     ["damage_count"] = stats.DamageCount,
                     ["hit_count"] = stats.HitCount,
                     ["on_hit_events"] = stats.OnHitEvents,
@@ -2363,6 +2370,10 @@ namespace RuneCode
         {
             private readonly string _key;
             private readonly Dictionary<SpellAction, long> _onHitTargets = new Dictionary<SpellAction, long>();
+            private readonly Dictionary<string, double> _directDamageByElement = new Dictionary<string, double>
+            { ["raw"] = 0d, ["fire"] = 0d, ["ice"] = 0d, ["arc"] = 0d };
+            private readonly Dictionary<string, double> _statusDamageByType = new Dictionary<string, double>
+            { ["burn"] = 0d, ["chill"] = 0d, ["freeze"] = 0d, ["emp"] = 0d };
             private long _spawnCount;
             private long _damageCount;
             private long _hitCount;
@@ -2380,6 +2391,8 @@ namespace RuneCode
             public long TriggeredByOnHitCount => _triggeredByOnHitCount;
             public double Damage => _damage;
             public double StatusDamage => _statusDamage;
+            public IReadOnlyDictionary<string, double> DirectDamageByElement => _directDamageByElement;
+            public IReadOnlyDictionary<string, double> StatusDamageByType => _statusDamageByType;
             public IReadOnlyDictionary<SpellAction, long> OnHitTargets => _onHitTargets;
 
             /// <summary>로그 내 행동 키를 저장하고 빈 전투 누계를 만든다.</summary>
@@ -2399,12 +2412,23 @@ namespace RuneCode
                 _onHitTargets[target] = count + 1;
             }
 
-            /// <summary>적 HP에서 실제 차감된 피해와 양수 피해 횟수를 누적하고 화상 피해를 별도로 구분한다.</summary>
-            public void RecordDamage(double actual, bool isStatus)
+            /// <summary>실제 차감 피해 actual을 누적하고 실제 속성 element와 상태 종류 damageStatus별로 분리한다.</summary>
+            public void RecordDamage(double actual, string element, string damageStatus)
             {
                 _damage += actual; _damageCount++;
-                if (isStatus) _statusDamage += actual;
-                else _hitCount++;
+                if (damageStatus != null)
+                {
+                    _statusDamage += actual;
+                    _statusDamageByType.TryGetValue(damageStatus, out double previous);
+                    _statusDamageByType[damageStatus] = previous + actual;
+                }
+                else
+                {
+                    _hitCount++;
+                    string key = string.IsNullOrEmpty(element) ? "unknown" : element;
+                    _directDamageByElement.TryGetValue(key, out double previous);
+                    _directDamageByElement[key] = previous + actual;
+                }
             }
         }
 

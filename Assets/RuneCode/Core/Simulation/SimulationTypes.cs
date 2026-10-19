@@ -273,6 +273,8 @@ namespace RuneCode
 
     public sealed class SimulationEnemy
     {
+        private const double CIRCLE_SHIELD_HP_MULTIPLIER = 7;
+
         private readonly int _id;
         private readonly EnemyDefinition _definition;
         private readonly EnemyMovementType _movementType;
@@ -307,6 +309,7 @@ namespace RuneCode
         private double _behaviorRemaining;
         private bool _isStopping;
         private int _carrierOwnerId;
+        private double _shieldHp;
         private int _spawnCursor;
         private int _spawnRemaining;
         private double _spawnRemainingSeconds;
@@ -347,6 +350,8 @@ namespace RuneCode
         public double AimUntil => _aimUntil;
         public bool IsStopping => _isStopping;
         public int CarrierOwnerId => _carrierOwnerId;
+        public double ShieldHp => _shieldHp;
+        public bool HasCircleShield => IsAlive && _shieldHp > 0;
         internal EnemyMovementType MovementType => _movementType;
         internal double DamageMultiplier => _damageMultiplier;
         internal EliteSpawnDefinition Elite => _elite;
@@ -367,7 +372,7 @@ namespace RuneCode
 
         /// <summary>공유 적 설정과 보스 설정을 변경하지 않고 이동 종류, 위치, 개별 체력·피해·이동 속도 배율, 보상, 무반격, 엘리트 여부와 엘리트 정의, 목표 처치 수 집계 대상 여부로 실행 상태를 생성한다. 보스가 아니면 보스 설정은 null이다.</summary>
         internal SimulationEnemy(int id, EnemyDefinition definition, EnemyMovementType movementType, BossDefinition boss, SimVector position, bool isDummy, double hp, double hitFlashSeconds, double hpMultiplier = 1, double damageMultiplier = 1, int reward = -1, bool isElite = false, double speedMultiplier = 1, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0)
-        { _id = id; _definition = definition; _movementType = movementType; _boss = boss; _position = position; _isDummy = isDummy; _isElite = isElite; _isKillTarget = isKillTarget; _speedMultiplier = speedMultiplier; _hitFlashSeconds = hitFlashSeconds; _maxHp = hp > 0 ? hp : definition.Hp * hpMultiplier; _hp = _maxHp; _damageMultiplier = damageMultiplier; _damage = definition.Damage * damageMultiplier; _reward = reward >= 0 ? reward : definition.Reward; _attackAt = definition.AttackInterval; _elite = elite; _carrierOwnerId = carrierOwnerId; _behaviorRemaining = definition.MoveSeconds; }
+        { _id = id; _definition = definition; _movementType = movementType; _boss = boss; _position = position; _isDummy = isDummy; _isElite = isElite; _isKillTarget = isKillTarget; _speedMultiplier = speedMultiplier; _hitFlashSeconds = hitFlashSeconds; _maxHp = hp > 0 ? hp : definition.Hp * hpMultiplier; _hp = _maxHp; _damageMultiplier = damageMultiplier; _damage = definition.Damage * damageMultiplier; _reward = reward >= 0 ? reward : definition.Reward; _attackAt = definition.AttackInterval; _elite = elite; _carrierOwnerId = carrierOwnerId; _behaviorRemaining = definition.MoveSeconds; _shieldHp = definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD) ? _maxHp * CIRCLE_SHIELD_HP_MULTIPLIER : 0; }
 
         /// <summary>예고, 패치 및 피격 표시 판정에 사용할 관측 시각을 갱신한다.</summary>
         internal void Observe(double time) { _observedTime = time; }
@@ -429,6 +434,10 @@ namespace RuneCode
             _displacementRemaining = 0;
         }
 
+        /// <summary>입력 피해만큼 개별 보호막 체력을 줄이고 실제 감소량을 반환한다. 파괴된 보호막은 재생하지 않는다.</summary>
+        internal double HurtShield(double damage)
+        { double actual = Math.Min(_shieldHp, Math.Max(0, damage)); _shieldHp -= actual; return actual; }
+
         /// <summary>피해를 체력에 적용하고 실제 감소량을 반환하며 피격 표시 시간을 설정한다.</summary>
         internal double Hurt(double damage, double time) { double actual = Math.Min(_hp, Math.Max(0, damage)); _hp -= actual; _flashUntil = time + _hitFlashSeconds; return actual; }
 
@@ -449,7 +458,7 @@ namespace RuneCode
                 state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));
             state.Append(FormattableString.Invariant($"|{_damage:R}|{_damageMultiplier:R}|{_reward}"));
             state.Append('|').Append(_lastDamageElement).Append('|').Append(_lastDamageForm);
-            state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_facing.X:R}|{_facing.Y:R}|{_hp:R}|{_maxHp:R}|{_attackAt:R}|{_warningUntil:R}|{_dashUntil:R}|{_attackDirection.X:R}|{_attackDirection.Y:R}|{_flashUntil:R}|{_phase}|{_patchUntil:R}|{_reinforcementAt:R}|{_hazardAt:R}|{_observedTime:R}"));
+            state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_facing.X:R}|{_facing.Y:R}|{_hp:R}|{_maxHp:R}|{_shieldHp:R}|{_attackAt:R}|{_warningUntil:R}|{_dashUntil:R}|{_attackDirection.X:R}|{_attackDirection.Y:R}|{_flashUntil:R}|{_phase}|{_patchUntil:R}|{_reinforcementAt:R}|{_hazardAt:R}|{_observedTime:R}"));
             if (_definition.Attack == EnemyDefinition.ATTACK_SNIPER || _definition.Attack == EnemyDefinition.ATTACK_INTERCEPTOR || _definition.HasTrait(EnemyDefinition.TRAIT_CARRIER) || _carrierOwnerId != 0)
                 state.Append(FormattableString.Invariant($"|extra:{_attackOrigin.X:R}:{_attackOrigin.Y:R}:{_aimUntil:R}:{_behaviorRemaining:R}:{_isStopping}:{_carrierOwnerId}:{_spawnCursor}:{_spawnRemaining}:{_spawnRemainingSeconds:R}"));
         }

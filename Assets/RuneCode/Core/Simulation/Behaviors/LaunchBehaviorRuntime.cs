@@ -48,7 +48,7 @@ namespace RuneCode
             for (int index = 0; index < enemies.Count; index++)
             {
                 SimulationEnemy shield = enemies[index];
-                if (!shield.IsAlive || !shield.Definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD)) continue;
+                if (!shield.HasCircleShield) continue;
                 if (!CanHitShield(entity, previous, next, shield)) continue;
                 double fraction = GetContactFraction(entity, previous, next, direction, shield.Position, shield.Definition.ShieldRadius);
                 if (fraction < shieldFraction) { shieldFraction = fraction; shieldOwner = shield; }
