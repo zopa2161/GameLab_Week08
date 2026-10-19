@@ -38,6 +38,7 @@ namespace RuneCode
         private int _lastShotLaunchEventCount;
         private int _lastShotBurstEventCount;
         private int _lastShotPersistEventCount;
+        private int _lastShotSlashEventCount;
         private int _lastBurnTickDamageEventCount;
         private int _lastArcDamageEventCount;
         private int _lastFreezeStartEventCount;
@@ -154,12 +155,15 @@ namespace RuneCode
             int launchCount = sim.ShotLaunchEventCount - _lastShotLaunchEventCount;
             int burstCount = sim.ShotBurstEventCount - _lastShotBurstEventCount;
             int persistCount = sim.ShotPersistEventCount - _lastShotPersistEventCount;
+            int slashCount = sim.ShotSlashEventCount - _lastShotSlashEventCount;
             _lastShotLaunchEventCount = sim.ShotLaunchEventCount;
             _lastShotBurstEventCount = sim.ShotBurstEventCount;
             _lastShotPersistEventCount = sim.ShotPersistEventCount;
+            _lastShotSlashEventCount = sim.ShotSlashEventCount;
             for (int index = 0; index < launchCount; index++) SoundManager.Instance.PlayShotLaunch();
             for (int index = 0; index < burstCount; index++) SoundManager.Instance.PlayShotBurst();
             for (int index = 0; index < persistCount; index++) SoundManager.Instance.PlayShotPersist();
+            for (int index = 0; index < slashCount; index++) SoundManager.Instance.PlayShotSlash();
         }
 
         /// <summary>새 화상 틱·감전 적중·빙결 시작 이벤트를 소비하고 각 효과음을 횟수만큼 재생한다.</summary>
@@ -505,6 +509,7 @@ namespace RuneCode
             _lastShotLaunchEventCount = 0;
             _lastShotBurstEventCount = 0;
             _lastShotPersistEventCount = 0;
+            _lastShotSlashEventCount = 0;
             _lastBurnTickDamageEventCount = 0;
             _lastArcDamageEventCount = 0;
             _lastFreezeStartEventCount = 0;
@@ -553,9 +558,9 @@ namespace RuneCode
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
             _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount + "  ·  " + GameData.L("ui.fragments") + " " + sim.EarnedFragments);
-            string objective = sim.IsBossStage
-                ? GameData.L("ui.bossObjective") + " · " + sim.RemainingTime.ToString("0.0") + "s"
-                : GameData.L("ui.killProgress") + " " + sim.TargetKills + " / " + sim.KillTarget;
+            string objective = GameData.L(sim.IsBossStage ? "ui.bossObjective" : "ui.surviveObjective")
+                + " · " + sim.RemainingTime.ToString("0.0") + "s";
+            // 일반 스테이지는 시간이 다 되면 클리어이므로 경고 색은 보스 스테이지에만 쓴다.
             _hud.SetTimer(objective,
                 sim.IsBossStage && sim.RemainingTime <= TIMER_WARNING_SECONDS);
             string executionState = sim.HasActiveBeam(0) ? GameData.L("ui.beamActive") : sim.Player.IsSpellRunning(0)

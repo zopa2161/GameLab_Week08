@@ -23,6 +23,7 @@ namespace RuneCode
         private int _lastShotLaunchEventCount;
         private int _lastShotBurstEventCount;
         private int _lastShotPersistEventCount;
+        private int _lastShotSlashEventCount;
         private int _lastBurnTickDamageEventCount;
         private int _lastArcDamageEventCount;
         private int _lastFreezeStartEventCount;
@@ -73,6 +74,7 @@ namespace RuneCode
             _lastShotLaunchEventCount = 0;
             _lastShotBurstEventCount = 0;
             _lastShotPersistEventCount = 0;
+            _lastShotSlashEventCount = 0;
             _lastBurnTickDamageEventCount = 0;
             _lastArcDamageEventCount = 0;
             _lastFreezeStartEventCount = 0;
@@ -218,12 +220,15 @@ namespace RuneCode
             int launchCount = _dock.ShotLaunchEventCount - _lastShotLaunchEventCount;
             int burstCount = _dock.ShotBurstEventCount - _lastShotBurstEventCount;
             int persistCount = _dock.ShotPersistEventCount - _lastShotPersistEventCount;
+            int slashCount = _dock.ShotSlashEventCount - _lastShotSlashEventCount;
             _lastShotLaunchEventCount = _dock.ShotLaunchEventCount;
             _lastShotBurstEventCount = _dock.ShotBurstEventCount;
             _lastShotPersistEventCount = _dock.ShotPersistEventCount;
+            _lastShotSlashEventCount = _dock.ShotSlashEventCount;
             for (int index = 0; index < launchCount; index++) SoundManager.Instance.PlayShotLaunch();
             for (int index = 0; index < burstCount; index++) SoundManager.Instance.PlayShotBurst();
             for (int index = 0; index < persistCount; index++) SoundManager.Instance.PlayShotPersist();
+            for (int index = 0; index < slashCount; index++) SoundManager.Instance.PlayShotSlash();
         }
 
         /// <summary>새 화상 틱·감전 적중·빙결 시작 이벤트를 소비하고 각 효과음을 횟수만큼 재생한다.</summary>

@@ -1197,7 +1197,7 @@
     },
     {
       "_key": "ui.manualBattleControls",
-      "_value": "WASD 이동 · 마우스 조준 · 좌클릭을 누르는 동안 시전 · Space 대시 · 스크랩은 가까이 가면 획득 · Esc 일시정지 · 목표 처치 수를 채우면 클리어 (보스 스테이지는 보스 처치)"
+      "_value": "WASD 이동 · 마우스 조준 · 좌클릭을 누르는 동안 시전 · Space 대시 · 스크랩은 가까이 가면 획득 · Esc 일시정지 · 30초 동안 버티면 클리어 (보스 스테이지는 60초 안에 보스 처치)"
     },
     {
       "_key": "ui.kills",
@@ -1208,8 +1208,8 @@
       "_value": "남은 시간"
     },
     {
-      "_key": "ui.killProgress",
-      "_value": "처치"
+      "_key": "ui.surviveObjective",
+      "_value": "생존"
     },
     {
       "_key": "ui.bossObjective",
@@ -1240,8 +1240,12 @@
       "_value": "전투가 끝난 뒤 마법 노드를 편집할 수 있습니다"
     },
     {
-      "_key": "result.stageCleared",
-      "_value": "모든 적 처치 · 스테이지 클리어"
+      "_key": "result.survived",
+      "_value": "생존 성공 · 스테이지 클리어"
+    },
+    {
+      "_key": "result.bossDefeated",
+      "_value": "보스 처치 · 스테이지 클리어"
     },
     {
       "_key": "onboarding.resultGuide",
