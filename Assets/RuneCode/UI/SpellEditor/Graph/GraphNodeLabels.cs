@@ -30,6 +30,7 @@ namespace RuneCode
         private readonly Dictionary<string, TextMeshProUGUI> _labels = new Dictionary<string, TextMeshProUGUI>();
         private readonly Dictionary<string, List<TextMeshProUGUI>> _portLabels = new Dictionary<string, List<TextMeshProUGUI>>();
         private readonly Dictionary<string, List<TextMeshProUGUI>> _slotLabels = new Dictionary<string, List<TextMeshProUGUI>>();
+        private readonly Dictionary<string, TextMeshProUGUI> _gradeLabels = new Dictionary<string, TextMeshProUGUI>();
         private readonly GraphMeshPainter _painter;
         private readonly Dictionary<string, GraphMeshLayer> _nodeLayers = new Dictionary<string, GraphMeshLayer>();
         private readonly HashSet<string> _existingNodes = new HashSet<string>();
@@ -66,6 +67,7 @@ namespace RuneCode
                 if (label.text != nameText) label.text = nameText;
                 RefreshPortLabels(node);
                 RefreshSlotLabels(node);
+                RefreshGradeLabel(node, rune);
             }
             RemoveStale();
             return _existingNodes;
@@ -108,6 +110,7 @@ namespace RuneCode
                     portRect.SetAsLastSibling();
                 }
                 LayoutSlotLabels(node, rune, scale);
+                LayoutGradeLabel(node, rune, scale);
             }
             BringFrontNodeToTop();
         }
@@ -137,6 +140,7 @@ namespace RuneCode
             _metricLabels.BringToFront(_frontNodeId);
             foreach (TextMeshProUGUI portLabel in ports) portLabel.transform.SetAsLastSibling();
             foreach (TextMeshProUGUI slotLabel in _slotLabels[_frontNodeId]) slotLabel.transform.SetAsLastSibling();
+            if (_gradeLabels.TryGetValue(_frontNodeId, out TextMeshProUGUI gradeLabel)) gradeLabel.transform.SetAsLastSibling();
         }
 
         /// <summary>노드 ID의 이름·지표 라벨을 반환하며 없으면 글꼴과 정렬을 지정해 만든다.</summary>
@@ -235,6 +239,35 @@ namespace RuneCode
             }
         }
 
+        /// <summary>행동 노드의 등급 변경 버튼 라벨을 없으면 만들고 문구를 지정한다. 행동 노드가 아니면 만들지 않는다.</summary>
+        private void RefreshGradeLabel(GraphNode node, RuneDefinition rune)
+        {
+            if (!GraphNodeLayout.HasSlots(rune)) return;
+            if (!_gradeLabels.TryGetValue(node.Id, out TextMeshProUGUI label))
+            {
+                label = CreateLabel(SLOT_FONT_SIZE, true);
+                label.horizontalAlignment = HorizontalAlignmentOptions.Center;
+                _gradeLabels.Add(node.Id, label);
+            }
+            string text = GameData.L("editor.changeGrade");
+            if (label.text != text) label.text = text;
+        }
+
+        /// <summary>등급 변경 버튼 라벨을 버튼 사각형 중앙에 배율에 맞춰 배치한다.</summary>
+        private void LayoutGradeLabel(GraphNode node, RuneDefinition rune, Vector3 scale)
+        {
+            if (!_gradeLabels.TryGetValue(node.Id, out TextMeshProUGUI label)) return;
+            bool isShown = _layout.TryGetGradeButtonRect(node, rune, out Rect button);
+            label.gameObject.SetActive(isShown);
+            if (!isShown) return;
+            float zoom = _viewport.Zoom;
+            RectTransform buttonRect = label.rectTransform;
+            buttonRect.anchoredPosition = new Vector2(button.x, button.center.y - _parent.rect.yMax);
+            buttonRect.sizeDelta = new Vector2(button.width / zoom, button.height / zoom);
+            buttonRect.localScale = scale;
+            buttonRect.SetAsLastSibling();
+        }
+
         /// <summary>그래프에서 사라진 노드의 라벨 오브젝트를 파괴하고 목록에서 뺀다.</summary>
         private void RemoveStale()
         {
@@ -253,6 +286,9 @@ namespace RuneCode
                 _portLabels.Remove(id);
                 foreach (TextMeshProUGUI label in _slotLabels[id]) Object.Destroy(label.gameObject);
                 _slotLabels.Remove(id);
+                if (!_gradeLabels.TryGetValue(id, out TextMeshProUGUI gradeLabel)) continue;
+                Object.Destroy(gradeLabel.gameObject);
+                _gradeLabels.Remove(id);
             }
         }
 

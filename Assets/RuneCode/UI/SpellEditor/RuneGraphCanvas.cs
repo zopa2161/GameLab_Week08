@@ -34,6 +34,7 @@ namespace RuneCode
         private Action<GraphNode, string> _hoverChanged;
         private Action<Vector2> _quickPlacement;
         private Action<string, string> _slotPicker;
+        private Action<string> _gradePicker;
         private GraphViewport _viewport;
         private GraphNodeLayout _layout;
         private GraphMeshPainter _painter;
@@ -65,10 +66,11 @@ namespace RuneCode
         private bool HasGraph => _editor != null && _editor.Graph != null;
 
         /// <summary>
-        /// 편집 세션, 글꼴과 선택·포인터 진입·빠른 배치·슬롯 선택(노드 ID, 슬롯 키) 콜백을 연결하고 그래프를 표시한다.
+        /// 편집 세션, 글꼴과 선택·포인터 진입·빠른 배치·슬롯 선택(노드 ID, 슬롯 키)·등급 변경(노드 ID) 콜백을 연결하고 그래프를 표시한다.
         /// </summary>
         public void Initialize(ISpellEditor editor, TMP_FontAsset font, Action<GraphNode> selectionChanged,
-            Action<GraphNode, string> hoverChanged, Action<Vector2> quickPlacement, Action<string, string> slotPicker)
+            Action<GraphNode, string> hoverChanged, Action<Vector2> quickPlacement, Action<string, string> slotPicker,
+            Action<string> gradePicker)
         {
             _editor = editor;
             _font = font;
@@ -76,6 +78,7 @@ namespace RuneCode
             _hoverChanged = hoverChanged;
             _quickPlacement = quickPlacement;
             _slotPicker = slotPicker;
+            _gradePicker = gradePicker;
             _viewport = new GraphViewport(rectTransform);
             _layout = new GraphNodeLayout(_viewport, () => _editor.Graph);
             _painter = new GraphMeshPainter(_viewport, _layout, _state,
@@ -245,6 +248,11 @@ namespace RuneCode
                 return;
             }
 
+            if (_layout.FindGradeButton(_state.Pointer, out GraphNode gradeNode))
+            {
+                if (_editor.IsEditable) _gradePicker(gradeNode.Id);
+                return;
+            }
             if (TryHandleSlotClick(_state.Pointer)) return;
 
             GraphNode clicked = _layout.FindNodeAt(_state.Pointer);

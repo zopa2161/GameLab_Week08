@@ -323,6 +323,73 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>
+        /// 행동 노드를 지정 등급으로 바꿀 수 있는지 반환한다. 등급표에 없거나 현재 등급과 같으면 false이고,
+        /// 이전 등급과 해제될 룬을 반납한 뒤에도 새 등급 행동의 소지량이 부족하면 false다. RAM은 확정할 때 검사한다.
+        /// </summary>
+        public bool CanChangeBehaviorGrade(string nodeId, string grade, out int removedCount)
+        {
+            SpellGraph candidate = CreateGradeCandidate(nodeId, grade, out removedCount);
+            return candidate != null && _policy.IsWithinModifierStock(_editingGraph, candidate);
+        }
+
+        /// <summary>
+        /// 행동 노드의 등급을 바꾸고 새 등급의 슬롯 수 이상인 속성·모디 슬롯을 비운다. 나머지 슬롯의 룬은 그대로 둔다.
+        /// 소지량·RAM을 검사하고 실패하면 상태 문구를 표시한다. 등급 변경과 슬롯 해제는 한 번의 되돌리기 단위다.
+        /// </summary>
+        public bool ChangeBehaviorGrade(string nodeId, string grade)
+        {
+            SpellGraph candidate = CreateGradeCandidate(nodeId, grade, out int removedCount);
+            if (candidate == null)
+            {
+                RecordUsabilityAction("change_grade", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_grade", ["node_id"] = nodeId, ["grade"] = grade });
+                return false;
+            }
+            string previousGrade = _editingGraph.FindNode(nodeId).GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
+            if (!_policy.IsWithinModifierStock(_editingGraph, candidate))
+            {
+                _policy.ReportStatus("editor.stockBlocked");
+                RecordUsabilityAction("change_grade", "rejected", new Dictionary<string, object> { ["reason"] = "stock_blocked", ["node_id"] = nodeId, ["previous_grade"] = previousGrade, ["grade"] = grade });
+                return false;
+            }
+            bool isCommitted = CommitSlotCandidate(candidate, nodeId);
+            RecordUsabilityAction("change_grade", isCommitted ? "success" : "rejected", new Dictionary<string, object>
+            {
+                ["reason"] = isCommitted ? null : "ram_blocked", ["node_id"] = nodeId, ["previous_grade"] = previousGrade,
+                ["grade"] = grade, ["removed_count"] = removedCount,
+            });
+            return isCommitted;
+        }
+
+        /// <summary>
+        /// 편집 그래프 사본에서 행동 노드 등급을 바꾸고 새 등급의 속성·모디 슬롯 수 이상인 슬롯을 비운 후보를 만든다.
+        /// 비운 룬 수를 removedCount로 반환한다. 편집 불가, 행동 노드가 아님, 등급표에 없는 등급, 같은 등급이면 null을 반환한다.
+        /// </summary>
+        private SpellGraph CreateGradeCandidate(string nodeId, string grade, out int removedCount)
+        {
+            removedCount = 0;
+            if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
+                || !GameData.Runes.TryGetBehaviorSlots(grade, out int elementSlots, out int modifierSlots)
+                || node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE) == grade) return null;
+            SpellGraph candidate = _editingGraph.Clone();
+            GraphNode target = candidate.FindNode(nodeId);
+            target.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, grade);
+            // 슬롯은 앞으로 당기지 않고 순번이 한도 밖인 칸만 비운다.
+            for (int index = elementSlots; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
+                if (TryClearSlotValue(target, SpellGrammar.ElementSlotKey(index))) removedCount++;
+            for (int index = modifierSlots; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
+                if (TryClearSlotValue(target, SpellGrammar.ModifierSlotKey(index))) removedCount++;
+            return candidate;
+        }
+
+        /// <summary>노드의 지정 슬롯에 값이 있으면 비우고 true를 반환한다. 이미 비어 있으면 false다.</summary>
+        private static bool TryClearSlotValue(GraphNode node, string slotKey)
+        {
+            if (string.IsNullOrEmpty(node.GetText(slotKey, null))) return false;
+            node.SetText(slotKey, "");
+            return true;
+        }
+
         /// <summary>슬롯 순번이 행동 노드 등급의 속성·모디 슬롯 수 이상이면 잠긴 슬롯으로 보고 true를 반환한다. 슬롯 키가 아니어도 true다.</summary>
         public bool IsSlotLocked(string nodeId, string slotKey)
         {

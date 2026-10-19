@@ -95,7 +95,6 @@ namespace RuneCode
                 PlayShotSounds();
                 PlayElementalSounds();
                 PlayScrapPickupSounds();
-                if (!_isResultShown) ShowResult();
                 // 전투가 끝나면 저체력 지속 비네트는 목표를 0으로 두고 남은 점등만 자연스럽게 사라지게 한다.
                 _screen.ShowLowHealth(0f);
                 if (!_isResultShown)

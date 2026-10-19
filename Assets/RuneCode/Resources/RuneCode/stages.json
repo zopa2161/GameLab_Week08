@@ -2,8 +2,8 @@
   "_map": {
     "_roomColumns": 40,
     "_roomRows": 22,
-    "_roomsX": 5,
-    "_roomsY": 5
+    "_roomsX": 2,
+    "_roomsY": 2
   },
   "_growth": {
     "_hpStageScale": 0.15,

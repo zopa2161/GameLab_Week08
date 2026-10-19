@@ -50,6 +50,12 @@ namespace RuneCode
         /// <summary>행동 노드의 지정 슬롯을 비우고 비웠으면 true를 반환한다.</summary>
         bool ClearSlot(string nodeId, string slotKey);
 
+        /// <summary>행동 노드를 지정 등급으로 바꿀 수 있는지 반환하고, 새 등급 슬롯 한도를 넘어 해제될 룬 수를 removedCount로 반환한다.</summary>
+        bool CanChangeBehaviorGrade(string nodeId, string grade, out int removedCount);
+
+        /// <summary>행동 노드 등급을 바꾸고 한도를 넘는 슬롯의 룬을 해제한다. 성공하면 true를 반환하고 실패하면 상태 문구를 표시한다.</summary>
+        bool ChangeBehaviorGrade(string nodeId, string grade);
+
         /// <summary>지정 슬롯이 행동 노드 등급의 슬롯 한도 밖이라 잠겨 있는지 반환한다.</summary>
         bool IsSlotLocked(string nodeId, string slotKey);
 
