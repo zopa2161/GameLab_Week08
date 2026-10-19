@@ -523,6 +523,7 @@ namespace RuneCode
             if (_run == null || _ui.IsPopupOpen || !_run.ChooseClearModifier(index)) return;
             SetResultSummary();
             _result.HideClearModifierChoices();
+            _result.FocusReward(_run.ClearModifierChoices[index], _run.ClearModifierGrades[index]);
         }
 
         /// <summary>세션에서 시전 마법을 준비받아 새 미션을 만들고 HUD·결과 View를 시작 상태로 되돌린다. 실패하면 false를 반환한다.</summary>

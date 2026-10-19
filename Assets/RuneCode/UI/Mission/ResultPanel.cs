@@ -18,10 +18,14 @@ namespace RuneCode
     {
         private const float HIGHLIGHT_MIN_ALPHA = 0.25f;
         private const float HIGHLIGHT_MAX_ALPHA = 1f;
+        private const float REWARD_HEIGHT = 72f;
+        private const float SCROLL_EPSILON = 0.5f;
 
         [Header("보상 공개 연출")]
         [SerializeField, Min(0.05f)] private float _rewardRevealInterval = 0.3f;
         [SerializeField, Min(0)] private float _rewardRevealFinishDelay = 0.7f;
+        [SerializeField, Min(1f)] private float _rewardScrollSpeed = 900f;
+        [SerializeField, Min(0)] private float _rewardEffectMargin = 72f;
 
         [Header("문구")]
         [SerializeField] private TextMeshProUGUI _summaryLabel;
@@ -30,6 +34,7 @@ namespace RuneCode
 
         [Header("획득 보상")]
         [SerializeField] private RectTransform _rewardItemsRoot;
+        [SerializeField] private ScrollRect _rewardScroll;
         [SerializeField] private ResultRewardItemView _rewardItemPrefab;
         [SerializeField] private GameObject _rewardTooltip;
         [SerializeField] private TextMeshProUGUI _rewardTooltipTitle;
@@ -60,6 +65,7 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI[] _clearChoiceDescriptionLabels;
 
         private bool _isBound;
+        private Canvas _rewardCanvas;
         private ResultRewardItemView _hoveredRewardItem;
         private readonly Vector3[] _tooltipCorners = new Vector3[4];
         private readonly List<ResultRewardItemView> _rewardViews = new List<ResultRewardItemView>();
@@ -68,7 +74,7 @@ namespace RuneCode
         private int _revealCompletedFrame;
         private int _revealStartedFrame;
         private float _revealElapsed;
-        private float _revealFinishedAt;
+        private int _focusedRewardIndex = -1;
         private bool _isRevealing;
         private bool _isWaitingForRelease;
         private bool _isReturnOnly;
@@ -91,6 +97,8 @@ namespace RuneCode
         public void Bind()
         {
             if (_isBound) return;
+            _rewardCanvas = _rewardScroll.GetComponentInParent<Canvas>().rootCanvas;
+            _rewardScroll.onValueChanged.AddListener(HandleRewardScroll);
             _nextStageButton.onClick.AddListener(() => { if (CanContinue && !_isReturnOnly) NextStageClicked?.Invoke(); });
             _improveButton.onClick.AddListener(() => { if (CanContinue) ImproveClicked?.Invoke(); });
             _retryButton.onClick.AddListener(() => { if (CanContinue && !_isReturnOnly) RetryClicked?.Invoke(); });
@@ -125,67 +133,177 @@ namespace RuneCode
         /// <summary>정렬된 보상 목록을 만들고 animate이면 순차 공개를 준비하며, 아니면 연출 없이 모두 표시한다.</summary>
         public void SetRewards(IReadOnlyList<ResultRewardContent> rewards, bool animate = false)
         {
+            float previousPosition = _rewardItemsRoot.anchoredPosition.x;
+            bool canPreservePosition = !animate && IsVisible;
             HideRewardTooltip();
             UiFactory.ClearChildren(_rewardItemsRoot);
-            GridLayoutGroup layout = _rewardItemsRoot.GetComponent<GridLayoutGroup>();
-            layout.cellSize = new Vector2(96f, 72f);
-            layout.constraint = GridLayoutGroup.Constraint.Flexible;
+            _rewardScroll.StopMovement();
+            _focusedRewardIndex = -1;
             _rewardViews.Clear();
             _rewardContents.Clear();
             _revealedCount = 0;
             _revealElapsed = 0;
-            _revealFinishedAt = -1;
             _isWaitingForRelease = false;
             _revealStartedFrame = Time.frameCount;
             _revealCompletedFrame = Time.frameCount;
             _isRevealing = animate && rewards != null && rewards.Count > 0;
             SetNavigationEnabled(!_isRevealing);
-            if (rewards == null) return;
-            foreach (ResultRewardContent reward in rewards)
+            if (rewards != null)
             {
-                ResultRewardItemView item = Instantiate(_rewardItemPrefab, _rewardItemsRoot, false);
-                ((RectTransform)item.transform).sizeDelta = layout.cellSize;
-                item.SetContent(reward, HandleRewardHover);
-                layout.cellSize = new Vector2(Mathf.Max(layout.cellSize.x, item.PreferredWidth), layout.cellSize.y);
-                _rewardViews.Add(item);
-                _rewardContents.Add(reward);
-                if (_isRevealing) item.Conceal();
+                foreach (ResultRewardContent reward in rewards)
+                {
+                    ResultRewardItemView item = Instantiate(_rewardItemPrefab, _rewardItemsRoot, false);
+                    item.SetContent(reward, HandleRewardHover);
+                    ((RectTransform)item.transform).sizeDelta = new Vector2(item.PreferredWidth, REWARD_HEIGHT);
+                    _rewardViews.Add(item);
+                    _rewardContents.Add(reward);
+                    if (_isRevealing) item.Conceal();
+                }
+            }
+            ResetRewardScroll();
+            if (canPreservePosition)
+            {
+                float overflow = Mathf.Max(0, _rewardItemsRoot.rect.width - _rewardScroll.viewport.rect.width);
+                Vector2 position = _rewardItemsRoot.anchoredPosition;
+                position.x = Mathf.Clamp(previousPosition, -overflow, 0);
+                _rewardItemsRoot.anchoredPosition = position;
             }
         }
 
-        /// <summary>비전투 시간으로 보상을 순차 공개한다. 화면을 연 클릭은 무시하며 공개 중 클릭은 남은 보상만 즉시 표시한다.</summary>
+        /// <summary>표시 직후 활성 레이아웃을 계산해 보상 목록을 왼쪽 시작 위치로 맞춘다.</summary>
+        protected override void OnShown()
+        {
+            ResetRewardScroll();
+        }
+
+        /// <summary>보상 너비를 레이아웃에 반영하고 이전 결과의 관성과 스크롤 위치를 초기화한다.</summary>
+        private void ResetRewardScroll()
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_rewardItemsRoot);
+            _rewardScroll.StopMovement();
+            _rewardScroll.horizontalNormalizedPosition = 0;
+        }
+
+        /// <summary>비전투 시간으로 보상을 화면 안에 이동한 뒤 공개한다. 클릭·목록 위 휠은 공개를 완료하고 수동 탐색으로 전환한다.</summary>
         public void AdvanceRewards(float deltaTime)
         {
             Mouse mouse = Mouse.current;
+            bool hasScrollInput = mouse != null && mouse.scroll.ReadValue().sqrMagnitude > 0
+                && RectTransformUtility.RectangleContainsScreenPoint((RectTransform)_rewardScroll.transform,
+                    mouse.position.ReadValue(), _rewardCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : _rewardCanvas.worldCamera);
+            bool hasPointerPress = mouse != null && (mouse.leftButton.wasPressedThisFrame
+                || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame);
+            if (hasPointerPress || hasScrollInput) _focusedRewardIndex = -1;
+            if (_focusedRewardIndex >= 0)
+            {
+                if (MoveRewardIntoView(_focusedRewardIndex, deltaTime))
+                {
+                    RevealReward(_focusedRewardIndex, true);
+                    _focusedRewardIndex = -1;
+                }
+            }
             if (_isWaitingForRelease)
             {
                 bool hasMouseInput = mouse != null && (mouse.leftButton.isPressed || mouse.rightButton.isPressed || mouse.middleButton.isPressed
                     || mouse.leftButton.wasReleasedThisFrame || mouse.rightButton.wasReleasedThisFrame || mouse.middleButton.wasReleasedThisFrame);
-                if (Time.frameCount <= _revealCompletedFrame || hasMouseInput) return;
+                if (Time.frameCount <= _revealCompletedFrame || hasMouseInput || hasScrollInput) return;
                 _isWaitingForRelease = false;
                 SetNavigationEnabled(!_clearChoicePopup.activeSelf);
             }
             if (!_isRevealing || Time.frameCount <= _revealStartedFrame) return;
-            bool skip = mouse != null && (mouse.leftButton.wasPressedThisFrame
-                || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame);
-            _revealElapsed += Mathf.Max(0, deltaTime);
-            while (_revealedCount < _rewardViews.Count && (skip || _revealElapsed >= _revealedCount * _rewardRevealInterval))
+            if (hasPointerPress || hasScrollInput)
             {
-                _rewardViews[_revealedCount].Reveal(!skip, RuneMesh.GradeColor(_rewardContents[_revealedCount].Grade));
-                _revealedCount++;
-            }
-            if (_revealedCount < _rewardViews.Count) return;
-            if (_revealFinishedAt < 0) _revealFinishedAt = _revealElapsed + _rewardRevealFinishDelay;
-            if (!skip && _revealElapsed < _revealFinishedAt) return;
-            if (!skip)
-                foreach (ResultRewardItemView item in _rewardViews)
-                    if (item.IsEffectPlaying) return;
-            if (skip)
+                while (_revealedCount < _rewardViews.Count) RevealReward(_revealedCount++, false);
                 foreach (ResultRewardItemView item in _rewardViews) item.CompleteEffect();
+                CompleteRewardReveal();
+                return;
+            }
+            if (_revealedCount < _rewardViews.Count)
+            {
+                if (_revealElapsed < _rewardRevealInterval && _revealedCount > 0)
+                {
+                    _revealElapsed += Mathf.Max(0, deltaTime);
+                    return;
+                }
+                if (!IsRewardInView(_revealedCount))
+                    foreach (ResultRewardItemView item in _rewardViews)
+                        if (item.IsEffectPlaying) return;
+                if (!MoveRewardIntoView(_revealedCount, deltaTime)) return;
+                RevealReward(_revealedCount++, true);
+                _revealElapsed = 0;
+                return;
+            }
+            _revealElapsed += Mathf.Max(0, deltaTime);
+            if (_revealElapsed < _rewardRevealFinishDelay) return;
+            foreach (ResultRewardItemView item in _rewardViews)
+                if (item.IsEffectPlaying) return;
+            CompleteRewardReveal();
+        }
+
+        /// <summary>지정 순번의 보상을 등급 색상과 선택한 연출 사용 여부로 공개한다.</summary>
+        private void RevealReward(int index, bool playEffect)
+        {
+            _rewardViews[index].Reveal(playEffect, RuneMesh.GradeColor(_rewardContents[index].Grade));
+        }
+
+        /// <summary>순차 공개를 끝내고 현재 입력이 해제된 다음 프레임까지 이동 버튼을 잠근다.</summary>
+        private void CompleteRewardReveal()
+        {
             _isRevealing = false;
             _isWaitingForRelease = true;
             _revealCompletedFrame = Time.frameCount;
             SetNavigationEnabled(false);
+        }
+
+        /// <summary>카드와 효과 여백을 표시할 수 있도록 필요한 콘텐츠의 가로 위치를 계산한다.</summary>
+        private float GetRewardScrollTarget(int index)
+        {
+            RectTransform item = (RectTransform)_rewardViews[index].transform;
+            float viewWidth = _rewardScroll.viewport.rect.width;
+            float current = -_rewardItemsRoot.anchoredPosition.x;
+            float margin = Mathf.Min(_rewardEffectMargin, Mathf.Max(0, (viewWidth - item.rect.width) * 0.5f));
+            float left = item.localPosition.x + item.rect.xMin - margin;
+            float right = item.localPosition.x + item.rect.xMax + margin;
+            float target = current;
+            if (right > current + viewWidth) target = right - viewWidth;
+            if (left < target) target = left;
+            return -Mathf.Clamp(target, 0, Mathf.Max(0, _rewardItemsRoot.rect.width - viewWidth));
+        }
+
+        /// <summary>지정 보상이 효과 여백까지 현재 스크롤 영역 안에 있는지 반환한다.</summary>
+        private bool IsRewardInView(int index)
+        {
+            return Mathf.Abs(_rewardItemsRoot.anchoredPosition.x - GetRewardScrollTarget(index)) <= SCROLL_EPSILON;
+        }
+
+        /// <summary>지정 보상이 보일 때까지 비전투 시간으로 가로 이동하고 이동 완료 여부를 반환한다.</summary>
+        private bool MoveRewardIntoView(int index, float deltaTime)
+        {
+            _rewardScroll.StopMovement();
+            Vector2 position = _rewardItemsRoot.anchoredPosition;
+            float target = GetRewardScrollTarget(index);
+            position.x = Mathf.MoveTowards(position.x, target, _rewardScrollSpeed * Mathf.Max(0, deltaTime));
+            _rewardItemsRoot.anchoredPosition = position;
+            return Mathf.Abs(position.x - target) <= SCROLL_EPSILON;
+        }
+
+        /// <summary>보스 선택으로 추가된 룬을 찾아 다음 갱신에서 해당 위치로 이동한 뒤 강조한다.</summary>
+        public void FocusReward(string runeId, string grade)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_rewardItemsRoot);
+            for (int index = 0; index < _rewardContents.Count; index++)
+            {
+                ResultRewardContent reward = _rewardContents[index];
+                if (reward.RuneId != runeId || reward.Grade != grade) continue;
+                _focusedRewardIndex = index;
+                return;
+            }
+        }
+
+        /// <summary>스크롤 위치가 바뀌면 이전 카드에 남은 툴팁을 닫는다.</summary>
+        private void HandleRewardScroll(Vector2 position)
+        {
+            HideRewardTooltip();
         }
 
         /// <summary>정산 화면 이동 버튼을 보상 공개 및 보스 선택 상태에 맞게 활성화한다. 온보딩 복귀 유도 중이면 다음 스테이지·재도전 잠금을 유지한다.</summary>
@@ -209,6 +327,8 @@ namespace RuneCode
             _isRevealing = false;
             _isWaitingForRelease = false;
             _isReturnOnly = false;
+            _focusedRewardIndex = -1;
+            _rewardScroll.StopMovement();
             _guideRoot.SetActive(false);
             _improveHighlight.gameObject.SetActive(false);
             HideRewardTooltip();
@@ -222,6 +342,7 @@ namespace RuneCode
                 if (_hoveredRewardItem == item) HideRewardTooltip();
                 return;
             }
+            if (_isRevealing || _focusedRewardIndex >= 0) return;
             _hoveredRewardItem = item;
             _rewardTooltipTitle.richText = true;
             _rewardTooltipDescription.richText = true;
