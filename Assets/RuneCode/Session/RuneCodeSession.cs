@@ -76,6 +76,7 @@ namespace RuneCode
         public float MoveSpeedMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.MoveSpeed);
         public float ScrapGainMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapGain);
         public float ScrapPickupRangeMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapPickupRange);
+        public float ScrapHealRatio => GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapHeal);
         public float KillEnergyBonus => GetUpgradeTreeEffectTotal(UpgradeEffectType.KillEnergy);
         public float BattleDuration => (float)_stages.Get(1).Stream.RampSeconds;
         public int EquippedRam => CalculateEquippedRam(_spells.Graph);
@@ -718,7 +719,7 @@ namespace RuneCode
                 });
         }
 
-        /// <summary>미사용 룬 3개를 교환한다. 속성은 선택 스테이지 확률을, S는 행동·모드 교차 추첨을 쓰며 저장 실패 시 모든 재고를 복구한다.</summary>
+        /// <summary>미사용 룬 3개와 스크랩 비용으로 합성한다. 속성은 스테이지 확률을, S는 교차 추첨을 쓰며 저장 실패 시 재고와 스크랩을 복구한다.</summary>
         public bool TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
             out string resultId, out string resultGrade, out string error)
         {
@@ -744,6 +745,11 @@ namespace RuneCode
             }
             foreach (KeyValuePair<string, int> pair in counts)
                 if (!_spells.TryGetUnusedStock(pair.Key, grade, out int unused, out _) || unused < pair.Value) return false;
+            if (_save.Currency < RuneSynthesisRules.SCRAP_COST)
+            {
+                error = "합성에는 스크랩 " + RuneSynthesisRules.SCRAP_COST + "개가 필요합니다.";
+                return false;
+            }
             string resultCategory = category;
             if (category == SpellGrammar.CATEGORY_ELEMENT || grade == "S")
                 resultCategory = UnityEngine.Random.Range(0, 2) == 0 ? SpellGrammar.CATEGORY_BEHAVIOR : SpellGrammar.CATEGORY_MODIFIER;
@@ -761,11 +767,13 @@ namespace RuneCode
                 selectedId = RuneRewardRoller.PickRune(resultCategory, selectedGrade, () => UnityEngine.Random.value);
             }
             if (!_save.TryConsumeStock(counts, grade)) return false;
+            _save.Spend(RuneSynthesisRules.SCRAP_COST);
             _save.AddStock(selectedId, selectedGrade, 1);
             if (!PersistSpellStorage(_save))
             {
                 _save.TryConsumeStock(new Dictionary<string, int> { [selectedId] = 1 }, selectedGrade);
                 foreach (KeyValuePair<string, int> pair in counts) _save.AddStock(pair.Key, grade, pair.Value);
+                _save.Settle(RuneSynthesisRules.SCRAP_COST, false);
                 error = SaveStore.LastWarning;
                 return false;
             }

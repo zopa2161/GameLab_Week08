@@ -82,6 +82,10 @@ namespace RuneCode
                     Path(mesh, center, scale, tint, 3,5, 9,5);
                     Path(mesh, center, scale, tint, -3,13, 0,16, 3,13, 0,10, -3,13);
                     break;
+                case UpgradeEffectType.ScrapHeal:
+                    Path(mesh, center, scale, tint, -13,0, -6,7, 1,0, -6,-7, -13,0);
+                    Plus(mesh, center + new Vector2(8,5)*scale, scale, tint, 5);
+                    break;
                 case UpgradeEffectType.MaxHp:
                     Path(mesh, center, scale, tint, 0,-14, -14,1, -14,8, -7,13, 0,7, 7,13, 14,8, 14,1, 0,-14);
                     break;

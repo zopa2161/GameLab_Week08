@@ -1,5 +1,7 @@
 {
   "_entries": [
+    {"_key": "ui.tree.scrapHeal", "_value": "스크랩 체력 회복"},
+    {"_key": "ui.tree.scrapHealDescription", "_value": "스크랩 오브를 하나 획득할 때마다 최대 체력의 일정 비율을 회복합니다. 기본 0%, 단계당 1%씩 최대 5%까지 증가합니다. 일반·대형 스크랩에 동일하게 적용됩니다."},
     {"_key": "ui.newGame", "_value": "새로 하기"},
     {"_key": "ui.continueGame", "_value": "이어 하기"},
     {"_key": "ui.environmentSettings", "_value": "환경 설정"},
