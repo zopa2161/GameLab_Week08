@@ -17,7 +17,7 @@ const VOCAB = {
   stageType: ["normal", "boss"],
   dropType: ["fragments", "modifier", "none"],
   ramMode: ["shared", "perSpell"],
-  effectType: ["effectMultiplier", "multipleCount", "pierceCount", "radiusMultiplier", "durationMultiplier", "speedMultiplier", "homingTier", "waveCount"],
+  effectType: ["effectMultiplier", "energyCostMultiplier", "multipleCount", "pierceCount", "radiusMultiplier", "durationMultiplier", "speedMultiplier", "homingTier", "waveCount"],
   grade: ["C", "B", "A", "S"],
 };
 
@@ -353,6 +353,6 @@ VOCAB.portStatus = ["active", "deprecated"];
 // Modifier 등급 값의 형식이다. 게임(ModifierGradeTable)이 효과 종류마다 받는 값 형식과 같다. 없는 등급은 모두 null이다.
 // decimal: 배율 소수, integer: 0 이상 정수, integerOrAll: 0 이상 정수 또는 "ALL"(무제한), homingTier: mod.homing의 유도 단계 이름.
 const GRADE_VALUE_KINDS = {
-  effectMultiplier: "decimal", radiusMultiplier: "decimal", durationMultiplier: "decimal", speedMultiplier: "decimal",
+  effectMultiplier: "decimal", energyCostMultiplier: "decimal", radiusMultiplier: "decimal", durationMultiplier: "decimal", speedMultiplier: "decimal",
   multipleCount: "integer", pierceCount: "integerOrAll", homingTier: "homingTier",
 };

@@ -350,6 +350,9 @@ namespace RuneCode
             object gradeValue = grades.GetGradeValue(rune.Id, grade);
             switch (grades.GetEffectType(rune.Id))
             {
+                case ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT:
+                    values.Add(GameData.L("ui.gradeEnergyConsumption") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
+                    break;
                 case "effectMultiplier":
                     values.Add(GameData.L("ui.gradeDamage") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
                     break;
