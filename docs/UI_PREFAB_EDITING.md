@@ -109,9 +109,13 @@ Initial Level은 구매 기록이 없어도 적용되는 강화 시작 레벨이
 | 시간제 전투 진입 버튼 | `WorkshopScreen.prefab` → `Page/HeaderArea/stageButton` |
 | 스테이지 선택의 뒤로가기 버튼 | `WorkshopScreen.prefab` → `Page/HeaderArea/BtnArea/BackButton` |
 | 설정 창 배치·배경·닫기 | `SettingsPopup.prefab` → `Card`, `Card/Content`, `Card/CloseButton` |
+| 소리 설정 열기 버튼 | `SettingsPopup.prefab` → `Card/Content/SoundSettingsButton` |
+| 마스터 음량·저장·닫기 | `SoundSettingsPopup.prefab` → `Card/MasterVolumeSlider`, `Card/SaveButton`, `Card/CloseButton` |
 | 설정 창의 검은 딤 배경 | `SettingsPopup.prefab` → `PopupShade`의 Image Color `(0, 0, 0, 0.7)` |
 
 `SettingsPopup.prefab`은 `Assets/RuneCode/Resources/RuneCode/UI/`에 있다. 기존 화면 흔들림, 히트스톱, 저장 초기화와 디버그 설정 참조를 이 팝업으로 옮겼다. 배경은 입력을 차단하며 닫기 버튼 또는 Esc로 닫는다. 딤 색상은 이 팝업 인스턴스의 프리팹 Override이므로 공용 `PopupShade.prefab`을 바꿀 필요가 없다.
+
+`SoundSettingsPopup.prefab`도 같은 Resources 폴더에 있으며 기존 설정 창 위에 열린다. 열 때마다 현재 런타임 마스터 음량으로 슬라이더를 초기화하고, 슬라이더 조작 중에는 음량을 적용하지 않는다. `저장`을 누를 때만 런타임 음량과 기기 공통 설정을 함께 확정하며 팝업은 유지한다. X 또는 Esc로 닫으면 저장하지 않은 슬라이더 값은 폐기되고 다음 진입 때 다시 초기화된다.
 
 스테이지 선택 중에는 두 탭과 전투 진입 버튼을 숨기고 뒤로가기를 표시한다. 뒤로가기 또는 Esc는 진입 직전에 보던 룬 설계·강화 트리로 돌아간다. 설정 팝업을 열거나 닫아도 현재 화면은 유지한다. 이동할 버튼을 직접 배치한 뒤에는 `WorkshopScreen` 컴포넌트의 Tab Buttons(룬 설계, 강화 트리 순서), Deploy Button, Settings Button, Back Button 참조를 유지한다. 팝업의 Panel과 Close Button 참조도 유지한다.
 

@@ -91,6 +91,7 @@ namespace RuneCode
             Image resultShade = _resultOverlay.gameObject.AddComponent<Image>();
             resultShade.color = new Color(0f, 0f, 0f, 0.85f);
             Button dismiss = _resultOverlay.gameObject.AddComponent<Button>();
+            UiFactory.BindClickSound(dismiss);
             dismiss.targetGraphic = resultShade;
             dismiss.transition = Selectable.Transition.None;
             dismiss.onClick.AddListener(DismissResult);

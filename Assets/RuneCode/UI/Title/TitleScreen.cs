@@ -69,6 +69,7 @@ namespace RuneCode
             Button button = Instantiate(_startButton, _startButton.transform.parent, false);
             button.name = name;
             button.onClick.RemoveAllListeners();
+            UiFactory.BindClickSound(button);
             TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
             label.text = labelText;
             return button;

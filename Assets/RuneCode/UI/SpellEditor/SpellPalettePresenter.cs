@@ -206,7 +206,7 @@ namespace RuneCode
                     popup.AddResult(StockLabel(rune, grade, remaining, owned), () =>
                     {
                         popup.Close();
-                        _editor.Equip(nodeId, slotKey, runeId, grade);
+                        if (_editor.Equip(nodeId, slotKey, runeId, grade)) SoundManager.Instance.PlaySelectSlotItem();
                     }, rune.Category);
                 }
             }
@@ -242,7 +242,7 @@ namespace RuneCode
                 _editor.ReportStatus("editor.slotBlocked");
                 return;
             }
-            _editor.Equip(nodeId, slotKey, runeId, grade);
+            if (_editor.Equip(nodeId, slotKey, runeId, grade)) SoundManager.Instance.PlaySelectSlotItem();
         }
 
         /// <summary>남은 수(remaining)와 보유 수(owned)를 구하고 보유 수가 1 이상이면 true를 반환한다. 합성 모드에서는 보관함 전체 배치를 제외한 미사용 수량, 평소에는 현재 프리셋 배치를 제외한 수량을 반환한다.</summary>

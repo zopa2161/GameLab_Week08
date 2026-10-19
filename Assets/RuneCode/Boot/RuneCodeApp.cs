@@ -44,6 +44,12 @@ namespace RuneCode
             bool isDebug = Environment.GetCommandLineArgs().Contains("-debug") || Application.absoluteURL.Contains("debug=1");
             _session = new RuneCodeSession(save, stages, upgradeTree, isDebug, SaveStore.LastWarning);
             _session.ScreenRequested += OnScreenRequested;
+            if (SoundManager.Instance == null)
+            {
+                GameObject soundRoot = new GameObject("SoundManager");
+                soundRoot.transform.SetParent(transform, false);
+                soundRoot.AddComponent<SoundManager>();
+            }
             _ui = UIManager.Create(transform);
             LocalTelemetry.Record(0, "session", "start");
             UsabilityLogUploader.AttachIfConfigured(gameObject,
