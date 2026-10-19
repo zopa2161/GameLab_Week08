@@ -7,10 +7,22 @@ namespace RuneCode
     public static class RuneSynthesisRules
     {
         public const int MATERIAL_COUNT = 3;
-        public const int SCRAP_COST = 200;
+
         private static readonly string[] GRADES = { "C", "B", "A", "S" };
 
         public static IReadOnlyList<string> GradeOrder { get; } = Array.AsReadOnly(GRADES);
+
+        /// <summary>재료 등급별 합성 스크랩 비용을 반환한다. 무등급 속성은 기존 비용 200개를 사용한다.</summary>
+        public static int GetScrapCost(string grade)
+        {
+            switch (grade)
+            {
+                case "C": return 50;
+                case "B": return 100;
+                case "A": return 150;
+                default: return 200;
+            }
+        }
 
         /// <summary>재료의 합성 결과 등급을 반환한다. S는 S를 유지하고 알 수 없는 등급이면 null이다.</summary>
         public static string NextGrade(string grade)

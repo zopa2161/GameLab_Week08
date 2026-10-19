@@ -745,9 +745,10 @@ namespace RuneCode
             }
             foreach (KeyValuePair<string, int> pair in counts)
                 if (!_spells.TryGetUnusedStock(pair.Key, grade, out int unused, out _) || unused < pair.Value) return false;
-            if (_save.Currency < RuneSynthesisRules.SCRAP_COST)
+            int scrapCost = RuneSynthesisRules.GetScrapCost(grade);
+            if (_save.Currency < scrapCost)
             {
-                error = "합성에는 스크랩 " + RuneSynthesisRules.SCRAP_COST + "개가 필요합니다.";
+                error = "합성에는 스크랩 " + scrapCost + "개가 필요합니다.";
                 return false;
             }
             string resultCategory = category;
@@ -767,13 +768,13 @@ namespace RuneCode
                 selectedId = RuneRewardRoller.PickRune(resultCategory, selectedGrade, () => UnityEngine.Random.value);
             }
             if (!_save.TryConsumeStock(counts, grade)) return false;
-            _save.Spend(RuneSynthesisRules.SCRAP_COST);
+            _save.Spend(scrapCost);
             _save.AddStock(selectedId, selectedGrade, 1);
             if (!PersistSpellStorage(_save))
             {
                 _save.TryConsumeStock(new Dictionary<string, int> { [selectedId] = 1 }, selectedGrade);
                 foreach (KeyValuePair<string, int> pair in counts) _save.AddStock(pair.Key, grade, pair.Value);
-                _save.Settle(RuneSynthesisRules.SCRAP_COST, false);
+                _save.Settle(scrapCost, false);
                 error = SaveStore.LastWarning;
                 return false;
             }
