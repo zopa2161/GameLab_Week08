@@ -313,7 +313,6 @@ namespace RuneCode
             _arenaSpawnPoints = new ArenaSpawnPoints(NextRandom, _enemies);
             _isArenaPointReserved = IsArenaPointReserved;
             _scrapHealRatio = Math.Max(0, Math.Min(1, scrapHealRatio));
-            _spawnSlots = new SpawnSlots(NextRandom);
             _isSeparationFixed = IsSeparationFixed;
             Adaptation = new AdaptationNet(_balance);
             if (isMission) BeginTimedBattle();
