@@ -522,9 +522,9 @@ namespace RuneCode
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
             _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount + "  ·  " + GameData.L("ui.fragments") + " " + sim.EarnedFragments);
-            string objective = sim.IsBossStage
-                ? GameData.L("ui.bossObjective") + " · " + sim.RemainingTime.ToString("0.0") + "s"
-                : GameData.L("ui.killProgress") + " " + sim.TargetKills + " / " + sim.KillTarget;
+            string objective = GameData.L(sim.IsBossStage ? "ui.bossObjective" : "ui.surviveObjective")
+                + " · " + sim.RemainingTime.ToString("0.0") + "s";
+            // 일반 스테이지는 시간이 다 되면 클리어이므로 경고 색은 보스 스테이지에만 쓴다.
             _hud.SetTimer(objective,
                 sim.IsBossStage && sim.RemainingTime <= TIMER_WARNING_SECONDS);
             string executionState = sim.HasActiveBeam(0) ? GameData.L("ui.beamActive") : sim.Player.IsSpellRunning(0)

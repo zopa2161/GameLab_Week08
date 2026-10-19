@@ -19,6 +19,7 @@ namespace RuneCode
         private const int STATUS_TYPE_COUNT = 4;
         private const int PLAYER_TARGET_ID = -1;
         private const double SAME_SPAWN_DISTANCE = 0.5;
+        private const int ARENA_PICK_ROUNDS = 2;
         private const string BOLT_RUNE_ID = "form.bolt";
         private const double BEAM_CLIP_MIN_STEP = 4;
         private const double BEAM_CLIP_STEP_RATIO = 0.25;
@@ -61,11 +62,13 @@ namespace RuneCode
         private readonly List<SimulationItemDrop> _newPickedItems = new List<SimulationItemDrop>();
         private readonly List<DamageNumber> _damageNumbers = new List<DamageNumber>();
         private readonly List<HealPulse> _healPulses = new List<HealPulse>();
+        private readonly List<SpawnWarning> _spawnWarnings = new List<SpawnWarning>();
         private readonly List<ArcLink> _arcLinks = new List<ArcLink>();
         private readonly List<NodeExecutionEvent> _nodeEvents = new List<NodeExecutionEvent>();
         private readonly List<ScheduledExecution> _scheduled = new List<ScheduledExecution>();
         private readonly List<PendingEnemyShot> _pendingEnemyShots = new List<PendingEnemyShot>();
         private readonly List<PendingSplit> _pendingSplits = new List<PendingSplit>();
+        private readonly List<PendingSpawn> _pendingSpawns = new List<PendingSpawn>();
         private readonly List<EnemyStatusEffect> _enemyStatuses = new List<EnemyStatusEffect>();
         private readonly Dictionary<int, EnemyStatusEffect> _statusIndex = new Dictionary<int, EnemyStatusEffect>();
         private readonly Queue<DamageSample> _damageWindow = new Queue<DamageSample>();
@@ -80,6 +83,8 @@ namespace RuneCode
         private readonly List<string> _unlockedElements = new List<string> { "fire" };
         private readonly List<SimVector> _tickSpawnPositions = new List<SimVector>();
         private readonly SpawnSlots _spawnSlots;
+        private readonly ArenaSpawnPoints _arenaSpawnPoints;
+        private readonly Func<SimVector, bool> _isArenaPointReserved;
         private readonly EnemySeparation _separation = new EnemySeparation();
         private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
         private readonly int _initialSeed;
@@ -100,7 +105,6 @@ namespace RuneCode
         private int _streamSpawns;
         private int _spawnedEnemies;
         private int _killCount;
-        private int _killTarget;
         private int _targetKills;
         private bool _isBossDefeated;
         private int _actionBudgetTick = -1;
@@ -202,6 +206,9 @@ namespace RuneCode
         public int FreezeStartEventCount => _freezeStartEventCount;
         public IReadOnlyList<HealPulse> HealPulses => _healPulses;
 
+        /// <summary>대기 중인 맵형 스폰의 예고 표시 목록이다. 무리는 하나로 묶여 있으며 표시 전용이다.</summary>
+        public IReadOnlyList<SpawnWarning> SpawnWarnings => _spawnWarnings;
+
         /// <summary>최근 ARC_LINK_TICKS 동안 발생한 전격 연쇄 구간 목록이다. 표시 전용이다.</summary>
         public IReadOnlyList<ArcLink> ArcLinks => _arcLinks;
         public IReadOnlyList<NodeExecutionEvent> NodeEvents => _nodeEvents;
@@ -222,8 +229,7 @@ namespace RuneCode
         public int StageNumber => _stageNumber;
         public bool IsBossStage => _stageDefinition != null && _stageDefinition.IsBoss;
         public double TimeLimit => _stageDefinition?.TimeLimit ?? 0;
-        public double RemainingTime => IsBossStage ? Math.Max(0, TimeLimit - Time) : 0;
-        public int KillTarget => _killTarget;
+        public double RemainingTime => Math.Max(0, TimeLimit - Time);
         public int TargetKills => _targetKills;
         public SimVector MapCenter => new SimVector(_map.Width * 0.5, _map.Height * 0.5);
         public double EnergyRegen => _energyRegen;
@@ -287,7 +293,9 @@ namespace RuneCode
             _moveSpeedMultiplier = moveSpeedMultiplier;
             _scrapGainMultiplier = scrapGainMultiplier;
             _scrapPickupRangeMultiplier = scrapPickupRangeMultiplier;
-            _spawnSlots = new SpawnSlots(NextRandom);
+            _spawnSlots = new SpawnSlots(NextRandom, _enemies);
+            _arenaSpawnPoints = new ArenaSpawnPoints(NextRandom, _enemies);
+            _isArenaPointReserved = IsArenaPointReserved;
             _isSeparationFixed = IsSeparationFixed;
             Adaptation = new AdaptationNet(_balance);
             if (isMission) BeginTimedBattle();
@@ -503,7 +511,7 @@ namespace RuneCode
             if (startedDash) TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_START);
             else if (wasDashing && _player.DashRemaining <= 0.000001) TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_END);
             if (input.Movement.LengthSquared > 0.000001) TryCastTrigger(SpellGrammar.TRIGGER_ON_MOVE);
-            if (_isMission) { AdvanceSpawns(); AdvanceSplits(); }
+            if (_isMission) { AdvancePendingSpawns(); AdvanceSpawns(); AdvanceSplits(); RefreshSpawnWarnings(); }
             RunScheduled();
             if (input.CastA || _beamQueued[0]) TryCastTriggered(_loadout[0], SpellGrammar.TRIGGER_ON_ATTACK, 0);
             if (input.CastB || _beamQueued[1]) TryCastTriggered(_loadout[1], SpellGrammar.TRIGGER_ON_ATTACK, 1);
@@ -614,7 +622,7 @@ namespace RuneCode
             state.Append("beamInput:");
             for (int slot = 0; slot < _castHeld.Length; slot++)
                 state.Append('|').Append(_castHeld[slot]).Append(':').Append(_beamQueued[slot]);
-            state.Append(_tick).Append('|').Append(_rngState).Append('|').Append(_nextEntityId).Append('|').Append(_stage).Append('|').Append(_stageNumber).Append('|').Append(_killTarget).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_killCount).Append('|').Append(_scenario).Append('|').Append(_debugInvulnerable);
+            state.Append(_tick).Append('|').Append(_rngState).Append('|').Append(_nextEntityId).Append('|').Append(_stage).Append('|').Append(_stageNumber).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_killCount).Append('|').Append(_scenario).Append('|').Append(_debugInvulnerable);
             state.Append('|').Append(_actionBudgetTick).Append('|').Append(_actionsThisTick).Append('|').Append(_droppedExecutions);
             AppendNumber(state, TimeLimit); AppendNumber(state, _energyRegen);
             state.Append('|').Append(_aimPoint.HasValue);
@@ -673,6 +681,12 @@ namespace RuneCode
                 AppendNumber(state, split.Elite != null ? split.Elite.RawRewardMultiplier : 0);
                 AppendNumber(state, split.Elite != null ? split.Elite.RawSpeedMultiplier : 0);
                 if (split.CarrierOwnerId != 0) state.Append("|owner:").Append(split.CarrierOwnerId);
+            }
+            foreach (PendingSpawn spawn in _pendingSpawns)
+            {
+                state.Append("|ps").Append(spawn.Tick).Append('|').Append(spawn.EnemyId).Append('|').Append(spawn.Elite != null).Append('|').Append(spawn.IsKillTarget);
+                AppendNumber(state, spawn.Position.X); AppendNumber(state, spawn.Position.Y);
+                AppendNumber(state, spawn.WarningCenter.X); AppendNumber(state, spawn.WarningCenter.Y); AppendNumber(state, spawn.WarningRadius);
             }
             AppendNumber(state, _totalDamage); state.Append(_collectedFragments).Append(_nodeExecutionCount).Append('|').Append(_enemyDamageEventCount)
                 .Append('|').Append(_burnTickDamageEventCount).Append('|').Append(_arcDamageEventCount).Append('|').Append(_freezeStartEventCount);
@@ -1721,7 +1735,10 @@ namespace RuneCode
 
         /// <summary>적과 플레이어가 겹치면 피해를 적용하고 접촉 여부를 반환한다.</summary>
         private bool HurtByContact(SimulationEnemy enemy)
-        { if (!_isMission || SimVector.Distance(enemy.Position, _player.Position) > enemy.Radius + _sector.PlayerRadius) return false; HurtPlayer(enemy.Damage); return true; }
+        {
+            if (!_isMission || Time < enemy.ContactGraceUntil || SimVector.Distance(enemy.Position, _player.Position) > enemy.Radius + _sector.PlayerRadius) return false;
+            HurtPlayer(enemy.Damage); return true;
+        }
 
         /// <summary>플레이어 피해에 디버그 무적과 기본 피격 무적을 반영한다.</summary>
         private void HurtPlayer(double damage)
@@ -2033,13 +2050,15 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 일반 스테이지는 목표 처치 수, 보스 스테이지는 보스 처치로 클리어하고 남은 스크랩·Modifier를 모두 회수한다.
+        /// 일반 스테이지는 TimeLimit까지 버티면, 보스 스테이지는 TimeLimit 안에 보스를 처치하면 클리어하고 남은 스크랩·Modifier를 모두 회수한다.
         /// 보스 제한시간 초과는 미획득 스크랩을 버린다. 클리어는 남은 적을 정지된 전장 표시용으로 보존하고 상태 이상을 정리하며 같은 틱의 시간 초과보다 우선한다.
+        /// 같은 틱의 사망은 Step에서 먼저 판정되므로 이 확인보다 우선한다.
         /// </summary>
         private void CheckBattleEnd()
         {
-            if (IsBossStage ? _isBossDefeated : _targetKills >= _killTarget) _stage = MissionStage.Cleared;
-            else if (IsBossStage && Time + 0.000001 >= TimeLimit) _stage = MissionStage.TimedOut;
+            bool hasReachedTimeLimit = Time + 0.000001 >= TimeLimit;
+            if (IsBossStage ? _isBossDefeated : hasReachedTimeLimit) _stage = MissionStage.Cleared;
+            else if (IsBossStage && hasReachedTimeLimit) _stage = MissionStage.TimedOut;
             else return;
             if (_stage == MissionStage.Cleared) CollectRemainingDrops();
             else DiscardUncollectedOrbs();
@@ -2049,7 +2068,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 스테이지 편성으로 외곽 벽만 있는 맵, 맵 중앙의 플레이어, 스폰 반경, 목표 처치 수와 스폰 진행을 준비하고 0틱 예약을 바로 스폰한다.
+        /// 스테이지 편성으로 외곽 벽만 있는 맵, 맵 중앙의 플레이어, 스폰 반경, 처치 집계와 스폰 진행을 준비하고 0틱 예약을 바로 스폰한다.
         /// 스폰 반경 = 기본 발사 사거리 + 가장 큰 적 반경 + 여유이며 막 스폰된 적에게 기본 발사체가 닿지 않게 한다.
         /// 적 분리 격자를 맵 크기와 적 상한, 가장 큰 적 반경의 2배 칸 크기로 준비한다. 가장 큰 적 반경에는 이 스테이지 엘리트 타입의 반경 배율을 반영한다.
         /// </summary>
@@ -2066,19 +2085,21 @@ namespace RuneCode
             foreach (EliteSpawnDefinition elite in _stageDefinition.EliteTypes) largestRadius = Math.Max(largestRadius, _enemyCatalog.Get(elite.EnemyId).Radius * elite.RadiusMultiplier);
             _separation.Resize(_map.Width, _map.Height, EnemyLimit, largestRadius * 2);
             _spawnRadius = (double)bolt.Speed * bolt.Lifetime + largestRadius + _stages.Spawn.RingMargin;
-            // 보스 스테이지는 처치로 종료하고, 일반 스테이지는 11스테이지부터 목표 처치 수를 50으로 고정한다.
-            _killTarget = _stages.GetKillTarget(_stageDefinition, _stageNumber);
             _targetKills = 0; _isBossDefeated = false;
             _director = new SpawnDirector(_stageDefinition, _stageNumber, _formations, TICK_RATE);
             AdvanceSpawns();
+            RefreshSpawnWarnings();
         }
 
-        /// <summary>현재 틱까지 도달한 스폰을 순서대로 처리한다. 기본 흐름 스폰 순번이 엘리트 주기와 일치하면 그 종족을 엘리트로 생성한다. 적 수가 상한이면 이번 틱 처리를 멈춘다.</summary>
+        /// <summary>
+        /// 현재 틱까지 도달한 스폰을 순서대로 처리한다. 기본 흐름 스폰 순번이 엘리트 주기와 일치하면 그 종족을 엘리트로 생성한다.
+        /// 살아 있는 적과 예고 대기 스폰을 합친 수가 상한이면 이번 틱 처리를 멈춘다.
+        /// </summary>
         private void AdvanceSpawns()
         {
             while (_director.TryPeek(_tick, out SpawnOrder order))
             {
-                if (_enemies.Count >= EnemyLimit) return;
+                if (_enemies.Count + _pendingSpawns.Count >= EnemyLimit) return;
                 _director.Consume(_tick);
                 bool isStream = order.IsStream;
                 EliteSpawnDefinition elite = null;
@@ -2103,23 +2124,114 @@ namespace RuneCode
         /// <summary>
         /// 예약의 진형으로 플레이어 주변 원형 슬롯 중 위치를 정해 적을 생성한다. elite가 있으면 엘리트 배율로 생성하고,
         /// isKillTarget은 기본 흐름과 웨이브 스폰에 true로 받아 목표 처치 수 집계 대상으로 만든다.
-        /// 묶음의 첫 스폰에서 슬롯 시작 각도(무작위 또는 진행 방향)와 기준 슬롯을 정하고, 위치는 스폰 순간의 플레이어 위치 기준으로 계산한다.
+        /// 묶음의 첫 스폰에서 슬롯 시작 각도(무작위, 진행 방향 또는 고정 0도)와 기준 슬롯을 정하고, 위치는 스폰 순간의 플레이어 위치 기준으로 계산한다.
+        /// 맵형 진형은 원형 슬롯 대신 EnqueueArenaSpawn으로 예고 대기 스폰을 등록한다.
         /// </summary>
         private void SpawnByFormation(SpawnOrder order, string enemyId, EliteSpawnDefinition elite, bool isKillTarget)
         {
             FormationSettings settings = _director.GetSettings(order.Group);
             SpawnFormation formation = SpawnFormations.Get(settings.Shape);
             double radius = _enemyCatalog.Get(enemyId).Radius * (elite != null ? elite.RadiusMultiplier : 1);
+            if (formation.IsArena) { EnqueueArenaSpawn(order, enemyId, elite, isKillTarget, formation, settings, radius); return; }
             int slotCount = settings.Slots > 0 ? settings.Slots : _stages.Spawn.RingSlots;
+            double spawnRadius = _spawnRadius * settings.RadiusScale;
             if (!_director.IsStarted(order.Group))
             {
-                double startAngle = settings.Angle == SpawnFormations.ANGLE_AHEAD ? GetAheadAngle() : NextRandom() * 2 * Math.PI / slotCount;
-                _spawnSlots.Refresh(_map, _player.Position, _spawnRadius, slotCount, startAngle, radius);
+                double startAngle = settings.Angle == SpawnFormations.ANGLE_AHEAD ? GetAheadAngle()
+                    : settings.Angle == SpawnFormations.ANGLE_FIXED ? 0 : NextRandom() * 2 * Math.PI / slotCount;
+                _spawnSlots.Refresh(_map, _player.Position, spawnRadius, slotCount, startAngle, radius);
                 _director.Start(order.Group, startAngle, formation.ChooseAnchor(_spawnSlots, settings));
             }
-            else _spawnSlots.Refresh(_map, _player.Position, _spawnRadius, slotCount, _director.GetStartAngle(order.Group), radius);
+            else _spawnSlots.Refresh(_map, _player.Position, spawnRadius, slotCount, _director.GetStartAngle(order.Group), radius);
             SpawnPlacement placement = formation.Place(order.Index, order.Count, _director.GetAnchor(order.Group), _spawnSlots, settings);
             SpawnEnemy(enemyId, ResolvePlacement(placement, radius), false, 0, elite, isKillTarget);
+        }
+
+        /// <summary>
+        /// 맵형 진형 예약의 생성 위치를 정해 예고 시간 뒤에 생성할 대기 스폰으로 등록한다. 무리를 공유하는 진형은 묶음의 첫 스폰에서 무리 중심을 정하고
+        /// 각 기체를 중심 기준 오프셋에 두며, 그 위치가 맵 밖이거나 플레이어 최소 거리 안이면 무리 중심을 쓴다. 예고 표시는 무리 중심과 무리 반경을 쓴다.
+        /// 그 외 맵형 진형은 기체마다 맵 전체에서 위치를 고른다.
+        /// </summary>
+        private void EnqueueArenaSpawn(SpawnOrder order, string enemyId, EliteSpawnDefinition elite, bool isKillTarget,
+            SpawnFormation formation, in FormationSettings settings, double radius)
+        {
+            SimVector position;
+            SimVector warningCenter;
+            double warningRadius = radius;
+            if (formation.SharesArenaAnchor)
+            {
+                if (!_director.IsStarted(order.Group)) _director.StartAt(order.Group, PickArenaPoint(radius));
+                warningCenter = _director.GetAnchorPoint(order.Group);
+                warningRadius += formation.GetArenaSpread(order.Count, settings);
+                position = warningCenter + formation.GetArenaOffset(order.Index, settings);
+                if (!_map.CanOccupy(position, radius) || (position - _player.Position).Length < _stages.Spawn.MinPlayerDistance) position = warningCenter;
+            }
+            else
+            {
+                position = PickArenaPoint(radius);
+                warningCenter = position;
+            }
+            int warningTicks = (int)Math.Round(_stages.Spawn.WarningSeconds * TICK_RATE);
+            _pendingSpawns.Add(new PendingSpawn(_tick + warningTicks, enemyId, position, elite, isKillTarget, warningCenter, warningRadius));
+        }
+
+        /// <summary>
+        /// 맵 전체에서 플레이어 거리 띠와 벽, 다른 예고 위치를 피한 스폰 위치를 고른다. 두 번 추첨해도 후보가 없으면 맵 안에서 플레이어로부터 가장 먼 지점을 반환한다.
+        /// </summary>
+        private SimVector PickArenaPoint(double radius)
+        {
+            StageSpawnSettings spawn = _stages.Spawn;
+            for (int round = 0; round < ARENA_PICK_ROUNDS; round++)
+                if (_arenaSpawnPoints.TryPick(_map, _player.Position, radius, spawn.MinPlayerDistance, spawn.MaxPlayerDistance, _isArenaPointReserved, out SimVector point))
+                    return point;
+            return GetFarthestPoint(_player.Position, radius);
+        }
+
+        /// <summary>맵 좌표가 대기 중인 맵형 스폰의 예고 영역(예고 반경 + 여유) 안에 있는지 반환한다.</summary>
+        private bool IsArenaPointReserved(SimVector position)
+        {
+            foreach (PendingSpawn spawn in _pendingSpawns)
+            {
+                double gap = spawn.WarningRadius * 2;
+                if ((spawn.WarningCenter - position).LengthSquared < gap * gap) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 생성 틱에 도달한 대기 스폰을 등록 순서대로 생성하고 접촉 피해 유예를 준다. 적 수가 상한이라 생성하지 못하면 남은 항목을 다음 틱에 다시 시도한다.
+        /// </summary>
+        private void AdvancePendingSpawns()
+        {
+            for (int i = 0; i < _pendingSpawns.Count;)
+            {
+                PendingSpawn spawn = _pendingSpawns[i];
+                if (spawn.Tick > _tick) { i++; continue; }
+                SimulationEnemy enemy = SpawnEnemy(spawn.EnemyId, spawn.Position, false, 0, spawn.Elite, spawn.IsKillTarget);
+                if (enemy == null) return;
+                enemy.ContactGraceUntil = Time + _stages.Spawn.SpawnGraceSeconds;
+                _pendingSpawns.RemoveAt(i);
+            }
+        }
+
+        /// <summary>
+        /// 대기 스폰으로 예고 표시 목록을 다시 만든다. 같은 예고 중심을 쓰는 무리는 하나로 묶고 반경은 가장 큰 값, 진행도는 가장 앞선 값, 엘리트는 하나라도 있으면 표시한다.
+        /// </summary>
+        private void RefreshSpawnWarnings()
+        {
+            _spawnWarnings.Clear();
+            int warningTicks = (int)Math.Round(_stages.Spawn.WarningSeconds * TICK_RATE);
+            foreach (PendingSpawn spawn in _pendingSpawns)
+            {
+                double progress = warningTicks <= 0 ? 1 : Math.Max(0, Math.Min(1, 1 - (spawn.Tick - _tick) / (double)warningTicks));
+                int merged = -1;
+                for (int i = 0; i < _spawnWarnings.Count; i++)
+                    if (_spawnWarnings[i].Position.X == spawn.WarningCenter.X && _spawnWarnings[i].Position.Y == spawn.WarningCenter.Y) { merged = i; break; }
+                if (merged < 0) { _spawnWarnings.Add(new SpawnWarning(spawn.WarningCenter, spawn.WarningRadius, progress, spawn.Elite != null)); continue; }
+                SpawnWarning current = _spawnWarnings[merged];
+                _spawnWarnings[merged] = new SpawnWarning(current.Position, Math.Max(current.Radius, spawn.WarningRadius),
+                    Math.Max(current.Progress, progress), current.IsElite || spawn.Elite != null);
+            }
         }
 
         /// <summary>보스 증원 설정으로 보스 주변 원 위에 같은 간격으로 증원을 생성한다. 시작 각도는 보스가 바라보는 방향이며 맵 밖 위치는 원형 슬롯과 같이 제외한다.</summary>
@@ -2135,13 +2247,18 @@ namespace RuneCode
 
         /// <summary>
         /// 배치 결과를 마지막으로 Refresh한 슬롯 기준 좌표로 바꾼다. 쓸 슬롯이 없으면 맵 안에서 플레이어로부터 가장 먼 지점을 쓰고,
-        /// 바깥 오프셋 위치가 맵 밖이면 슬롯 위치를 쓰며, 같은 틱에 같은 위치로 나온 적이 있으면 흔들어 겹치지 않게 한다.
+        /// 호 이동·바깥 오프셋을 반영한 위치가 맵 밖이면 슬롯 위치를 쓰며, 같은 틱에 같은 위치로 나온 적이 있으면 흔들어 겹치지 않게 한다.
         /// </summary>
         private SimVector ResolvePlacement(SpawnPlacement placement, double radius)
         {
             if (!placement.HasSlot) return GetFarthestPoint(_player.Position, radius);
             SimVector position = _spawnSlots.GetPosition(placement.Slot);
-            if (placement.Outward > 0)
+            if (placement.Arc != 0)
+            {
+                SimVector moved = _spawnSlots.GetArcPosition(placement.Slot, placement.Arc, placement.Outward);
+                if (_map.CanOccupy(moved, radius)) position = moved;
+            }
+            else if (placement.Outward > 0)
             {
                 SimVector pushed = position + _spawnSlots.GetDirection(placement.Slot) * placement.Outward;
                 if (_map.CanOccupy(pushed, radius)) position = pushed;
@@ -2235,6 +2352,7 @@ namespace RuneCode
             CancelBeamChannels();
             foreach (SimulationEnemy enemy in _enemies) enemy.CancelDisplacement();
             _spellEntities.Clear(); _enemyProjectiles.Clear(); _scheduled.Clear(); _pendingEnemyShots.Clear(); _pendingSplits.Clear(); _deadEnemies.Clear();
+            _pendingSpawns.Clear(); _spawnWarnings.Clear();
             if (_player != null) _player.CancelSpellExecutions();
         }
 
@@ -2729,6 +2847,31 @@ namespace RuneCode
 
             /// <summary>분열 자식의 생성 틱, 적 ID, 생성 위치와 부모에게서 물려받은 엘리트 정의를 보관한다.</summary>
             public PendingSplit(int tick, string enemyId, SimVector position, EliteSpawnDefinition elite, int carrierOwnerId = 0) { _tick = tick; _enemyId = enemyId; _position = position; _elite = elite; _carrierOwnerId = carrierOwnerId; }
+        }
+
+        private readonly struct PendingSpawn
+        {
+            private readonly int _tick;
+            private readonly string _enemyId;
+            private readonly SimVector _position;
+            private readonly EliteSpawnDefinition _elite;
+            private readonly bool _isKillTarget;
+            private readonly SimVector _warningCenter;
+            private readonly double _warningRadius;
+            public int Tick => _tick;
+            public string EnemyId => _enemyId;
+            public SimVector Position => _position;
+            public EliteSpawnDefinition Elite => _elite;
+            public bool IsKillTarget => _isKillTarget;
+            public SimVector WarningCenter => _warningCenter;
+            public double WarningRadius => _warningRadius;
+
+            /// <summary>맵형 스폰의 생성 틱, 적 ID, 생성 위치, 엘리트 정의, 처치 집계 여부와 예고 표시 중심·반경을 보관한다.</summary>
+            public PendingSpawn(int tick, string enemyId, SimVector position, EliteSpawnDefinition elite, bool isKillTarget, SimVector warningCenter, double warningRadius)
+            {
+                _tick = tick; _enemyId = enemyId; _position = position; _elite = elite; _isKillTarget = isKillTarget;
+                _warningCenter = warningCenter; _warningRadius = warningRadius;
+            }
         }
     }
 }
