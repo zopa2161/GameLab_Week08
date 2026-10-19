@@ -43,6 +43,7 @@ namespace RuneCode
         private int _lastFreezeStartEventCount;
         private int _lastNormalScrapPickupEventCount;
         private int _lastBigScrapPickupEventCount;
+        private int _lastBigScrapSpawnEventCount;
         private float _toastUntil;
 
         /// <summary>현재 진행 중인 미션의 시뮬레이션이다. 경기장 그래픽이 읽으며 미션이 없으면 null이다.</summary>
@@ -66,17 +67,26 @@ namespace RuneCode
             _result.ClearModifierChoiceClicked += ChooseClearModifier;
         }
 
-        /// <summary>미션 화면에 들어올 때 새 미션을 시작한다. 마법 준비에 실패하면 작업실 전환을 요청한다.</summary>
+        /// <summary>미션 화면에 들어올 때 새 미션을 시작하고 전투 음악으로 전환한다. 준비에 실패하면 작업실 전환을 요청한다.</summary>
         public void Begin()
         {
-            if (!StartRun()) _session.RequestScreen(AppScreen.Workshop);
+            if (!StartRun())
+            {
+                _session.RequestScreen(AppScreen.Workshop);
+                return;
+            }
+            SoundManager.Instance.SetMusicState(1);
         }
 
-        /// <summary>미션 화면을 떠날 때 진행 중인 미션을 놓는다.</summary>
+        /// <summary>미션 화면을 떠날 때 빔 음원을 정지하고 기본 음악으로 복원한 뒤 진행 중인 미션을 놓는다.</summary>
         public void End()
         {
             SoundManager soundManager = SoundManager.Instance;
-            if (soundManager != null) soundManager.StopShotBeam();
+            if (soundManager != null)
+            {
+                soundManager.StopShotBeam();
+                soundManager.SetMusicState(0);
+            }
             _run = null;
         }
 
@@ -94,6 +104,7 @@ namespace RuneCode
                 PlayEnemyHitSounds();
                 PlayShotSounds();
                 PlayElementalSounds();
+                PlayBigScrapSpawnSounds();
                 PlayScrapPickupSounds();
                 // 전투가 끝나면 저체력 지속 비네트는 목표를 0으로 두고 남은 점등만 자연스럽게 사라지게 한다.
                 _screen.ShowLowHealth(0f);
@@ -122,6 +133,7 @@ namespace RuneCode
             PlayEnemyHitSounds();
             PlayShotSounds();
             PlayElementalSounds();
+            PlayBigScrapSpawnSounds();
             PlayScrapPickupSounds();
             UpdateDamageFeedback(playerDamageBefore);
             RenderHud();
@@ -175,6 +187,15 @@ namespace RuneCode
             _lastBigScrapPickupEventCount = sim.BigScrapPickupEventCount;
             for (int index = 0; index < normalCount; index++) SoundManager.Instance.PlayTakeScrap();
             for (int index = 0; index < bigCount; index++) SoundManager.Instance.PlayTakeBigScrap();
+        }
+
+        /// <summary>새로 생성된 큰 스크랩 오브마다 등장 효과음을 재생하고 누적 생성 횟수를 갱신한다.</summary>
+        private void PlayBigScrapSpawnSounds()
+        {
+            RuneSimulation sim = _run.Simulation;
+            int count = sim.BigScrapSpawnEventCount - _lastBigScrapSpawnEventCount;
+            _lastBigScrapSpawnEventCount = sim.BigScrapSpawnEventCount;
+            for (int index = 0; index < count; index++) SoundManager.Instance.PlaySpawnBigScrap();
         }
 
         /// <summary>Esc 입력으로 일시정지를 연다. 미션이 끝났으면 처리하지 않는다. 열린 팝업의 Esc는 UIManager가 먼저 처리한다.</summary>
@@ -480,6 +501,7 @@ namespace RuneCode
             _lastFreezeStartEventCount = 0;
             _lastNormalScrapPickupEventCount = 0;
             _lastBigScrapPickupEventCount = 0;
+            _lastBigScrapSpawnEventCount = _run.Simulation.BigScrapSpawnEventCount;
             _isResultShown = false;
             _hasPresentedChoices = false;
             _ui.CloseAllPopups();

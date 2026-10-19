@@ -9,6 +9,9 @@ namespace RuneCode
     {
         [Header("음량")]
         [SerializeField] private Slider _masterVolumeSlider;
+        [SerializeField] private Slider _BGMVolumeSlider;
+        [SerializeField] private Slider _SFXVolumeSlider;
+
 
         [Header("버튼")]
         [SerializeField] private Button _saveButton;
@@ -22,14 +25,20 @@ namespace RuneCode
         protected override void OnShown()
         {
             _masterVolumeSlider.SetValueWithoutNotify(SoundManager.Instance.MasterVolume);
+            _BGMVolumeSlider.SetValueWithoutNotify(SoundManager.Instance.BGMVolume);
+            _SFXVolumeSlider.SetValueWithoutNotify(SoundManager.Instance.SFXVolume);
         }
 
         /// <summary>슬라이더 값을 한 번 읽어 FMOD 마스터 버스와 기기 공통 환경설정에 확정한다.</summary>
         private void Save()
         {
             float masterVolume = _masterVolumeSlider.value;
-            SoundManager.Instance.SetMasterVolume(masterVolume);
-            SaveStore.SetMasterVolume(masterVolume);
+            float bgmVolume = _BGMVolumeSlider.value;
+            float sfxVolume = _SFXVolumeSlider.value;
+            SoundManager.Instance.SetVolumes(masterVolume, bgmVolume, sfxVolume);
+            SaveStore.SetVolumes(masterVolume, bgmVolume, sfxVolume);
+
+
             SoundManager.Instance.PlayUnlockSkillTree();
         }
     }
