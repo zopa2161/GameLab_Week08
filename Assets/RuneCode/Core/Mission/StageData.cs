@@ -380,9 +380,11 @@ namespace RuneCode
     [Serializable]
     public sealed class StageCatalog
     {
+        internal const int STAGE_CYCLE_START = 21;
+        internal const int STAGE_CYCLE_FIRST_STAGE = 11;
+        internal const int STAGE_CYCLE_LAST_STAGE = 20;
         internal const int ENDLESS_STAGE_START = 11;
-        internal const int ENDLESS_CYCLE_FIRST_STAGE = 6;
-        internal const int ENDLESS_CYCLE_LAST_STAGE = 10;
+        internal const int ENDLESS_HP_BASE_STAGE = 10;
         internal const double ENDLESS_HP_SCALE_MULTIPLIER = 1.5;
         internal const double ENDLESS_HP_BASE_MULTIPLIER = 5;
 
@@ -402,11 +404,11 @@ namespace RuneCode
 
         /// <summary>
         /// 스테이지 번호의 정의를 반환한다. 단일 항목을 먼저 찾고 없으면 첫 범위 항목을 사용하며 둘 다 없으면 데이터 오류를 발생시킨다.
-        /// 11스테이지부터는 무한 모드로 6~10스테이지 정의를 순환해서 재사용한다.
+        /// 21스테이지부터는 11~20스테이지 정의를 순환해서 재사용한다.
         /// </summary>
         public StageDefinition Get(int stage)
         {
-            if (stage >= ENDLESS_STAGE_START) stage = ResolveEndlessStage(stage);
+            if (stage >= STAGE_CYCLE_START) stage = ResolveCycleStage(stage);
             for (int i = 0; i < _stages.Length; i++)
                 if (_stages[i].IsSingle && _stages[i].FromStage == stage) return _stages[i];
             for (int i = 0; i < _stages.Length; i++)
@@ -414,11 +416,11 @@ namespace RuneCode
             throw new FormatException("스테이지 정의가 없습니다: " + stage);
         }
 
-        /// <summary>무한 모드 스테이지 번호를 6~10스테이지 정의 하나로 순환 배치한다. 11→6, 12→7, … 15→10, 16→6 순서다.</summary>
-        private static int ResolveEndlessStage(int stage)
+        /// <summary>21스테이지 이후 번호를 11~20스테이지 정의 하나로 순환 배치한다. 21→11, 22→12, … 30→20, 31→11 순서다.</summary>
+        private static int ResolveCycleStage(int stage)
         {
-            int cycleLength = ENDLESS_CYCLE_LAST_STAGE - ENDLESS_CYCLE_FIRST_STAGE + 1;
-            return ENDLESS_CYCLE_FIRST_STAGE + (stage - ENDLESS_STAGE_START) % cycleLength;
+            int cycleLength = STAGE_CYCLE_LAST_STAGE - STAGE_CYCLE_FIRST_STAGE + 1;
+            return STAGE_CYCLE_FIRST_STAGE + (stage - STAGE_CYCLE_START) % cycleLength;
         }
 
         /// <summary>
@@ -429,7 +431,7 @@ namespace RuneCode
         {
             if (stage < ENDLESS_STAGE_START) return Growth.GetHpMultiplier(stage);
             return ENDLESS_HP_BASE_MULTIPLIER
-                + (stage - ENDLESS_CYCLE_LAST_STAGE) * Growth.HpStageScale * ENDLESS_HP_SCALE_MULTIPLIER;
+                + (stage - ENDLESS_HP_BASE_STAGE) * Growth.HpStageScale * ENDLESS_HP_SCALE_MULTIPLIER;
         }
 
         /// <summary>적 ID의 보상을 반환하고 보상표에 없는 적은 fallback 값을 돌려준다.</summary>
