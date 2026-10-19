@@ -37,9 +37,6 @@ namespace RuneCode
     {
         private const double FIXED_STEP = 1.0 / RuneSimulation.TICK_RATE;
 
-        /// <summary>보스 클리어 Modifier 선택 보상을 첫 클리어가 아니라 매 클리어마다 지급한다는 임시 규칙이다. 미정 사항으로 상수 하나로 바꿀 수 있다.</summary>
-        private const bool CLEAR_MODIFIER_CHOICE_EVERY_CLEAR = true;
-
         private readonly RuneCodeSession _session;
         private readonly CompiledSpell _spell;
         private readonly string _spellName;
@@ -297,7 +294,7 @@ namespace RuneCode
             if (_settled) return;
             _settled = true;
             var cleared = _simulation.Completed;
-            // 첫 클리어만 지급하는 규칙으로 바꿀 때를 대비해 정산 기록 전에 판정한다.
+            // 보스 선택 보상은 첫 클리어에만 주므로 정산으로 최고 기록이 바뀌기 전에 판정한다.
             bool isFirstClear = _session.HighestClearedStage < _simulation.StageNumber;
             var fragments = _simulation.SettlementFragments;
             ModifierRewardDefinition clearRuneReward = null;
@@ -375,13 +372,13 @@ namespace RuneCode
             }
         }
 
-        /// <summary>보스 클리어 Modifier 선택 후보와 후보별 등급을 결정적 난수로 뽑아 결과에 담는다. 현재는 매 클리어 지급이며 상수로 첫 클리어만 지급하도록 바꿀 수 있다.</summary>
+        /// <summary>보스 클리어 Modifier 선택 후보와 후보별 등급을 결정적 난수로 뽑아 결과에 담는다. 스테이지 첫 클리어에만 지급한다.</summary>
         private void SetClearModifierChoices(bool cleared, bool isFirstClear)
         {
             _clearModifierChoices = null;
             _clearModifierGrades = null;
             _isClearModifierChosen = false;
-            if (_session.IsTestMode || !cleared || (!CLEAR_MODIFIER_CHOICE_EVERY_CLEAR && !isFirstClear)) return;
+            if (_session.IsTestMode || !cleared || !isFirstClear) return;
             if (!_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
             _clearModifierChoices = candidates;
             _clearModifierGrades = grades;

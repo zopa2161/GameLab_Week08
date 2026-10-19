@@ -9,6 +9,8 @@ namespace RuneCode
     [Serializable]
     public sealed class EncyclopediaData
     {
+        private const string RESOURCE_PATH = "RuneCode/encyclopedia";
+
         [Header("도움말 목록")]
         [SerializeField] private EncyclopediaEntry[] _entries;
 
@@ -25,6 +27,22 @@ namespace RuneCode
             foreach (EncyclopediaEvent item in _events)
                 if (item != null && item.Id == id) return item;
             return null;
+        }
+
+        /// <summary>Resources의 도움말 JSON을 읽어 반환한다. 파일이 없거나 읽지 못하면 경고를 남기고 null을 반환한다.</summary>
+        public static EncyclopediaData LoadResource()
+        {
+            TextAsset asset = Resources.Load<TextAsset>(RESOURCE_PATH);
+            if (asset == null) return null;
+            try
+            {
+                return JsonUtility.FromJson<EncyclopediaData>(asset.text);
+            }
+            catch (ArgumentException exception)
+            {
+                Debug.LogWarning("게임 도움말 JSON을 읽을 수 없습니다: " + exception.Message);
+                return null;
+            }
         }
     }
 

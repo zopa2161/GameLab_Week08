@@ -14,7 +14,6 @@ namespace RuneCode
     public sealed class WorkshopPresenter : ISpellEditorHost, IDisposable
     {
         private const int HIGHLIGHT_TICKS = 12;
-        private const string ENCYCLOPEDIA_RESOURCE = "RuneCode/encyclopedia";
         private const float STATUS_TOAST_DURATION = 4f;
 
         private readonly RuneCodeSession _session;
@@ -222,18 +221,7 @@ namespace RuneCode
             if (!_hasLoadedEncyclopedia)
             {
                 _hasLoadedEncyclopedia = true;
-                TextAsset asset = Resources.Load<TextAsset>(ENCYCLOPEDIA_RESOURCE);
-                if (asset != null)
-                {
-                    try
-                    {
-                        _encyclopedia = JsonUtility.FromJson<EncyclopediaData>(asset.text);
-                    }
-                    catch (ArgumentException exception)
-                    {
-                        Debug.LogWarning("게임 도움말 JSON을 읽을 수 없습니다: " + exception.Message);
-                    }
-                }
+                _encyclopedia = EncyclopediaData.LoadResource();
             }
             return _encyclopedia;
         }

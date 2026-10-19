@@ -6,14 +6,15 @@ namespace RuneCode
     /// <summary>처치·클리어·속성 조합에 공통으로 쓰는 활성 룬 및 스테이지 등급 추첨 규칙이다.</summary>
     public static class RuneRewardRoller
     {
-        /// <summary>보스면 직전 일반 스테이지 번호를, 그 외에는 요청한 번호를 반환한다. 보스 선택 보상에는 사용하지 않는다.</summary>
+        /// <summary>보스면 직전 일반 스테이지 번호를, 그 외에는 요청한 번호를 반환한다. 21스테이지 이후는 순환된 데이터 스테이지로 보스 여부를 판정한다. 보스 선택 보상에는 사용하지 않는다.</summary>
         public static int GetRewardStage(int stage)
         {
-            ModifierStageDropTable table = GameData.ModifierGrades.GetStageDropTable(stage);
+            int dataStage = StageCatalog.ResolveDataStage(stage);
+            ModifierStageDropTable table = GameData.ModifierGrades.GetStageDropTable(dataStage);
             if (table == null || table.StageType != "boss") return stage;
             int previous = 0;
             foreach (ModifierStageDropTable candidate in GameData.ModifierGrades.StageDropTables)
-                if (candidate.StageType == "normal" && candidate.Stage < stage && candidate.Stage > previous) previous = candidate.Stage;
+                if (candidate.StageType == "normal" && candidate.Stage < dataStage && candidate.Stage > previous) previous = candidate.Stage;
             if (previous == 0) throw new InvalidOperationException("보스 보상에 적용할 이전 일반 스테이지가 없습니다: " + stage);
             return previous;
         }

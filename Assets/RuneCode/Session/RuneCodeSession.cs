@@ -308,6 +308,18 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>
+        /// 일반 진행에서 id 이벤트 안내를 아직 띄우지 않았으면 본 것으로 저장하고 true를 반환한다.
+        /// 작업실 자동 안내 대기 목록에는 넣지 않으므로 호출한 쪽이 바로 띄운다.
+        /// </summary>
+        public bool TryMarkOnboardingEvent(string id)
+        {
+            if (!IsOnboardingActive || _save.HasSeenOnboardingEvent(id)) return false;
+            _save.MarkOnboardingEvent(id);
+            PersistProgress();
+            return true;
+        }
+
         /// <summary>대기 중인 이벤트 안내를 먼저 들어온 순서로 하나 꺼낸다. 없으면 false를 반환한다.</summary>
         public bool TryConsumePendingOnboardingEvent(out string id)
         {

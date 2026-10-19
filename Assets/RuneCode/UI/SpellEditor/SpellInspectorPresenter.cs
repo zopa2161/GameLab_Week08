@@ -7,8 +7,8 @@ using UnityEngine;
 namespace RuneCode
 {
     /// <summary>
-    /// 인스펙터 Presenter다. 선택 노드의 파라미터 행·보조 정보·삭제 버튼과 컴파일 검증 목록을 정해 인스펙터 View에 표시하고,
-    /// 입력을 편집 세션에 저장한다. 효과량은 기능 속성일 때만 보이고, 속성 선택은 잠긴 속성을 건너뛴다.
+    /// 인스펙터 Presenter다.\n 선택 노드의 파라미터 행·보조 정보·삭제 버튼과 컴파일 검증 목록을 정해 인스펙터 View에 표시하고,
+    /// 입력을 편집 세션에 저장한다.\n 효과량은 기능 속성일 때만 보이고, 속성 선택은 잠긴 속성을 건너뛴다.\n
     /// </summary>
     public sealed class SpellInspectorPresenter
     {
@@ -22,7 +22,7 @@ namespace RuneCode
         private RuneDefinition _hoveredRune;
         private string _hoveredGrade;
 
-        /// <summary>편집 세션, 인스펙터 View, 그래프(검증 항목 포커스용)와 프리셋 대상 선택 팝업 열기 동작으로 Presenter를 만든다.</summary>
+        /// <summary>편집 세션, 인스펙터 View, 그래프(검증 항목 포커스용)와 프리셋 대상 선택 팝업 열기 동작으로 Presenter를 만든다.\n</summary>
         public SpellInspectorPresenter(ISpellEditor editor, SpellInspectorView view, RuneGraphCanvas graph, Action<string> openSpellPicker)
         {
             _editor = editor;
@@ -31,7 +31,7 @@ namespace RuneCode
             _openSpellPicker = openSpellPicker;
         }
 
-        /// <summary>룬의 동작 설명과 지정 등급의 현재 효과 값을 반환한다.</summary>
+        /// <summary>룬의 동작 설명과 지정 등급의 현재 효과 값을 반환한다.\n</summary>
         private static string RuneEffectText(RuneDefinition rune, string grade)
         {
             string effect;
@@ -40,29 +40,30 @@ namespace RuneCode
                 case "element.fire": case "elem.fire":
                     CombatBalance combat = GameData.Balance.Combat;
                     effect = "적에게 화상을 부여해 " + combat.BurnSeconds.ToString("0.#") + "초 동안 "
-                        + combat.BurnInterval.ToString("0.#") + "초마다 공격 피해의 " + (combat.BurnDamageRatio * 100f).ToString("0.#") + "% 피해를 줍니다.";
+                        + combat.BurnInterval.ToString("0.#") + "초마다 공격 피해의 " + (combat.BurnDamageRatio * 100f).ToString("0.#") + "% 피해를 줍니다.\n";
                     break;
-                case "element.ice": case "elem.ice": effect = "적을 둔화시키고 냉기가 누적되면 빙결시킵니다."; break;
-                case "element.lightning": case "elem.arc": effect = "전격 피해와 EMP 효과를 부여합니다."; break;
-                case "element.healing": effect = "회복 효과를 적용합니다."; break;
-                case "element.protection": effect = "장착한 행동에 따라 보호 효과를 적용합니다."; break;
-                case "mod.amplify": effect = "피해·회복 등 효과의 위력을 높입니다."; break;
+                case "element.ice": case "elem.ice": effect = "적을 둔화시키고 냉기가 누적되면 빙결시킵니다.\n"; break;
+                case "element.lightning": case "elem.arc": effect = "전격 피해와 EMP 효과를 부여합니다.\n"; break;
+                case "element.healing": effect = "회복 효과를 적용합니다.\n"; break;
+                case "element.protection": effect = "장착한 행동에 따라 보호 효과를 적용합니다.\n"; break;
+                case "mod.amplify": effect = "피해·회복 등 효과의 위력을 높입니다.\n"; break;
                 case "mod.saving": effect = GameData.L("ui.savingHint"); break;
-                case "mod.multi": effect = "생성 개수를 늘립니다. 발사는 전용 개수와 퍼짐을 사용합니다."; break;
-                case "mod.pierce": effect = "적을 관통해 뒤쪽 대상도 타격합니다."; break;
-                case "mod.homing": effect = "탐색 범위 안의 적을 향해 방향을 조정합니다."; break;
-                case "mod.orbit": effect = "생성된 개체가 시전자 주위 궤도를 돕니다."; break;
-                case "mod.sequence": effect = "약간의 간격을 두고 같은 행동을 반복 실행합니다."; break;
-                case "mod.expand": effect = "효과 면적을 늘립니다. 일반 형상의 길이는 면적 배율의 제곱근만큼 커집니다."; break;
-                case "mod.speed": effect = "이동 속도를 높입니다."; break;
-                case "mod.duration": effect = "효과의 지속시간을 늘립니다."; break;
-                case "behavior.launch": effect = "마법을 발사합니다."; break;
-                case "behavior.legacy_burst": effect = "범위에 레거시 폭발 효과를 줍니다."; break;
-                case "behavior.persist": effect = "일정 시간 유지되는 장판을 생성합니다."; break;
+                case "mod.multi": effect = "생성 개수를 늘립니다.\n 발사는 전용 개수와 퍼짐을 사용합니다.\n"; break;
+                case "mod.pierce": effect = "적을 관통해 뒤쪽 대상도 타격합니다.\n"; break;
+                case "mod.homing": effect = "탐색 범위 안의 적을 향해 방향을 조정합니다.\n"; break;
+                case "mod.orbit": effect = "생성된 개체가 시전자 주위 궤도를 돕니다.\n"; break;
+                case "mod.sequence": effect = "약간의 간격을 두고 같은 행동을 반복 실행합니다.\n"; break;
+                case "mod.expand": effect = "효과 면적을 늘립니다.\n 일반 형상의 길이는 면적 배율의 제곱근만큼 커집니다.\n"; break;
+                case "mod.speed": effect = "이동 속도를 높입니다.\n"; break;
+                case "mod.duration": effect = "효과의 지속시간을 늘립니다.\n"; break;
+                case "behavior.launch": effect = "마법을 발사합니다.\n"; break;
+                case "behavior.legacy_burst": effect = "범위에 레거시 폭발 효과를 줍니다.\n"; break;
+                case "behavior.persist": effect = "일정 시간 유지되는 장판을 생성합니다.\n"; break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
                 case "behavior.burst": effect = GameData.L("ui.burstHint"); break;
-                case SlashBehaviorRules.RUNE_ID: effect = GameData.L("ui.slashHint"); break;
-                case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다."; break;
+                case "behavior.slash" : effect = GameData.L("ui.slashHint"); break;
+                //case SlashBehaviorRules.RUNE_ID: effect = GameData.L("ui.sdlashHint"); break;
+                case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다.\n"; break;
                 default: effect = string.Empty; break;
             }
             object value = GameData.ModifierGrades.GetGradeValue(rune.Id, grade);
@@ -95,7 +96,7 @@ namespace RuneCode
                         case "orbitPath": label = " 궤도 반경 배율 ×"; break;
                         case "knockbackDistance":
                             effect += " 실제 직접 피해 " + rune.Stats.KnockbackReferenceDamage.ToString("0.##")
-                                + "당 " + value + "픽셀 밀어냅니다. (" + rune.Stats.KnockbackSeconds.ToString("0.##") + "초에 걸쳐 이동)";
+                                + "당 " + value + "픽셀 밀어냅니다.\n (" + rune.Stats.KnockbackSeconds.ToString("0.##") + "초에 걸쳐 이동)";
                             label = null;
                             break;
                         default: label = " 등급 효과: "; break;
@@ -105,10 +106,33 @@ namespace RuneCode
                         effect += " · 발사 " + launchCount + "개";
                 }
             }
+            string targets = ModifierTargetText(rune.Id);
+            if (targets != null) effect = effect.TrimEnd('\n') + "\n\n" + targets;
             return ModifierGradeText.FormatName(rune.Name, grade) + " · " + effect;
         }
 
-        /// <summary>호버한 룬과 등급의 설명을 표시하고 null이면 기존 선택 내용을 복구한다.</summary>
+        /// <summary>모드 룬 ID별로 장착할 수 있는 행동 안내 문구를 반환하고 모드 룬이 아니면 null을 반환한다.\n</summary>
+        private static string ModifierTargetText(string runeId)
+        {
+            switch (runeId)
+            {
+                case "mod.knockback": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 빔 · 참격";
+                case "mod.saving": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 빔 · 참격";
+                case "mod.amplify": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 빔 · 참격";
+                case "mod.multi": return "장착 가능 행동: 발사 · 잔류 · 빔 · 참격";
+                case "mod.beamEmpower": return "장착 가능 행동: 빔";
+                case "mod.pierce": return "장착 가능 행동: 발사";
+                case "mod.sequence": return "장착 가능 행동: 발사 · 폭발 · 참격";
+                case "mod.homing": return "장착 가능 행동: 발사 · 잔류 · 빔";
+                case "mod.orbit": return "장착 가능 행동: 발사 · 잔류 · 빔";
+                case "mod.expand": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 빔 · 참격";
+                case "mod.speed": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 참격";
+                case "mod.duration": return "장착 가능 행동: 발사 · 폭발 · 잔류";
+                default: return null;
+            }
+        }
+
+        /// <summary>호버한 룬과 등급의 설명을 표시하고 null이면 기존 선택 내용을 복구한다.\n</summary>
         public void PreviewRune(RuneDefinition rune, string grade)
         {
             if (_hoveredNode == null && _hoveredRune == rune && _hoveredGrade == grade) return;
@@ -118,7 +142,7 @@ namespace RuneCode
             Refresh();
         }
 
-        /// <summary>선택을 바꾸지 않고 호버 노드의 기존 인스펙터 정보를 표시하며 null이면 선택 정보로 복구한다.</summary>
+        /// <summary>선택을 바꾸지 않고 호버 노드의 기존 인스펙터 정보를 표시하며 null이면 선택 정보로 복구한다.\n</summary>
         public void PreviewNode(GraphNode node)
         {
             if (_hoveredNode == node && _hoveredRune == null) return;
@@ -128,7 +152,7 @@ namespace RuneCode
             Refresh();
         }
 
-        /// <summary>선택 노드를 바꾸고 인스펙터를 다시 그린다.</summary>
+        /// <summary>선택 노드를 바꾸고 인스펙터를 다시 그린다.\n</summary>
         public void Select(GraphNode node)
         {
             _hoveredRune = null;
@@ -138,10 +162,10 @@ namespace RuneCode
             Refresh();
         }
 
-        /// <summary>선택 노드를 해제하고 인스펙터를 다시 그린다.</summary>
+        /// <summary>선택 노드를 해제하고 인스펙터를 다시 그린다.\n</summary>
         public void ClearSelection() => Select(null);
 
-        /// <summary>선택 노드를 현재 그래프에서 다시 찾아 인스펙터와 검증 목록을 다시 그린다.</summary>
+        /// <summary>선택 노드를 현재 그래프에서 다시 찾아 인스펙터와 검증 목록을 다시 그린다.\n</summary>
         public void Refresh()
         {
             if (_selected != null) _selected = _editor.Graph.FindNode(_selected.Id);
@@ -198,7 +222,7 @@ namespace RuneCode
             if (rune.Category != SpellGrammar.CATEGORY_CORE) _view.AddButton(GameData.L("ui.delete"), "InspectorDeleteButton", () => _editor.RemoveNode(node.Id));
         }
 
-        /// <summary>행동 노드에 장착된 속성과 모디 정보만 표시하며 빈 슬롯과 잠긴 슬롯 안내는 생략한다.</summary>
+        /// <summary>행동 노드에 장착된 속성과 모디 정보만 표시하며 빈 슬롯과 잠긴 슬롯 안내는 생략한다.\n</summary>
         private void ShowSlots(GraphNode node)
         {
             var lines = new List<string>();
@@ -217,7 +241,7 @@ namespace RuneCode
             if (lines.Count > 0) _view.AddNote(string.Join("\n", lines), 34, 6);
         }
 
-        /// <summary>슬롯 한 칸의 표시 문구를 반환한다. 잠긴 칸은 잠김, 빈 칸은 비어 있음, 장착 칸은 룬 이름(모디는 등급 포함)이다.</summary>
+        /// <summary>슬롯 한 칸의 표시 문구를 반환한다.\n 잠긴 칸은 잠김, 빈 칸은 비어 있음, 장착 칸은 룬 이름(모디는 등급 포함)이다.\n</summary>
         private static string SlotLine(GraphNode node, string slotKey)
         {
             if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return GameData.L("ui.slotLocked");
@@ -233,7 +257,7 @@ namespace RuneCode
                 ? ModifierGradeText.FormatName(modifierRune.Name, grade) : value;
         }
 
-        /// <summary>형태 노드별 역할을 한 줄 설명으로 표시한다.</summary>
+        /// <summary>형태 노드별 역할을 한 줄 설명으로 표시한다.\n</summary>
         private void ShowShapeHint(RuneDefinition rune)
         {
             string key = "ui." + rune.Id + "Hint";
@@ -241,7 +265,7 @@ namespace RuneCode
             if (hint != key) _view.AddNote(hint, 24, 4);
         }
 
-        /// <summary>선택 행동에 대응하는 내부 형태의 기본값과 Modifier 적용 후 컴파일값을 표시한다.</summary>
+        /// <summary>선택 행동에 대응하는 내부 형태의 기본값과 Modifier 적용 후 컴파일값을 표시한다.\n</summary>
         private void ShowBehaviorStats(GraphNode node, RuneDefinition rune)
         {
             string formId = GetBehaviorFormId(rune.Id);
@@ -261,7 +285,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>행동 ID를 해당 행동이 사용하는 내부 효과 형태의 룬 ID로 바꾸고 지원하지 않으면 null을 반환한다.</summary>
+        /// <summary>행동 ID를 해당 행동이 사용하는 내부 효과 형태의 룬 ID로 바꾸고 지원하지 않으면 null을 반환한다.\n</summary>
         private static string GetBehaviorFormId(string behaviorId)
         {
             if (SpellBehaviorRuleRegistry.TryGetByRuneId(behaviorId, out SpellBehaviorRules rules)) return rules.StatsRuneId;
@@ -275,7 +299,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>내부 형태의 기본 전력·피해·발사 수·지속시간과 행동의 최종값을 한 줄씩 비교해 표시한다.</summary>
+        /// <summary>내부 형태의 기본 전력·피해·발사 수·지속시간과 행동의 최종값을 한 줄씩 비교해 표시한다.\n</summary>
         private void AddBehaviorStatNote(RuneDefinition form, SpellAction action, RuneDefinition behavior, GraphNode node)
         {
             var lines = new List<string>
@@ -322,7 +346,7 @@ namespace RuneCode
             _view.AddNote(string.Join("\n", lines), 34, 6);
         }
 
-        /// <summary>Apply 행동의 효과 강도와 보호막 지속시간을 기본값에서 Modifier 적용값까지 표시한다.</summary>
+        /// <summary>Apply 행동의 효과 강도와 보호막 지속시간을 기본값에서 Modifier 적용값까지 표시한다.\n</summary>
         private static void AddApplyStats(List<string> lines, SpellAction action, RuneDefinition behavior, GraphNode node)
         {
             string sourceElement = action?.SourceElement;
@@ -342,7 +366,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>행동 노드에서 지정 파라미터 값을 읽고 없으면 룬 정의의 기본값을 반환한다.</summary>
+        /// <summary>행동 노드에서 지정 파라미터 값을 읽고 없으면 룬 정의의 기본값을 반환한다.\n</summary>
         private static float GetDefaultNumber(RuneDefinition rune, GraphNode node, string parameterId)
         {
             foreach (ParameterDefinition parameter in rune.Params)
@@ -350,22 +374,24 @@ namespace RuneCode
             return 0f;
         }
 
-        /// <summary>숫자 두 개를 지정 라벨과 기본값→적용값 형태로 묶어 반환한다.</summary>
+        /// <summary>숫자 두 개를 지정 라벨과 기본값→적용값 형태로 묶어 반환한다.\n</summary>
         private static string FormatTransition(string label, double baseValue, double effectiveValue, string suffix = "")
         {
             return label + " " + baseValue.ToString("0.##") + suffix + " → " + effectiveValue.ToString("0.##") + suffix;
         }
 
-        /// <summary>현재 등급 색을 적용해 Modifier 효과의 짧은 설명을 표시한다.</summary>
+        /// <summary>현재 등급 색을 적용해 Modifier 효과의 짧은 설명과 장착 가능 행동을 표시한다.\n</summary>
         private void ShowModifierHint(RuneDefinition rune, string grade)
         {
             string modifierName = rune.Id.Substring("mod.".Length);
             string key = "ui.mod." + modifierName + "Hint";
             string hint = GameData.L(key);
             if (hint != key) _view.AddNote(ModifierGradeText.Colorize(hint, grade), 52, 6);
+            string targets = ModifierTargetText(rune.Id);
+            if (targets != null) _view.AddNote("\n" + targets, 42, 4);
         }
 
-        /// <summary>노드에 선택된 속성의 이름과 원소·기능 효과 구분을 표시한다.</summary>
+        /// <summary>노드에 선택된 속성의 이름과 원소·기능 효과 구분을 표시한다.\n</summary>
         private void ShowElementInfo(GraphNode node)
         {
             if (!GameData.Runes.TryGetNodeElement(node, out ElementDefinition element)) return;
@@ -373,7 +399,7 @@ namespace RuneCode
             _view.AddNote(OptionLabel("element", element.Id) + " · " + classification, 24, 4);
         }
 
-        /// <summary>선택 노드가 포함된 컴파일 행동의 자원 비용과 비시간 전투 수치를 표시한다.</summary>
+        /// <summary>선택 노드가 포함된 컴파일 행동의 자원 비용과 비시간 전투 수치를 표시한다.\n</summary>
         private void ShowCompiledStats(GraphNode node, RuneDefinition rune)
         {
             CompiledSpell spell = _editor.CompileResult.Spell;
@@ -404,7 +430,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>선택 노드의 실행을 찾고, 컴파일 과정에서 행동 노드에 합쳐지는 Shape는 연결된 Behavior 실행으로 연결한다.</summary>
+        /// <summary>선택 노드의 실행을 찾고, 컴파일 과정에서 행동 노드에 합쳐지는 Shape는 연결된 Behavior 실행으로 연결한다.\n</summary>
         private List<SpellAction> FindCompiledActions(GraphNode node, RuneDefinition rune, CompiledSpell spell)
         {
             List<SpellAction> actions = FindActionsForNode(spell.Root, node.Id);
@@ -420,7 +446,7 @@ namespace RuneCode
             return actions;
         }
 
-        /// <summary>아직 실행에 연결되지 않은 룬의 테이블 기본 전투 수치와 형상 비용률을 표시한다.</summary>
+        /// <summary>아직 실행에 연결되지 않은 룬의 테이블 기본 전투 수치와 형상 비용률을 표시한다.\n</summary>
         private void ShowUncompiledRuneStats(RuneDefinition rune)
         {
             RuneStats stats = rune.Stats;
@@ -468,7 +494,7 @@ namespace RuneCode
             if (lines.Count > 0) _view.AddNote(string.Join("\n", lines), 34, 6);
         }
 
-        /// <summary>실행 행동 목록에서 노드 자체 또는 해당 노드를 부착 데이터로 사용하는 행동을 깊이 우선으로 찾는다.</summary>
+        /// <summary>실행 행동 목록에서 노드 자체 또는 해당 노드를 부착 데이터로 사용하는 행동을 깊이 우선으로 찾는다.\n</summary>
         private static List<SpellAction> FindActionsForNode(IReadOnlyList<SpellAction> actions, string nodeId)
         {
             var matches = new List<SpellAction>();
@@ -482,7 +508,7 @@ namespace RuneCode
             return matches;
         }
 
-        /// <summary>행동 종류에 맞는 비시간 전투 수치, 제어 흐름 조건 또는 호출 마법 요약을 목록에 추가한다.</summary>
+        /// <summary>행동 종류에 맞는 비시간 전투 수치, 제어 흐름 조건 또는 호출 마법 요약을 목록에 추가한다.\n</summary>
         private void AddActionStats(List<string> lines, SpellAction action, RuneDefinition rune)
         {
             SpellStats stats = action.Stats;
@@ -514,7 +540,7 @@ namespace RuneCode
                 }
 
                 if (stats.Offset > 0f) movement.Add(GameData.L("ui.runeOffset") + " " + stats.Offset.ToString("0.#") + "px");
-                // 궤도 반경은 행동마다 있으므로 공전 모드가 장착된 경우에만 표시한다.
+                // 궤도 반경은 행동마다 있으므로 공전 모드가 장착된 경우에만 표시한다.\n
                 bool isOrbiting = action.Mods.Contains(OrbitModifierRules.RUNE_ID);
                 if (isOrbiting && stats.OrbitRadius > 0f) movement.Add(GameData.L("ui.runeOrbitRadius") + " " + stats.OrbitRadius.ToString("0.#") + "px");
                 if (action.Form == BeamBehaviorRules.BEAM_KIND)
@@ -563,7 +589,7 @@ namespace RuneCode
                     + action.CalledSpell.GetEstimatedExecutionSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.##") + "s");
         }
 
-        /// <summary>조건 유형에 맞는 퍼센트·거리·상태 값만 붙여 사용자용 조건 요약을 반환한다.</summary>
+        /// <summary>조건 유형에 맞는 퍼센트·거리·상태 값만 붙여 사용자용 조건 요약을 반환한다.\n</summary>
         private static string FormatCondition(SpellCondition condition)
         {
             string value = OptionLabel("type", condition.Type);
@@ -581,14 +607,14 @@ namespace RuneCode
             }
         }
 
-        /// <summary>자원별 비용을 현지화 이름과 수치로 반환하고 비용이 없으면 0을 반환한다.</summary>
+        /// <summary>자원별 비용을 현지화 이름과 수치로 반환하고 비용이 없으면 0을 반환한다.\n</summary>
         private static string FormatCosts(ResourceCostSet costs)
         {
             if (costs == null || costs.Amounts.Count == 0) return "0";
             return costs.Format(ResourceName);
         }
 
-        /// <summary>자원 ID를 인스펙터 표시 이름으로 바꾸고 마나 비용은 전력으로 표기한다.</summary>
+        /// <summary>자원 ID를 인스펙터 표시 이름으로 바꾸고 마나 비용은 전력으로 표기한다.\n</summary>
         private static string ResourceName(string resource)
         {
             if (resource == "mana") return GameData.L("ui.energy");
@@ -597,7 +623,7 @@ namespace RuneCode
             return value == key ? resource : value;
         }
 
-        /// <summary>Modifier 등급 선택 버튼과 현재 등급의 고정 수치 안내를 표시한다.</summary>
+        /// <summary>Modifier 등급 선택 버튼과 현재 등급의 고정 수치 안내를 표시한다.\n</summary>
         private void ShowModifierGrade(GraphNode node, RuneDefinition rune)
         {
             string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
@@ -608,7 +634,7 @@ namespace RuneCode
             _view.AddNote(ModifierGradeText.Colorize(GameData.L("ui.gradeStats") + " " + FormatModifierStats(rune, grade), grade), 70, 6);
         }
 
-        /// <summary>소지량이 있는 다음 등급을 찾아 선택 노드에 저장한다.</summary>
+        /// <summary>소지량이 있는 다음 등급을 찾아 선택 노드에 저장한다.\n</summary>
         private void SelectNextModifierGrade(string nodeId, RuneDefinition rune)
         {
             GraphNode node = _editor.Graph.FindNode(nodeId);
@@ -630,7 +656,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>등급 고정값과 Modifier의 보조 고정 수치를 안내 문자열로 반환한다.</summary>
+        /// <summary>등급 고정값과 Modifier의 보조 고정 수치를 안내 문자열로 반환한다.\n</summary>
         private static string FormatModifierStats(RuneDefinition rune, string grade)
         {
             var values = new List<string>();
@@ -702,13 +728,13 @@ namespace RuneCode
             return string.Join(" · ", values);
         }
 
-        /// <summary>숫자 등급 값에 번역된 효과 라벨과 배율 기호를 붙인다.</summary>
+        /// <summary>숫자 등급 값에 번역된 효과 라벨과 배율 기호를 붙인다.\n</summary>
         private static void AddMultiplier(List<string> values, string labelKey, object value)
         {
             values.Add(GameData.L(labelKey) + " ×" + Convert.ToSingle(value).ToString("0.##"));
         }
 
-        /// <summary>파라미터 종류(숫자·프리셋 대상·문자·선택지)에 맞는 행을 표시하고 입력을 편집 세션 저장으로 연결한다.</summary>
+        /// <summary>파라미터 종류(숫자·프리셋 대상·문자·선택지)에 맞는 행을 표시하고 입력을 편집 세션 저장으로 연결한다.\n</summary>
         private void ShowParameter(GraphNode node, RuneDefinition rune, ParameterDefinition parameter)
         {
             string nodeId = node.Id;
@@ -791,7 +817,7 @@ namespace RuneCode
             if (lines.Count > 0) _view.AddNote(string.Join("\n", lines), 18 * lines.Count + 16, 6);
         }
 
-        /// <summary>컴파일 성공 여부, 오류·경고(누르면 해당 노드로 이동)와 조작 안내를 검증 목록에 표시한다.</summary>
+        /// <summary>컴파일 성공 여부, 오류·경고(누르면 해당 노드로 이동)와 조작 안내를 검증 목록에 표시한다.\n</summary>
         private void ShowValidation()
         {
             RectTransform list = _view.BeginValidation();
@@ -806,14 +832,14 @@ namespace RuneCode
             _view.AddIssue(list, GameData.L("ui.controls"), null, null);
         }
 
-        /// <summary>검증 항목 하나를 코드·문구로 표시하고 누르면 관련 노드로 그래프를 이동하게 한다.</summary>
+        /// <summary>검증 항목 하나를 코드·문구로 표시하고 누르면 관련 노드로 그래프를 이동하게 한다.\n</summary>
         private void AddIssue(RectTransform list, CompileIssue issue, string prefabName)
         {
             string nodeId = issue.NodeId;
             _view.AddIssue(list, issue.Code + " · " + CompileIssueText.Format(issue), prefabName, () => { if (nodeId != null) _graph.FocusNode(nodeId); });
         }
 
-        /// <summary>수식 배율을 데이터의 한 단계만큼 바꾸고 범위 안으로 제한해 저장한 뒤 인스펙터를 다시 그린다.</summary>
+        /// <summary>수식 배율을 데이터의 한 단계만큼 바꾸고 범위 안으로 제한해 저장한 뒤 인스펙터를 다시 그린다.\n</summary>
         private void StepNumber(string nodeId, ParameterDefinition parameter, int direction)
         {
             GraphNode node = _editor.Graph.FindNode(nodeId);
@@ -823,7 +849,7 @@ namespace RuneCode
             Refresh();
         }
 
-        /// <summary>프리셋 호출 대상 ID를 보관함 이름과 ID, 미선택 또는 없는 마법 안내 문구로 바꿔 반환한다.</summary>
+        /// <summary>프리셋 호출 대상 ID를 보관함 이름과 ID, 미선택 또는 없는 마법 안내 문구로 바꿔 반환한다.\n</summary>
         private string CalledSpellLabel(string spellId)
         {
             SpellGraph called = _editor.Library.FirstOrDefault(graph => graph.Id == spellId);
@@ -832,8 +858,8 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 인스펙터에 파라미터를 표시할지 반환한다. 효과량·보호막 지속시간은 Functional(회복·보호) 속성 노드와 그 속성의 Apply에서만 표시한다.
-        /// 행동 노드의 등급·슬롯 값은 노드 슬롯과 슬롯 목록으로 다루므로 파라미터 행으로 표시하지 않는다.
+        /// 인스펙터에 파라미터를 표시할지 반환한다.\n 효과량·보호막 지속시간은 Functional(회복·보호) 속성 노드와 그 속성의 Apply에서만 표시한다.\n
+        /// 행동 노드의 등급·슬롯 값은 노드 슬롯과 슬롯 목록으로 다루므로 파라미터 행으로 표시하지 않는다.\n
         /// </summary>
         private static bool IsParameterVisible(GraphNode node, ParameterDefinition parameter)
         {
@@ -846,7 +872,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 선택지 파라미터의 다음 값을 반환한다. 속성(element)은 해금하지 않은 속성을 건너뛰며, 선택 가능한 값이 없으면 현재 값을 유지한다.
+        /// 선택지 파라미터의 다음 값을 반환한다.\n 속성(element)은 해금하지 않은 속성을 건너뛰며, 선택 가능한 값이 없으면 현재 값을 유지한다.\n
         /// </summary>
         private string NextOption(ParameterDefinition definition, string current)
         {
@@ -865,7 +891,7 @@ namespace RuneCode
             return current;
         }
 
-        /// <summary>선택지 값을 한국어 라벨로 반환하고 번역이 없으면 원문 값을 반환한다.</summary>
+        /// <summary>선택지 값을 한국어 라벨로 반환하고 번역이 없으면 원문 값을 반환한다.\n</summary>
         private static string OptionLabel(string parameter, string value)
         {
             string prefix = parameter == "trigger" ? "trigger." : parameter == "magicType" ? "magicType."
