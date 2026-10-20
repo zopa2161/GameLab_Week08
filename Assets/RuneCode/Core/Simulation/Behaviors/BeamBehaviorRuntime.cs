@@ -24,48 +24,48 @@ namespace RuneCode
         /// <summary>
         /// 생성 틱에 시전자를 따라가는 빔이면 생성 방향의 조준 대비 각도를 저장하고, 발사 지점을 정한 뒤(이동 단계) 경로를 만들어 최초 피해를 한 번 판정한다.
         /// </summary>
-        public override void OnSpawned(RuneSimulation simulation, SimulationSpellEntity entity)
+        public override void OnSpawned(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             var state = (BeamState)entity.BehaviorState;
             if (state.Channel.FollowsPlayer)
             {
                 // 다중·호출 퍼짐이 반영된 생성 방향을 조준 기준 각도로 보관한다. 공전 접선이 덮어쓰기 전에 한 번만 계산한다.
-                SimVector aim = simulation.Player.AimDirection;
+                SimVector aim = context.Player.AimDirection;
                 SimVector direction = entity.Direction;
                 state.SetAimOffset(Math.Atan2(aim.X * direction.Y - aim.Y * direction.X, SimVector.Dot(aim, direction)));
             }
-            MoveAlongPath(simulation, entity);
-            Judge(simulation, entity);
+            MoveAlongPath(context, entity);
+            Judge(context, entity);
         }
 
         /// <summary>
         /// 직접 시전해 시전자를 따라가는 빔이면 방향을 현재 조준에 생성 시 조준 대비 각도를 더한 값으로 바꾸고
         /// 발사 지점을 그 방향의 지팡이 끝으로 옮긴다. 이동 모드가 이동을 맡으면 호출되지 않는다.
         /// </summary>
-        public override void MoveAlongPath(RuneSimulation simulation, SimulationSpellEntity entity)
+        public override void MoveAlongPath(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             var state = (BeamState)entity.BehaviorState;
             if (!state.Channel.FollowsPlayer) return;
-            SimVector direction = simulation.Player.AimDirection.Rotated(state.AimOffset);
-            entity.Move(simulation.Player.Position + direction *
-                (simulation.PlayerRadius + simulation.Balance.Sim.WandOffset), direction);
+            SimVector direction = context.Player.AimDirection.Rotated(state.AimOffset);
+            entity.Move(context.Player.Position + direction *
+                (context.PlayerRadius + context.Balance.Sim.WandOffset), direction);
         }
 
         /// <summary>
         /// 공유 채널의 결제·종료를 갱신하고 발사 지점에서 경로와 예약된 지속 피해를 처리한다. 한 틱에 한 번만 처리한다.
         /// </summary>
-        public override void Judge(RuneSimulation simulation, SimulationSpellEntity entity)
+        public override void Judge(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             var state = (BeamState)entity.BehaviorState;
-            if (state.LastAdvanceTick == simulation.Tick) return;
-            state.SetAdvanceTick(simulation.Tick);
-            state.Channel.Advance(simulation);
+            if (state.LastAdvanceTick == context.Tick) return;
+            state.SetAdvanceTick(context.Tick);
+            state.Channel.Advance(context);
             if (state.Channel.IsStopped) { entity.HasExpired = true; return; }
-            BuildPath(simulation, entity, state);
-            if (simulation.Tick < state.NextDamageTick) return;
-            if (state.NextDamageTick == 0) simulation.RecordBeamFlash(entity, state.Path);
-            state.ScheduleDamage(simulation.Tick + Math.Max(1, (int)Math.Round(entity.Stats.TickInterval * RuneSimulation.TICK_RATE)));
-            HitPath(simulation, entity, state);
+            BuildPath(context, entity, state);
+            if (context.Tick < state.NextDamageTick) return;
+            if (state.NextDamageTick == 0) context.RecordBeamFlash(entity, state.Path);
+            state.ScheduleDamage(context.Tick + Math.Max(1, (int)Math.Round(entity.Stats.TickInterval * RuneSimulation.TICK_RATE)));
+            HitPath(context, entity, state);
         }
 
         /// <summary>구간 종료는 틱 기반 채널이 처리하므로 공용 나이 판정으로 빔을 조기 제거하지 않는다.</summary>
@@ -75,27 +75,27 @@ namespace RuneCode
         /// 벽을 통과하는 중심선 경로를 빔 상태에 재사용해 저장한다. 각 칸의 방향은 장착된 이동 모드(유도 등)가 경로 개입으로 고친다.
         /// 공전은 현재 공전 중심의 원 한 바퀴(유도가 있으면 고른 대상 쪽으로 휜 원), 그 외에는 유도 수치가 있으면 빔 길이, 없으면 맵 대각선을 경로 길이로 쓴다.
         /// </summary>
-        private static void BuildPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
+        private static void BuildPath(SpellRuntimeContext context, SimulationSpellEntity entity, BeamState state)
         {
             state.ClearPath();
-            entity.BeginPath(simulation);
+            entity.BeginPath(context);
             if (entity.HasModifierPath && entity.Stats.OrbitRadius > 0)
             {
-                BuildOrbitPath(simulation, entity, state);
+                BuildOrbitPath(context, entity, state);
                 return;
             }
             SimVector point = entity.Position;
             SimVector direction = entity.Direction;
             double halfWidth = entity.BoxWidth * 0.5;
             state.AddPoint(point);
-            double diagonal = Math.Sqrt(simulation.Map.Width * simulation.Map.Width + simulation.Map.Height * simulation.Map.Height);
+            double diagonal = Math.Sqrt(context.Map.Width * context.Map.Width + context.Map.Height * context.Map.Height);
             bool isHoming = entity.Stats.HomingRange > 0 && entity.Stats.HomingTurn > 0;
             double pathSpeed = GameData.Runes.Get("form.beam").Stats.Speed;
             double remaining = isHoming ? entity.Stats.BoxLength : diagonal;
             while (remaining > RuneSimulation.COLLISION_EPSILON)
             {
                 double step = Math.Min(PATH_STEP, remaining);
-                entity.SteerPathStep(simulation, point, ref direction, step, pathSpeed, halfWidth);
+                entity.SteerPathStep(context, point, ref direction, step, pathSpeed, halfWidth);
                 SimVector next = point + direction * step;
                 state.AddPoint(next);
                 point = next;
@@ -108,14 +108,14 @@ namespace RuneCode
         /// 표본을 끼워 넣어 휜 원이 대상 위치를 정확히 지나게 한다. 벽을 통과하며 마지막 점을 첫 점과 정확히 연결한다.
         /// 다중 빔은 순번마다 반경을 조금씩 달리해 겹치지 않게 한다.
         /// </summary>
-        private static void BuildOrbitPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
+        private static void BuildOrbitPath(SpellRuntimeContext context, SimulationSpellEntity entity, BeamState state)
         {
             double radius = GetOrbitPathRadius(entity);
             int segments = Math.Max(ORBIT_MIN_SEGMENTS, Math.Min(ORBIT_MAX_SEGMENTS, (int)Math.Ceiling(2 * Math.PI * radius / ORBIT_PATH_STEP)));
             double angleStep = 2 * Math.PI / segments;
             SimVector radial = (entity.Position - OrbitModifierRuntime.GetCenter(entity)).Normalized();
             List<HomingModifierRuntime.OrbitBend> bends = state.Bends;
-            double bendWidth = HomingModifierRuntime.SelectOrbitBends(simulation, entity, radial, radius, bends);
+            double bendWidth = HomingModifierRuntime.SelectOrbitBends(context, entity, radial, radius, bends);
             SimVector first = HomingModifierRuntime.GetOrbitPathPoint(entity, radial, radius, 0, bends, bendWidth);
             state.AddPoint(first);
             int bendIndex = 0;
@@ -148,10 +148,10 @@ namespace RuneCode
         }
 
         /// <summary>경로에 겹친 적을 경로 거리·ID 순으로 한 번씩 타격하고 실제 피해를 준 대상별 1·3·5번째 타격에 OnHit을 발생시킨다.</summary>
-        private static void HitPath(RuneSimulation simulation, SimulationSpellEntity entity, BeamState state)
+        private static void HitPath(SpellRuntimeContext context, SimulationSpellEntity entity, BeamState state)
         {
             state.ClearTargets();
-            foreach (SimulationEnemy enemy in simulation.Enemies)
+            foreach (SimulationEnemy enemy in context.Enemies)
             {
                 if (!enemy.IsAlive) continue;
                 double distance = 0;
@@ -182,12 +182,12 @@ namespace RuneCode
                 double previousHp = enemy.Hp;
                 double damage = entity.Stats.Damage;
                 bool isConsumed = false;
-                entity.ApplyHitModifiers(simulation, enemy, ref damage, ref isConsumed);
-                simulation.Hit(entity, enemy, damage, true, target.Direction);
+                entity.ApplyHitModifiers(context, enemy, ref damage, ref isConsumed);
+                context.Hit(entity, enemy, damage, true, target.Direction);
                 if (enemy.Hp >= previousHp) continue;
-                entity.HitTimes[enemy.Id] = simulation.Time;
+                entity.HitTimes[enemy.Id] = context.Time;
                 if ((state.RecordHit(enemy.Id) - 1) % HITS_PER_EVENT == 0)
-                    simulation.RaiseHitEvent(entity, target.Contact, enemy);
+                    context.RaiseHitEvent(entity, target.Contact, enemy);
             }
         }
 
@@ -246,13 +246,13 @@ namespace RuneCode
             }
 
             /// <summary>최초 공격은 보장하고 결제한 구간 끝에 도달하면 종료한다. 홀드·결제는 슬롯 시전 경계에서 먼저 처리한다.</summary>
-            internal void Advance(RuneSimulation simulation)
+            internal void Advance(SpellRuntimeContext context)
             {
-                if (_isStopped || _lastTick == simulation.Tick) return;
-                _lastTick = simulation.Tick;
-                int age = simulation.Tick - _startedTick;
+                if (_isStopped || _lastTick == context.Tick) return;
+                _lastTick = context.Tick;
+                int age = context.Tick - _startedTick;
                 if (age == 0) return;
-                if (simulation.Tick >= _paidUntilTick) Stop();
+                if (context.Tick >= _paidUntilTick) Stop();
             }
 
             /// <summary>구간 비용 지불 성공 후 종료 틱만 갱신하며 경로·적중 횟수·다음 공격 시각은 유지한다.</summary>

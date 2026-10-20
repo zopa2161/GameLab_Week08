@@ -9,18 +9,18 @@ namespace RuneCode
         public override string Kind => SpellGrammar.FORM_BURST;
 
         /// <summary>생성 위치를 파동 중심으로 사용하므로 발사의 사각형 위치 보정을 생략한다.</summary>
-        public override void PlaceSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
+        public override void PlaceSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
         {
         }
 
         /// <summary>이번 틱에 원형 띠와 처음 접촉한 적을 시간·ID 순서로 타격한다. 적중·장애물로 파동을 소멸시키지 않는다.</summary>
-        public override void Judge(RuneSimulation simulation, SimulationSpellEntity entity)
+        public override void Judge(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             SimVector previous = entity.PreviousPosition;
             SimVector center = previous - entity.PreviousDirection * entity.ExplosionRadius;
             var contacts = new List<WaveContact>();
-            IReadOnlyList<SimulationEnemy> enemies = simulation.Enemies;
+            IReadOnlyList<SimulationEnemy> enemies = context.Enemies;
             for (int index = 0; index < enemies.Count; index++)
             {
                 SimulationEnemy enemy = enemies[index];
@@ -41,10 +41,10 @@ namespace RuneCode
                 if (radial.Length <= RuneSimulation.COLLISION_EPSILON) radial = entity.Direction;
                 double radius = entity.Stats.Speed * (entity.Age + RuneSimulation.STEP_SECONDS * contact.Fraction);
                 SimVector point = center + radial.Normalized() * radius;
-                entity.HitTimes[enemy.Id] = simulation.Time;
-                simulation.Hit(entity, enemy, entity.Stats.Damage, false, radial);
+                entity.HitTimes[enemy.Id] = context.Time;
+                context.Hit(entity, enemy, entity.Stats.Damage, false, radial);
                 entity.Hits++;
-                simulation.RaiseHitEvent(entity, point, enemy);
+                context.RaiseHitEvent(entity, point, enemy);
             }
         }
 

@@ -13,9 +13,9 @@ namespace RuneCode
         internal const double DEGREES_TO_RADIANS = Math.PI / 180;
         private const string BOLT_RUNE_ID = "form.bolt";
         internal const double COLLISION_EPSILON = 0.000001;
-        internal static readonly Dictionary<int, double> NoExcludedTargets = new Dictionary<int, double>();
         private readonly SimulationWorld _world;
         private readonly SimulationFeedback _feedback;
+        private readonly SpellRuntimeContext _runtime;
         private readonly SimulationStats _stats;
         private readonly BeamChannelController _beam;
         private readonly SpellExecutor _executor;
@@ -53,11 +53,11 @@ namespace RuneCode
 
         /// <summary>범위 조준 미리보기의 위치와 방향을 반환한다. 참격은 시전자 중심과 다중 퍼짐 방향을 사용한다.</summary>
         public void GetRangePreview(SpellAction action, SimVector pointer, int index, out SimVector position, out SimVector direction)
-            => AreaTargeting.GetRangePreview(this, action, pointer, index, out position, out direction);
+            => AreaTargeting.GetRangePreview(_runtime, action, pointer, index, out position, out direction);
 
         /// <summary>포인터를 시전자 중심 최대 사거리로만 제한하고 index번째 모드 배치를 적용한 생성 위치를 반환한다. 최소 거리는 없다.</summary>
         public SimVector GetAreaTargetPosition(SpellAction action, SimVector pointer, int index = 0, SimVector? playerPosition = null)
-            => AreaTargeting.GetAreaTargetPosition(this, action, pointer, index, playerPosition);
+            => AreaTargeting.GetAreaTargetPosition(_runtime, action, pointer, index, playerPosition);
         public IReadOnlyList<SimulationProjectile> EnemyProjectiles => _world.EnemyProjectiles;
         /// <summary>짧은 빔의 최초 경로를 화면에서 읽도록 보관한 최근 표시 기록이다. 피해 판정에는 사용하지 않는다.</summary>
         public IReadOnlyList<SimulationBeamFlash> BeamFlashes => _feedback.BeamFlashes;
@@ -94,10 +94,6 @@ namespace RuneCode
         public IReadOnlyDictionary<string, int> KillCounts => _stats.KillCounts;
         public AdaptationNet Adaptation => _world.Adaptation;
         public MissionMap Map => _world.Map;
-
-        /// <summary>전투 규칙 수치다. 행동 실행 동작이 다중 배치 간격 등을 읽는다.</summary>
-        internal BalanceData Balance => _world.Balance;
-        internal double PlayerRadius => _world.Sector.PlayerRadius;
         public MissionStage Stage => _world.Stage;
         public bool Completed => _world.Stage == MissionStage.Cleared;
         public bool IsDead => _world.Stage == MissionStage.Dead;
@@ -150,17 +146,19 @@ namespace RuneCode
                 new ModifierGradeDropSource(setup.ModifierGrades), setup.Stages, setup.Carrier, setup.IsMission, setup.MaxHp, setup.MaxEnergy, setup.StageNumber, setup.EnergyRegen,
                 setup.DamageMultiplier, setup.MoveSpeedMultiplier, new SimRandom(setup.Seed), new AdaptationNet(setup.Balance));
             _feedback = new SimulationFeedback(_world);
+            _runtime = new SpellRuntimeContext(_world, _feedback);
             _stats = new SimulationStats();
             _beam = new BeamChannelController(_world, _stats);
-            _executor = new SpellExecutor(_world, _feedback, _stats, _beam, this);
+            _executor = new SpellExecutor(_world, _feedback, _stats, _beam, _runtime);
             _statuses = new EnemyStatusSystem(_world, _stats, this);
             _rules = new BattleRules(_world, this);
             _loot = new LootSystem(_world, _stats, _statuses, _rules, this, setup.ScrapGainMultiplier, setup.ScrapPickupRangeMultiplier, setup.ScrapHealRatio, setup.KillEnergyBonus);
             _spawn = new SpawnSystem(_world, _feedback, this);
             _bench = new BenchScenario(_world, _spawn);
             _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, this);
-            _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, setup.Runes, this);
-            _entities = new SpellEntitySystem(_world, _combat, this);
+            _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, setup.Runes, _runtime);
+            _entities = new SpellEntitySystem(_world, _combat, _runtime);
+            _runtime.Connect(_combat, _entities);
             if (setup.IsMission) BeginTimedBattle(setup.Runes);
             else ResetBench("dummy_single");
         }
@@ -347,27 +345,8 @@ namespace RuneCode
             return startedDash;
         }
 
-        /// <summary>첫 판정 빔의 경로를 표시 전용으로 복사하고 최근 기록 수를 제한한다.</summary>
-        internal void RecordBeamFlash(SimulationSpellEntity entity, IReadOnlyList<SimVector> path)
-            => _feedback.RecordBeamFlash(entity, path);
-
         /// <summary>원형 개체의 직선 이동에서 첫 벽 접촉 비율을 반환한다. 마법 개체 시스템에 위임한다.</summary>
         internal double FirstWallFraction(SimVector start, SimVector end, double radius) => _entities.FirstWallFraction(start, end, radius);
-
-        /// <summary>범위 마법의 대상별 주기 피해와 OnHit을 처리한다. 전투 판정기에 위임한다.</summary>
-        internal void HitArea(SimulationSpellEntity entity, bool isBurst) => _combat.HitArea(entity, isBurst);
-
-        /// <summary>스펠 피해·상태·전격 연쇄와 밀어내기를 적용한다. 전투 판정기에 위임한다.</summary>
-        internal void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot, SimVector pushDirection)
-            => _combat.Hit(entity, enemy, damage, isDot, pushDirection);
-
-        /// <summary>개체의 OnHit 이벤트를 지정 위치·대상으로 실행한다. 전투 판정기에 위임한다.</summary>
-        internal void RaiseHitEvent(SimulationSpellEntity entity, SimVector position, SimulationEnemy target)
-            => _combat.RaiseHitEvent(entity, position, target);
-
-        /// <summary>발사체의 보호막 피해와 명중·소멸 이벤트를 처리한다. 전투 판정기에 위임한다.</summary>
-        internal void RaiseShieldHitEvent(SimulationSpellEntity entity, SimVector contact, SimulationEnemy shieldOwner)
-            => _combat.RaiseShieldHitEvent(entity, contact, shieldOwner);
 
         /// <summary>적응·방패·하한을 반영한 실제 피해를 적용하고 반환한다. 상태 이상 화상 틱이 호출하며 전투 판정기에 위임한다.</summary>
         internal double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
@@ -453,10 +432,6 @@ namespace RuneCode
             _feedback.Trim();
             _stats.TrimRollingDamage(_world.Tick);
         }
-
-        /// <summary>이미 적중한 적을 제외하고 탐지 반경 내 가장 가까운 생존 적을 반환한다. 마법 개체 시스템에 위임한다.</summary>
-        internal SimulationEnemy NearestEnemy(SimVector position, double range, Dictionary<int, double> excluded)
-            => _entities.NearestEnemy(position, range, excluded);
 
         /// <summary>장착된 행동을 순회하고 노드별 실제 피해와 OnHit 후속 생성 누계를 로그용 복사본으로 반환한다.</summary>
         public IReadOnlyList<Dictionary<string, object>> GetActionCombatLogSnapshot()

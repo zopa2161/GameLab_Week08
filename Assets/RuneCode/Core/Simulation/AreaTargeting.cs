@@ -29,28 +29,28 @@ namespace RuneCode
             => ClampAreaTargetPosition(pointer, player.Position, placementRange);
 
         /// <summary>범위 조준 미리보기의 위치와 방향을 반환한다. 참격은 시전자 중심과 다중 퍼짐 방향을 사용한다.</summary>
-        internal static void GetRangePreview(RuneSimulation simulation, SpellAction action, SimVector pointer, int index, out SimVector position, out SimVector direction)
+        internal static void GetRangePreview(SpellRuntimeContext context, SpellAction action, SimVector pointer, int index, out SimVector position, out SimVector direction)
         {
-            SimVector delta = pointer - simulation.Player.Position;
-            direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : simulation.Player.AimDirection;
-            position = GetAreaPreviewPosition(pointer, simulation.Player, simulation.GetAreaPlacementRange());
+            SimVector delta = pointer - context.Player.Position;
+            direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : context.Player.AimDirection;
+            position = GetAreaPreviewPosition(pointer, context.Player, context.GetAreaPlacementRange());
             if (action.Form != SlashBehaviorRules.KIND) return;
-            position = simulation.Player.Position;
+            position = context.Player.Position;
             foreach (SpellModifierRules rule in action.ModifierRules)
                 if (SpellModifierRuntimeRegistry.TryGet(rule.RuneId, out SpellModifierRuntime modifier))
-                    modifier.BeforePlaceSpawn(simulation, action, action.Stats, index, ref position, ref direction);
+                    modifier.BeforePlaceSpawn(context, action, action.Stats, index, ref position, ref direction);
         }
 
         /// <summary>포인터를 시전자 중심 최대 사거리로만 제한하고 index번째 모드 배치를 적용한 생성 위치를 반환한다. 최소 거리는 없다.</summary>
-        internal static SimVector GetAreaTargetPosition(RuneSimulation simulation, SpellAction action, SimVector pointer, int index, SimVector? playerPosition)
+        internal static SimVector GetAreaTargetPosition(SpellRuntimeContext context, SpellAction action, SimVector pointer, int index, SimVector? playerPosition)
         {
-            SimVector origin = playerPosition ?? simulation.Player.Position;
+            SimVector origin = playerPosition ?? context.Player.Position;
             SimVector delta = pointer - origin;
-            SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : simulation.Player.AimDirection;
-            SimVector position = ClampAreaTargetPosition(pointer, origin, simulation.GetAreaPlacementRange());
+            SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : context.Player.AimDirection;
+            SimVector position = ClampAreaTargetPosition(pointer, origin, context.GetAreaPlacementRange());
             foreach (SpellModifierRules rule in action.ModifierRules)
                 if (SpellModifierRuntimeRegistry.TryGet(rule.RuneId, out SpellModifierRuntime modifier))
-                    modifier.AfterPlaceSpawn(simulation, action, action.Stats, index, ref position, ref direction);
+                    modifier.AfterPlaceSpawn(context, action, action.Stats, index, ref position, ref direction);
             return position;
         }
     }

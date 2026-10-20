@@ -54,7 +54,7 @@ namespace RuneCode
         /// 궤도 자리를 한 틱만큼 돌리고, 진입을 마쳤으면 궤도 자리로, 아니면 궤도 자리 쪽으로 옮긴 뒤 true를 반환한다.
         /// 경로형 행동은 개체를 옮기지 않으므로 false를 반환한다.
         /// </summary>
-        public override bool TryMove(RuneSimulation simulation, SimulationSpellEntity entity, object state)
+        public override bool TryMove(SpellRuntimeContext context, SimulationSpellEntity entity, object state)
         {
             SpellBehaviorRules rules = entity.Action.Rules;
             if (rules == null || rules.MotionKind == SpellMotionKind.Path) return false;
@@ -85,7 +85,7 @@ namespace RuneCode
         }
 
         /// <summary>다른 이동 모드가 이동을 맡은 틱에는 궤도 자리만 돌리고, 개체가 궤도를 떠났으므로 진입 전 상태로 바꾼다.</summary>
-        public override void UpdatePassive(RuneSimulation simulation, SimulationSpellEntity entity, object state)
+        public override void UpdatePassive(SpellRuntimeContext context, SimulationSpellEntity entity, object state)
         {
             var orbit = (OrbitState)state;
             orbit.Rotate();
@@ -116,7 +116,7 @@ namespace RuneCode
         }
 
         /// <summary>빔 경로의 시작 위치를 현재 공전 중심의 궤도 위에 두고 진행 방향을 반시계 접선으로 정한다. 반경이 없으면 유지한다.</summary>
-        public override void BeginPath(RuneSimulation simulation, SimulationSpellEntity entity, object state)
+        public override void BeginPath(SpellRuntimeContext context, SimulationSpellEntity entity, object state)
         {
             double radius = entity.Stats.OrbitRadius;
             if (radius <= 0) return;

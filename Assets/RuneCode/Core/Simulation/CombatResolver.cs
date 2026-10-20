@@ -13,11 +13,11 @@ namespace RuneCode
         private readonly EnemySystem _enemy;
         private readonly SpellExecutor _executor;
         private readonly RuneCatalog _runes;
-        private readonly RuneSimulation _simulation;
+        private readonly SpellRuntimeContext _runtime;
 
-        /// <summary>월드·표시 버퍼·통계·상태 이상·적 시스템, 이벤트 후속을 실행할 스펠 실행기, 넉백·전격 수치를 조회할 룬 카탈로그와 시뮬레이션 참조로 만든다.</summary>
+        /// <summary>월드·표시 버퍼·통계·상태 이상·적 시스템, 이벤트 후속을 실행할 스펠 실행기, 넉백·전격 수치를 조회할 룬 카탈로그와 행동·모드 런타임에 넘길 런타임 컨텍스트로 만든다.</summary>
         internal CombatResolver(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, EnemyStatusSystem statuses, EnemySystem enemy, SpellExecutor executor,
-            RuneCatalog runes, RuneSimulation simulation)
+            RuneCatalog runes, SpellRuntimeContext runtime)
         {
             _world = world;
             _feedback = feedback;
@@ -26,7 +26,7 @@ namespace RuneCode
             _enemy = enemy;
             _executor = executor;
             _runes = runes;
-            _simulation = simulation;
+            _runtime = runtime;
         }
 
         /// <summary>
@@ -50,9 +50,9 @@ namespace RuneCode
             {
                 if (!enemy.IsAlive) continue;
                 bool hasHit = entity.HitTimes.TryGetValue(enemy.Id, out double lastTime);
-                if (!hasHit || (!isBurst && _simulation.Time - lastTime + 0.000001 >= interval))
+                if (!hasHit || (!isBurst && _runtime.Time - lastTime + 0.000001 >= interval))
                 {
-                    entity.HitTimes[enemy.Id] = _simulation.Time;
+                    entity.HitTimes[enemy.Id] = _runtime.Time;
                     SimVector pushDirection = enemy.Position - entity.Position;
                     if (pushDirection.Length <= RuneSimulation.COLLISION_EPSILON) pushDirection = entity.Direction;
                     double previousHp = enemy.Hp;
@@ -121,7 +121,7 @@ namespace RuneCode
         {
             double damage = entity.Stats.Damage;
             bool isConsumed = true;
-            entity.ApplyHitModifiers(_simulation, shieldOwner, ref damage, ref isConsumed);
+            entity.ApplyHitModifiers(_runtime, shieldOwner, ref damage, ref isConsumed);
             shieldOwner.HurtShield(damage * _world.DamageMultiplier * _world.Adaptation.GetMultiplier(entity.Element, entity.Kind));
             RaiseHitEvent(entity, contact, shieldOwner);
             RaiseExpireEvent(entity);
@@ -152,7 +152,7 @@ namespace RuneCode
                 relayAlive = true;
                 break;
             }
-            actual = enemy.Hurt(Math.Max(minimumDamage, actual), _simulation.Time);
+            actual = enemy.Hurt(Math.Max(minimumDamage, actual), _runtime.Time);
             if (applyStatus) _statuses.ApplyStatus(enemy, element, form, noise, damage, sourceAction);
             if (actual > 0)
             {
@@ -161,7 +161,7 @@ namespace RuneCode
                 enemy.SetDamageTags(element, form);
                 _stats.RecordEnemyDamage(actual, _world.Tick);
                 _feedback.AddDamageNumber(enemy.Position, actual, element);
-                _world.Adaptation.Learn(element, form, _simulation.Time, actual, isDot, noise, relayAlive);
+                _world.Adaptation.Learn(element, form, _runtime.Time, actual, isDot, noise, relayAlive);
             }
             if (enemy.Boss != null && enemy.Boss.IsGovernorPattern && enemy.IsAlive) _enemy.CheckBossPatch(enemy, enemy.Boss);
             return actual;

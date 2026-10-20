@@ -46,21 +46,21 @@ namespace RuneCode
             => GameData.Runes.Get(STATS_RUNE_ID).Stats.WarnSeconds / (double)stats.SpeedMultiplier;
 
         /// <summary>범위형 생성 위치 규칙으로 배치한다.</summary>
-        public override void PlaceSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
+        public override void PlaceSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
-            => PlaceAreaSpawn(simulation, action, stats, index, isFromEvent, caster, ref position, direction);
+            => PlaceAreaSpawn(context, action, stats, index, isFromEvent, caster, ref position, direction);
 
         /// <summary>예고가 없으면 생성 즉시 판정한다.</summary>
-        public override void OnSpawned(RuneSimulation simulation, SimulationSpellEntity entity)
+        public override void OnSpawned(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
-            Judge(simulation, entity);
+            Judge(context, entity);
         }
 
         /// <summary>예고가 끝난 뒤 수명 종료 시점 전까지만 매 틱 범위 판정을 처리한다.</summary>
-        public override void Judge(RuneSimulation simulation, SimulationSpellEntity entity)
+        public override void Judge(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             if (entity.IsWarning || entity.Age + TIME_EPSILON >= entity.Lifetime) return;
-            simulation.HitArea(entity, false);
+            context.HitArea(entity, false);
         }
 
         /// <summary>예고 시간 안이면 true를 반환한다.</summary>

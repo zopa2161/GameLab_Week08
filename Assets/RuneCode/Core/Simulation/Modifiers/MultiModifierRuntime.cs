@@ -15,7 +15,7 @@ namespace RuneCode
         public override string RuneId => MultiModifierRules.RUNE_ID;
 
         /// <summary>지팡이 앞 행동의 방향을 index로 분산한다. 참격은 조준 방향부터 원을 개수로 등분하고 나머지는 좌우 퍼짐 각도를 사용한다.</summary>
-        public override void BeforePlaceSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
+        public override void BeforePlaceSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             ref SimVector position, ref SimVector direction)
         {
             if (action.Count <= 1 || action.SpawnOrigin != SpellSpawnOrigin.Wand) return;
@@ -28,12 +28,12 @@ namespace RuneCode
         }
 
         /// <summary>지면에 생성되는 행동이면 생성 지점 주위의 원 위에 index에 따라 같은 간격으로 놓는다.</summary>
-        public override void AfterPlaceSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
+        public override void AfterPlaceSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             ref SimVector position, ref SimVector direction)
         {
             if (action.Count <= 1 || action.SpawnOrigin != SpellSpawnOrigin.Ground) return;
             position += new SimVector(Math.Cos(index * 2 * Math.PI / action.Count), Math.Sin(index * 2 * Math.PI / action.Count))
-                * simulation.Balance.Sim.MultiOffset;
+                * context.Balance.Sim.MultiOffset;
         }
     }
 }

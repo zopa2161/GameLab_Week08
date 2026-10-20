@@ -14,7 +14,7 @@ namespace RuneCode
         private readonly SimulationFeedback _feedback;
         private readonly SimulationStats _stats;
         private readonly BeamChannelController _beam;
-        private readonly RuneSimulation _simulation;
+        private readonly SpellRuntimeContext _runtime;
         private readonly List<ScheduledExecution> _scheduled = new List<ScheduledExecution>();
         private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
         private readonly List<string> _unlockedElements = new List<string> { "fire" };
@@ -38,14 +38,14 @@ namespace RuneCode
         /// <summary>예약·행동 상한으로 버린 실행 수다.</summary>
         internal int DroppedExecutions => _droppedExecutions;
 
-        /// <summary>월드·표시 버퍼·통계·빔 컨트롤러와 행동·모드 런타임에 넘길 시뮬레이션 참조로 만든다.</summary>
-        internal SpellExecutor(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, BeamChannelController beam, RuneSimulation simulation)
+        /// <summary>월드·표시 버퍼·통계·빔 컨트롤러와 행동·모드 런타임에 넘길 런타임 컨텍스트로 만든다.</summary>
+        internal SpellExecutor(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, BeamChannelController beam, SpellRuntimeContext runtime)
         {
             _world = world;
             _feedback = feedback;
             _stats = stats;
             _beam = beam;
-            _simulation = simulation;
+            _runtime = runtime;
         }
 
         /// <summary>공격 입력이나 빔 예약 클릭이 있는 슬롯을 0, 1, 2 순서로 공격 Trigger 시전한다.</summary>
@@ -139,7 +139,7 @@ namespace RuneCode
             SimVector delta = _aimPoint.HasValue ? _aimPoint.Value - _world.Player.Position : SimVector.Zero;
             SimVector targetDirection = delta.LengthSquared > 0.000001 ? delta.Normalized() : _world.Player.AimDirection;
             var rootCast = new RootSpellExecution(slot, spell, cycleTicks, _world.Tick + cycleTicks,
-                _world.Player.Position, targetDirection, _aimPoint ?? _world.Player.Position + targetDirection * _simulation.GetAreaPlacementRange());
+                _world.Player.Position, targetDirection, _aimPoint ?? _world.Player.Position + targetDirection * _runtime.GetAreaPlacementRange());
             var context = new SpellContext(_world.Player.Position + _world.Player.AimDirection * (_world.Sector.PlayerRadius + _world.Balance.Sim.WandOffset), _world.Player.AimDirection, null, false, null,
                 caster: _world.Player, randomState: new SpellRandomState());
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
@@ -434,14 +434,14 @@ namespace RuneCode
                 SimVector direction = context.Direction;
                 SimVector position = context.Origin;
                 if (action.Form == SlashBehaviorRules.KIND && !context.FromEvent) direction = context.Caster.AimDirection;
-                foreach (SpellModifierRuntime modifier in modifiers) modifier.BeforePlaceSpawn(_simulation, action, stats, i, ref position, ref direction);
-                behavior.PlaceSpawn(_simulation, action, stats, i, context.FromEvent, context.Caster, ref position, ref direction);
-                foreach (SpellModifierRuntime modifier in modifiers) modifier.AfterPlaceSpawn(_simulation, action, stats, i, ref position, ref direction);
+                foreach (SpellModifierRuntime modifier in modifiers) modifier.BeforePlaceSpawn(_runtime, action, stats, i, ref position, ref direction);
+                behavior.PlaceSpawn(_runtime, action, stats, i, context.FromEvent, context.Caster, ref position, ref direction);
+                foreach (SpellModifierRuntime modifier in modifiers) modifier.AfterPlaceSpawn(_runtime, action, stats, i, ref position, ref direction);
                 RootSpellExecution targetCast = tracker.RootCast;
                 if (!context.FromEvent && targetCast != null && targetCast.AimPoint.HasValue
                     && RuneSimulation.IsAreaPreviewAction(action) && targetCast.IsDirectAction(action))
                 {
-                    position = _simulation.GetAreaTargetPosition(action, targetCast.AimPoint.Value, i, targetCast.PlayerPosition);
+                    position = AreaTargeting.GetAreaTargetPosition(_runtime, action, targetCast.AimPoint.Value, i, targetCast.PlayerPosition);
                     direction = targetCast.AimDirection;
                 }
                 // 개체 순번 각도다. 공전 모드가 궤도 자리를 등각으로 나누는 데 쓴다.
@@ -458,7 +458,7 @@ namespace RuneCode
                 else if (action.Form == SpellGrammar.FORM_ZONE) _stats.ShotPersistEventCount++;
                 else if (action.Form == SlashBehaviorRules.KIND) _stats.ShotSlashEventCount++;
                 if (channel != null) ((BeamBehaviorRuntime.BeamState)entity.BehaviorState).Attach(channel);
-                behavior.OnSpawned(_simulation, entity);
+                behavior.OnSpawned(_runtime, entity);
             }
         }
 

@@ -10,7 +10,7 @@ namespace RuneCode
         public override string RuneId => PierceModifierRules.RUNE_ID;
 
         /// <summary>앞선 적중 수만큼 피해 유지 배율을 누적 곱해 최소 1의 피해를 계산하고 관통 수를 넘는 적중에서만 소멸시킨다.</summary>
-        public override void OnHit(RuneSimulation simulation, SimulationSpellEntity entity, object state, SimulationEnemy enemy,
+        public override void OnHit(SpellRuntimeContext context, SimulationSpellEntity entity, object state, SimulationEnemy enemy,
             ref double damage, ref bool isConsumed)
         {
             SpellStats stats = entity.Stats;

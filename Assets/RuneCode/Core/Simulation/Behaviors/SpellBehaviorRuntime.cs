@@ -19,13 +19,13 @@ namespace RuneCode
         /// 개체 index번째의 생성 위치와 방향을 정한다. position·direction은 실행 위치·방향으로 초기화되어 들어온다.
         /// isFromEvent는 적중 이벤트에서 시작한 실행인지, caster는 시전자다. 기본은 실행 위치·방향을 그대로 쓴다.
         /// </summary>
-        public virtual void PlaceSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
+        public virtual void PlaceSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
         {
         }
 
         /// <summary>개체를 목록에 추가한 직후 처리(생성 즉시 판정 등)를 한다. 기본은 없다.</summary>
-        public virtual void OnSpawned(RuneSimulation simulation, SimulationSpellEntity entity)
+        public virtual void OnSpawned(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
         }
 
@@ -36,7 +36,7 @@ namespace RuneCode
         /// 이동 모드가 이번 틱 이동을 맡지 않았을 때 행동의 기본 경로로 개체를 옮긴다(발사 = 직진, 잔류 = 유도 이동).
         /// 이동 전 위치는 개체의 PreviousPosition에 남아 있다. 기본은 제자리다.
         /// </summary>
-        public virtual void MoveAlongPath(RuneSimulation simulation, SimulationSpellEntity entity)
+        public virtual void MoveAlongPath(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
         }
 
@@ -44,12 +44,12 @@ namespace RuneCode
         /// 이동이 끝난 뒤 수명이 늘기 전 매 틱 판정을 처리한다. 어떤 경로로 움직였든 PreviousPosition에서 Position까지를
         /// 이번 틱 이동 구간으로 보고 행동의 판정 방식(스윕·범위)을 적용한다. 기본은 없다.
         /// </summary>
-        public virtual void Judge(RuneSimulation simulation, SimulationSpellEntity entity)
+        public virtual void Judge(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
         }
 
         /// <summary>수명이 늘어난 뒤 매 틱 처리(확장 중 판정 등)를 한다. 기본은 없다.</summary>
-        public virtual void AfterAdvance(RuneSimulation simulation, SimulationSpellEntity entity)
+        public virtual void AfterAdvance(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
         }
 
@@ -116,7 +116,7 @@ namespace RuneCode
         /// 범위형 행동의 생성 위치를 정한다. 직접 시전한 일반 범위는 진행 방향으로 생성 거리만큼, 부채꼴·사각형은 실행 위치에 둔다.
         /// 개체가 여럿일 때의 원형 배치는 이 처리 다음에 다중 모드가 정한다.
         /// </summary>
-        protected static void PlaceAreaSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
+        protected static void PlaceAreaSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, SimVector direction)
         {
             // 부채꼴은 실행 위치를 꼭짓점으로, Beam은 실행 위치를 뒤쪽 면으로 진행 방향에 펼친다(결정 Q17, 백서 v7).

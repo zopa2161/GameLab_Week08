@@ -13,14 +13,14 @@ namespace RuneCode
 
         private readonly SimulationWorld _world;
         private readonly CombatResolver _combat;
-        private readonly RuneSimulation _simulation;
+        private readonly SpellRuntimeContext _runtime;
 
-        /// <summary>월드·전투 판정기와 행동·모드 런타임에 넘길 시뮬레이션 참조로 만든다.</summary>
-        internal SpellEntitySystem(SimulationWorld world, CombatResolver combat, RuneSimulation simulation)
+        /// <summary>월드·전투 판정기와 행동·모드 런타임에 넘길 런타임 컨텍스트로 만든다.</summary>
+        internal SpellEntitySystem(SimulationWorld world, CombatResolver combat, SpellRuntimeContext runtime)
         {
             _world = world;
             _combat = combat;
-            _simulation = simulation;
+            _runtime = runtime;
         }
 
         /// <summary>
@@ -35,10 +35,10 @@ namespace RuneCode
             {
                 SimulationSpellEntity entity = _world.SpellEntities[i];
                 entity.MarkPreviousPosition();
-                if (!entity.MoveByModifiers(_simulation)) entity.Behavior.MoveAlongPath(_simulation, entity);
-                entity.Behavior.Judge(_simulation, entity);
+                if (!entity.MoveByModifiers(_runtime)) entity.Behavior.MoveAlongPath(_runtime, entity);
+                entity.Behavior.Judge(_runtime, entity);
                 entity.Advance(RuneSimulation.STEP_SECONDS);
-                entity.Behavior.AfterAdvance(_simulation, entity);
+                entity.Behavior.AfterAdvance(_runtime, entity);
                 if ((entity.Behavior.RemovesWhenExpired && entity.HasExpired) || entity.Age + 0.000001 >= entity.Lifetime)
                 { Expire(entity); _world.SpellEntities.RemoveAt(i); }
                 else i++;

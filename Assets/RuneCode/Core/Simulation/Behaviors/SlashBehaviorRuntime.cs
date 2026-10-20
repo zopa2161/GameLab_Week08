@@ -17,55 +17,55 @@ namespace RuneCode
         public override object CreateState(SimulationSpellEntity entity) => new SlashState(entity);
 
         /// <summary>직접 시전이면 다중 퍼짐 방향을 보존하고 위치만 시전자 중심으로 맞춘다.</summary>
-        public override void PlaceSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
+        public override void PlaceSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
         {
             if (!isFromEvent) position = caster.Position;
         }
 
         /// <summary>생성 즉시 기준 중심에서 첫 활성 구간을 판정한다.</summary>
-        public override void OnSpawned(RuneSimulation simulation, SimulationSpellEntity entity)
+        public override void OnSpawned(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
-            MoveAlongPath(simulation, entity);
-            Judge(simulation, entity);
+            MoveAlongPath(context, entity);
+            Judge(context, entity);
         }
 
         /// <summary>기준 방향은 고정하고 플레이어 또는 살아 있는 발생 대상의 중심으로 개체를 이동시킨다.</summary>
-        public override void MoveAlongPath(RuneSimulation simulation, SimulationSpellEntity entity)
+        public override void MoveAlongPath(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             var state = (SlashState)entity.BehaviorState;
             entity.Move(state.GetCenter(entity.Caster), state.GetDirection(state.Progress, entity.Action.ConeAngle));
         }
 
         /// <summary>이번 틱에 칼날이 지나간 면을 판정하고 실제 피해를 받은 적마다 한 번만 기존 적중 이벤트를 실행한다.</summary>
-        public override void Judge(RuneSimulation simulation, SimulationSpellEntity entity)
+        public override void Judge(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             var state = (SlashState)entity.BehaviorState;
-            if (state.LastTick == simulation.Tick || entity.Age >= entity.Lifetime) return;
+            if (state.LastTick == context.Tick || entity.Age >= entity.Lifetime) return;
             double progress = Math.Min(1, (entity.Age + RuneSimulation.STEP_SECONDS) / entity.Lifetime);
-            BuildSweep(simulation, entity, state, progress);
-            state.Commit(entity.Position, progress, simulation.Tick);
+            BuildSweep(context, entity, state, progress);
+            state.Commit(entity.Position, progress, context.Tick);
             SimVector direction = state.GetDirection(progress, entity.Action.ConeAngle);
             entity.Move(state.Center, direction);
             SimVector pushDirection = new SimVector(direction.Y, -direction.X);
-            IReadOnlyList<SimulationEnemy> enemies = simulation.Enemies;
+            IReadOnlyList<SimulationEnemy> enemies = context.Enemies;
             for (int index = 0; index < enemies.Count; index++)
             {
                 SimulationEnemy enemy = enemies[index];
                 if (!enemy.IsAlive || entity.HitTimes.ContainsKey(enemy.Id)
                     || !IntersectsSweep(state.Samples, enemy.Position, enemy.Radius + entity.BoxWidth * .5)) continue;
                 double previousHp = enemy.Hp;
-                simulation.Hit(entity, enemy, entity.Stats.Damage, false, pushDirection);
+                context.Hit(entity, enemy, entity.Stats.Damage, false, pushDirection);
                 if (enemy.Hp >= previousHp) continue;
-                entity.HitTimes[enemy.Id] = simulation.Time;
+                entity.HitTimes[enemy.Id] = context.Time;
                 entity.Hits++;
                 SimVector contact = GetContact(state.Samples, enemy.Position);
-                simulation.RaiseHitEvent(entity, contact, enemy);
+                context.RaiseHitEvent(entity, contact, enemy);
             }
         }
 
         /// <summary>이전 중심과 각도부터 이번 틱 종료까지 칼날을 나누어 샘플링하고 각 방향의 벽 접촉에서 길이를 제한한다.</summary>
-        private static void BuildSweep(RuneSimulation simulation, SimulationSpellEntity entity, SlashState state, double progress)
+        private static void BuildSweep(SpellRuntimeContext context, SimulationSpellEntity entity, SlashState state, double progress)
         {
             double distance = (entity.Position - state.Center).Length
                 + Math.Abs(progress - state.Progress) * entity.Action.ConeAngle * DEGREES_TO_RADIANS * entity.Radius;
@@ -79,7 +79,7 @@ namespace RuneCode
                 double sampleProgress = state.Progress + (progress - state.Progress) * fraction;
                 SimVector direction = state.GetDirection(sampleProgress, entity.Action.ConeAngle);
                 SimVector tip = center + direction * entity.Radius;
-                double wall = simulation.FirstWallFraction(center, tip, entity.BoxWidth * .5);
+                double wall = context.FirstWallFraction(center, tip, entity.BoxWidth * .5);
                 if (!double.IsPositiveInfinity(wall)) tip = center + (tip - center) * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON);
                 state.AddSample(center, tip);
             }

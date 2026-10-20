@@ -696,14 +696,14 @@ namespace RuneCode
         /// 이동 모드를 우선순위가 높은 순서로 돌며 처음 이동을 맡은 모드만 개체를 옮기게 하고, 나머지 이동 모드는 상태만 갱신한다.
         /// 어느 이동 모드가 이동을 맡았으면 true를 반환하며, 이 경우 행동의 기본 경로 이동을 건너뛴다.
         /// </summary>
-        internal bool MoveByModifiers(RuneSimulation simulation)
+        internal bool MoveByModifiers(SpellRuntimeContext context)
         {
             bool hasMoved = false;
             foreach (int index in _motionOrder)
             {
                 SpellModifierRuntime runtime = _modifierRuntimes[index];
-                if (!hasMoved && runtime.TryMove(simulation, this, _modifierStates[index])) hasMoved = true;
-                else runtime.UpdatePassive(simulation, this, _modifierStates[index]);
+                if (!hasMoved && runtime.TryMove(context, this, _modifierStates[index])) hasMoved = true;
+                else runtime.UpdatePassive(context, this, _modifierStates[index]);
             }
             return hasMoved;
         }
@@ -711,27 +711,27 @@ namespace RuneCode
         /// <summary>
         /// 적 적중 한 번에 장착된 동작 모드의 적중 개입을 등록 순서로 적용한다. damage·isConsumed는 행동이 넣은 기본값에서 시작한다.
         /// </summary>
-        internal void ApplyHitModifiers(RuneSimulation simulation, SimulationEnemy enemy, ref double damage, ref bool isConsumed)
+        internal void ApplyHitModifiers(SpellRuntimeContext context, SimulationEnemy enemy, ref double damage, ref bool isConsumed)
         {
             for (int index = 0; index < _modifierRuntimes.Length; index++)
-                _modifierRuntimes[index].OnHit(simulation, this, _modifierStates[index], enemy, ref damage, ref isConsumed);
+                _modifierRuntimes[index].OnHit(context, this, _modifierStates[index], enemy, ref damage, ref isConsumed);
         }
 
         /// <summary>경로형 행동이 이번 틱 경로를 새로 그리기 시작할 때 이동 모드들에 알린다(우선순위 순).</summary>
-        internal void BeginPath(RuneSimulation simulation)
+        internal void BeginPath(SpellRuntimeContext context)
         {
-            foreach (int index in _motionOrder) _modifierRuntimes[index].BeginPath(simulation, this, _modifierStates[index]);
+            foreach (int index in _motionOrder) _modifierRuntimes[index].BeginPath(context, this, _modifierStates[index]);
         }
 
         /// <summary>
         /// 경로형 행동이 경로 한 칸을 그리기 전에 이동 모드를 우선순위 순으로 물어 처음 맡은 모드만 그 칸의 진행 방향을 고치게 한다.
         /// point는 칸 시작점, step은 칸 길이, pathSpeed는 경로 기준 속도, halfWidth는 경로 반폭이다.
         /// </summary>
-        internal void SteerPathStep(RuneSimulation simulation, SimVector point, ref SimVector direction, double step,
+        internal void SteerPathStep(SpellRuntimeContext context, SimVector point, ref SimVector direction, double step,
             double pathSpeed, double halfWidth)
         {
             foreach (int index in _motionOrder)
-                if (_modifierRuntimes[index].SteerPathStep(simulation, this, _modifierStates[index], point, ref direction, step, pathSpeed, halfWidth))
+                if (_modifierRuntimes[index].SteerPathStep(context, this, _modifierStates[index], point, ref direction, step, pathSpeed, halfWidth))
                     return;
         }
 

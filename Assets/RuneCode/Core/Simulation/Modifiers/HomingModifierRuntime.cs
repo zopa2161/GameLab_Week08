@@ -33,14 +33,14 @@ namespace RuneCode
         /// 이동형은 회전 후 직진, 정지형은 대상 쪽 이동으로 대상이 있을 때만 이동을 맡는다. 경로 모드(공전)가 있으면 경로를 떠나 직선 추적한다.
         /// 경로형은 맡지 않는다.
         /// </summary>
-        public override bool TryMove(RuneSimulation simulation, SimulationSpellEntity entity, object state)
+        public override bool TryMove(SpellRuntimeContext context, SimulationSpellEntity entity, object state)
         {
             SpellBehaviorRules rules = entity.Action.Rules;
             if (rules == null || rules.MotionKind == SpellMotionKind.Path) return false;
             if (entity.HasModifierPath)
-                return TryChaseOnPath(simulation, entity, (HomingState)state, rules.MotionKind == SpellMotionKind.Moving);
-            if (rules.MotionKind == SpellMotionKind.Moving) return TrySteerMoving(simulation, entity);
-            if (rules.MotionKind == SpellMotionKind.Stationary) return TryChaseStationary(simulation, entity);
+                return TryChaseOnPath(context, entity, (HomingState)state, rules.MotionKind == SpellMotionKind.Moving);
+            if (rules.MotionKind == SpellMotionKind.Moving) return TrySteerMoving(context, entity);
+            if (rules.MotionKind == SpellMotionKind.Stationary) return TryChaseStationary(context, entity);
             return false;
         }
 
@@ -48,11 +48,11 @@ namespace RuneCode
         /// 유도 범위 안 가장 가까운 미적중 적이 있으면 진행 방향을 초당 회전각을 넘지 않게 돌리고 이동 속도만큼 직진한 뒤 true를 반환한다.
         /// 대상이 없으면 행동의 기본 직진에 맡기도록 false를 반환한다.
         /// </summary>
-        private static bool TrySteerMoving(RuneSimulation simulation, SimulationSpellEntity entity)
+        private static bool TrySteerMoving(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             SpellStats stats = entity.Stats;
             if (stats.HomingTurn <= 0) return false;
-            SimulationEnemy target = simulation.NearestEnemy(entity.Position, stats.HomingRange, entity.HitTimes);
+            SimulationEnemy target = context.NearestEnemy(entity.Position, stats.HomingRange, entity.HitTimes);
             if (target == null) return false;
             SimVector direction = entity.Direction;
             double current = Math.Atan2(direction.Y, direction.X); SimVector toTarget = target.Position - entity.Position;
@@ -67,15 +67,15 @@ namespace RuneCode
         /// 예고가 끝났고 유도 범위 안에 적이 있으면 그 적 쪽으로 이동 속도만큼(닿으면 멈춤, 벽 통과 없음) 옮기고 true를 반환한다.
         /// 모양의 방향은 유지한다. 예고 중이거나 대상이 없으면 false를 반환한다.
         /// </summary>
-        private static bool TryChaseStationary(RuneSimulation simulation, SimulationSpellEntity entity)
+        private static bool TryChaseStationary(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             if (entity.IsWarning || entity.Stats.HomingRange <= 0) return false;
-            SimulationEnemy target = simulation.NearestEnemy(entity.Position, entity.Stats.HomingRange, RuneSimulation.NoExcludedTargets);
+            SimulationEnemy target = context.NearestEnemy(entity.Position, entity.Stats.HomingRange, SpellRuntimeContext.NoExcludedTargets);
             if (target == null) return false;
             SimVector offset = target.Position - entity.Position;
             double step = Math.Min(entity.Stats.Speed * RuneSimulation.STEP_SECONDS, offset.Length);
             if (step <= RuneSimulation.COLLISION_EPSILON) return true;
-            entity.Move(simulation.Map.Move(entity.Position, offset.Normalized() * step, entity.Radius), entity.Direction);
+            entity.Move(context.Map.Move(entity.Position, offset.Normalized() * step, entity.Radius), entity.Direction);
             return true;
         }
 
@@ -85,7 +85,7 @@ namespace RuneCode
         /// 새 대상은 경로 모드 진입이 끝났을 때만 고르고 행동 속도와 공전 이탈 속도 중 큰 값을 추적 속도로 저장한다.
         /// 대상이 없으면 false를 반환해 경로 모드에 이동을 맡긴다.
         /// </summary>
-        private static bool TryChaseOnPath(RuneSimulation simulation, SimulationSpellEntity entity, HomingState homing, bool isMoving)
+        private static bool TryChaseOnPath(SpellRuntimeContext context, SimulationSpellEntity entity, HomingState homing, bool isMoving)
         {
             SpellStats stats = entity.Stats;
             if (stats.HomingRange <= 0 || entity.IsWarning)
@@ -93,15 +93,15 @@ namespace RuneCode
                 homing.ChaseTargetId = 0;
                 return false;
             }
-            SimulationEnemy target = FindAliveEnemy(simulation, homing.ChaseTargetId);
+            SimulationEnemy target = FindAliveEnemy(context, homing.ChaseTargetId);
             if (target != null && ((isMoving && entity.HitTimes.ContainsKey(target.Id))
                 || (target.Position - entity.Position).Length > stats.HomingRange)) target = null;
             if (target == null)
             {
                 homing.ChaseTargetId = 0;
                 if (!entity.CanLeaveModifierPath()) return false;
-                target = simulation.NearestEnemy(entity.Position, stats.HomingRange,
-                    isMoving ? entity.HitTimes : RuneSimulation.NoExcludedTargets);
+                target = context.NearestEnemy(entity.Position, stats.HomingRange,
+                    isMoving ? entity.HitTimes : SpellRuntimeContext.NoExcludedTargets);
                 if (target == null) return false;
                 homing.StartChase(target.Id, Math.Max(stats.Speed, OrbitModifierRuntime.GetExitSpeed(entity)));
             }
@@ -114,21 +114,21 @@ namespace RuneCode
             }
             double step = Math.Min(homing.ChaseSpeed * RuneSimulation.STEP_SECONDS, offset.Length);
             if (step <= RuneSimulation.COLLISION_EPSILON) return true;
-            entity.Move(simulation.Map.Move(entity.Position, offset.Normalized() * step, entity.Radius), entity.Direction);
+            entity.Move(context.Map.Move(entity.Position, offset.Normalized() * step, entity.Radius), entity.Direction);
             return true;
         }
 
         /// <summary>ID가 enemyId인 살아 있는 적을 반환한다. 없거나 enemyId가 0이면 null이다.</summary>
-        private static SimulationEnemy FindAliveEnemy(RuneSimulation simulation, int enemyId)
+        private static SimulationEnemy FindAliveEnemy(SpellRuntimeContext context, int enemyId)
         {
             if (enemyId == 0) return null;
-            foreach (SimulationEnemy enemy in simulation.Enemies)
+            foreach (SimulationEnemy enemy in context.Enemies)
                 if (enemy.Id == enemyId && enemy.IsAlive) return enemy;
             return null;
         }
 
         /// <summary>새 경로를 그리기 시작하면 유도 대상과 지나친 대상 기록을 비운다.</summary>
-        public override void BeginPath(RuneSimulation simulation, SimulationSpellEntity entity, object state)
+        public override void BeginPath(SpellRuntimeContext context, SimulationSpellEntity entity, object state)
             => ((HomingState)state).Clear();
 
         /// <summary>
@@ -136,13 +136,13 @@ namespace RuneCode
         /// 지나친 대상으로 기록하고 놓는다. 대상이 없으면 false를 반환해 낮은 우선순위 이동 모드(공전)에 그 칸을 맡긴다.
         /// 회전량은 회전각 × (칸 길이 ÷ 경로 속도)다.
         /// </summary>
-        public override bool SteerPathStep(RuneSimulation simulation, SimulationSpellEntity entity, object state,
+        public override bool SteerPathStep(SpellRuntimeContext context, SimulationSpellEntity entity, object state,
             SimVector point, ref SimVector direction, double step, double pathSpeed, double halfWidth)
         {
             SpellStats stats = entity.Stats;
             if (stats.HomingRange <= 0 || stats.HomingTurn <= 0) return false;
             var path = (HomingState)state;
-            if (path.Target == null) path.Target = FindPathTarget(simulation, point, direction, stats.HomingRange, path);
+            if (path.Target == null) path.Target = FindPathTarget(context, point, direction, stats.HomingRange, path);
             if (path.Target == null) return false;
             SimVector offset = path.Target.Position - point;
             if (offset.Length <= Math.Max(step, path.Target.Radius + halfWidth) || SimVector.Dot(offset, direction) < 0)
@@ -166,7 +166,7 @@ namespace RuneCode
         /// 이미 고른 대상과 각도 차이가 반폭보다 작은 적은 건너뛴다. 반폭은 링 폭 기반 값을 20°~60°로 제한한 뒤 360° ÷ (1.5 × 대상 수) 이하로 줄인다.
         /// 유도 수치가 없으면 bends를 비우고 0을 반환한다.
         /// </summary>
-        internal static double SelectOrbitBends(RuneSimulation simulation, SimulationSpellEntity entity, SimVector startRadial,
+        internal static double SelectOrbitBends(SpellRuntimeContext context, SimulationSpellEntity entity, SimVector startRadial,
             double radius, List<OrbitBend> bends)
         {
             bends.Clear();
@@ -185,7 +185,7 @@ namespace RuneCode
             {
                 SimulationEnemy selected = null;
                 double bestScore = 0, selectedAngle = 0, selectedDistance = 0;
-                foreach (SimulationEnemy enemy in simulation.Enemies)
+                foreach (SimulationEnemy enemy in context.Enemies)
                 {
                     if (!enemy.IsAlive) continue;
                     SimVector offset = enemy.Position - center;
@@ -284,12 +284,12 @@ namespace RuneCode
         }
 
         /// <summary>진행 방향 앞의 유도 범위 안에서 이번 경로에서 지나치지 않은 가장 가까운 적을 고른다. 거리가 같으면 ID가 작은 적이다.</summary>
-        private static SimulationEnemy FindPathTarget(RuneSimulation simulation, SimVector point, SimVector direction,
+        private static SimulationEnemy FindPathTarget(SpellRuntimeContext context, SimVector point, SimVector direction,
             double range, HomingState path)
         {
             SimulationEnemy selected = null;
             double bestDistance = range * range;
-            foreach (SimulationEnemy enemy in simulation.Enemies)
+            foreach (SimulationEnemy enemy in context.Enemies)
             {
                 if (!enemy.IsAlive || path.HasPassed(enemy.Id)) continue;
                 SimVector offset = enemy.Position - point;
