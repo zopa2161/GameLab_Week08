@@ -34,10 +34,11 @@ namespace RuneCode
         void Awake()
         {
             GameData.Load();
+            GameData.SetCarrier(CarrierSpawnSettings.LoadDefinition());
             if (SimulationCli.TryRunCommandLine()) { enabled = false; return; }
             Application.targetFrameRate = GameData.Balance.Sim.TickRate;
             PlayerSave save = SaveStore.Load();
-            StageCatalog stages = RuneSimulation.LoadStageCatalog();
+            StageCatalog stages = GameData.Stages;
             UpgradeTreeDefinition upgradeTree = Resources.Load<UpgradeTreeDefinition>("RuneCode/UpgradeTree");
             if (upgradeTree == null) throw new InvalidOperationException("업그레이드 트리 자산이 없습니다: RuneCode/UpgradeTree");
             if (!upgradeTree.Validate(out string treeError)) throw new InvalidOperationException(treeError);

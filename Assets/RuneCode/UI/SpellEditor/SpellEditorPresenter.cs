@@ -36,7 +36,7 @@ namespace RuneCode
             _ui = ui;
             _view = view;
             _palette = new SpellPalettePresenter(editor, ui, view);
-            _inspector = new SpellInspectorPresenter(editor, view.Inspector, view.GraphCanvas, OpenSpellPicker);
+            _inspector = new SpellInspectorPresenter(editor, view.Inspector, view.GraphCanvas);
             _synthesis = new RuneSynthesisPresenter(editor, host, ui, view, _palette);
             BindView();
             _view.GraphCanvas.Initialize(_editor, _view.Font, _inspector.Select, ShowTooltip, _palette.OpenQuickPalette, _palette.OpenSlotPicker,
@@ -233,18 +233,6 @@ namespace RuneCode
             {
                 string spellId = graph.Id;
                 popup.AddSpell(graph.Name, graph.Id, () => { popup.Close(); _editor.SelectSpell(spellId); });
-            }
-        }
-
-        /// <summary>프리셋 호출 대상 선택 팝업을 열고 고른 마법 ID를 노드에 저장한다.</summary>
-        private void OpenSpellPicker(string nodeId)
-        {
-            SpellListPopup popup = _ui.OpenPopup<SpellListPopup>();
-            popup.Configure(GameData.L("ui.selectSpell"), null, null);
-            foreach (SpellGraph graph in _editor.Library)
-            {
-                string spellId = graph.Id;
-                popup.AddSpell(graph.Name, graph.Id, () => { popup.Close(); _editor.SetNodeText(nodeId, "spellId", spellId); });
             }
         }
 

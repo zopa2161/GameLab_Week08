@@ -22,8 +22,6 @@
     {"_key": "save.occupiedSlot", "_value": "이미 데이터가 있는 슬롯입니다. 저장 관리에서 세이브 데이터를 관리해 주세요."},
     {"_key": "save.noContinueSlots", "_value": "이어 할 저장 데이터가 없습니다."},
     {"_key": "save.damagedSlot", "_value": "읽을 수 없는 저장 데이터입니다. 저장 관리에서 세이브 데이터를 관리해 주세요."},
-    {"_key": "tag.legacy_burst", "_value": "레거시 폭발"},
-    {"_key": "form.legacy_burst", "_value": "레거시 폭발"},
     {"_key": "ui.burstHint", "_value": "생성 위치에서 원형 폭발을 일으킵니다."},
     {"_key": "ui.burstAngle", "_value": "파동 전체 각도"},
     {"_key": "ui.burstThickness", "_value": "파동 두께"},
@@ -33,10 +31,8 @@
     },
     { "_key": "ui.behavior.launch", "_value": "마법을 발사합니다." },
     { "_key": "ui.behavior.burst", "_value": "생성 위치에서 원형 폭발을 일으킵니다." },
-    { "_key": "ui.behavior.legacy_burst", "_value": "범위에 레거시 폭발 효과를 줍니다." },
     { "_key": "ui.behavior.persist", "_value": "효과를 남겨 일정 시간 유지합니다." },
     { "_key": "ui.behavior.beam", "_value": "버튼을 누르는 동안 빔을 유지합니다." },
-    { "_key": "ui.behavior.apply", "_value": "설정한 속성 효과를 대상에 적용합니다." },
     { "_key": "ui.element.fire", "_value": "적에게 화상 피해를 입힙니다." },
     { "_key": "ui.element.ice", "_value": "적을 둔화시키고 냉기가 누적되면 빙결시킵니다." },
     { "_key": "ui.element.lightning", "_value": "전격 피해와 EMP 효과를 부여합니다." },
@@ -124,16 +120,8 @@
       "_value": "보관함"
     },
     {
-      "_key": "ui.selectSpell",
-      "_value": "마법 함수 선택"
-    },
-    {
       "_key": "ui.executionOrder",
       "_value": "같은 실행 포트의 분기는 연결한 순서대로 실행됩니다"
-    },
-    {
-      "_key": "ui.missingSpell",
-      "_value": "대상을 찾을 수 없음"
     },
     {
       "_key": "ui.new",
@@ -336,14 +324,6 @@
       "_value": "시간제 전투 시작"
     },
     {
-      "_key": "ui.sector",
-      "_value": "폐허가 된 데이터센터 지구"
-    },
-    {
-      "_key": "ui.sectorDescription",
-      "_value": "4개 전투방과 거버너를 돌파하세요. 터미널에서 회복하고 마법을 재설계할 수 있습니다"
-    },
-    {
       "_key": "ui.back",
       "_value": "작업실로"
     },
@@ -354,18 +334,6 @@
     {
       "_key": "ui.resume",
       "_value": "계속"
-    },
-    {
-      "_key": "ui.terminal",
-      "_value": "안전 터미널"
-    },
-    {
-      "_key": "ui.editTerminal",
-      "_value": "마법 재설계"
-    },
-    {
-      "_key": "ui.nextRoom",
-      "_value": "다음 방"
     },
     {
       "_key": "ui.result",
@@ -496,26 +464,6 @@
       "_value": "엘리트 분열형 소환"
     },
     {
-      "_key": "scenario.dummy_single",
-      "_value": "단일 더미"
-    },
-    {
-      "_key": "scenario.dummy_line",
-      "_value": "일렬 더미"
-    },
-    {
-      "_key": "scenario.dummy_swarm",
-      "_value": "이동 무리"
-    },
-    {
-      "_key": "scenario.aegis",
-      "_value": "이지스 방패"
-    },
-    {
-      "_key": "scenario.adapt_loop",
-      "_value": "적응 실험"
-    },
-    {
       "_key": "category.core",
       "_value": "시작 조건"
     },
@@ -542,26 +490,6 @@
     {
       "_key": "category.magic",
       "_value": "마법"
-    },
-    {
-      "_key": "room.r1",
-      "_value": "R1 · 탐색 드론"
-    },
-    {
-      "_key": "room.r2",
-      "_value": "R2 · 보안 경계"
-    },
-    {
-      "_key": "room.r3",
-      "_value": "R3 · 이지스 방어선"
-    },
-    {
-      "_key": "room.r4",
-      "_value": "R4 · 릴레이 네트워크"
-    },
-    {
-      "_key": "room.boss",
-      "_value": "거버너 · 중앙 제어실"
     },
     {
       "_key": "mission.patch",
@@ -752,10 +680,6 @@
       "_value": "속성 또는 수식이 어느 형태에도 연결되지 않았습니다"
     },
     {
-      "_key": "param.seconds",
-      "_value": "지연 시간"
-    },
-    {
       "_key": "param.trigger",
       "_value": "시작 조건"
     },
@@ -772,10 +696,6 @@
       "_value": "형태"
     },
     {
-      "_key": "param.spellId",
-      "_value": "호출 대상"
-    },
-    {
       "_key": "param.power",
       "_value": "효과량"
     },
@@ -784,48 +704,12 @@
       "_value": "보호막 지속시간"
     },
     {
-      "_key": "param.times",
-      "_value": "반복 횟수"
-    },
-    {
-      "_key": "param.interval",
-      "_value": "반복 간격"
-    },
-    {
-      "_key": "param.type",
-      "_value": "조건 종류"
-    },
-    {
-      "_key": "param.pct",
-      "_value": "HP 기준 (%)"
-    },
-    {
       "_key": "param.status",
       "_value": "대상 상태"
     },
     {
-      "_key": "param.px",
-      "_value": "대상 거리"
-    },
-    {
       "_key": "param.distance",
       "_value": "점멸 거리"
-    },
-    {
-      "_key": "condition.targetHpBelow",
-      "_value": "대상 HP 미만"
-    },
-    {
-      "_key": "condition.targetHasStatus",
-      "_value": "대상 상태 보유"
-    },
-    {
-      "_key": "condition.targetDistanceBelow",
-      "_value": "대상 거리 미만"
-    },
-    {
-      "_key": "condition.selfHpBelow",
-      "_value": "자신 HP 미만"
     },
     {
       "_key": "status.burn",
@@ -970,10 +854,6 @@
     {
       "_key": "ui.introCode",
       "_value": "2076 / 고대 마법 · 현대의 메모리"
-    },
-    {
-      "_key": "ui.sectorPath",
-      "_value": "R1 → 터미널 → R2 → 터미널 → R3 → 터미널 → R4 → 터미널 → 거버너"
     },
     {
       "_key": "save.invalidValues",
@@ -1468,22 +1348,6 @@
       "_value": "보호막"
     },
     {
-      "_key": "ui.runeDelay",
-      "_value": "지연"
-    },
-    {
-      "_key": "ui.runeRepeat",
-      "_value": "반복"
-    },
-    {
-      "_key": "ui.runeCondition",
-      "_value": "조건"
-    },
-    {
-      "_key": "ui.runeCalledSpell",
-      "_value": "호출 마법"
-    },
-    {
       "_key": "category.magicType",
       "_value": "마법 타입"
     },
@@ -1510,10 +1374,6 @@
     {
       "_key": "element.lightning",
       "_value": "전격"
-    },
-    {
-      "_key": "element.healing",
-      "_value": "회복"
     },
     {
       "_key": "trigger.onAttack",

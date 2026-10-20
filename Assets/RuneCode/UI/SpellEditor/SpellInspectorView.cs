@@ -13,7 +13,6 @@ namespace RuneCode
         private const float LEFT = 14f;
         private const float WIDTH = 222f;
         private const float PARAMETER_ROW_HEIGHT = 64f;
-        private const float SPELL_PARAMETER_ROW_HEIGHT = 76f;
         private const float VALIDATION_BOTTOM = 460f;
         private const float MIN_VALIDATION_HEIGHT = 24f;
 
@@ -95,15 +94,6 @@ namespace RuneCode
             row.ConfigureEnum(label, valueLabel);
             row.OptionButton.onClick.AddListener(() => onClick());
             _top += PARAMETER_ROW_HEIGHT;
-        }
-
-        /// <summary>프리셋 호출 대상 행을 추가하고 클릭(대상 선택 팝업)을 동작으로 연결한다.</summary>
-        public void AddSpellRow(string label, string buttonLabel, Action onClick)
-        {
-            SpellParameterRow row = CreateRow();
-            row.ConfigureSpell(label, buttonLabel);
-            row.SpellButton.onClick.AddListener(() => onClick());
-            _top += SPELL_PARAMETER_ROW_HEIGHT;
         }
 
         /// <summary>프리팹 버튼을 추가하고 클릭을 동작으로 연결한다.</summary>

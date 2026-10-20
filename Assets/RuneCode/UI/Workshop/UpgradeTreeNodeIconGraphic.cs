@@ -133,14 +133,6 @@ namespace RuneCode
                 case "element.lightning":
                     Path(mesh,c,s,t, 3,16, -11,-2, -1,-2, -4,-16, 12,4, 2,4, 3,16);
                     break;
-                case "element.healing":
-                    Plus(mesh,c,s,t,10);
-                    Path(mesh,c,s,t, -14,-2, -14,-9, -7,-15, 7,-15, 14,-9, 14,-2);
-                    break;
-                case "element.protection":
-                    Path(mesh,c,s,t, 0,15, -13,9, -11,-4, 0,-15, 11,-4, 13,9, 0,15);
-                    Path(mesh,c,s,t, 0,9, 0,-7);
-                    break;
                 case "element.neutral":
                     Ring(mesh,c,s,t,0,0,13); Dot(mesh,c,s,t,0,0,3);
                     break;
@@ -167,9 +159,6 @@ namespace RuneCode
                     Path(mesh,c,s,t,-14,7,-5,7);
                     Path(mesh,c,s,t,-14,-7,-5,-7);
                     break;
-                case "behavior.legacy_burst":
-                    Path(mesh,c,s,t,0,16,4,7,13,11,9,2,16,-3,6,-5,5,-15,-2,-8,-12,-13,-8,-3,-16,3,-6,5,-7,14,0,16);
-                    break;
                 case "behavior.beam":
                     Path(mesh,c,s,t,-16,-2,16,-2);
                     Path(mesh,c,s,t,-16,2,16,2);
@@ -190,33 +179,6 @@ namespace RuneCode
                     Path(mesh,c,s,t,-7,-2,-10,4,-7,12);
                     Path(mesh,c,s,t,1,-2,-2,4,1,14);
                     Path(mesh,c,s,t,9,-2,6,4,9,10);
-                    break;
-                case "behavior.apply":
-                    Path(mesh,c,s,t,-14,10,-6,10,-6,0,8,0,3,5);
-                    Path(mesh,c,s,t,8,0,3,-5);
-                    Path(mesh,c,s,t,14,9,14,-12,-7,-12);
-                    break;
-                case "flow.repeat":
-                    Arc(mesh,c,s,t,0,0,12,25,165);
-                    Arc(mesh,c,s,t,0,0,12,205,345);
-                    Path(mesh,c,s,t,-12,11,-12,3,-4,4);
-                    Path(mesh,c,s,t,12,-11,12,-3,4,-4);
-                    break;
-                case "flow.delay":
-                    Ring(mesh,c,s,t,0,0,13);
-                    Path(mesh,c,s,t,0,9,0,0,7,-4);
-                    break;
-                case "flow.if":
-                    Path(mesh,c,s,t,0,-15,0,0,-11,11);
-                    Path(mesh,c,s,t,-11,4,-11,11,-4,11);
-                    Path(mesh,c,s,t,0,0,11,11,4,11);
-                    Path(mesh,c,s,t,11,11,11,4);
-                    break;
-                case "spell.call":
-                    Path(mesh,c,s,t,-14,12,-14,-12,-7,-12);
-                    Path(mesh,c,s,t,14,12,14,-12,7,-12);
-                    Path(mesh,c,s,t,-8,3,7,3,2,8);
-                    Path(mesh,c,s,t,7,3,2,-2);
                     break;
                 case "mod.amplify":
                     Path(mesh,c,s,t,-13,-11,0,2,13,-11);

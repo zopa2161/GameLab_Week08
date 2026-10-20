@@ -172,65 +172,22 @@ namespace RuneCode
     }
 
     [Serializable]
-    public sealed class MissionSpawn
-    {
-        [Header("웨이브 배치")]
-        [SerializeField] private string _enemyId;
-        [SerializeField] private int _point;
-        [SerializeField] private int _count;
-        public string EnemyId => _enemyId;
-        public int Point => _point;
-        public int Count => _count;
-    }
-
-    [Serializable]
-    public sealed class MissionWave
-    {
-        [Header("웨이브")]
-        [SerializeField] private MissionSpawn[] _spawns;
-        public IReadOnlyList<MissionSpawn> Spawns => _spawns;
-    }
-
-    [Serializable]
-    public sealed class MissionRoom
-    {
-        [Header("방")]
-        [SerializeField] private string _id;
-        [SerializeField] private string _nameKey;
-        [SerializeField] private string[] _tiles;
-        [SerializeField] private MissionWave[] _waves;
-        public string Id => _id;
-        public string NameKey => _nameKey;
-        public string[] Tiles => _tiles;
-        public IReadOnlyList<MissionWave> Waves => _waves;
-    }
-
-    [Serializable]
     public sealed class SectorDefinition
     {
-        [Header("섹터")]
+        [Header("시험 도크 맵")]
         [SerializeField] private int _tileSize;
         [SerializeField] private double _playerRadius;
-        [SerializeField] private double _spawnSpacing;
-        [SerializeField] private MissionRoom[] _rooms;
+        [SerializeField] private string[] _benchTiles;
         public int TileSize => _tileSize;
         public double PlayerRadius => _playerRadius;
-        public double SpawnSpacing => _spawnSpacing;
-        public IReadOnlyList<MissionRoom> Rooms => _rooms;
+        public string[] BenchTiles => _benchTiles;
 
-        /// <summary>방 데이터의 크기, 벽 경계, 시작점, 웨이브 및 스폰 참조를 검증하여 반환한다.</summary>
-        public static SectorDefinition FromJson(string json, EnemyCatalog enemies)
+        /// <summary>타일 크기·플레이어 반경과 시험 도크 맵 타일(벽 경계, 시작점)을 검증하여 반환한다.</summary>
+        public static SectorDefinition FromJson(string json)
         {
             var sector = JsonUtility.FromJson<SectorDefinition>(json);
-            if (sector == null || sector._rooms == null || sector._rooms.Length != 5 || sector._tileSize <= 0 || sector._playerRadius <= 0) throw new FormatException("섹터 구성 오류입니다.");
-            foreach (MissionRoom room in sector._rooms)
-            {
-                var map = new MissionMap(room.Tiles, sector.TileSize);
-                if (room.Waves == null || room.Waves.Count == 0) throw new FormatException("방에 웨이브가 없습니다: " + room.Id);
-                foreach (MissionWave wave in room.Waves)
-                    foreach (MissionSpawn spawn in wave.Spawns)
-                    { enemies.Get(spawn.EnemyId); if (spawn.Count < 1 || !map.HasPoint((char)('0' + spawn.Point))) throw new FormatException("스폰 참조 오류입니다."); }
-            }
+            if (sector == null || sector._benchTiles == null || sector._tileSize <= 0 || sector._playerRadius <= 0) throw new FormatException("섹터 구성 오류입니다.");
+            new MissionMap(sector._benchTiles, sector._tileSize);
             return sector;
         }
     }

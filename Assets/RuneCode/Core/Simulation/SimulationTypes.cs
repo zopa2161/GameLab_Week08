@@ -77,7 +77,7 @@ namespace RuneCode
         }
     }
 
-    public enum MissionStage { Bench, Combat, Terminal, Cleared, Dead, TimedOut }
+    public enum MissionStage { Bench, Combat, Cleared, Dead, TimedOut }
 
     public sealed class SimulationPlayer
     {

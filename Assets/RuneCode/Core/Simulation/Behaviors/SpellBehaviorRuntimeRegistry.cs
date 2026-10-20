@@ -9,7 +9,6 @@ namespace RuneCode
         private static readonly SpellBehaviorRuntime[] RUNTIMES =
         {
             new LaunchBehaviorRuntime(),
-            new LegacyBurstBehaviorRuntime(),
             new PersistBehaviorRuntime(),
             new BeamBehaviorRuntime(),
             new BurstBehaviorRuntime(),

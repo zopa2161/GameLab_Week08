@@ -384,7 +384,7 @@ namespace RuneCode
         {
             if (!_run.Simulation.Completed || _run.Simulation.StageNumber != GAME_CLEAR_STAGE
                 || !_session.TryMarkOnboardingEvent(PlayerSave.ONBOARDING_GAME_CLEAR)) return;
-            EncyclopediaEvent notice = EncyclopediaData.LoadResource()?.FindEvent(PlayerSave.ONBOARDING_GAME_CLEAR);
+            EncyclopediaEvent notice = GameData.Encyclopedia?.FindEvent(PlayerSave.ONBOARDING_GAME_CLEAR);
             if (notice == null)
             {
                 Debug.LogWarning("게임 도움말 JSON에 이벤트 안내가 없습니다: " + PlayerSave.ONBOARDING_GAME_CLEAR);
@@ -564,7 +564,7 @@ namespace RuneCode
         {
             if (_run.Simulation.StageNumber != ONBOARDING_ENTER_STAGE
                 || !_session.TryMarkOnboardingEvent(PlayerSave.ONBOARDING_STAGE_FIVE_ENTER)) return;
-            EncyclopediaEvent onboardingEvent = EncyclopediaData.LoadResource()?.FindEvent(PlayerSave.ONBOARDING_STAGE_FIVE_ENTER);
+            EncyclopediaEvent onboardingEvent = GameData.Encyclopedia?.FindEvent(PlayerSave.ONBOARDING_STAGE_FIVE_ENTER);
             if (onboardingEvent == null)
             {
                 Debug.LogWarning("게임 도움말 JSON에 이벤트 안내가 없습니다: " + PlayerSave.ONBOARDING_STAGE_FIVE_ENTER);

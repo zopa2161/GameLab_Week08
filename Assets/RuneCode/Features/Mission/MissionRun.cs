@@ -114,7 +114,7 @@ namespace RuneCode
             _seed = seed;
             _simulation = new RuneSimulation(seed, true, session.MaxHp, session.MaxEnergy, session.SelectedStage, session.EnergyRegen,
                 session.DamageMultiplier, session.MoveSpeedMultiplier, session.ScrapGainMultiplier,
-                carrier: CarrierSpawnSettings.LoadDefinition(), scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
+                carrier: GameData.Carrier, scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
                 killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio);
             _simulation.SetLoadout(new[] { spell });
             _simulation.SetUnlockedElements(session.GetUnlockedElements());

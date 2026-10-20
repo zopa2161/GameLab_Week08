@@ -32,7 +32,7 @@ namespace RuneCode
             var builder = new StringBuilder();
             builder.Append(BuildNameText(node)).Append("  ")
                 .Append(GameData.Runes.NodeRam(node)).Append(" ").Append(GameData.L("ui.ram"));
-            string summary = Summary(node, GameData.Runes.Get(node.RuneId), library);
+            string summary = Summary(node);
             if (!string.IsNullOrEmpty(summary)) builder.Append("\n<size=12>").Append(summary).Append("</size>");
             return builder.ToString();
         }
@@ -45,7 +45,7 @@ namespace RuneCode
             string energy = action == null ? "—" : action.NodeEnergy.ToString("0.#");
             builder.Append("<b><color=#").Append(_behaviorColorHex).Append(">")
                 .Append(energy).Append(" ").Append(GameData.L("ui.energy")).Append("</color></b>");
-            string summary = Summary(node, GameData.Runes.Get(node.RuneId), library);
+            string summary = Summary(node);
             if (!string.IsNullOrEmpty(summary)) builder.Append("\n<size=12>").Append(summary).Append("</size>");
             return builder.ToString();
         }
@@ -81,29 +81,12 @@ namespace RuneCode
                 ? ModifierGradeText.FormatName(modifierRune.Name, grade) : value;
         }
 
-        /// <summary>Trigger·Apply·프리셋 호출의 핵심 값(시작 조건, 속성, 호출 대상)을 반환하며 해당 없으면 null을 반환한다.</summary>
-        private static string Summary(GraphNode node, RuneDefinition rune, IEnumerable<SpellGraph> library)
+        /// <summary>Trigger 노드의 시작 조건 값을 반환하며 해당 없으면 null을 반환한다.</summary>
+        private static string Summary(GraphNode node)
         {
-            if (node.RuneId == SpellGrammar.CORE_RUNE)
-            {
-                string trigger = node.GetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK);
-                return LocalizedValue("trigger." + trigger, trigger);
-            }
-            if (rune.Id == SpellGrammar.APPLY_RUNE)
-            {
-                string element = node.GetText(SpellGrammar.ELEMENT_PARAM, "healing");
-                return LocalizedValue("element." + element, element);
-            }
-            if (node.RuneId == SpellGrammar.CALL_RUNE)
-            {
-                string spellId = node.GetText("spellId");
-                foreach (SpellGraph graph in library)
-                {
-                    if (graph.Id == spellId) return graph.Name;
-                }
-                return string.IsNullOrEmpty(spellId) ? GameData.L("ui.selectSpell") : GameData.L("ui.missingSpell");
-            }
-            return null;
+            if (node.RuneId != SpellGrammar.CORE_RUNE) return null;
+            string trigger = node.GetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK);
+            return LocalizedValue("trigger." + trigger, trigger);
         }
 
         /// <summary>현지화 값을 찾고 번역이 없으면 지정 원문을 반환한다.</summary>

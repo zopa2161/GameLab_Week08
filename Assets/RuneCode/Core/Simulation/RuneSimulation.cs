@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
-using UnityEngine;
-
 namespace RuneCode
 {
     public sealed class RuneSimulation
@@ -133,7 +131,6 @@ namespace RuneCode
         private int _freezeStartEventCount;
         private string _scenario;
         private bool _debugInvulnerable;
-        private string[] _lastPatchTags = Array.Empty<string>();
         public int Tick => _tick;
         public double Time => _tick * STEP_SECONDS;
         public SimulationPlayer Player => _player;
@@ -146,7 +143,7 @@ namespace RuneCode
         /// <summary>지면에 배치하는 폭발·잔류 명령인지 반환한다. 궤도 생성 등 다른 모드의 생성 규칙은 보존한다.</summary>
         public static bool IsAreaPreviewAction(SpellAction action)
             => action.Kind == "spawn" && action.SpawnOrigin == SpellSpawnOrigin.Ground
-                && (action.Form == SpellGrammar.FORM_LEGACY_BURST || action.Form == SpellGrammar.FORM_ZONE);
+                && action.Form == SpellGrammar.FORM_ZONE;
 
         /// <summary>지면 범위 명령 중 공전 모듈이 없는 경우에만 미리보기를 표시할 수 있는지 반환한다.</summary>
         public static bool CanShowAreaPreview(SpellAction action)
@@ -241,7 +238,6 @@ namespace RuneCode
         public bool IsDead => _stage == MissionStage.Dead;
         public bool IsTimedOut => _stage == MissionStage.TimedOut;
         public bool IsFailed => IsDead || IsTimedOut;
-        public bool IsTerminal => _stage == MissionStage.Terminal;
         public bool IsTimedBattle => _isMission;
         public int StageNumber => _stageNumber;
         public bool IsBossStage => _stageDefinition != null && _stageDefinition.IsBoss;
@@ -254,13 +250,9 @@ namespace RuneCode
         public int KillCount => _killCount;
         public int EnemyLimit => _balance.Limits.MaxEnemies;
         public int DroppedExecutions => _droppedExecutions;
-        public int RoomIndex => _stageNumber - 1;
-        public string RoomName => _isMission ? GameData.L("incremental.stage") + " " + _stageNumber : GameData.L("scenario." + _scenario);
-        public int CollectedFragments => _collectedFragments;
         public int NormalScrapPickupEventCount => _normalScrapPickupEventCount;
         public int BigScrapPickupEventCount => _bigScrapPickupEventCount;
         public int BigScrapSpawnEventCount => _bigScrapSpawnEventCount;
-        public int Fragments => _collectedFragments;
         /// <summary>플레이어가 직접 줍거나 스테이지 클리어 시 회수한 스크랩 누계를 반환한다.</summary>
         public int EarnedFragments => _collectedFragments;
         public int ClearReward => Completed && _stageDefinition != null ? _stages.Growth.GetClearReward(_stageDefinition.ClearReward, _stageNumber) : 0;
@@ -276,7 +268,6 @@ namespace RuneCode
         public IReadOnlyDictionary<string, double> ResourceCostsSpent => _resourceCostsSpent;
         public int PeakSpellEntities => _peakSpellEntities;
         public int NodeExecutionCount => _nodeExecutionCount;
-        public IReadOnlyList<string> LastPatchTags => _lastPatchTags;
         public bool AdaptationEnabled => Adaptation.Enabled;
         public bool DebugInvulnerable => _debugInvulnerable;
         /// <summary>저격수의 저장된 조준 경로를 벽과 공격 사거리로 제한한 끝점을 반환한다.</summary>
@@ -295,15 +286,14 @@ namespace RuneCode
             GameData.Load();
             _killEnergyBonus = Math.Max(0, killEnergyBonus);
             _balance = GameData.Balance;
-            _enemyCatalog = EnemyCatalog.FromJson(LoadJson("enemies"));
+            _enemyCatalog = GameData.Enemies;
             _carrier = carrier;
-            _carrier?.Validate(_enemyCatalog);
-            _sector = SectorDefinition.FromJson(LoadJson("sector1"), _enemyCatalog);
-            _formations = FormationCatalog.FromJson(LoadJson("formations"));
-            _bosses = BossCatalog.FromJson(LoadJson("bosses"), _enemyCatalog, _formations);
-            _drops = DropCatalog.FromJson(LoadJson("drops"));
+            _sector = GameData.Sector;
+            _formations = GameData.Formations;
+            _bosses = GameData.Bosses;
+            _drops = GameData.Drops;
             _eliteDrops = new ModifierGradeDropSource(GameData.ModifierGrades);
-            _stages = StageCatalog.FromJson(LoadJson("stages"), _enemyCatalog, _formations, _drops);
+            _stages = GameData.Stages;
             _isMission = isMission; _initialSeed = seed; _rngState = (uint)seed; _maxHp = maxHp > 0 ? maxHp : _balance.Player.Hp; _maxEnergy = maxEnergy > 0 ? maxEnergy : _balance.Player.Energy;
             _stageNumber = Math.Max(1, stageNumber);
             _energyRegen = energyRegen > 0 ? energyRegen : _balance.Player.EnergyRegen;
@@ -320,19 +310,6 @@ namespace RuneCode
             if (isMission) BeginTimedBattle();
             else ResetBench("dummy_single");
         }
-
-        /// <summary>스테이지·진형·드롭 JSON을 읽고 검증한 스테이지 목록을 반환한다. 앱의 출격 정보 표시에 쓴다.</summary>
-        public static StageCatalog LoadStageCatalog()
-        {
-            GameData.Load();
-            EnemyCatalog enemies = EnemyCatalog.FromJson(LoadJson("enemies"));
-            DropCatalog drops = DropCatalog.FromJson(LoadJson("drops"));
-            return StageCatalog.FromJson(LoadJson("stages"), enemies, FormationCatalog.FromJson(LoadJson("formations")), drops);
-        }
-
-        /// <summary>Resources에 포함된 JSON 텍스트를 읽고 누락된 필수 데이터 오류를 보고한다.</summary>
-        private static string LoadJson(string name)
-        { TextAsset asset = Resources.Load<TextAsset>("RuneCode/" + name); if (asset == null) throw new FormatException("누락된 룬 코드 데이터: " + name); return asset.text; }
 
         /// <summary>전투에서는 하나의 마법, 시험 도크에서는 최대 3슬롯의 컴파일 마법을 다음 시전부터 사용한다.</summary>
         public void SetLoadout(IReadOnlyList<CompiledSpell> spells)
@@ -554,9 +531,6 @@ namespace RuneCode
             TrimFeedback();
         }
 
-        /// <summary>시간제 전투에는 터미널 전환이 없으므로 진행 요청을 거부한다.</summary>
-        public bool InteractTerminal() => false;
-
         /// <summary>전투 중단 시 예약 노드 실행을 지우고 진행 중 시전 상태를 환급 없이 취소한다.</summary>
         public void CancelPendingSpellExecutions()
         {
@@ -564,9 +538,6 @@ namespace RuneCode
             _scheduled.Clear();
             _player.CancelSpellExecutions();
         }
-
-        /// <summary>터미널의 다음 방 진행 성공 여부를 반환한다.</summary>
-        public bool TryContinue() => InteractTerminal();
 
         /// <summary>독립 시험의 시드·상태·통계·시나리오 적을 초기화한다. dummyCount가 0이면 기존 일렬 배치 기본 수를 사용한다.</summary>
         public void ResetBench(string scenario, int dummyCount = 0)
@@ -594,7 +565,7 @@ namespace RuneCode
             _bigScrapSpawnEventCount = 0;
             _actionBudgetTick = -1; _actionsThisTick = 0; _droppedExecutions = 0;
             SimulationBalance bench = _balance.Sim;
-            _map = new MissionMap(_sector.Rooms[0].Tiles, _sector.TileSize); _player = new SimulationPlayer(_maxHp, _maxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
+            _map = new MissionMap(_sector.BenchTiles, _sector.TileSize); _player = new SimulationPlayer(_maxHp, _maxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
             Adaptation.Clear(); Adaptation.SetEnabled(scenario == "adapt_loop");
             if (scenario == "dummy_line")
             {
@@ -735,7 +706,7 @@ namespace RuneCode
         {
             SimVector move = input.Movement.Length > 1 ? input.Movement.Normalized() : input.Movement;
             if (move.LengthSquared > 0.000001) { _moveDirection = move.Normalized(); _hasMoveDirection = true; }
-            bool startedDash = input.Dash && _stage != MissionStage.Terminal
+            bool startedDash = input.Dash
                 && _player.StartDash(move.LengthSquared > 0.000001 ? move : _player.AimDirection, _balance.Player.DashSeconds, _balance.Player.DashCooldown, Time);
             SimVector displacement = _player.DashRemaining > 0 ? _player.GetDashDirection() * (_balance.Player.DashDistance / _balance.Player.DashSeconds * Math.Min(STEP_SECONDS, _player.DashRemaining)) : move * (_balance.Player.Speed * _moveSpeedMultiplier * STEP_SECONDS);
             _player.Move(_map.Move(_player.Position, displacement, _sector.PlayerRadius));
@@ -1015,10 +986,6 @@ namespace RuneCode
                     case "delay": Execute(action.Then, context, tracker); break;
                     case "repeat": ExecuteRepeat(action, context, tracker); break;
                     case "if": Execute(Evaluate(action.Condition, context) ? action.Then : action.Else, context, tracker); break;
-                    case "blink":
-                        SimVector destination = context.FromEvent ? _map.NearestFree(context.Origin, _sector.PlayerRadius) : _map.Move(_player.Position, context.Direction * action.Distance, _sector.PlayerRadius);
-                        _player.Move(destination); Execute(action.Next, context.WithOrigin(destination), tracker); break;
-                    case "shield": _player.GiveShield(action.ShieldAmount, action.ShieldSeconds, Time); Execute(action.Next, context, tracker); break;
                 }
             }
             finally
@@ -1173,7 +1140,7 @@ namespace RuneCode
                 RecordActionSpawn(action, context);
                 _spellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _spellEntities.Count);
                 if (action.Form == SpellGrammar.FORM_BOLT) _shotLaunchEventCount++;
-                else if (action.Form == SpellGrammar.FORM_BURST || action.Form == SpellGrammar.FORM_LEGACY_BURST) _shotBurstEventCount++;
+                else if (action.Form == SpellGrammar.FORM_BURST) _shotBurstEventCount++;
                 else if (action.Form == SpellGrammar.FORM_ZONE) _shotPersistEventCount++;
                 else if (action.Form == SlashBehaviorRules.KIND) _shotSlashEventCount++;
                 if (channel != null) ((BeamBehaviorRuntime.BeamState)entity.BehaviorState).Attach(channel);
@@ -1847,7 +1814,7 @@ namespace RuneCode
             if (boss.IsPatching) return;
             int next = boss.Phase == 1 && boss.Hp / boss.MaxHp <= pattern.PhaseTwoThreshold ? 2 : boss.Phase == 2 && boss.Hp / boss.MaxHp <= pattern.PhaseThreeThreshold ? 3 : boss.Phase;
             if (next == boss.Phase) return;
-            boss.Patch(next, Time, pattern.PatchSeconds); boss.Observe(Time); _lastPatchTags = Adaptation.LockTopDamageTags();
+            boss.Patch(next, Time, pattern.PatchSeconds); boss.Observe(Time); Adaptation.LockTopDamageTags();
             boss.AttackAt = Time + pattern.PatchSeconds + boss.Definition.WarningSeconds;
         }
 
@@ -2431,17 +2398,6 @@ namespace RuneCode
         /// <summary>이미 적중한 적을 제외하고 탐지 반경 내 가장 가까운 생존 적을 반환한다.</summary>
         internal SimulationEnemy NearestEnemy(SimVector position, double range, Dictionary<int, double> excluded)
         { SimulationEnemy result = null; double best = range * range; foreach (SimulationEnemy enemy in _enemies) { if (!enemy.IsAlive || excluded.ContainsKey(enemy.Id)) continue; double distance = (enemy.Position - position).LengthSquared; if (distance < best) { result = enemy; best = distance; } } return result; }
-
-        /// <summary>시전의 모든 실행 분기를 읽어 노이즈가 있을 때만 시전 단위 속성 선택이 필요한지 반환한다.</summary>
-        private static bool ContainsNoise(IReadOnlyList<SpellAction> actions)
-        {
-            foreach (SpellAction action in actions)
-                if (action.Noise || (action.CalledSpell != null && ContainsNoise(action.CalledSpell.Root))
-                    || ContainsNoise(action.OnHit) || ContainsNoise(action.OnExpire) || ContainsNoise(action.OnFirstHitOrExpire)
-                    || ContainsNoise(action.Then) || ContainsNoise(action.Else) || ContainsNoise(action.Body) || ContainsNoise(action.OnComplete)
-                    || ContainsNoise(action.Next)) return true;
-            return false;
-        }
 
         /// <summary>장착된 행동을 순회하고 노드별 실제 피해와 OnHit 후속 생성 누계를 로그용 복사본으로 반환한다.</summary>
         public IReadOnlyList<Dictionary<string, object>> GetActionCombatLogSnapshot()

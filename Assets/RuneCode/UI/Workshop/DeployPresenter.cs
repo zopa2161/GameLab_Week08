@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 
-using UnityEngine;
-
 namespace RuneCode
 {
     /// <summary>출격 탭 Presenter다. 해금 범위 안의 스테이지 선택과 출격 준비 검증 후 미션 화면 전환을 처리한다.</summary>
@@ -9,8 +7,6 @@ namespace RuneCode
     {
         private readonly RuneCodeSession _session;
         private readonly DeployPanel _view;
-        private readonly EnemyCatalog _enemies;
-        private readonly CarrierDefinition _carrier;
         private readonly HashSet<string> _previewEnemyIds = new HashSet<string>();
 
         /// <summary>세션과 출격 View를 받아 View 이벤트를 연결한다.</summary>
@@ -18,8 +14,6 @@ namespace RuneCode
         {
             _session = session;
             _view = view;
-            _enemies = EnemyCatalog.FromJson(Resources.Load<TextAsset>("RuneCode/enemies").text);
-            _carrier = CarrierSpawnSettings.LoadDefinition();
             _view.Bind();
             _view.StageStepClicked += ChangeStage;
             _view.LaunchClicked += Launch;
@@ -54,9 +48,9 @@ namespace RuneCode
         private void AddPreviewEnemy(string enemyId)
         {
             if (!_previewEnemyIds.Add(enemyId)) return;
-            EnemyDefinition enemy = _enemies.Get(enemyId);
+            EnemyDefinition enemy = GameData.Enemies.Get(enemyId);
             if (enemy.HasTrait(EnemyDefinition.TRAIT_CARRIER))
-                foreach (string childId in _carrier.EnemyIds) AddPreviewEnemy(childId);
+                foreach (string childId in GameData.Carrier.EnemyIds) AddPreviewEnemy(childId);
         }
 
         /// <summary>해금 범위 안에서 선택 스테이지를 이동하고 표시를 갱신한다.</summary>

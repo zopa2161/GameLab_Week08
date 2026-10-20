@@ -39,7 +39,44 @@ namespace RuneCode
         public static BalanceData Balance => _balance;
         public static IReadOnlyList<SpellGraph> Spells => _spells;
 
-        /// <summary>Resources의 룬 테이블(runes.json)과 밸런스·현지화·시작 마법 JSON을 한 번 읽고 스키마를 검증한다.</summary>
+        private static EnemyCatalog _enemies;
+        private static SectorDefinition _sector;
+        private static FormationCatalog _formations;
+        private static BossCatalog _bosses;
+        private static DropCatalog _drops;
+        private static StageCatalog _stages;
+        public static EnemyCatalog Enemies => _enemies;
+
+        /// <summary>시험 도크 맵 타일과 공용 타일 크기·플레이어 반경이다.</summary>
+        public static SectorDefinition Sector => _sector;
+        public static FormationCatalog Formations => _formations;
+        public static BossCatalog Bosses => _bosses;
+        public static DropCatalog Drops => _drops;
+        public static StageCatalog Stages => _stages;
+
+        private static CarrierDefinition _carrier;
+
+        /// <summary>부팅 시 캐리어 Prefab에서 읽어 등록한 생성 설정이다. 등록 전에는 null이다.</summary>
+        public static CarrierDefinition Carrier => _carrier;
+
+        private static EncyclopediaData _encyclopedia;
+        private static bool _hasLoadedEncyclopedia;
+
+        /// <summary>도움말 데이터를 처음 요청할 때 한 번 읽어 보관한다. 파일이 없거나 읽지 못하면 null을 보관하고 다시 읽지 않는다.</summary>
+        public static EncyclopediaData Encyclopedia
+        {
+            get
+            {
+                if (!_hasLoadedEncyclopedia)
+                {
+                    _encyclopedia = EncyclopediaData.LoadResource();
+                    _hasLoadedEncyclopedia = true;
+                }
+                return _encyclopedia;
+            }
+        }
+
+        /// <summary>Resources의 룬 테이블(runes.json)과 밸런스·현지화·시작 마법·적·스테이지 JSON을 한 번 읽고 스키마를 검증한다.</summary>
         public static void Load()
         {
             if (IsLoaded) return;
@@ -70,10 +107,31 @@ namespace RuneCode
                 CompileResult result = GraphCompiler.Compile(graph, runes, balance.Grammar, allRuneIds, int.MaxValue);
                 if (!result.Ok) throw new FormatException("시작 마법이 유효하지 않습니다: " + graph.Name);
             }
+            EnemyCatalog enemies = EnemyCatalog.FromJson(ReadResource("enemies"));
+            SectorDefinition sector = SectorDefinition.FromJson(ReadResource("sector1"));
+            FormationCatalog formations = FormationCatalog.FromJson(ReadResource("formations"));
+            BossCatalog bosses = BossCatalog.FromJson(ReadResource("bosses"), enemies, formations);
+            DropCatalog drops = DropCatalog.FromJson(ReadResource("drops"));
+            StageCatalog stages = StageCatalog.FromJson(ReadResource("stages"), enemies, formations, drops);
+            _enemies = enemies;
+            _sector = sector;
+            _formations = formations;
+            _bosses = bosses;
+            _drops = drops;
+            _stages = stages;
             _balance = balance;
             _modifierGrades = modifierGrades;
             _spells = spells;
             _runes = runes;
+        }
+
+        /// <summary>캐리어 생성 설정을 적 카탈로그로 검증하고 미션·도크·출격 화면이 함께 쓰도록 등록한다. Load 이후에 호출한다.</summary>
+        public static void SetCarrier(CarrierDefinition carrier)
+        {
+            if (!IsLoaded) throw new InvalidOperationException("게임 데이터를 먼저 읽어야 합니다.");
+            if (carrier == null) throw new ArgumentNullException(nameof(carrier));
+            carrier.Validate(_enemies);
+            _carrier = carrier;
         }
 
         /// <summary>

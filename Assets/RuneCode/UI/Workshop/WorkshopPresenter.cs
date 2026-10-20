@@ -32,9 +32,6 @@ namespace RuneCode
         private float _statusExpiresAt;
         private Vector2 _lastMouseScreenPosition;
 
-        private EncyclopediaData _encyclopedia;
-        private bool _hasLoadedEncyclopedia;
-
         /// <summary>세션·UI 관리자·작업실 View로 도크 구동과 탭 Presenter를 만들고 편집 패널과 탭 이벤트를 연결한다.</summary>
         public WorkshopPresenter(RuneCodeSession session, UIManager ui, WorkshopScreen view)
         {
@@ -172,7 +169,7 @@ namespace RuneCode
         /// <summary>헤더 도움말 버튼으로 가장 최근에 개방된 항목을 선택한 도움말을 연다.</summary>
         private void OpenHelp()
         {
-            _ui.OpenPopup<EncyclopediaPopup>().Configure(LoadEncyclopedia(), _session.UnlockedHelpCount, 0);
+            _ui.OpenPopup<EncyclopediaPopup>().Configure(GameData.Encyclopedia, _session.UnlockedHelpCount, 0);
         }
 
         /// <summary>온보딩 1단계에서 코어 노드가 행동 노드로 연결되면 2단계를 개방하고 해당 도움말을 연다.</summary>
@@ -204,26 +201,15 @@ namespace RuneCode
             int chapter = _session.ConsumePendingOnboarding();
             if (chapter > 0)
             {
-                EncyclopediaData data = LoadEncyclopedia();
+                EncyclopediaData data = GameData.Encyclopedia;
                 EncyclopediaEntry entry = data?.Entries != null && chapter <= data.Entries.Count ? data.Entries[chapter - 1] : null;
                 if (entry != null) _ui.OpenPopup<OnboardingPopup>().Configure(entry.Title, entry.Pages);
                 return;
             }
             if (!_session.TryConsumePendingOnboardingEvent(out string eventId)) return;
-            EncyclopediaEvent onboardingEvent = LoadEncyclopedia()?.FindEvent(eventId);
+            EncyclopediaEvent onboardingEvent = GameData.Encyclopedia?.FindEvent(eventId);
             if (onboardingEvent != null) _ui.OpenPopup<OnboardingPopup>().Configure(onboardingEvent.Title, onboardingEvent.Pages);
             else Debug.LogWarning("게임 도움말 JSON에 이벤트 안내가 없습니다: " + eventId);
-        }
-
-        /// <summary>처음 호출될 때 Resources JSON을 읽어 보관하고 도움말 데이터를 반환한다. 읽지 못하면 null을 반환한다.</summary>
-        private EncyclopediaData LoadEncyclopedia()
-        {
-            if (!_hasLoadedEncyclopedia)
-            {
-                _hasLoadedEncyclopedia = true;
-                _encyclopedia = EncyclopediaData.LoadResource();
-            }
-            return _encyclopedia;
         }
 
         /// <summary>도크를 다시 시작한 뒤 에디터 탭으로 전환하고 출격·헤더를 갱신한다.</summary>

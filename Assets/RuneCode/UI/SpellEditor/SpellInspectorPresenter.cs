@@ -16,19 +16,17 @@ namespace RuneCode
         private readonly ISpellEditor _editor;
         private readonly SpellInspectorView _view;
         private readonly RuneGraphCanvas _graph;
-        private readonly Action<string> _openSpellPicker;
         private GraphNode _selected;
         private GraphNode _hoveredNode;
         private RuneDefinition _hoveredRune;
         private string _hoveredGrade;
 
-        /// <summary>편집 세션, 인스펙터 View, 그래프(검증 항목 포커스용)와 프리셋 대상 선택 팝업 열기 동작으로 Presenter를 만든다.\n</summary>
-        public SpellInspectorPresenter(ISpellEditor editor, SpellInspectorView view, RuneGraphCanvas graph, Action<string> openSpellPicker)
+        /// <summary>편집 세션, 인스펙터 View, 그래프(검증 항목 포커스용)로 Presenter를 만든다.\n</summary>
+        public SpellInspectorPresenter(ISpellEditor editor, SpellInspectorView view, RuneGraphCanvas graph)
         {
             _editor = editor;
             _view = view;
             _graph = graph;
-            _openSpellPicker = openSpellPicker;
         }
 
         /// <summary>룬의 동작 설명과 지정 등급의 현재 효과 값을 반환한다.\n</summary>
@@ -44,8 +42,6 @@ namespace RuneCode
                     break;
                 case "element.ice": case "elem.ice": effect = "적을 둔화시키고 냉기가 누적되면 빙결시킵니다.\n"; break;
                 case "element.lightning": case "elem.arc": effect = "전격 피해와 EMP 효과를 부여합니다.\n"; break;
-                case "element.healing": effect = "회복 효과를 적용합니다.\n"; break;
-                case "element.protection": effect = "장착한 행동에 따라 보호 효과를 적용합니다.\n"; break;
                 case "mod.amplify": effect = "피해·회복 등 효과의 위력을 높입니다.\n"; break;
                 case "mod.saving": effect = GameData.L("ui.savingHint"); break;
                 case "mod.multi": effect = "생성 개수를 늘립니다.\n 발사는 전용 개수와 퍼짐을 사용합니다.\n"; break;
@@ -57,13 +53,10 @@ namespace RuneCode
                 case "mod.speed": effect = "이동 속도를 높입니다.\n"; break;
                 case "mod.duration": effect = "효과의 지속시간을 늘립니다.\n"; break;
                 case "behavior.launch": effect = "마법을 발사합니다.\n"; break;
-                case "behavior.legacy_burst": effect = "범위에 레거시 폭발 효과를 줍니다.\n"; break;
                 case "behavior.persist": effect = "일정 시간 유지되는 장판을 생성합니다.\n"; break;
                 case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
                 case "behavior.burst": effect = GameData.L("ui.burstHint"); break;
                 case "behavior.slash" : effect = GameData.L("ui.slashHint"); break;
-                //case SlashBehaviorRules.RUNE_ID: effect = GameData.L("ui.sdlashHint"); break;
-                case "behavior.apply": effect = "설정한 속성 효과를 대상에 적용합니다.\n"; break;
                 default: effect = string.Empty; break;
             }
             object value = GameData.ModifierGrades.GetGradeValue(rune.Id, grade);
@@ -293,8 +286,7 @@ namespace RuneCode
             {
                 case "behavior.launch": return "form.bolt";
                 case "behavior.burst": return "form.burst";
-                case "behavior.persist":
-                case "behavior.apply": return "form.zone";
+                case "behavior.persist": return "form.zone";
                 default: return null;
             }
         }
@@ -332,46 +324,11 @@ namespace RuneCode
                 return;
             }
 
-            if (behavior.Id == SpellGrammar.APPLY_RUNE)
-            {
-                AddApplyStats(lines, action, behavior, node);
-            }
-            else
-            {
-                SpellStats stats = action?.Stats;
-                lines.Add(FormatTransition(GameData.L("ui.runeDamageAmount"), form.Stats.Damage, stats == null ? form.Stats.Damage : stats.Damage));
-                lines.Add(FormatTransition(GameData.L("ui.runeCount"), form.Stats.Count, action == null ? form.Stats.Count : action.Count));
-                lines.Add(FormatTransition(GameData.L("ui.runeLifetime"), form.Stats.Lifetime, stats == null ? form.Stats.Lifetime : stats.Lifetime, "s"));
-            }
+            SpellStats stats = action?.Stats;
+            lines.Add(FormatTransition(GameData.L("ui.runeDamageAmount"), form.Stats.Damage, stats == null ? form.Stats.Damage : stats.Damage));
+            lines.Add(FormatTransition(GameData.L("ui.runeCount"), form.Stats.Count, action == null ? form.Stats.Count : action.Count));
+            lines.Add(FormatTransition(GameData.L("ui.runeLifetime"), form.Stats.Lifetime, stats == null ? form.Stats.Lifetime : stats.Lifetime, "s"));
             _view.AddNote(string.Join("\n", lines), 34, 6);
-        }
-
-        /// <summary>Apply 행동의 효과 강도와 보호막 지속시간을 기본값에서 Modifier 적용값까지 표시한다.\n</summary>
-        private static void AddApplyStats(List<string> lines, SpellAction action, RuneDefinition behavior, GraphNode node)
-        {
-            string sourceElement = action?.SourceElement;
-            if (string.IsNullOrEmpty(sourceElement) && GameData.Runes.TryGetNodeElement(node, out ElementDefinition element))
-                sourceElement = element.InternalValue;
-            if (sourceElement == "heal" || sourceElement == "protection")
-            {
-                float basePower = action == null ? GetDefaultNumber(behavior, node, SpellGrammar.POWER_PARAM) : action.Power;
-                float damageMultiplier = action?.ModifierValues?.DamageMultiplier ?? 1f;
-                lines.Add(FormatTransition(GameData.L("ui.runePower"), basePower, basePower * damageMultiplier));
-            }
-            if (sourceElement == "protection")
-            {
-                float baseDuration = action == null ? GetDefaultNumber(behavior, node, SpellGrammar.BUFF_DURATION_PARAM) : action.BuffDuration;
-                float durationMultiplier = action?.ModifierValues?.DurationMultiplier ?? 1f;
-                lines.Add(FormatTransition(GameData.L("ui.runeBuffDuration"), baseDuration, baseDuration * durationMultiplier, "s"));
-            }
-        }
-
-        /// <summary>행동 노드에서 지정 파라미터 값을 읽고 없으면 룬 정의의 기본값을 반환한다.\n</summary>
-        private static float GetDefaultNumber(RuneDefinition rune, GraphNode node, string parameterId)
-        {
-            foreach (ParameterDefinition parameter in rune.Params)
-                if (parameter.Id == parameterId) return node.GetNumber(parameterId, parameter.DefaultNumber);
-            return 0f;
         }
 
         /// <summary>숫자 두 개를 지정 라벨과 기본값→적용값 형태로 묶어 반환한다.\n</summary>
@@ -419,8 +376,6 @@ namespace RuneCode
             {
                 var lines = new List<string>();
                 if (action.Kind == "spawn" || action.Kind == "buff")
-                    lines.Add(GameData.L("ui.runeEffectiveCost") + " " + FormatCosts(action.OwnCosts));
-                else if (action.Kind == "call")
                     lines.Add(GameData.L("ui.runeEffectiveCost") + " " + FormatCosts(action.OwnCosts));
                 if (action.EnergyMultiplier != 1f)
                     lines.Add(GameData.L("ui.runeAppliedMultiplier") + " ×" + action.EnergyMultiplier.ToString("0.##"));
@@ -576,35 +531,6 @@ namespace RuneCode
             if (action.ShieldAmount > 0f)
                 effect.Add(GameData.L("ui.runeShield") + " " + action.ShieldAmount.ToString("0.##") + " · " + action.ShieldSeconds.ToString("0.##") + "s");
             if (effect.Count > 0) lines.Add(string.Join(" · ", effect));
-
-            if (action.Kind == "delay")
-                lines.Add(GameData.L("ui.runeDelay") + " " + action.Seconds.ToString("0.##") + "s");
-            else if (action.Kind == "repeat")
-                lines.Add(GameData.L("ui.runeRepeat") + " " + action.Times + " · " + action.Interval.ToString("0.##") + "s");
-            else if (action.Kind == "if" && action.Condition != null)
-                lines.Add(GameData.L("ui.runeCondition") + " " + FormatCondition(action.Condition));
-
-            if (action.CalledSpell != null)
-                lines.Add(GameData.L("ui.runeCalledSpell") + " " + action.CalledSpell.Name + " · "
-                    + action.CalledSpell.GetEstimatedExecutionSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.##") + "s");
-        }
-
-        /// <summary>조건 유형에 맞는 퍼센트·거리·상태 값만 붙여 사용자용 조건 요약을 반환한다.\n</summary>
-        private static string FormatCondition(SpellCondition condition)
-        {
-            string value = OptionLabel("type", condition.Type);
-            switch (condition.Type)
-            {
-                case "targetHpBelow":
-                case "selfHpBelow":
-                    return value + " " + condition.Pct.ToString("0.#") + "%";
-                case "targetDistanceBelow":
-                    return value + " " + condition.Px.ToString("0.#") + "px";
-                case "targetHasStatus":
-                    return value + " " + OptionLabel("status", condition.Status);
-                default:
-                    return value;
-            }
         }
 
         /// <summary>자원별 비용을 현지화 이름과 수치로 반환하고 비용이 없으면 0을 반환한다.\n</summary>
@@ -746,10 +672,6 @@ namespace RuneCode
                     text => { if (float.TryParse(text, out float amount)) _editor.SetNodeNumber(nodeId, parameter.Id, Mathf.Clamp(amount, parameter.Min, parameter.Max)); },
                     () => StepNumber(nodeId, parameter, -1), () => StepNumber(nodeId, parameter, 1));
             }
-            else if (parameter.Kind == "text" && rune.Id == SpellGrammar.CALL_RUNE && parameter.Id == "spellId")
-            {
-                _view.AddSpellRow(label, CalledSpellLabel(node.GetText(parameter.Id, parameter.DefaultText)), () => _openSpellPicker(nodeId));
-            }
             else if (parameter.Kind == "text")
             {
                 _view.AddTextRow(label, node.GetText(parameter.Id, parameter.DefaultText), text => _editor.SetNodeText(nodeId, parameter.Id, text));
@@ -847,14 +769,6 @@ namespace RuneCode
             float value = node.GetNumber(parameter.Id, parameter.DefaultNumber) + parameter.Step * direction;
             _editor.SetNodeNumber(nodeId, parameter.Id, Mathf.Clamp(value, parameter.Min, parameter.Max));
             Refresh();
-        }
-
-        /// <summary>프리셋 호출 대상 ID를 보관함 이름과 ID, 미선택 또는 없는 마법 안내 문구로 바꿔 반환한다.\n</summary>
-        private string CalledSpellLabel(string spellId)
-        {
-            SpellGraph called = _editor.Library.FirstOrDefault(graph => graph.Id == spellId);
-            if (called != null) return called.Name + "\n" + called.Id;
-            return string.IsNullOrEmpty(spellId) ? GameData.L("ui.selectSpell") : spellId + " · " + GameData.L("ui.missingSpell");
         }
 
         /// <summary>

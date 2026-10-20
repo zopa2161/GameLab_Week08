@@ -20,9 +20,7 @@ namespace RuneCode
         public float MaxEnergy => _maxEnergy;
         public float EnergyRegen => _energyRegen;
         public float DashDistance => _dashDistance;
-        public float DashDuration => _dashDuration;
         public float DashCooldown => _dashCooldown;
-        public float HitInvulnerability => _hitInvulnerability;
         public float Hp => _maxHp;
         public float Speed => _moveSpeed;
         public float Energy => _maxEnergy;
@@ -136,7 +134,6 @@ namespace RuneCode
         [SerializeField] private int _behaviorStartStock;
         [SerializeField] private float _orbAbsorbRadius;
         [SerializeField] private float _pickupAttractSpeed = 480f;
-        [SerializeField] private float _terminalHeal;
         [SerializeField] private float _killEnergyCreditRatio;
         public int SlotCost => _slotCost;
         public float DeathRetention => _deathRetention;
@@ -152,7 +149,6 @@ namespace RuneCode
         public float OrbAbsorbRadius => _orbAbsorbRadius;
         /// <summary>자석 이동 중 아이템이 플레이어를 향해 이동하는 초당 거리다.</summary>
         public float PickupAttractSpeed => _pickupAttractSpeed;
-        public float TerminalHeal => _terminalHeal;
 
         /// <summary>적을 처치했을 때 떨어뜨린 크레딧에서 회복하는 에너지 비율이다.</summary>
         public float KillEnergyCreditRatio => _killEnergyCreditRatio;
@@ -176,7 +172,6 @@ namespace RuneCode
         [Header("시뮬레이션")]
         [SerializeField] private int _tickRate;
         [SerializeField] private float _multiOffset;
-        [SerializeField] private float _telemetryHighlightSeconds;
         [SerializeField] private float _benchPlayerX;
         [SerializeField] private float _benchPlayerY;
         [SerializeField] private float _benchDummyX;
@@ -196,11 +191,9 @@ namespace RuneCode
         [SerializeField] private float _damageNumberSeconds;
         [SerializeField] private float _wandOffset;
         [SerializeField] private float _areaPlacementRange;
-        [SerializeField] private float _beamCooldownSeconds;
         [SerializeField] private float _executionTimeScale = 1f;
         public int TickRate => _tickRate;
         public float MultiOffset => _multiOffset;
-        public float TelemetryHighlightSeconds => _telemetryHighlightSeconds;
         public float BenchPlayerX => _benchPlayerX;
         public float BenchPlayerY => _benchPlayerY;
         public float BenchDummyX => _benchDummyX;
@@ -222,9 +215,6 @@ namespace RuneCode
 
         /// <summary>플레이어 중심에서 폭발·잔류를 배치할 수 있는 공통 최대 거리(px)다.</summary>
         public float AreaPlacementRange => _areaPlacementRange;
-
-        /// <summary>공격 시작에 직접 연결한 빔이 종료된 뒤 적용하는 재시전 쿨다운(초)이다.</summary>
-        public float BeamCooldownSeconds => _beamCooldownSeconds;
 
         /// <summary>룬 실행 시간 기여분의 전역 배율이며 0이면 Shape·Behavior 노드 시간 기여를 끈다.</summary>
         public float ExecutionTimeScale => _executionTimeScale;
@@ -271,29 +261,29 @@ namespace RuneCode
                 || data.Combat.BurnDamageRatio < 0f || data.Combat.BurnDamageRatio > 1f)
                 throw new FormatException("화상 공격 피해 비율은 0 이상 1 이하의 유한한 숫자여야 합니다.");
             float[] values = { data.Player.MaxHp, data.Player.MoveSpeed, data.Player.MaxEnergy, data.Player.EnergyRegen,
-                data.Player.DashDistance, data.Player.DashDuration, data.Player.DashCooldown, data.Player.HitInvulnerability,
+                data.Player.DashDistance, data.Player.DashSeconds, data.Player.DashCooldown, data.Player.HurtInvulnerability,
                 data.Adaptation.ElementLearning, data.Adaptation.FormLearning, data.Adaptation.ElementCap, data.Adaptation.FormCap,
                 data.Adaptation.DotWeight, data.Adaptation.NoiseMultiplier, data.Adaptation.RelayMultiplier, data.Adaptation.DecayDelay,
                 data.Adaptation.DecayPerSecond, data.Adaptation.ResistanceThreshold, data.Combat.BurnDps, data.Combat.BurnInterval,
                 data.Combat.BurnSeconds, data.Combat.ChillSlow, data.Combat.ChillSeconds, data.Combat.FreezeSeconds,
                 data.Combat.FreezeImmunity, data.Combat.EmpSeconds, data.Combat.AegisAngle, data.Combat.AegisReduction,
                 data.Combat.RelayRadius, data.Combat.RelayRegen, data.Economy.DeathRetention, data.Economy.OrbAbsorbRadius,
-                data.Economy.TerminalHeal, data.Economy.KillEnergyCreditRatio, data.Economy.PickupAttractSpeed, data.Ram.CooldownBase, data.Ram.CooldownPerRam, data.Sim.MultiOffset,
-                data.Sim.TelemetryHighlightSeconds, data.Sim.BenchPlayerX, data.Sim.BenchPlayerY, data.Sim.BenchDummyX,
+                data.Economy.KillEnergyCreditRatio, data.Economy.PickupAttractSpeed, data.Ram.CooldownBase, data.Ram.CooldownPerRam, data.Sim.MultiOffset,
+                data.Sim.BenchPlayerX, data.Sim.BenchPlayerY, data.Sim.BenchDummyX,
                 data.Sim.BenchDummyY, data.Sim.BenchHp, data.Sim.BenchLineStartX, data.Sim.BenchLineGap, data.Sim.BenchSwarmX,
                 data.Sim.BenchSwarmY, data.Sim.BenchSwarmGapX, data.Sim.BenchSwarmGapY, data.Sim.SpellVisualSeconds,
-                data.Sim.HitFlashSeconds, data.Sim.DamageNumberSeconds, data.Sim.WandOffset, data.Sim.AreaPlacementRange, data.Sim.BeamCooldownSeconds,
+                data.Sim.HitFlashSeconds, data.Sim.DamageNumberSeconds, data.Sim.WandOffset, data.Sim.AreaPlacementRange,
                 data.Sim.ExecutionTimeScale, data.Combat.SeparationAllowance, data.Combat.SeparationStrength,
                 data.Combat.SeparationMaxStep };
             foreach (float value in values)
                 //if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f)
                 //    throw new FormatException("밸런스 값은 유한한 0 이상이어야 합니다.");
-                if (data.Player.MoveSpeed <= 0f || data.Player.DashDuration <= 0f || data.Combat.BurnInterval <= 0f
+                if (data.Player.MoveSpeed <= 0f || data.Player.DashSeconds <= 0f || data.Combat.BurnInterval <= 0f
                     || data.Combat.ChillMaxStacks <= 0 || data.Combat.ChillImmuneMaxStacks <= 0
                     || data.Combat.ChillImmuneMaxStacks >= data.Combat.ChillMaxStacks
                     || data.Adaptation.ElementCap > 1f || data.Adaptation.FormCap > 1f
                     || data.Combat.AegisReduction > 1f || data.Combat.ChillSlow > 1f
-                    || data.Economy.DeathRetention > 1f || data.Economy.TerminalHeal > 1f || data.Economy.MaxLibrary <= 0
+                    || data.Economy.DeathRetention > 1f || data.Economy.MaxLibrary <= 0
                     || data.Economy.ModifierStartStock < 0 || data.Economy.BehaviorStartStock < 0
                     || data.Economy.SlotCost <= 0 || data.Economy.PickupAttractSpeed <= 0f
                     || data.Combat.SeparationAllowance <= 0f || data.Combat.SeparationAllowance > 1f

@@ -44,8 +44,7 @@ namespace RuneCode
         private static readonly Color WALL_COLOR = new Color(0.13f, 0.20f, 0.27f);
         private static readonly Color WALL_EDGE_COLOR = new Color(0.23f, 0.40f, 0.47f);
         private static readonly Color FLOOR_DOT_COLOR = new Color(0.15f, 0.22f, 0.29f);
-        private static readonly Color TERMINAL_ACTIVE_COLOR = new Color(0.26f, 0.91f, 0.66f);
-        private static readonly Color TERMINAL_IDLE_COLOR = new Color(0.26f, 0.43f, 0.49f);
+        private static readonly Color MAP_MARKER_COLOR = new Color(0.26f, 0.43f, 0.49f);
         private static readonly Color HOSTILE_COLOR = new Color(1, 0.33f, 0.42f);
         private static readonly Color PERSIST_WARNING_COLOR = new Color(1f, 0.25f, 0.25f);
         private static readonly Color HOSTILE_TRAIL_COLOR = new Color(1, 0.25f, 0.3f, 0.25f);
@@ -291,8 +290,7 @@ namespace RuneCode
                     }
                     RuneMesh.Rect(mesh, new Rect(corner, Vector2.one * _scale), FLOOR_DOT_COLOR);
                     if (cell != 'D' && cell != 'T') continue;
-                    Color marker = sim.Stage == MissionStage.Terminal ? TERMINAL_ACTIVE_COLOR : TERMINAL_IDLE_COLOR;
-                    RuneMesh.Ring(mesh, corner + Vector2.one * (tile / 2), 12 * _scale, 2 * _scale, marker, 4);
+                    RuneMesh.Ring(mesh, corner + Vector2.one * (tile / 2), 12 * _scale, 2 * _scale, MAP_MARKER_COLOR, 4);
                 }
             }
         }

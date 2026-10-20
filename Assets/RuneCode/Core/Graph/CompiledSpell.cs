@@ -486,7 +486,6 @@ namespace RuneCode
         private readonly int _times;
         private readonly float _interval;
         private readonly SpellCondition _condition;
-        private readonly float _distance;
         private readonly float _shieldAmount;
         private readonly float _shieldSeconds;
         private readonly float _power;
@@ -537,7 +536,6 @@ namespace RuneCode
         public int Times => _times;
         public float Interval => _interval;
         public SpellCondition Condition => _condition;
-        public float Distance => _distance;
         public float ShieldAmount => _shieldAmount;
         public float ShieldSeconds => _shieldSeconds;
         /// <summary>과충전 모드의 최대 충전 피해 배율이다. 모드가 없으면 1이다.</summary>
@@ -689,7 +687,6 @@ namespace RuneCode
             _seconds = node.GetNumber("seconds", DefaultNumber(rune, "seconds"));
             _times = (int)node.GetNumber("times", DefaultNumber(rune, "times"));
             _interval = node.GetNumber("interval", DefaultNumber(rune, "interval"));
-            _distance = node.GetNumber("distance", DefaultNumber(rune, "distance"));
             _power = node.GetNumber("power", DefaultNumber(rune, "power"));
             _buffDuration = node.GetNumber("buffDuration", DefaultNumber(rune, "buffDuration"));
             _shieldAmount = rune.Stats.ShieldAmount;
@@ -1036,10 +1033,6 @@ namespace RuneCode
                     break;
                 case "buff":
                     nextTicks = EstimateExecutionTicks(action.OnFirstHitOrExpire, executionTimeScale, inheritedModifiers);
-                    break;
-                case "blink":
-                case "shield":
-                    nextTicks = EstimateExecutionTicks(action.Next, executionTimeScale, inheritedModifiers);
                     break;
                 default:
                     nextTicks = EstimateExecutionTicks(action.Next, executionTimeScale, inheritedModifiers);

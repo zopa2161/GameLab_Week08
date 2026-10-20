@@ -10,7 +10,6 @@ namespace RuneCode
         private static readonly SpellBehaviorRules[] RULES =
         {
             new LaunchBehaviorRules(),
-            new LegacyBurstBehaviorRules(),
             new PersistBehaviorRules(),
             new BeamBehaviorRules(),
             new ExplosionBehaviorRules(),

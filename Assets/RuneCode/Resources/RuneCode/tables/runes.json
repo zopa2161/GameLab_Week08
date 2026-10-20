@@ -91,10 +91,8 @@
       "_modifierTargets": [
         "behavior.launch",
         "behavior.burst",
-        "behavior.legacy_burst",
         "behavior.persist",
         "behavior.beam",
-        "spell.call",
         "behavior.slash"
       ]
     },
@@ -280,68 +278,6 @@
         {
           "_order": 0,
           "_tag": "burst"
-        }
-      ]
-    },
-    {
-      "_id": "form.legacy_burst",
-      "_name": "레거시 폭발 수치",
-      "_category": "internal",
-      "_ram": 1,
-      "_energy": 12,
-      "_energyMult": 1,
-      "_unlockType": "start",
-      "_stats": {
-        "_damage": 14,
-        "_radius": 70,
-        "_offset": 120,
-        "_count": 1,
-        "_damageMultiplier": 1,
-        "_radiusMultiplier": 1,
-        "_learningMultiplier": 1,
-        "_expandSeconds": 0.3
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "mod",
-          "_kind": "mod",
-          "_direction": "in",
-          "_max": 0
-        },
-        {
-          "_order": 2,
-          "_portId": "onHit",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        },
-        {
-          "_order": 3,
-          "_portId": "onExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        },
-        {
-          "_order": 4,
-          "_portId": "onFirstHitOrExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        }
-      ],
-      "_tags": [
-        {
-          "_order": 0,
-          "_tag": "legacy_burst"
         }
       ]
     },
@@ -591,11 +527,9 @@
       "_modifierTargets": [
         "behavior.launch",
         "behavior.burst",
-        "behavior.legacy_burst",
         "behavior.persist",
         "behavior.beam",
-        "behavior.slash",
-        "behavior.apply"
+        "behavior.slash"
       ]
     },
     {
@@ -623,10 +557,7 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.legacy_burst",
         "behavior.persist",
-        "behavior.apply",
-        "spell.call",
         "behavior.beam",
         "behavior.burst",
         "behavior.slash"
@@ -659,9 +590,7 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.legacy_burst",
         "behavior.persist",
-        "spell.call",
         "behavior.beam",
         "behavior.slash"
       ]
@@ -707,8 +636,7 @@
         }
       ],
       "_modifierTargets": [
-        "behavior.launch",
-        "spell.call"
+        "behavior.launch"
       ]
     },
     {
@@ -790,7 +718,6 @@
       "_modifierTargets": [
         "behavior.launch",
         "behavior.persist",
-        "spell.call",
         "behavior.beam"
       ]
     },
@@ -853,9 +780,7 @@
       ],
       "_modifierTargets": [
         "behavior.launch",
-        "behavior.legacy_burst",
         "behavior.persist",
-        "spell.call",
         "behavior.beam",
         "behavior.burst",
         "behavior.slash"
@@ -888,234 +813,9 @@
       "_modifierTargets": [
         "behavior.launch",
         "behavior.persist",
-        "spell.call",
         "behavior.burst",
         "behavior.slash"
       ]
-    },
-    {
-      "_id": "flow.delay",
-      "_name": "지연",
-      "_disabled": true,
-      "_category": "flow",
-      "_ram": 1,
-      "_energy": 0,
-      "_energyMult": 1,
-      "_executionSeconds": 0,
-      "_unlockType": "tree",
-      "_unlockCost": 0,
-      "_stats": {
-        "_damageMultiplier": 1,
-        "_radiusMultiplier": 1,
-        "_learningMultiplier": 1
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "then",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        }
-      ],
-      "_params": [
-        {
-          "_order": 0,
-          "_paramId": "seconds",
-          "_kind": "number",
-          "_min": 0.1,
-          "_max": 3,
-          "_step": 0.1,
-          "_defaultNumber": 0.5
-        }
-      ]
-
-    },
-    {
-      "_id": "flow.repeat",
-      "_name": "반복",
-      "_disabled": true,
-      "_category": "flow",
-      "_ram": 1,
-      "_energy": 0,
-      "_energyMult": 1,
-      "_executionSeconds": 0,
-      "_unlockType": "bench",
-      "_unlockCost": 40,
-      "_stats": {
-        "_damageMultiplier": 1,
-        "_radiusMultiplier": 1,
-        "_learningMultiplier": 1
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "body",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        },
-        {
-          "_order": 2,
-          "_portId": "onComplete",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        }
-      ],
-      "_params": [
-        {
-          "_order": 0,
-          "_paramId": "times",
-          "_kind": "number",
-          "_min": 2,
-          "_max": 6,
-          "_step": 1,
-          "_defaultNumber": 3
-        },
-        {
-          "_order": 1,
-          "_paramId": "interval",
-          "_kind": "number",
-          "_min": 0.1,
-          "_max": 1,
-          "_step": 0.05,
-          "_defaultNumber": 0.15
-        }
-      ]
-
-    },
-    {
-      "_id": "flow.if",
-      "_name": "조건",
-      "_disabled": true,
-      "_category": "flow",
-      "_ram": 1,
-      "_energy": 0,
-      "_energyMult": 1,
-      "_executionSeconds": 0,
-      "_unlockType": "bench",
-      "_unlockCost": 60,
-      "_stats": {
-        "_damageMultiplier": 1,
-        "_radiusMultiplier": 1,
-        "_learningMultiplier": 1
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "then",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        },
-        {
-          "_order": 2,
-          "_portId": "else",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0,
-          "_status": "deprecated"
-        }
-      ],
-      "_params": [
-        {
-          "_order": 0,
-          "_paramId": "type",
-          "_kind": "enum",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": "targetHpBelow",
-          "_options": [
-            {
-              "_order": 0,
-              "_option": "targetHpBelow"
-            },
-            {
-              "_order": 1,
-              "_option": "targetHasStatus"
-            },
-            {
-              "_order": 2,
-              "_option": "targetDistanceBelow"
-            },
-            {
-              "_order": 3,
-              "_option": "selfHpBelow"
-            }
-          ]
-        },
-        {
-          "_order": 1,
-          "_paramId": "pct",
-          "_kind": "number",
-          "_min": 1,
-          "_max": 100,
-          "_step": 1,
-          "_defaultNumber": 50
-        },
-        {
-          "_order": 2,
-          "_paramId": "status",
-          "_kind": "enum",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": "burn",
-          "_options": [
-            {
-              "_order": 0,
-              "_option": "burn"
-            },
-            {
-              "_order": 1,
-              "_option": "chill"
-            },
-            {
-              "_order": 2,
-              "_option": "freeze"
-            },
-            {
-              "_order": 3,
-              "_option": "emp"
-            }
-          ]
-        },
-        {
-          "_order": 3,
-          "_paramId": "px",
-          "_kind": "number",
-          "_min": 1,
-          "_max": 1000,
-          "_step": 10,
-          "_defaultNumber": 160
-        }
-      ]
-
     },
     {
       "_id": "magic.inline",
@@ -1300,86 +1000,6 @@
       ]
     },
     {
-      "_id": "spell.call",
-      "_name": "마법 메소드",
-      "_disabled": true,
-      "_category": "method",
-      "_ram": 1,
-      "_energy": 0,
-      "_energyMult": 1,
-      "_executionSeconds": 0,
-      "_unlockType": "tree",
-      "_unlockCost": 0,
-      "_stats": {
-        "_damageMultiplier": 1,
-        "_radiusMultiplier": 1,
-        "_learningMultiplier": 1
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "mod",
-          "_kind": "mod",
-          "_direction": "in",
-          "_max": 0
-        },
-        {
-          "_order": 2,
-          "_portId": "onHit",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        },
-        {
-          "_order": 3,
-          "_portId": "onExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        },
-        {
-          "_order": 4,
-          "_portId": "onFirstHitOrExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        },
-        {
-          "_order": 5,
-          "_portId": "onComplete",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0,
-          "_status": "deprecated"
-        }
-      ],
-      "_params": [
-        {
-          "_order": 0,
-          "_paramId": "spellId",
-          "_kind": "text",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0
-        }
-      ],
-      "_tags": [
-        {
-          "_order": 0,
-          "_tag": "call"
-        }
-      ]
-
-    },
-    {
       "_id": "mod.duration",
       "_name": "지속시간",
       "_category": "modifier",
@@ -1412,8 +1032,6 @@
       "_modifierTargets": [
         "behavior.launch",
         "behavior.persist",
-        "behavior.apply",
-        "spell.call",
         "behavior.burst"
       ]
     },
@@ -1569,46 +1187,6 @@
         "_category": "elemental",
         "_internalValue": "ice",
         "_runtimeTag": "ice"
-      }
-    },
-    {
-      "_id": "element.healing",
-      "_name": "회복",
-      "_disabled": true,
-      "_category": "element",
-      "_ram": 1,
-      "_energy": 0,
-      "_energyMult": 1,
-      "_unlockType": "tree",
-      "_stats": {
-        "_damageMultiplier": 1,
-        "_radiusMultiplier": 1,
-        "_learningMultiplier": 1
-      },
-      "_element": {
-        "_id": "healing",
-        "_category": "functional",
-        "_internalValue": "heal"
-      }
-    },
-    {
-      "_id": "element.protection",
-      "_name": "보호",
-      "_disabled": true,
-      "_category": "element",
-      "_ram": 1,
-      "_energy": 0,
-      "_energyMult": 1,
-      "_unlockType": "tree",
-      "_stats": {
-        "_damageMultiplier": 1,
-        "_radiusMultiplier": 1,
-        "_learningMultiplier": 1
-      },
-      "_element": {
-        "_id": "protection",
-        "_category": "functional",
-        "_internalValue": "protection"
       }
     },
     {
@@ -1895,151 +1473,6 @@
           "_defaultText": ""
         }
       ]
-    },
-    {
-      "_id": "behavior.legacy_burst",
-      "_name": "레거시 폭발",
-      "_category": "behavior",
-      "_disabled": true,
-      "_shape": "sphere",
-      "_ram": 1,
-      "_energy": 0,
-      "_energyMult": 1,
-      "_executionSeconds": 0.05,
-      "_unlockType": "tree",
-      "_unlockCost": 0,
-      "_stats": {
-        "_damageMultiplier": 1,
-        "_radiusMultiplier": 1,
-        "_learningMultiplier": 1
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "onHit",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0
-        }
-      ],
-      "_params": [
-        {
-          "_order": 0,
-          "_paramId": "grade",
-          "_kind": "enum",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": "C",
-          "_options": [
-            {
-              "_order": 0,
-              "_option": "C"
-            },
-            {
-              "_order": 1,
-              "_option": "B"
-            },
-            {
-              "_order": 2,
-              "_option": "A"
-            },
-            {
-              "_order": 3,
-              "_option": "S"
-            }
-          ]
-        },
-        {
-          "_order": 1,
-          "_paramId": "element0",
-          "_kind": "text",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": ""
-        },
-        {
-          "_order": 2,
-          "_paramId": "element1",
-          "_kind": "text",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": ""
-        },
-        {
-          "_order": 3,
-          "_paramId": "mod0",
-          "_kind": "text",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": ""
-        },
-        {
-          "_order": 4,
-          "_paramId": "mod1",
-          "_kind": "text",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": ""
-        },
-        {
-          "_order": 5,
-          "_paramId": "mod2",
-          "_kind": "text",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": ""
-        },
-        {
-          "_order": 7,
-          "_paramId": "mod3",
-          "_kind": "text",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": ""
-        },
-        {
-          "_order": 8,
-          "_paramId": "mod4",
-          "_kind": "text",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": ""
-        },
-        {
-          "_order": 9,
-          "_paramId": "mod5",
-          "_kind": "text",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": ""
-        }
-      ]
-
     },
     {
       "_id": "behavior.persist",
@@ -2438,116 +1871,6 @@
           "_defaultText": ""
         }
       ]
-    },
-    {
-      "_id": "behavior.apply",
-      "_name": "적용",
-      "_disabled": true,
-      "_category": "behavior",
-      "_ram": 2,
-      "_energy": 0,
-      "_energyMult": 1,
-      "_executionSeconds": 0.05,
-      "_unlockType": "bench",
-      "_unlockCost": 35,
-      "_stats": {
-        "_damageMultiplier": 1,
-        "_radiusMultiplier": 1,
-        "_learningMultiplier": 1
-      },
-      "_ports": [
-        {
-          "_order": 0,
-          "_portId": "exec",
-          "_kind": "exec",
-          "_direction": "in",
-          "_max": 1
-        },
-        {
-          "_order": 1,
-          "_portId": "mod",
-          "_kind": "mod",
-          "_direction": "in",
-          "_max": 0
-        },
-        {
-          "_order": 2,
-          "_portId": "onHit",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0,
-          "_status": "deprecated"
-        },
-        {
-          "_order": 3,
-          "_portId": "onExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0,
-          "_status": "deprecated"
-        },
-        {
-          "_order": 4,
-          "_portId": "onFirstHitOrExpire",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0,
-          "_status": "deprecated"
-        },
-        {
-          "_order": 5,
-          "_portId": "onComplete",
-          "_kind": "exec",
-          "_direction": "out",
-          "_max": 0,
-          "_status": "deprecated"
-        }
-      ],
-      "_params": [
-        {
-          "_order": 0,
-          "_paramId": "element",
-          "_kind": "enum",
-          "_min": 0,
-          "_max": 0,
-          "_step": 0,
-          "_defaultNumber": 0,
-          "_defaultText": "healing",
-          "_options": [
-            {
-              "_order": 0,
-              "_option": "healing"
-            },
-            {
-              "_order": 1,
-              "_option": "protection"
-            },
-            {
-              "_order": 2,
-              "_option": "fire"
-            }
-          ]
-        },
-        {
-          "_order": 1,
-          "_paramId": "power",
-          "_kind": "number",
-          "_min": 1,
-          "_max": 100,
-          "_step": 1,
-          "_defaultNumber": 20
-        },
-        {
-          "_order": 2,
-          "_paramId": "buffDuration",
-          "_kind": "number",
-          "_min": 1,
-          "_max": 30,
-          "_step": 0.5,
-          "_defaultNumber": 5
-        }
-      ]
-
     }
   ]
 }

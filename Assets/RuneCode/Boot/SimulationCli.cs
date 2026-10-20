@@ -65,7 +65,7 @@ namespace RuneCode
             var compiled = GraphCompiler.Compile(graph, GameData.Runes, GameData.Balance.Grammar, GameData.Runes.All.Select(rune => rune.Id), capacity, maxEnergy);
             if (!compiled.Ok) throw new ArgumentException(string.Join("\n", compiled.Errors.Select(CompileIssueText.Format)));
             var simulation = new RuneSimulation(seed, isTimedBattle, GameData.Balance.Player.MaxHp, maxEnergy, stage,
-                GameData.Balance.Player.EnergyRegen, carrier: CarrierSpawnSettings.LoadDefinition());
+                GameData.Balance.Player.EnergyRegen, carrier: GameData.Carrier);
             if (!isTimedBattle) { simulation.ResetBench(scenario); simulation.SetAdaptationEnabled(scenario == "adapt_loop"); }
             simulation.SetUnlockedElements(new[] { "raw", "fire", "ice", "arc" });
             simulation.SetLoadout(new[] { compiled.Spell });
@@ -114,7 +114,6 @@ namespace RuneCode
                     var stats = action.Stats;
                     candidate = action.GetReach(stats) + (action.Form == SlashBehaviorRules.KIND ? 0 : stats.Radius);
                 }
-                else if (action.Kind == "blink") candidate = action.Distance + GetActionRange(action.Next);
                 else if (action.Kind == "repeat") candidate = Math.Max(GetActionRange(action.Body), GetActionRange(action.OnComplete));
                 else if (action.Kind == "delay") candidate = GetActionRange(action.Then);
                 else if (action.Kind == "if") candidate = Math.Max(GetActionRange(action.Then), GetActionRange(action.Else));
