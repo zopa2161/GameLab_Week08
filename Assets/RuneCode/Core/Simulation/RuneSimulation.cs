@@ -9,16 +9,12 @@ namespace RuneCode
     {
         public const int TICK_RATE = CompiledSpell.SIMULATION_TICK_RATE;
         public const int ARC_LINK_TICKS = 12;
-        private const int RELAY_REGEN_INTERVAL_TICKS = 60;
         internal const double STEP_SECONDS = 1.0 / TICK_RATE;
-        private const double DEGREES_TO_RADIANS = Math.PI / 180;
-        private const double SAME_SPAWN_DISTANCE = 0.5;
-        private const int ARENA_PICK_ROUNDS = 2;
+        internal const double DEGREES_TO_RADIANS = Math.PI / 180;
         private const string BOLT_RUNE_ID = "form.bolt";
         private const double BEAM_CLIP_MIN_STEP = 4;
         private const double BEAM_CLIP_STEP_RATIO = 0.25;
         private const int BEAM_CLIP_REFINEMENT_STEPS = 6;
-        private const double EXPLOSION_VISUAL_SECONDS = 0.25;
         internal const double COLLISION_EPSILON = 0.000001;
         private const int WALL_CONTACT_REFINEMENT_STEPS = 12;
         internal static readonly Dictionary<int, double> NoExcludedTargets = new Dictionary<int, double>();
@@ -27,27 +23,15 @@ namespace RuneCode
         private readonly SimulationStats _stats;
         private readonly EnemyStatusSystem _statuses;
         private readonly LootSystem _loot;
+        private readonly SpawnSystem _spawn;
+        private readonly EnemySystem _enemy;
         private readonly List<ScheduledExecution> _scheduled = new List<ScheduledExecution>();
-        private readonly List<PendingEnemyShot> _pendingEnemyShots = new List<PendingEnemyShot>();
-        private readonly List<PendingSplit> _pendingSplits = new List<PendingSplit>();
-        private readonly List<PendingSpawn> _pendingSpawns = new List<PendingSpawn>();
         private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
         private SimVector? _aimPoint;
         private readonly bool[] _castHeld = new bool[3];
         private readonly bool[] _beamQueued = new bool[3];
         private readonly List<BeamBehaviorRuntime.BeamChannel> _beamChannels = new List<BeamBehaviorRuntime.BeamChannel>();
         private readonly List<string> _unlockedElements = new List<string> { "fire" };
-        private readonly List<SimVector> _tickSpawnPositions = new List<SimVector>();
-        private readonly SpawnSlots _spawnSlots;
-        private readonly ArenaSpawnPoints _arenaSpawnPoints;
-        private readonly Func<SimVector, bool> _isArenaPointReserved;
-        private readonly EnemySeparation _separation = new EnemySeparation();
-        private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
-        private SpawnDirector _director;
-        private double _spawnRadius;
-        private int _tickSpawnPositionsTick = -1;
-        private int _streamSpawns;
-        private int _spawnedEnemies;
         private int _targetKills;
         private bool _isBossDefeated;
         private int _actionBudgetTick = -1;
@@ -138,7 +122,7 @@ namespace RuneCode
         public int TargetKills => _targetKills;
         public SimVector MapCenter => new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
         public double EnergyRegen => _world.EnergyRegen;
-        public int SpawnedEnemies => _spawnedEnemies;
+        public int SpawnedEnemies => _spawn.SpawnedEnemies;
         public int KillCount => _loot.KillCount;
         public int EnemyLimit => _world.Balance.Limits.MaxEnemies;
         public int DroppedExecutions => _droppedExecutions;
@@ -183,10 +167,8 @@ namespace RuneCode
             _stats = new SimulationStats();
             _statuses = new EnemyStatusSystem(_world, _stats, this);
             _loot = new LootSystem(_world, _stats, _statuses, this, scrapGainMultiplier, scrapPickupRangeMultiplier, scrapHealRatio, killEnergyBonus);
-            _spawnSlots = new SpawnSlots(_world.Random.Next, _world.Enemies);
-            _arenaSpawnPoints = new ArenaSpawnPoints(_world.Random.Next, _world.Enemies);
-            _isArenaPointReserved = IsArenaPointReserved;
-            _isSeparationFixed = IsSeparationFixed;
+            _spawn = new SpawnSystem(_world, _feedback, this);
+            _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, this);
             if (isMission) BeginTimedBattle();
             else ResetBench("dummy_single");
         }
@@ -349,23 +331,23 @@ namespace RuneCode
             if (startedDash) TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_START);
             else if (wasDashing && _world.Player.DashRemaining <= 0.000001) TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_END);
             if (input.Movement.LengthSquared > 0.000001) TryCastTrigger(SpellGrammar.TRIGGER_ON_MOVE);
-            if (_world.IsMission) { AdvancePendingSpawns(); AdvanceSpawns(); AdvanceSplits(); RefreshSpawnWarnings(); }
+            if (_world.IsMission) { _spawn.AdvancePendingSpawns(); _spawn.AdvanceSpawns(); _spawn.AdvanceSplits(); _spawn.RefreshSpawnWarnings(); }
             RunScheduled();
             if (input.CastA || _beamQueued[0]) TryCastTriggered(_loadout[0], SpellGrammar.TRIGGER_ON_ATTACK, 0);
             if (input.CastB || _beamQueued[1]) TryCastTriggered(_loadout[1], SpellGrammar.TRIGGER_ON_ATTACK, 1);
             if (input.CastC || _beamQueued[2]) TryCastTriggered(_loadout[2], SpellGrammar.TRIGGER_ON_ATTACK, 2);
             _statuses.AdvanceStatuses();
-            AdvanceRelayRegen();
-            AdvanceEnemies();
-            if (_world.IsMission) _separation.Apply(_world.Enemies, _world.Map, _world.Balance.Combat, _isSeparationFixed);
-            RunEnemyShots();
+            _enemy.AdvanceRelayRegen();
+            _enemy.AdvanceEnemies();
+            if (_world.IsMission) _enemy.ApplySeparation();
+            _enemy.RunEnemyShots();
             AdvanceSpellEntities();
-            AdvanceHostileProjectiles();
+            _enemy.AdvanceHostileProjectiles();
             _loot.CleanupEnemies();
             _loot.CollectNearbyOrbs();
             _loot.CollectNearbyItemDrops();
             if (_world.IsMission && _world.Player.Hp <= 0) { _world.Stage = MissionStage.Dead; _loot.DiscardUncollectedOrbs(); CancelCombat(); }
-            else if (!_world.IsMission && _scenario == "adapt_loop" && _world.Enemies.Count == 0) SpawnBenchDummy(new SimVector(_world.Balance.Sim.BenchDummyX, _world.Balance.Sim.BenchDummyY), _world.Balance.Sim.BenchHp);
+            else if (!_world.IsMission && _scenario == "adapt_loop" && _world.Enemies.Count == 0) _spawn.SpawnBenchDummy(new SimVector(_world.Balance.Sim.BenchDummyX, _world.Balance.Sim.BenchDummyY), _world.Balance.Sim.BenchHp);
             Adaptation.Advance(Time, Time + STEP_SECONDS);
             _world.Tick++;
             RunScheduled();
@@ -391,7 +373,7 @@ namespace RuneCode
             _scenario = scenario; _world.Stage = MissionStage.Bench; _world.Tick = 0; _world.ResetEntityIds(); _world.Random.Reset();
             _world.Enemies.Clear(); _loot.ClearForBench(); _feedback.ClearForBench(); CancelCombat();
             _statuses.ClearAll();
-            _stats.ResetForBench(); _loot.ResetForBench(); _spawnedEnemies = 0;
+            _stats.ResetForBench(); _loot.ResetForBench(); _spawn.SpawnedEnemies = 0;
             _actionBudgetTick = -1; _actionsThisTick = 0; _droppedExecutions = 0;
             SimulationBalance bench = _world.Balance.Sim;
             _world.Map = new MissionMap(_world.Sector.BenchTiles, _world.Sector.TileSize); _world.Player = new SimulationPlayer(_world.MaxHp, _world.MaxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
@@ -400,12 +382,12 @@ namespace RuneCode
             {
                 int count = dummyCount == 0 ? bench.BenchLineCount : dummyCount;
                 for (int i = count - 1; i >= 0; i--)
-                    SpawnBenchDummy(new SimVector(bench.BenchLineStartX + i * bench.BenchLineGap, bench.BenchDummyY), bench.BenchHp);
+                    _spawn.SpawnBenchDummy(new SimVector(bench.BenchLineStartX + i * bench.BenchLineGap, bench.BenchDummyY), bench.BenchHp);
             }
             else if (scenario == "dummy_swarm")
                 for (int i = 0; i < bench.BenchSwarmColumns * bench.BenchSwarmRows; i++) SpawnEnemy("enemy.scout", new SimVector(bench.BenchSwarmX + (i % bench.BenchSwarmColumns) * bench.BenchSwarmGapX, bench.BenchSwarmY + (i / bench.BenchSwarmColumns) * bench.BenchSwarmGapY), false, bench.BenchHp);
             else if (scenario == "aegis") SpawnEnemy("enemy.aegis", new SimVector(bench.BenchDummyX, bench.BenchDummyY), true, bench.BenchHp);
-            else SpawnBenchDummy(new SimVector(bench.BenchDummyX, bench.BenchDummyY), bench.BenchHp);
+            else _spawn.SpawnBenchDummy(new SimVector(bench.BenchDummyX, bench.BenchDummyY), bench.BenchHp);
         }
 
         /// <summary>디버그 기능에서 지정한 적을 추가한다. 엘리트는 체력·보상 2배, 속도 1.2배, 반경 2배와 현재 스테이지의 드롭 테이블을 사용한다.</summary>
@@ -433,7 +415,7 @@ namespace RuneCode
             foreach (SimulationEnemy enemy in _world.Enemies)
                 if (enemy.Hurt(enemy.Hp, Time) > 0) _stats.EnemyDamageEventCount++;
             _loot.CleanupEnemies(false);
-            _pendingSplits.Clear();
+            _spawn.PendingSplits.Clear();
         }
 
         /// <summary>현재 시뮬레이션의 핵심 상태를 안정적으로 해시하여 동일 입력 실행의 결정성을 비교한다.</summary>
@@ -443,7 +425,7 @@ namespace RuneCode
             state.Append("beamInput:");
             for (int slot = 0; slot < _castHeld.Length; slot++)
                 state.Append('|').Append(_castHeld[slot]).Append(':').Append(_beamQueued[slot]);
-            state.Append(_world.Tick).Append('|').Append(_world.Random.State).Append('|').Append(_world.NextEntityId).Append('|').Append(_world.Stage).Append('|').Append(_world.StageNumber).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_loot.KillCount).Append('|').Append(_scenario).Append('|').Append(_world.DebugInvulnerable);
+            state.Append(_world.Tick).Append('|').Append(_world.Random.State).Append('|').Append(_world.NextEntityId).Append('|').Append(_world.Stage).Append('|').Append(_world.StageNumber).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawn.SpawnedEnemies).Append('|').Append(_loot.KillCount).Append('|').Append(_scenario).Append('|').Append(_world.DebugInvulnerable);
             state.Append('|').Append(_actionBudgetTick).Append('|').Append(_actionsThisTick).Append('|').Append(_droppedExecutions);
             SimHash.AppendNumber(state, TimeLimit); SimHash.AppendNumber(state, _world.EnergyRegen);
             state.Append('|').Append(_aimPoint.HasValue);
@@ -485,8 +467,8 @@ namespace RuneCode
             foreach (SimulationItemDrop drop in _loot.PickedUpItems) SimHash.AppendItemDropState(state, drop);
             foreach (CompiledSpell spell in _loadout) state.Append('|').Append(spell?.Signature);
             foreach (string element in _unlockedElements) state.Append('|').Append(element);
-            foreach (PendingEnemyShot shot in _pendingEnemyShots) { state.Append(shot.Tick).Append('|').Append(shot.Owner.Id); SimHash.AppendNumber(state, shot.Direction.X); SimHash.AppendNumber(state, shot.Direction.Y); SimHash.AppendNumber(state, shot.SpeedMultiplier); }
-            foreach (PendingSplit split in _pendingSplits)
+            foreach (PendingEnemyShot shot in _enemy.PendingEnemyShots) { state.Append(shot.Tick).Append('|').Append(shot.Owner.Id); SimHash.AppendNumber(state, shot.Direction.X); SimHash.AppendNumber(state, shot.Direction.Y); SimHash.AppendNumber(state, shot.SpeedMultiplier); }
+            foreach (PendingSplit split in _spawn.PendingSplits)
             {
                 state.Append('|').Append(split.Tick).Append('|').Append(split.EnemyId).Append('|').Append(split.Elite != null);
                 SimHash.AppendNumber(state, split.Position.X); SimHash.AppendNumber(state, split.Position.Y);
@@ -495,7 +477,7 @@ namespace RuneCode
                 SimHash.AppendNumber(state, split.Elite != null ? split.Elite.RawSpeedMultiplier : 0);
                 if (split.CarrierOwnerId != 0) state.Append("|owner:").Append(split.CarrierOwnerId);
             }
-            foreach (PendingSpawn spawn in _pendingSpawns)
+            foreach (PendingSpawn spawn in _spawn.PendingSpawns)
             {
                 state.Append("|ps").Append(spawn.Tick).Append('|').Append(spawn.EnemyId).Append('|').Append(spawn.Elite != null).Append('|').Append(spawn.IsKillTarget);
                 SimHash.AppendNumber(state, spawn.Position.X); SimHash.AppendNumber(state, spawn.Position.Y);
@@ -504,8 +486,8 @@ namespace RuneCode
             SimHash.AppendNumber(state, _stats.TotalDamage); state.Append(_loot.CollectedFragments).Append(_stats.NodeExecutionCount).Append('|').Append(_stats.EnemyDamageEventCount)
                 .Append('|').Append(_stats.BurnTickDamageEventCount).Append('|').Append(_stats.ArcDamageEventCount).Append('|').Append(_stats.FreezeStartEventCount);
             state.Append('|').Append(_loot.NormalScrapPickupEventCount).Append('|').Append(_loot.BigScrapPickupEventCount);
-            if (_director != null)
-            { _director.WriteState(state); SimHash.AppendNumber(state, _world.MoveDirection.X); SimHash.AppendNumber(state, _world.MoveDirection.Y); state.Append(_world.HasMoveDirection); }
+            if (_spawn.Director != null)
+            { _spawn.Director.WriteState(state); SimHash.AppendNumber(state, _world.MoveDirection.X); SimHash.AppendNumber(state, _world.MoveDirection.Y); state.Append(_world.HasMoveDirection); }
             uint hash = 2166136261;
             foreach (char value in state.ToString()) { hash ^= value; hash *= 16777619; }
             return hash.ToString("x8", CultureInfo.InvariantCulture);
@@ -524,7 +506,7 @@ namespace RuneCode
         }
 
         /// <summary>지정 Trigger를 가진 슬롯을 순서대로 시전해 입력 이벤트 실행을 결정적으로 유지한다.</summary>
-        private void TryCastTrigger(string trigger)
+        internal void TryCastTrigger(string trigger)
         {
             for (int slot = 0; slot < _loadout.Length; slot++) TryCastTriggered(_loadout[slot], trigger, slot);
         }
@@ -960,7 +942,7 @@ namespace RuneCode
         {
             double minimumDamage = entity.Behavior.TracksDirectHit && entity.Stats.Pierce > 0 && !isDot ? 1d : 0d;
             double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true, minimumDamage, entity.Action);
-            if (IsSeparationFixed(enemy)) enemy.CancelDisplacement();
+            if (_enemy.IsSeparationFixed(enemy)) enemy.CancelDisplacement();
             else if (actual > 0 && enemy.IsAlive && entity.Stats.KnockbackDistance > 0)
             {
                 double referenceDamage = GameData.Runes.Get("mod.knockback").Stats.KnockbackReferenceDamage;
@@ -1054,26 +1036,8 @@ namespace RuneCode
                 _feedback.AddDamageNumber(enemy.Position, actual, element);
                 Adaptation.Learn(element, form, Time, actual, isDot, noise, relayAlive);
             }
-            if (enemy.Boss != null && enemy.Boss.IsGovernorPattern && enemy.IsAlive) CheckBossPatch(enemy, enemy.Boss);
+            if (enemy.Boss != null && enemy.Boss.IsGovernorPattern && enemy.IsAlive) _enemy.CheckBossPatch(enemy, enemy.Boss);
             return actual;
-        }
-
-        /// <summary>
-        /// 60틱마다 살아 있는 릴레이 반경 안의 다른 적 체력을 RelayRegen만큼 회복시킨다.
-        /// 릴레이 자신은 오라 대상이 아니고 최대 체력까지만 회복한다.
-        /// </summary>
-        private void AdvanceRelayRegen()
-        {
-            if (_world.Tick % RELAY_REGEN_INTERVAL_TICKS != 0) return;
-            foreach (SimulationEnemy relay in _world.Enemies)
-            {
-                if (!relay.IsAlive || !relay.Definition.HasTrait(EnemyDefinition.TRAIT_RELAY_AURA)) continue;
-                foreach (SimulationEnemy enemy in _world.Enemies)
-                {
-                    if (enemy == relay || !enemy.IsAlive || SimVector.Distance(relay.Position, enemy.Position) > _world.Balance.Combat.RelayRadius) continue;
-                    if (enemy.Heal(_world.Balance.Combat.RelayRegen) > 0) _feedback.AddHealPulse(enemy.Position);
-                }
-            }
         }
 
         /// <summary>적의 상태 이상이 현재 상태 판정 시각에 활성인지 반환한다. 냉기는 스택 보유 여부로 판정한다.</summary>
@@ -1081,267 +1045,6 @@ namespace RuneCode
 
         /// <summary>적의 현재 냉기 스택을 반환하며 냉기가 없으면 0을 반환한다.</summary>
         public int GetChillStacks(SimulationEnemy enemy) => _statuses.GetChillStacks(enemy);
-
-        /// <summary>
-        /// 적마다 이동 전 플레이어 방향을 구해 이동 판단을 적용한 뒤 접촉, 예고 사격, 돌진 및 거버너 페이즈 패턴을 진행한다.
-        /// 공격 판정은 이동 전 거리·방향을, 접촉과 발사 위치는 이동 후 위치를 사용한다.
-        /// </summary>
-        private void AdvanceEnemies()
-        {
-            int initialCount = _world.Enemies.Count;
-            for (int i = 0; i < initialCount; i++)
-            {
-                SimulationEnemy enemy = _world.Enemies[i]; if (!enemy.IsAlive) continue;
-                enemy.Observe(Time);
-                bool hasDisplacement = AdvanceEnemyDisplacement(enemy);
-                if (enemy.IsDummy) continue;
-                if (HasEnemyStatus(enemy, EnemyStatusType.Freeze))
-                {
-                    if (enemy.Definition.Attack == EnemyDefinition.ATTACK_SNIPER)
-                    { enemy.AimEndsAt = 0; enemy.WarningUntil = 0; enemy.AttackAt = Time + STEP_SECONDS; }
-                    continue;
-                }
-                SimVector offset = _world.Player.Position - enemy.Position; SimVector direction = offset.Normalized();
-                BossDefinition bossPattern = enemy.Boss;
-                bool isBoss = bossPattern != null && bossPattern.IsGovernorPattern;
-                if (isBoss) { CheckBossPatch(enemy, bossPattern); if (enemy.IsPatching) continue; }
-                double speedMultiplier = isBoss && enemy.Phase == 3 ? bossPattern.PhaseThreeMultiplier : 1;
-                var context = new EnemyMoveContext(offset, direction, Time, _world.IsMission, _world.Stages.StationaryAdvanceSpeed, isBoss ? bossPattern.PreferredDistance : 0, speedMultiplier);
-                if (!hasDisplacement) ApplyMove(enemy, EnemyMovements.Decide(enemy, context));
-                if (isBoss) AdvanceBoss(enemy, bossPattern, direction);
-                else AdvanceEnemyAttack(enemy, offset, direction);
-                if (IsSeparationFixed(enemy)) enemy.CancelDisplacement();
-                if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) AdvanceCarrier(enemy);
-            }
-        }
-
-        /// <summary>면역을 확인하고 적의 강제 이동을 진행한다. 벽 앞에서 멈추며 이번 틱에 자발적 이동을 보류할지 반환한다.</summary>
-        private bool AdvanceEnemyDisplacement(SimulationEnemy enemy)
-        {
-            if (IsSeparationFixed(enemy)) { enemy.CancelDisplacement(); return false; }
-            if (!enemy.TryAdvanceDisplacement(_world.Tick, STEP_SECONDS, out SimVector displacement)) return false;
-            SimVector next = enemy.Position + displacement;
-            double wall = FirstWallFraction(enemy.Position, next, enemy.Radius);
-            if (!double.IsPositiveInfinity(wall))
-            {
-                next = enemy.Position + displacement * Math.Max(0, wall - COLLISION_EPSILON);
-                enemy.CancelDisplacement();
-            }
-            enemy.Move(next, enemy.Facing);
-            return true;
-        }
-
-        /// <summary>이동 판단 결과에 따라 정지, 방향 전환 또는 감속·벽 충돌을 반영한 이동을 적용한다.</summary>
-        private void ApplyMove(SimulationEnemy enemy, EnemyMoveDecision decision)
-        {
-            if (decision.Mode == EnemyMoveMode.Face) enemy.Move(enemy.Position, decision.Direction);
-            else if (decision.Mode == EnemyMoveMode.Move) MoveEnemy(enemy, decision.Direction, decision.Speed);
-        }
-
-        /// <summary>
-        /// 보스가 아닌 적의 공격 일정을 이동 전 거리·방향으로 진행한다.
-        /// 연사형은 예고 후 연사, 돌진 접촉형은 예고 후 돌진·돌진 중 접촉, 공격 없음은 쉬며 그 외는 주기적 접촉 피해를 준다.
-        /// </summary>
-        private void AdvanceEnemyAttack(SimulationEnemy enemy, SimVector offset, SimVector direction)
-        {
-            EnemyDefinition definition = enemy.Definition;
-            if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) { AdvanceSniper(enemy, direction); return; }
-            if (definition.Attack == EnemyDefinition.ATTACK_INTERCEPTOR) { AdvanceInterceptor(enemy, direction); return; }
-            if (definition.Attack == EnemyDefinition.ATTACK_NONE) return;
-            if (definition.Attack == EnemyDefinition.ATTACK_BURST)
-            {
-                if (enemy.WarningUntil > 0 && Time + 0.000001 >= enemy.WarningUntil)
-                { ShootBurst(enemy, enemy.AttackDirection, 1); enemy.WarningUntil = 0; enemy.AttackAt = Time + definition.AttackInterval - definition.WarningSeconds; }
-                else if (enemy.WarningUntil == 0 && Time + 0.000001 >= enemy.AttackAt)
-                { enemy.AttackDirection = direction; enemy.WarningUntil = Time + definition.WarningSeconds; }
-                return;
-            }
-            if (definition.Attack == EnemyDefinition.ATTACK_DASH_CONTACT)
-            {
-                if (Time < enemy.DashUntil) { HurtByContact(enemy); return; }
-                if (enemy.WarningUntil > 0)
-                { if (Time + 0.000001 >= enemy.WarningUntil) { enemy.WarningUntil = 0; enemy.DashUntil = Time + definition.DashSeconds; enemy.AttackAt = Time + definition.AttackInterval; } return; }
-                if (offset.Length < definition.AttackRange && Time >= enemy.AttackAt)
-                { enemy.WarningUntil = Time + definition.WarningSeconds; enemy.AttackDirection = direction; }
-                return;
-            }
-            if (Time >= enemy.AttackAt && HurtByContact(enemy)) enemy.AttackAt = Time + definition.AttackInterval;
-        }
-
-        /// <summary>저격수의 추적 조준, 고정 대기와 단발 발사를 진행하며 같은 저장 경로를 표시와 사격에 사용한다.</summary>
-        private void AdvanceSniper(SimulationEnemy enemy, SimVector direction)
-        {
-            EnemyDefinition definition = enemy.Definition;
-            if (!enemy.IsAiming)
-            {
-                if (Time + COLLISION_EPSILON < enemy.AttackAt) return;
-                enemy.AimEndsAt = Time + definition.AimSeconds;
-                enemy.WarningUntil = enemy.AimEndsAt + definition.LockSeconds;
-                enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction;
-                return;
-            }
-            if (Time + COLLISION_EPSILON < enemy.AimEndsAt)
-            { enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction; return; }
-            if (Time + COLLISION_EPSILON < enemy.WarningUntil) return;
-            _world.EnemyProjectiles.Add(new SimulationProjectile(enemy.AttackOrigin, enemy.AttackDirection, definition.ProjectileSpeed,
-                enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime));
-            enemy.AimEndsAt = 0; enemy.WarningUntil = 0;
-            enemy.AttackAt = Time + definition.AttackInterval - definition.AimSeconds - definition.LockSeconds;
-        }
-
-        /// <summary>인터셉터의 이동·정지 남은 시간을 줄이고 이동 종료마다 플레이어 방향에 한 발을 발사한다.</summary>
-        private void AdvanceInterceptor(SimulationEnemy enemy, SimVector direction)
-        {
-            enemy.BehaviorRemaining -= STEP_SECONDS;
-            if (enemy.BehaviorRemaining > COLLISION_EPSILON) return;
-            if (!enemy.IsStopping) ShootFan(enemy, direction, 1, 1);
-            enemy.IsBehaviorStopping = !enemy.IsStopping;
-            enemy.BehaviorRemaining += enemy.IsStopping ? enemy.Definition.StopSeconds : enemy.Definition.MoveSeconds;
-        }
-
-        /// <summary>캐리어의 생성 타이머와 보류 수를 진행하고 설정 목록 순서대로 보상 없는 자식을 주변에 생성한다.</summary>
-        private void AdvanceCarrier(SimulationEnemy enemy)
-        {
-            enemy.SpawnRemainingSeconds -= STEP_SECONDS;
-            if (enemy.SpawnRemaining == 0)
-            {
-                if (enemy.SpawnRemainingSeconds > COLLISION_EPSILON) return;
-                enemy.SpawnRemaining = _world.Carrier.Count;
-            }
-            int alive = 0;
-            foreach (SimulationEnemy child in _world.Enemies) if (child.IsAlive && child.CarrierOwnerId == enemy.Id) alive++;
-            while (enemy.SpawnRemaining > 0 && _world.Enemies.Count < EnemyLimit && alive < _world.Carrier.MaxAlive)
-            {
-                string id = _world.Carrier.EnemyIds[enemy.SpawnCursor % _world.Carrier.EnemyIds.Count];
-                double radius = _world.EnemyCatalog.Get(id).Radius;
-                double angle = enemy.SpawnCursor * Math.PI * (3 - Math.Sqrt(5));
-                double distance = Math.Max(_world.Carrier.Distance, enemy.Radius + radius + SAME_SPAWN_DISTANCE);
-                SimVector position = enemy.Position + new SimVector(Math.Cos(angle), Math.Sin(angle)) * distance;
-                SpawnEnemy(id, _world.Map.NearestFree(position, radius), carrierOwnerId: enemy.Id);
-                enemy.SpawnCursor++; enemy.SpawnRemaining--; alive++;
-            }
-            if (enemy.SpawnRemaining == 0) enemy.SpawnRemainingSeconds = _world.Carrier.Interval;
-            else enemy.SpawnRemainingSeconds = 0;
-        }
-
-        /// <summary>냉기 감속을 반영하여 적을 벽 충돌 가능한 방향으로 이동시킨다.</summary>
-        private void MoveEnemy(SimulationEnemy enemy, SimVector direction, double speed)
-        { double slow = Math.Max(0, 1 - _world.Balance.Combat.ChillSlow * GetChillStacks(enemy)); enemy.Move(_world.Map.Move(enemy.Position, direction * (speed * enemy.SpeedMultiplier * slow * STEP_SECONDS), enemy.Radius), direction); }
-
-        /// <summary>적 분리에서 밀리지 않는 고정 대상인지 반환한다. 보스, 빙결 중인 적, 돌진 중인 적은 자리를 지키고 상대만 밀어낸다.</summary>
-        private bool IsSeparationFixed(SimulationEnemy enemy) => enemy.Boss != null || HasEnemyStatus(enemy, EnemyStatusType.Freeze) || Time < enemy.DashUntil;
-
-        /// <summary>적과 플레이어가 겹치면 피해를 적용하고 접촉 여부를 반환한다.</summary>
-        private bool HurtByContact(SimulationEnemy enemy)
-        {
-            if (!_world.IsMission || Time < enemy.ContactGraceUntil || SimVector.Distance(enemy.Position, _world.Player.Position) > enemy.Radius + _world.Sector.PlayerRadius) return false;
-            HurtPlayer(enemy.Damage); return true;
-        }
-
-        /// <summary>플레이어 피해에 디버그 무적과 기본 피격 무적을 반영한다.</summary>
-        private void HurtPlayer(double damage)
-        {
-            if (_world.DebugInvulnerable || !_world.IsMission) return;
-            double shieldBefore = _world.Player.Shield;
-            double actual = _world.Player.Hurt(damage, Time, _world.Balance.Player.HurtInvulnerability);
-            if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
-            if (actual > 0 || _world.Player.Shield < shieldBefore) TryCastTrigger(SpellGrammar.TRIGGER_ON_HIT_TAKEN);
-        }
-
-        /// <summary>
-        /// 시전자의 상태 이상 피해(화상 DoT)를 적용한다. 피격 무적을 무시하고 주지 않으며 OnHitTaken을 발생시키지 않는다.
-        /// 시험 도크(비전투)에서는 상태만 표시하고 체력을 깎지 않는다(결정 Q13).
-        /// </summary>
-        internal void HurtPlayerByStatus(double damage)
-        {
-            if (_world.DebugInvulnerable || !_world.IsMission) return;
-            double actual = _world.Player.HurtByStatus(damage);
-            if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
-        }
-
-        /// <summary>적 공격 설정의 탄환을 부채꼴로 발사한다.</summary>
-        private void ShootFan(SimulationEnemy enemy, SimVector direction, int count, double speedMultiplier)
-        {
-            EnemyDefinition definition = enemy.Definition;
-            for (int i = 0; i < count; i++)
-            { double spread = count == 1 ? 0 : (i / (double)(count - 1) * 2 - 1) * definition.SpreadDegrees * DEGREES_TO_RADIANS; SimVector aim = direction.Rotated(spread); _world.EnemyProjectiles.Add(new SimulationProjectile(enemy.Position + aim * (enemy.Radius + _world.Balance.Sim.WandOffset), aim, definition.ProjectileSpeed * speedMultiplier, enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime)); }
-        }
-
-        /// <summary>예고된 조준 방향에 첫 탄을 발사하고 데이터 간격에 맞춰 나머지 2발을 예약한다.</summary>
-        private void ShootBurst(SimulationEnemy enemy, SimVector direction, double speedMultiplier)
-        {
-            ShootFan(enemy, direction, 1, speedMultiplier);
-            for (int i = 1; i < 3; i++) _pendingEnemyShots.Add(new PendingEnemyShot(_world.Tick + Math.Max(1, (int)Math.Round(i * enemy.Definition.BurstInterval * TICK_RATE)), enemy, direction, speedMultiplier));
-        }
-
-        /// <summary>예약 시점이 된 연사 탄환을 생존하며 행동 가능한 적의 현재 위치에서 발사한다.</summary>
-        private void RunEnemyShots()
-        {
-            for (int i = 0; i < _pendingEnemyShots.Count;)
-            {
-                PendingEnemyShot shot = _pendingEnemyShots[i];
-                if (!shot.Owner.IsAlive || shot.Owner.IsPatching || HasEnemyStatus(shot.Owner, EnemyStatusType.Freeze)) { _pendingEnemyShots.RemoveAt(i); continue; }
-                if (shot.Tick > _world.Tick) { i++; continue; }
-                _pendingEnemyShots.RemoveAt(i); ShootFan(shot.Owner, shot.Direction, 1, shot.SpeedMultiplier);
-            }
-        }
-
-        /// <summary>
-        /// 보스 패턴의 폭발 사격, 조준 사격, 예고 장판, 증원 주기 및 접촉 피해를 페이즈에 맞춰 처리한다.
-        /// 페이즈 전환과 이동은 호출 전에 끝난 상태여야 하며 조준은 이동 전 방향을 사용한다.
-        /// </summary>
-        private void AdvanceBoss(SimulationEnemy boss, BossDefinition pattern, SimVector direction)
-        {
-            double multiplier = boss.Phase == 3 ? pattern.PhaseThreeMultiplier : 1;
-            if (Time + 0.000001 >= boss.AttackAt)
-            {
-                if (boss.Phase == 1 || boss.Phase == 3)
-                    for (int i = 0; i < pattern.RadialCount; i++)
-                    { double angle = i * 2 * Math.PI / pattern.RadialCount; ShootFan(boss, new SimVector(Math.Cos(angle), Math.Sin(angle)), 1, multiplier); }
-                if (boss.Phase >= 2) ShootBurst(boss, direction, multiplier);
-                boss.AttackAt = Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval) / multiplier;
-            }
-            if (boss.Phase >= 2 && Time >= boss.HazardAt)
-            { _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, pattern.HazardDamage * boss.DamageMultiplier, pattern.HazardRadius, pattern.HazardLifetime + pattern.HazardWarning, true, pattern.HazardWarning)); boss.HazardAt = Time + pattern.HazardInterval / multiplier; }
-            if (Time >= boss.ReinforcementAt)
-            {
-                if (_world.IsMission) SpawnReinforcements(boss, pattern.Reinforcement);
-                else for (int i = 0; i < pattern.Reinforcement.Count; i++) SpawnEnemy(pattern.Reinforcement.EnemyId, _world.Map.GetPoint((char)('1' + i * 2)), false, 0);
-                boss.ReinforcementAt = Time + pattern.Reinforcement.Interval;
-            }
-            HurtByContact(boss);
-        }
-
-        /// <summary>보스 체력 문턱에서 패치 무적과 최고 피해 태그 잠금을 적용한다.</summary>
-        private void CheckBossPatch(SimulationEnemy boss, BossDefinition pattern)
-        {
-            if (boss.IsPatching) return;
-            int next = boss.Phase == 1 && boss.Hp / boss.MaxHp <= pattern.PhaseTwoThreshold ? 2 : boss.Phase == 2 && boss.Hp / boss.MaxHp <= pattern.PhaseThreeThreshold ? 3 : boss.Phase;
-            if (next == boss.Phase) return;
-            boss.Patch(next, Time, pattern.PatchSeconds); boss.Observe(Time); Adaptation.LockTopDamageTags();
-            boss.AttackAt = Time + pattern.PatchSeconds + boss.Definition.WarningSeconds;
-        }
-
-        /// <summary>적 탄환과 위험 장판의 수명, 벽 충돌 및 플레이어 피격을 처리한다.</summary>
-        private void AdvanceHostileProjectiles()
-        {
-            for (int i = _world.EnemyProjectiles.Count - 1; i >= 0; i--)
-            {
-                SimulationProjectile projectile = _world.EnemyProjectiles[i];
-                SimVector previous = projectile.Position;
-                projectile.Advance(Math.Min(STEP_SECONDS, Math.Max(0, projectile.Lifetime - projectile.Age)));
-                if (!projectile.IsHazard)
-                {
-                    double wall = FirstWallFraction(previous, projectile.Position, projectile.Radius);
-                    double hit = SpellGeometry.CircleContactFraction(previous, projectile.Position, _world.Player.Position, projectile.Radius + _world.Sector.PlayerRadius);
-                    if (hit < wall && !double.IsPositiveInfinity(hit)) { HurtPlayer(projectile.Damage); _world.EnemyProjectiles.RemoveAt(i); continue; }
-                    if (!double.IsPositiveInfinity(wall)) { _world.EnemyProjectiles.RemoveAt(i); continue; }
-                }
-                else if (!projectile.IsExplosion && !projectile.IsWarning && SimVector.Distance(projectile.Position, _world.Player.Position) <= projectile.Radius + _world.Sector.PlayerRadius)
-                    HurtPlayer(projectile.Damage);
-                if (projectile.Age + COLLISION_EPSILON >= projectile.Lifetime) _world.EnemyProjectiles.RemoveAt(i);
-            }
-        }
 
         /// <summary>
         /// 개체의 자연 소멸(수명·사거리 종료)을 처리하고 OnExpire를 소멸 위치에서 한 번 실행한다.
@@ -1372,39 +1075,11 @@ namespace RuneCode
             if (enemy.Boss != null) _isBossDefeated = true;
         }
 
-        /// <summary>사망 위치 주변 플레이어와 살아 있는 적에게 단발 폭발 피해를 주고 짧은 표시를 남긴다. 플레이어 강화·학습·DPS는 적용하지 않는다.</summary>
-        internal void ExplodeEnemy(SimulationEnemy source)
-        {
-            double radius = source.Definition.ExplosionRadius;
-            double damage = source.Definition.ExplosionDamage * source.DamageMultiplier;
-            _world.EnemyProjectiles.Add(new SimulationProjectile(source.Position, SimVector.Zero, 0, 0, radius, EXPLOSION_VISUAL_SECONDS, true, 0, true));
-            if (SimVector.Distance(source.Position, _world.Player.Position) <= radius + _world.Sector.PlayerRadius) HurtPlayer(damage);
-            foreach (SimulationEnemy target in _world.Enemies)
-            {
-                if (!target.IsAlive || target.IsPatching || SimVector.Distance(source.Position, target.Position) > radius + target.Radius) continue;
-                double actual = target.Hurt(damage, Time);
-                if (actual > 0)
-                {
-                    _stats.EnemyDamageEventCount++;
-                    _feedback.AddDamageNumber(target.Position, actual, "raw");
-                }
-                if (target.IsAlive && target.Boss != null && target.Boss.IsGovernorPattern) CheckBossPatch(target, target.Boss);
-            }
-        }
+        /// <summary>상태 이상 피해를 플레이어에게 적용한다. 적 시스템에 위임한다.</summary>
+        internal void HurtPlayerByStatus(double damage) => _enemy.HurtPlayerByStatus(damage);
 
-        /// <summary>분열형 적이 미션 중 처치되면 자식 수만큼 대기 항목을 만든다. 위치는 부모 진행 방향의 수직선 위에서 자식 반경 간격으로 균등 분배하고, 엘리트 정의는 그대로 물려준다.</summary>
-        internal void EnqueueSplits(SimulationEnemy parent)
-        {
-            EnemyDefinition definition = parent.Definition;
-            int delayTicks = Math.Max(1, (int)Math.Round(definition.SplitDelay * TICK_RATE));
-            SimVector side = new SimVector(-parent.Facing.Y, parent.Facing.X);
-            double childRadius = _world.EnemyCatalog.Get(definition.SplitInto).Radius * (parent.Elite != null ? parent.Elite.RadiusMultiplier : 1);
-            for (int i = 0; i < definition.SplitCount; i++)
-            {
-                double offsetRatio = definition.SplitCount == 1 ? 0 : i / (double)(definition.SplitCount - 1) * 2 - 1;
-                _pendingSplits.Add(new PendingSplit(_world.Tick + delayTicks, definition.SplitInto, parent.Position + side * (childRadius * offsetRatio), parent.Elite, parent.CarrierOwnerId));
-            }
-        }
+        /// <summary>사망한 자폭형 적의 폭발을 처리한다. 적 시스템에 위임한다.</summary>
+        internal void ExplodeEnemy(SimulationEnemy source) => _enemy.ExplodeEnemy(source);
 
         /// <summary>처치 드롭과 같은 테이블·결정적 난수로 완료 스테이지의 클리어 룬 1개를 추첨한다.</summary>
         public DropRoll DrawClearRuneReward() => _loot.DrawClearRuneReward();
@@ -1443,266 +1118,21 @@ namespace RuneCode
             double largestRadius = 0;
             foreach (EnemyDefinition enemy in _world.EnemyCatalog.Enemies) largestRadius = Math.Max(largestRadius, enemy.Radius);
             foreach (EliteSpawnDefinition elite in _world.StageDefinition.EliteTypes) largestRadius = Math.Max(largestRadius, _world.EnemyCatalog.Get(elite.EnemyId).Radius * elite.RadiusMultiplier);
-            _separation.Resize(_world.Map.Width, _world.Map.Height, EnemyLimit, largestRadius * 2);
-            _spawnRadius = (double)bolt.Speed * bolt.Lifetime + largestRadius + _world.Stages.Spawn.RingMargin;
+            _enemy.ResizeSeparation(_world.Map.Width, _world.Map.Height, EnemyLimit, largestRadius * 2);
+            _spawn.SpawnRadius = (double)bolt.Speed * bolt.Lifetime + largestRadius + _world.Stages.Spawn.RingMargin;
             _targetKills = 0; _isBossDefeated = false;
-            _director = new SpawnDirector(_world.StageDefinition, _world.StageNumber, _world.Formations, TICK_RATE);
-            AdvanceSpawns();
-            RefreshSpawnWarnings();
+            _spawn.Director = new SpawnDirector(_world.StageDefinition, _world.StageNumber, _world.Formations, TICK_RATE);
+            _spawn.AdvanceSpawns();
+            _spawn.RefreshSpawnWarnings();
         }
 
-        /// <summary>
-        /// 현재 틱까지 도달한 스폰을 순서대로 처리한다. 기본 흐름 스폰 순번이 엘리트 주기와 일치하면 그 종족을 엘리트로 생성한다.
-        /// 살아 있는 적과 예고 대기 스폰을 합친 수가 상한이면 이번 틱 처리를 멈춘다.
-        /// </summary>
-        private void AdvanceSpawns()
-        {
-            while (_director.TryPeek(_world.Tick, out SpawnOrder order))
-            {
-                if (_world.Enemies.Count + _pendingSpawns.Count >= EnemyLimit) return;
-                _director.Consume(_world.Tick);
-                bool isStream = order.IsStream;
-                EliteSpawnDefinition elite = null;
-                if (isStream && _world.StageDefinition.TryGetElite(++_streamSpawns, out EliteSpawnDefinition found)) elite = found;
-                SpawnByFormation(order, elite != null ? elite.EnemyId : (isStream ? PickStreamEnemy() : order.EnemyId), elite, isKillTarget: true);
-            }
-        }
 
-        /// <summary>분열 대기 항목 중 생성 틱에 도달한 것을 목록 순서대로 생성한다. 적 수가 상한이면 남은 항목을 다음 틱에 다시 시도한다.</summary>
-        private void AdvanceSplits()
-        {
-            for (int i = 0; i < _pendingSplits.Count;)
-            {
-                if (_world.Enemies.Count >= EnemyLimit) return;
-                PendingSplit split = _pendingSplits[i];
-                if (split.Tick > _world.Tick) { i++; continue; }
-                _pendingSplits.RemoveAt(i);
-                SpawnEnemy(split.EnemyId, split.Position, false, 0, split.Elite, carrierOwnerId: split.CarrierOwnerId);
-            }
-        }
-
-        /// <summary>
-        /// 예약의 진형으로 플레이어 주변 원형 슬롯 중 위치를 정해 적을 생성한다. elite가 있으면 엘리트 배율로 생성하고,
-        /// isKillTarget은 기본 흐름과 웨이브 스폰에 true로 받아 목표 처치 수 집계 대상으로 만든다.
-        /// 묶음의 첫 스폰에서 슬롯 시작 각도(무작위, 진행 방향 또는 고정 0도)와 기준 슬롯을 정하고, 위치는 스폰 순간의 플레이어 위치 기준으로 계산한다.
-        /// 맵형 진형은 원형 슬롯 대신 EnqueueArenaSpawn으로 예고 대기 스폰을 등록한다.
-        /// </summary>
-        private void SpawnByFormation(SpawnOrder order, string enemyId, EliteSpawnDefinition elite, bool isKillTarget)
-        {
-            FormationSettings settings = _director.GetSettings(order.Group);
-            SpawnFormation formation = SpawnFormations.Get(settings.Shape);
-            double radius = _world.EnemyCatalog.Get(enemyId).Radius * (elite != null ? elite.RadiusMultiplier : 1);
-            if (formation.IsArena) { EnqueueArenaSpawn(order, enemyId, elite, isKillTarget, formation, settings, radius); return; }
-            int slotCount = settings.Slots > 0 ? settings.Slots : _world.Stages.Spawn.RingSlots;
-            double spawnRadius = _spawnRadius * settings.RadiusScale;
-            if (!_director.IsStarted(order.Group))
-            {
-                double startAngle = settings.Angle == SpawnFormations.ANGLE_AHEAD ? GetAheadAngle()
-                    : settings.Angle == SpawnFormations.ANGLE_FIXED ? 0 : _world.Random.Next() * 2 * Math.PI / slotCount;
-                _spawnSlots.Refresh(_world.Map, _world.Player.Position, spawnRadius, slotCount, startAngle, radius);
-                _director.Start(order.Group, startAngle, formation.ChooseAnchor(_spawnSlots, settings));
-            }
-            else _spawnSlots.Refresh(_world.Map, _world.Player.Position, spawnRadius, slotCount, _director.GetStartAngle(order.Group), radius);
-            SpawnPlacement placement = formation.Place(order.Index, order.Count, _director.GetAnchor(order.Group), _spawnSlots, settings);
-            SpawnEnemy(enemyId, ResolvePlacement(placement, radius), false, 0, elite, isKillTarget);
-        }
-
-        /// <summary>
-        /// 맵형 진형 예약의 생성 위치를 정해 예고 시간 뒤에 생성할 대기 스폰으로 등록한다. 무리를 공유하는 진형은 묶음의 첫 스폰에서 무리 중심을 정하고
-        /// 각 기체를 중심 기준 오프셋에 두며, 그 위치가 맵 밖이거나 플레이어 최소 거리 안이면 무리 중심을 쓴다. 예고 표시는 무리 중심과 무리 반경을 쓴다.
-        /// 그 외 맵형 진형은 기체마다 맵 전체에서 위치를 고른다.
-        /// </summary>
-        private void EnqueueArenaSpawn(SpawnOrder order, string enemyId, EliteSpawnDefinition elite, bool isKillTarget,
-            SpawnFormation formation, in FormationSettings settings, double radius)
-        {
-            SimVector position;
-            SimVector warningCenter;
-            double warningRadius = radius;
-            if (formation.SharesArenaAnchor)
-            {
-                if (!_director.IsStarted(order.Group)) _director.StartAt(order.Group, PickArenaPoint(radius));
-                warningCenter = _director.GetAnchorPoint(order.Group);
-                warningRadius += formation.GetArenaSpread(order.Count, settings);
-                position = warningCenter + formation.GetArenaOffset(order.Index, settings);
-                if (!_world.Map.CanOccupy(position, radius) || (position - _world.Player.Position).Length < _world.Stages.Spawn.MinPlayerDistance) position = warningCenter;
-            }
-            else
-            {
-                position = PickArenaPoint(radius);
-                warningCenter = position;
-            }
-            int warningTicks = (int)Math.Round(_world.Stages.Spawn.WarningSeconds * TICK_RATE);
-            _pendingSpawns.Add(new PendingSpawn(_world.Tick + warningTicks, enemyId, position, elite, isKillTarget, warningCenter, warningRadius));
-        }
-
-        /// <summary>
-        /// 맵 전체에서 플레이어 거리 띠와 벽, 다른 예고 위치를 피한 스폰 위치를 고른다. 두 번 추첨해도 후보가 없으면 맵 안에서 플레이어로부터 가장 먼 지점을 반환한다.
-        /// </summary>
-        private SimVector PickArenaPoint(double radius)
-        {
-            StageSpawnSettings spawn = _world.Stages.Spawn;
-            for (int round = 0; round < ARENA_PICK_ROUNDS; round++)
-                if (_arenaSpawnPoints.TryPick(_world.Map, _world.Player.Position, radius, spawn.MinPlayerDistance, spawn.MaxPlayerDistance, _isArenaPointReserved, out SimVector point))
-                    return point;
-            return GetFarthestPoint(_world.Player.Position, radius);
-        }
-
-        /// <summary>맵 좌표가 대기 중인 맵형 스폰의 예고 영역(예고 반경 + 여유) 안에 있는지 반환한다.</summary>
-        private bool IsArenaPointReserved(SimVector position)
-        {
-            foreach (PendingSpawn spawn in _pendingSpawns)
-            {
-                double gap = spawn.WarningRadius * 2;
-                if ((spawn.WarningCenter - position).LengthSquared < gap * gap) return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// 생성 틱에 도달한 대기 스폰을 등록 순서대로 생성하고 접촉 피해 유예를 준다. 적 수가 상한이라 생성하지 못하면 남은 항목을 다음 틱에 다시 시도한다.
-        /// </summary>
-        private void AdvancePendingSpawns()
-        {
-            for (int i = 0; i < _pendingSpawns.Count;)
-            {
-                PendingSpawn spawn = _pendingSpawns[i];
-                if (spawn.Tick > _world.Tick) { i++; continue; }
-                SimulationEnemy enemy = SpawnEnemy(spawn.EnemyId, spawn.Position, false, 0, spawn.Elite, spawn.IsKillTarget);
-                if (enemy == null) return;
-                enemy.ContactGraceUntil = Time + _world.Stages.Spawn.SpawnGraceSeconds;
-                _pendingSpawns.RemoveAt(i);
-            }
-        }
-
-        /// <summary>
-        /// 대기 스폰으로 예고 표시 목록을 다시 만든다. 같은 예고 중심을 쓰는 무리는 하나로 묶고 반경은 가장 큰 값, 진행도는 가장 앞선 값, 엘리트는 하나라도 있으면 표시한다.
-        /// </summary>
-        private void RefreshSpawnWarnings()
-        {
-            _feedback.SpawnWarnings.Clear();
-            int warningTicks = (int)Math.Round(_world.Stages.Spawn.WarningSeconds * TICK_RATE);
-            foreach (PendingSpawn spawn in _pendingSpawns)
-            {
-                double progress = warningTicks <= 0 ? 1 : Math.Max(0, Math.Min(1, 1 - (spawn.Tick - _world.Tick) / (double)warningTicks));
-                int merged = -1;
-                for (int i = 0; i < _feedback.SpawnWarnings.Count; i++)
-                    if (_feedback.SpawnWarnings[i].Position.X == spawn.WarningCenter.X && _feedback.SpawnWarnings[i].Position.Y == spawn.WarningCenter.Y) { merged = i; break; }
-                if (merged < 0) { _feedback.SpawnWarnings.Add(new SpawnWarning(spawn.WarningCenter, spawn.WarningRadius, progress, spawn.Elite != null)); continue; }
-                SpawnWarning current = _feedback.SpawnWarnings[merged];
-                _feedback.SpawnWarnings[merged] = new SpawnWarning(current.Position, Math.Max(current.Radius, spawn.WarningRadius),
-                    Math.Max(current.Progress, progress), current.IsElite || spawn.Elite != null);
-            }
-        }
-
-        /// <summary>보스 증원 설정으로 보스 주변 원 위에 같은 간격으로 증원을 생성한다. 시작 각도는 보스가 바라보는 방향이며 맵 밖 위치는 원형 슬롯과 같이 제외한다.</summary>
-        private void SpawnReinforcements(SimulationEnemy boss, BossReinforcement reinforcement)
-        {
-            int count = reinforcement.Count;
-            double radius = _world.EnemyCatalog.Get(reinforcement.EnemyId).Radius;
-            _spawnSlots.Refresh(_world.Map, boss.Position, boss.Radius + _world.Stages.Spawn.ReinforcementGap, count, Math.Atan2(boss.Facing.Y, boss.Facing.X), radius);
-            SpawnFormation formation = SpawnFormations.Get(_world.Formations.Get(reinforcement.Formation).Shape);
-            for (int i = 0; i < count; i++)
-                SpawnEnemy(reinforcement.EnemyId, ResolvePlacement(formation.Place(i, count, -1, _spawnSlots, default), radius), false, 0);
-        }
-
-        /// <summary>
-        /// 배치 결과를 마지막으로 Refresh한 슬롯 기준 좌표로 바꾼다. 쓸 슬롯이 없으면 맵 안에서 플레이어로부터 가장 먼 지점을 쓰고,
-        /// 호 이동·바깥 오프셋을 반영한 위치가 맵 밖이면 슬롯 위치를 쓰며, 같은 틱에 같은 위치로 나온 적이 있으면 흔들어 겹치지 않게 한다.
-        /// </summary>
-        private SimVector ResolvePlacement(SpawnPlacement placement, double radius)
-        {
-            if (!placement.HasSlot) return GetFarthestPoint(_world.Player.Position, radius);
-            SimVector position = _spawnSlots.GetPosition(placement.Slot);
-            if (placement.Arc != 0)
-            {
-                SimVector moved = _spawnSlots.GetArcPosition(placement.Slot, placement.Arc, placement.Outward);
-                if (_world.Map.CanOccupy(moved, radius)) position = moved;
-            }
-            else if (placement.Outward > 0)
-            {
-                SimVector pushed = position + _spawnSlots.GetDirection(placement.Slot) * placement.Outward;
-                if (_world.Map.CanOccupy(pushed, radius)) position = pushed;
-            }
-            return SpreadSameTickSpawn(position, radius);
-        }
-
-        /// <summary>이번 틱에 같은 위치로 스폰된 적이 있으면 ±(반경 × 흔들림 배율) 안의 맵 안 위치로 옮겨 반환한다.</summary>
-        private SimVector SpreadSameTickSpawn(SimVector position, double radius)
-        {
-            if (_tickSpawnPositionsTick != _world.Tick) { _tickSpawnPositionsTick = _world.Tick; _tickSpawnPositions.Clear(); }
-            bool isTaken = false;
-            foreach (SimVector taken in _tickSpawnPositions)
-                if ((taken - position).LengthSquared < SAME_SPAWN_DISTANCE * SAME_SPAWN_DISTANCE) { isTaken = true; break; }
-            _tickSpawnPositions.Add(position);
-            if (!isTaken) return position;
-            double range = radius * _world.Stages.Spawn.JitterScale;
-            SimVector spread = position + new SimVector((_world.Random.Next() * 2 - 1) * range, (_world.Random.Next() * 2 - 1) * range);
-            return _world.Map.CanOccupy(spread, radius) ? spread : position;
-        }
-
-        /// <summary>외곽 벽 안쪽으로 반경만큼 들어온 맵 네 모서리 중 기준점에서 가장 먼 곳을 반환한다.</summary>
-        private SimVector GetFarthestPoint(SimVector origin, double radius)
-        {
-            double inset = _world.Map.TileSize + radius;
-            SimVector best = origin; double bestDistance = -1;
-            for (int corner = 0; corner < 4; corner++)
-            {
-                var candidate = new SimVector(corner % 2 == 0 ? inset : _world.Map.Width - inset, corner < 2 ? inset : _world.Map.Height - inset);
-                double distance = (candidate - origin).LengthSquared;
-                if (distance > bestDistance) { best = candidate; bestDistance = distance; }
-            }
-            return best;
-        }
-
-        /// <summary>마지막 이동 입력 방향의 각도를 반환하며 이동한 적이 없으면 조준 방향 각도를 반환한다.</summary>
-        private double GetAheadAngle()
-        {
-            SimVector direction = _world.HasMoveDirection ? _world.MoveDirection : _world.Player.AimDirection;
-            return Math.Atan2(direction.Y, direction.X);
-        }
-
-        /// <summary>기본 흐름 후보 중 현재 스테이지에서 나올 수 있는 적을 가중 난수로 고른다. 부동소수 오차로 고르지 못하면 마지막 후보를 쓴다.</summary>
-        private string PickStreamEnemy()
-        {
-            IReadOnlyList<StreamCandidate> candidates = _world.StageDefinition.Stream.Candidates;
-            double totalWeight = 0;
-            foreach (StreamCandidate candidate in candidates) if (candidate.FirstStage <= _world.StageNumber) totalWeight += candidate.Weight;
-            double choice = _world.Random.Next() * totalWeight;
-            string last = null;
-            foreach (StreamCandidate candidate in candidates)
-            {
-                if (candidate.FirstStage > _world.StageNumber) continue;
-                last = candidate.EnemyId;
-                choice -= candidate.Weight;
-                if (choice <= 0) return candidate.EnemyId;
-            }
-            return last;
-        }
-
-        /// <summary>무반격 더미 적을 지정한 위치와 체력으로 생성한다.</summary>
-        private SimulationEnemy SpawnBenchDummy(SimVector position, double hp) => SpawnEnemy("enemy.scout", position, true, hp);
-
-        /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부와 캐리어 소유자 ID로 적을 생성하고 공격 일정을 설정한다. 엘리트는 체력·보상·이동 속도·반경 배율을 적용하며 캐리어 자식의 보상은 0으로 설정한다.</summary>
+        /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부와 캐리어 소유자 ID로 적을 생성한다. 스폰 시스템에 위임한다.</summary>
         public SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0)
-        {
-            if (Completed || IsFailed || _world.Enemies.Count >= EnemyLimit) return null;
-            EnemyDefinition definition = _world.EnemyCatalog.Get(id);
-            if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER) && _world.Carrier == null)
-                throw new InvalidOperationException("캐리어 Prefab 생성 설정을 시뮬레이션에 전달해야 합니다.");
-            double hpMultiplier = _world.IsMission ? _world.Stages.GetHpMultiplier(_world.StageNumber) : 1;
-            if (elite != null) hpMultiplier *= elite.HpMultiplier;
-            double damageMultiplier = _world.IsMission ? _world.Stages.Growth.GetDamageMultiplier(_world.StageNumber) : 1;
-            int reward = _world.IsMission ? _world.Stages.GetReward(id, definition.Reward) : definition.Reward;
-            if (elite != null) reward = (int)Math.Round(reward * elite.RewardMultiplier, MidpointRounding.AwayFromZero);
-            _world.Bosses.TryGet(id, out BossDefinition boss);
-            double radius = definition.Radius * (elite != null ? elite.RadiusMultiplier : 1);
-            var enemy = new SimulationEnemy(_world.AllocateEntityId(), definition, EnemyMovements.Resolve(definition.Movement), boss, _world.Map.NearestFree(position, radius), isDummy, hp, _world.Balance.Sim.HitFlashSeconds, hpMultiplier, damageMultiplier, carrierOwnerId == 0 ? reward : 0, elite != null, elite != null ? elite.SpeedMultiplier : 1, elite, isKillTarget, carrierOwnerId);
-            enemy.AttackAt = Time + definition.AttackInterval;
-            if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = Time;
-            if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = _world.Carrier.Interval;
-            if (boss != null && boss.IsGovernorPattern) { enemy.ReinforcementAt = Time + boss.Reinforcement.Interval; enemy.HazardAt = Time + boss.HazardInterval; }
-            enemy.Observe(Time); _world.Enemies.Add(enemy); if (_world.IsMission) _spawnedEnemies++; return enemy;
-        }
+            => _spawn.SpawnEnemy(id, position, isDummy, hp, elite, isKillTarget, carrierOwnerId);
+
+        /// <summary>분열형 적의 자식 대기 항목을 만든다. 처치 정리에서 호출하며 스폰 시스템에 위임한다.</summary>
+        internal void EnqueueSplits(SimulationEnemy parent) => _spawn.EnqueueSplits(parent);
 
         /// <summary>사망, 클리어 및 시간 초과 시 지속 개체, 예약 실행과 분열 대기를 취소한다.</summary>
         private void CancelCombat()
@@ -1710,8 +1140,8 @@ namespace RuneCode
             _feedback.CancelBeamFlashes();
             CancelBeamChannels();
             foreach (SimulationEnemy enemy in _world.Enemies) enemy.CancelDisplacement();
-            _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _scheduled.Clear(); _pendingEnemyShots.Clear(); _pendingSplits.Clear(); _loot.ClearDeadEnemies();
-            _pendingSpawns.Clear(); _feedback.ClearSpawnWarnings();
+            _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _scheduled.Clear(); _enemy.PendingEnemyShots.Clear(); _spawn.PendingSplits.Clear(); _loot.ClearDeadEnemies();
+            _spawn.PendingSpawns.Clear(); _feedback.ClearSpawnWarnings();
             if (_world.Player != null) _world.Player.CancelSpellExecutions();
         }
 

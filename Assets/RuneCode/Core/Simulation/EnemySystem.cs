@@ -1,0 +1,338 @@
+using System;
+using System.Collections.Generic;
+
+namespace RuneCode
+{
+    /// <summary>적 이동·공격·저격·인터셉터·캐리어·릴레이 회복, 보스 패턴과 패치, 적 탄환·예약 사격, 플레이어 피격과 자폭을 처리한다.</summary>
+    internal sealed class EnemySystem
+    {
+        private const int RELAY_REGEN_INTERVAL_TICKS = 60;
+        private const double EXPLOSION_VISUAL_SECONDS = 0.25;
+
+        private readonly SimulationWorld _world;
+        private readonly SimulationFeedback _feedback;
+        private readonly SimulationStats _stats;
+        private readonly SpawnSystem _spawn;
+        private readonly RuneSimulation _simulation;
+        private readonly List<PendingEnemyShot> _pendingEnemyShots = new List<PendingEnemyShot>();
+        private readonly EnemySeparation _separation = new EnemySeparation();
+        private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
+
+        /// <summary>예약 사격 목록이다. 상태 해시와 전투 취소가 같은 인스턴스를 쓴다.</summary>
+        internal List<PendingEnemyShot> PendingEnemyShots => _pendingEnemyShots;
+
+        /// <summary>월드·표시 버퍼·통계·스폰·시뮬레이션 참조로 만들고 분리 고정 판정 대리자를 준비한다.</summary>
+        internal EnemySystem(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, SpawnSystem spawn, RuneSimulation simulation)
+        {
+            _world = world;
+            _feedback = feedback;
+            _stats = stats;
+            _spawn = spawn;
+            _simulation = simulation;
+            _isSeparationFixed = IsSeparationFixed;
+        }
+
+        /// <summary>미션 적 분리 격자를 맵 크기, 적 상한과 칸 크기로 다시 만든다.</summary>
+        internal void ResizeSeparation(int width, int height, int enemyLimit, double cellSize) => _separation.Resize(width, height, enemyLimit, cellSize);
+
+        /// <summary>미션 적끼리의 겹침을 분리한다. 보스·빙결·돌진 중인 적은 고정한다.</summary>
+        internal void ApplySeparation() => _separation.Apply(_world.Enemies, _world.Map, _world.Balance.Combat, _isSeparationFixed);
+        /// <summary>
+        /// 60틱마다 살아 있는 릴레이 반경 안의 다른 적 체력을 RelayRegen만큼 회복시킨다.
+        /// 릴레이 자신은 오라 대상이 아니고 최대 체력까지만 회복한다.
+        /// </summary>
+        internal void AdvanceRelayRegen()
+        {
+            if (_world.Tick % RELAY_REGEN_INTERVAL_TICKS != 0) return;
+            foreach (SimulationEnemy relay in _world.Enemies)
+            {
+                if (!relay.IsAlive || !relay.Definition.HasTrait(EnemyDefinition.TRAIT_RELAY_AURA)) continue;
+                foreach (SimulationEnemy enemy in _world.Enemies)
+                {
+                    if (enemy == relay || !enemy.IsAlive || SimVector.Distance(relay.Position, enemy.Position) > _world.Balance.Combat.RelayRadius) continue;
+                    if (enemy.Heal(_world.Balance.Combat.RelayRegen) > 0) _feedback.AddHealPulse(enemy.Position);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 적마다 이동 전 플레이어 방향을 구해 이동 판단을 적용한 뒤 접촉, 예고 사격, 돌진 및 거버너 페이즈 패턴을 진행한다.
+        /// 공격 판정은 이동 전 거리·방향을, 접촉과 발사 위치는 이동 후 위치를 사용한다.
+        /// </summary>
+        internal void AdvanceEnemies()
+        {
+            int initialCount = _world.Enemies.Count;
+            for (int i = 0; i < initialCount; i++)
+            {
+                SimulationEnemy enemy = _world.Enemies[i]; if (!enemy.IsAlive) continue;
+                enemy.Observe(_simulation.Time);
+                bool hasDisplacement = AdvanceEnemyDisplacement(enemy);
+                if (enemy.IsDummy) continue;
+                if (_simulation.HasEnemyStatus(enemy, EnemyStatusType.Freeze))
+                {
+                    if (enemy.Definition.Attack == EnemyDefinition.ATTACK_SNIPER)
+                    { enemy.AimEndsAt = 0; enemy.WarningUntil = 0; enemy.AttackAt = _simulation.Time + RuneSimulation.STEP_SECONDS; }
+                    continue;
+                }
+                SimVector offset = _world.Player.Position - enemy.Position; SimVector direction = offset.Normalized();
+                BossDefinition bossPattern = enemy.Boss;
+                bool isBoss = bossPattern != null && bossPattern.IsGovernorPattern;
+                if (isBoss) { CheckBossPatch(enemy, bossPattern); if (enemy.IsPatching) continue; }
+                double speedMultiplier = isBoss && enemy.Phase == 3 ? bossPattern.PhaseThreeMultiplier : 1;
+                var context = new EnemyMoveContext(offset, direction, _simulation.Time, _world.IsMission, _world.Stages.StationaryAdvanceSpeed, isBoss ? bossPattern.PreferredDistance : 0, speedMultiplier);
+                if (!hasDisplacement) ApplyMove(enemy, EnemyMovements.Decide(enemy, context));
+                if (isBoss) AdvanceBoss(enemy, bossPattern, direction);
+                else AdvanceEnemyAttack(enemy, offset, direction);
+                if (IsSeparationFixed(enemy)) enemy.CancelDisplacement();
+                if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) AdvanceCarrier(enemy);
+            }
+        }
+
+        /// <summary>면역을 확인하고 적의 강제 이동을 진행한다. 벽 앞에서 멈추며 이번 틱에 자발적 이동을 보류할지 반환한다.</summary>
+        private bool AdvanceEnemyDisplacement(SimulationEnemy enemy)
+        {
+            if (IsSeparationFixed(enemy)) { enemy.CancelDisplacement(); return false; }
+            if (!enemy.TryAdvanceDisplacement(_world.Tick, RuneSimulation.STEP_SECONDS, out SimVector displacement)) return false;
+            SimVector next = enemy.Position + displacement;
+            double wall = _simulation.FirstWallFraction(enemy.Position, next, enemy.Radius);
+            if (!double.IsPositiveInfinity(wall))
+            {
+                next = enemy.Position + displacement * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON);
+                enemy.CancelDisplacement();
+            }
+            enemy.Move(next, enemy.Facing);
+            return true;
+        }
+
+        /// <summary>이동 판단 결과에 따라 정지, 방향 전환 또는 감속·벽 충돌을 반영한 이동을 적용한다.</summary>
+        private void ApplyMove(SimulationEnemy enemy, EnemyMoveDecision decision)
+        {
+            if (decision.Mode == EnemyMoveMode.Face) enemy.Move(enemy.Position, decision.Direction);
+            else if (decision.Mode == EnemyMoveMode.Move) MoveEnemy(enemy, decision.Direction, decision.Speed);
+        }
+
+        /// <summary>
+        /// 보스가 아닌 적의 공격 일정을 이동 전 거리·방향으로 진행한다.
+        /// 연사형은 예고 후 연사, 돌진 접촉형은 예고 후 돌진·돌진 중 접촉, 공격 없음은 쉬며 그 외는 주기적 접촉 피해를 준다.
+        /// </summary>
+        private void AdvanceEnemyAttack(SimulationEnemy enemy, SimVector offset, SimVector direction)
+        {
+            EnemyDefinition definition = enemy.Definition;
+            if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) { AdvanceSniper(enemy, direction); return; }
+            if (definition.Attack == EnemyDefinition.ATTACK_INTERCEPTOR) { AdvanceInterceptor(enemy, direction); return; }
+            if (definition.Attack == EnemyDefinition.ATTACK_NONE) return;
+            if (definition.Attack == EnemyDefinition.ATTACK_BURST)
+            {
+                if (enemy.WarningUntil > 0 && _simulation.Time + 0.000001 >= enemy.WarningUntil)
+                { ShootBurst(enemy, enemy.AttackDirection, 1); enemy.WarningUntil = 0; enemy.AttackAt = _simulation.Time + definition.AttackInterval - definition.WarningSeconds; }
+                else if (enemy.WarningUntil == 0 && _simulation.Time + 0.000001 >= enemy.AttackAt)
+                { enemy.AttackDirection = direction; enemy.WarningUntil = _simulation.Time + definition.WarningSeconds; }
+                return;
+            }
+            if (definition.Attack == EnemyDefinition.ATTACK_DASH_CONTACT)
+            {
+                if (_simulation.Time < enemy.DashUntil) { HurtByContact(enemy); return; }
+                if (enemy.WarningUntil > 0)
+                { if (_simulation.Time + 0.000001 >= enemy.WarningUntil) { enemy.WarningUntil = 0; enemy.DashUntil = _simulation.Time + definition.DashSeconds; enemy.AttackAt = _simulation.Time + definition.AttackInterval; } return; }
+                if (offset.Length < definition.AttackRange && _simulation.Time >= enemy.AttackAt)
+                { enemy.WarningUntil = _simulation.Time + definition.WarningSeconds; enemy.AttackDirection = direction; }
+                return;
+            }
+            if (_simulation.Time >= enemy.AttackAt && HurtByContact(enemy)) enemy.AttackAt = _simulation.Time + definition.AttackInterval;
+        }
+
+        /// <summary>저격수의 추적 조준, 고정 대기와 단발 발사를 진행하며 같은 저장 경로를 표시와 사격에 사용한다.</summary>
+        private void AdvanceSniper(SimulationEnemy enemy, SimVector direction)
+        {
+            EnemyDefinition definition = enemy.Definition;
+            if (!enemy.IsAiming)
+            {
+                if (_simulation.Time + RuneSimulation.COLLISION_EPSILON < enemy.AttackAt) return;
+                enemy.AimEndsAt = _simulation.Time + definition.AimSeconds;
+                enemy.WarningUntil = enemy.AimEndsAt + definition.LockSeconds;
+                enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction;
+                return;
+            }
+            if (_simulation.Time + RuneSimulation.COLLISION_EPSILON < enemy.AimEndsAt)
+            { enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction; return; }
+            if (_simulation.Time + RuneSimulation.COLLISION_EPSILON < enemy.WarningUntil) return;
+            _world.EnemyProjectiles.Add(new SimulationProjectile(enemy.AttackOrigin, enemy.AttackDirection, definition.ProjectileSpeed,
+                enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime));
+            enemy.AimEndsAt = 0; enemy.WarningUntil = 0;
+            enemy.AttackAt = _simulation.Time + definition.AttackInterval - definition.AimSeconds - definition.LockSeconds;
+        }
+
+        /// <summary>인터셉터의 이동·정지 남은 시간을 줄이고 이동 종료마다 플레이어 방향에 한 발을 발사한다.</summary>
+        private void AdvanceInterceptor(SimulationEnemy enemy, SimVector direction)
+        {
+            enemy.BehaviorRemaining -= RuneSimulation.STEP_SECONDS;
+            if (enemy.BehaviorRemaining > RuneSimulation.COLLISION_EPSILON) return;
+            if (!enemy.IsStopping) ShootFan(enemy, direction, 1, 1);
+            enemy.IsBehaviorStopping = !enemy.IsStopping;
+            enemy.BehaviorRemaining += enemy.IsStopping ? enemy.Definition.StopSeconds : enemy.Definition.MoveSeconds;
+        }
+
+        /// <summary>캐리어의 생성 타이머와 보류 수를 진행하고 설정 목록 순서대로 보상 없는 자식을 주변에 생성한다.</summary>
+        private void AdvanceCarrier(SimulationEnemy enemy)
+        {
+            enemy.SpawnRemainingSeconds -= RuneSimulation.STEP_SECONDS;
+            if (enemy.SpawnRemaining == 0)
+            {
+                if (enemy.SpawnRemainingSeconds > RuneSimulation.COLLISION_EPSILON) return;
+                enemy.SpawnRemaining = _world.Carrier.Count;
+            }
+            int alive = 0;
+            foreach (SimulationEnemy child in _world.Enemies) if (child.IsAlive && child.CarrierOwnerId == enemy.Id) alive++;
+            while (enemy.SpawnRemaining > 0 && _world.Enemies.Count < _simulation.EnemyLimit && alive < _world.Carrier.MaxAlive)
+            {
+                string id = _world.Carrier.EnemyIds[enemy.SpawnCursor % _world.Carrier.EnemyIds.Count];
+                double radius = _world.EnemyCatalog.Get(id).Radius;
+                double angle = enemy.SpawnCursor * Math.PI * (3 - Math.Sqrt(5));
+                double distance = Math.Max(_world.Carrier.Distance, enemy.Radius + radius + SpawnSystem.SAME_SPAWN_DISTANCE);
+                SimVector position = enemy.Position + new SimVector(Math.Cos(angle), Math.Sin(angle)) * distance;
+                _simulation.SpawnEnemy(id, _world.Map.NearestFree(position, radius), carrierOwnerId: enemy.Id);
+                enemy.SpawnCursor++; enemy.SpawnRemaining--; alive++;
+            }
+            if (enemy.SpawnRemaining == 0) enemy.SpawnRemainingSeconds = _world.Carrier.Interval;
+            else enemy.SpawnRemainingSeconds = 0;
+        }
+
+        /// <summary>냉기 감속을 반영하여 적을 벽 충돌 가능한 방향으로 이동시킨다.</summary>
+        private void MoveEnemy(SimulationEnemy enemy, SimVector direction, double speed)
+        { double slow = Math.Max(0, 1 - _world.Balance.Combat.ChillSlow * _simulation.GetChillStacks(enemy)); enemy.Move(_world.Map.Move(enemy.Position, direction * (speed * enemy.SpeedMultiplier * slow * RuneSimulation.STEP_SECONDS), enemy.Radius), direction); }
+
+        /// <summary>적 분리에서 밀리지 않는 고정 대상인지 반환한다. 보스, 빙결 중인 적, 돌진 중인 적은 자리를 지키고 상대만 밀어낸다.</summary>
+        internal bool IsSeparationFixed(SimulationEnemy enemy) => enemy.Boss != null || _simulation.HasEnemyStatus(enemy, EnemyStatusType.Freeze) || _simulation.Time < enemy.DashUntil;
+
+        /// <summary>적과 플레이어가 겹치면 피해를 적용하고 접촉 여부를 반환한다.</summary>
+        private bool HurtByContact(SimulationEnemy enemy)
+        {
+            if (!_world.IsMission || _simulation.Time < enemy.ContactGraceUntil || SimVector.Distance(enemy.Position, _world.Player.Position) > enemy.Radius + _world.Sector.PlayerRadius) return false;
+            HurtPlayer(enemy.Damage); return true;
+        }
+
+        /// <summary>플레이어 피해에 디버그 무적과 기본 피격 무적을 반영한다.</summary>
+        internal void HurtPlayer(double damage)
+        {
+            if (_world.DebugInvulnerable || !_world.IsMission) return;
+            double shieldBefore = _world.Player.Shield;
+            double actual = _world.Player.Hurt(damage, _simulation.Time, _world.Balance.Player.HurtInvulnerability);
+            if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
+            if (actual > 0 || _world.Player.Shield < shieldBefore) _simulation.TryCastTrigger(SpellGrammar.TRIGGER_ON_HIT_TAKEN);
+        }
+
+        /// <summary>
+        /// 시전자의 상태 이상 피해(화상 DoT)를 적용한다. 피격 무적을 무시하고 주지 않으며 OnHitTaken을 발생시키지 않는다.
+        /// 시험 도크(비전투)에서는 상태만 표시하고 체력을 깎지 않는다(결정 Q13).
+        /// </summary>
+        internal void HurtPlayerByStatus(double damage)
+        {
+            if (_world.DebugInvulnerable || !_world.IsMission) return;
+            double actual = _world.Player.HurtByStatus(damage);
+            if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
+        }
+
+        /// <summary>적 공격 설정의 탄환을 부채꼴로 발사한다.</summary>
+        private void ShootFan(SimulationEnemy enemy, SimVector direction, int count, double speedMultiplier)
+        {
+            EnemyDefinition definition = enemy.Definition;
+            for (int i = 0; i < count; i++)
+            { double spread = count == 1 ? 0 : (i / (double)(count - 1) * 2 - 1) * definition.SpreadDegrees * RuneSimulation.DEGREES_TO_RADIANS; SimVector aim = direction.Rotated(spread); _world.EnemyProjectiles.Add(new SimulationProjectile(enemy.Position + aim * (enemy.Radius + _world.Balance.Sim.WandOffset), aim, definition.ProjectileSpeed * speedMultiplier, enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime)); }
+        }
+
+        /// <summary>예고된 조준 방향에 첫 탄을 발사하고 데이터 간격에 맞춰 나머지 2발을 예약한다.</summary>
+        private void ShootBurst(SimulationEnemy enemy, SimVector direction, double speedMultiplier)
+        {
+            ShootFan(enemy, direction, 1, speedMultiplier);
+            for (int i = 1; i < 3; i++) _pendingEnemyShots.Add(new PendingEnemyShot(_world.Tick + Math.Max(1, (int)Math.Round(i * enemy.Definition.BurstInterval * RuneSimulation.TICK_RATE)), enemy, direction, speedMultiplier));
+        }
+
+        /// <summary>예약 시점이 된 연사 탄환을 생존하며 행동 가능한 적의 현재 위치에서 발사한다.</summary>
+        internal void RunEnemyShots()
+        {
+            for (int i = 0; i < _pendingEnemyShots.Count;)
+            {
+                PendingEnemyShot shot = _pendingEnemyShots[i];
+                if (!shot.Owner.IsAlive || shot.Owner.IsPatching || _simulation.HasEnemyStatus(shot.Owner, EnemyStatusType.Freeze)) { _pendingEnemyShots.RemoveAt(i); continue; }
+                if (shot.Tick > _world.Tick) { i++; continue; }
+                _pendingEnemyShots.RemoveAt(i); ShootFan(shot.Owner, shot.Direction, 1, shot.SpeedMultiplier);
+            }
+        }
+
+        /// <summary>
+        /// 보스 패턴의 폭발 사격, 조준 사격, 예고 장판, 증원 주기 및 접촉 피해를 페이즈에 맞춰 처리한다.
+        /// 페이즈 전환과 이동은 호출 전에 끝난 상태여야 하며 조준은 이동 전 방향을 사용한다.
+        /// </summary>
+        private void AdvanceBoss(SimulationEnemy boss, BossDefinition pattern, SimVector direction)
+        {
+            double multiplier = boss.Phase == 3 ? pattern.PhaseThreeMultiplier : 1;
+            if (_simulation.Time + 0.000001 >= boss.AttackAt)
+            {
+                if (boss.Phase == 1 || boss.Phase == 3)
+                    for (int i = 0; i < pattern.RadialCount; i++)
+                    { double angle = i * 2 * Math.PI / pattern.RadialCount; ShootFan(boss, new SimVector(Math.Cos(angle), Math.Sin(angle)), 1, multiplier); }
+                if (boss.Phase >= 2) ShootBurst(boss, direction, multiplier);
+                boss.AttackAt = _simulation.Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval) / multiplier;
+            }
+            if (boss.Phase >= 2 && _simulation.Time >= boss.HazardAt)
+            { _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, pattern.HazardDamage * boss.DamageMultiplier, pattern.HazardRadius, pattern.HazardLifetime + pattern.HazardWarning, true, pattern.HazardWarning)); boss.HazardAt = _simulation.Time + pattern.HazardInterval / multiplier; }
+            if (_simulation.Time >= boss.ReinforcementAt)
+            {
+                if (_world.IsMission) _spawn.SpawnReinforcements(boss, pattern.Reinforcement);
+                else for (int i = 0; i < pattern.Reinforcement.Count; i++) _simulation.SpawnEnemy(pattern.Reinforcement.EnemyId, _world.Map.GetPoint((char)('1' + i * 2)), false, 0);
+                boss.ReinforcementAt = _simulation.Time + pattern.Reinforcement.Interval;
+            }
+            HurtByContact(boss);
+        }
+
+        /// <summary>보스 체력 문턱에서 패치 무적과 최고 피해 태그 잠금을 적용한다.</summary>
+        internal void CheckBossPatch(SimulationEnemy boss, BossDefinition pattern)
+        {
+            if (boss.IsPatching) return;
+            int next = boss.Phase == 1 && boss.Hp / boss.MaxHp <= pattern.PhaseTwoThreshold ? 2 : boss.Phase == 2 && boss.Hp / boss.MaxHp <= pattern.PhaseThreeThreshold ? 3 : boss.Phase;
+            if (next == boss.Phase) return;
+            boss.Patch(next, _simulation.Time, pattern.PatchSeconds); boss.Observe(_simulation.Time); _simulation.Adaptation.LockTopDamageTags();
+            boss.AttackAt = _simulation.Time + pattern.PatchSeconds + boss.Definition.WarningSeconds;
+        }
+
+        /// <summary>적 탄환과 위험 장판의 수명, 벽 충돌 및 플레이어 피격을 처리한다.</summary>
+        internal void AdvanceHostileProjectiles()
+        {
+            for (int i = _world.EnemyProjectiles.Count - 1; i >= 0; i--)
+            {
+                SimulationProjectile projectile = _world.EnemyProjectiles[i];
+                SimVector previous = projectile.Position;
+                projectile.Advance(Math.Min(RuneSimulation.STEP_SECONDS, Math.Max(0, projectile.Lifetime - projectile.Age)));
+                if (!projectile.IsHazard)
+                {
+                    double wall = _simulation.FirstWallFraction(previous, projectile.Position, projectile.Radius);
+                    double hit = SpellGeometry.CircleContactFraction(previous, projectile.Position, _world.Player.Position, projectile.Radius + _world.Sector.PlayerRadius);
+                    if (hit < wall && !double.IsPositiveInfinity(hit)) { HurtPlayer(projectile.Damage); _world.EnemyProjectiles.RemoveAt(i); continue; }
+                    if (!double.IsPositiveInfinity(wall)) { _world.EnemyProjectiles.RemoveAt(i); continue; }
+                }
+                else if (!projectile.IsExplosion && !projectile.IsWarning && SimVector.Distance(projectile.Position, _world.Player.Position) <= projectile.Radius + _world.Sector.PlayerRadius)
+                    HurtPlayer(projectile.Damage);
+                if (projectile.Age + RuneSimulation.COLLISION_EPSILON >= projectile.Lifetime) _world.EnemyProjectiles.RemoveAt(i);
+            }
+        }
+        /// <summary>사망 위치 주변 플레이어와 살아 있는 적에게 단발 폭발 피해를 주고 짧은 표시를 남긴다. 플레이어 강화·학습·DPS는 적용하지 않는다.</summary>
+        internal void ExplodeEnemy(SimulationEnemy source)
+        {
+            double radius = source.Definition.ExplosionRadius;
+            double damage = source.Definition.ExplosionDamage * source.DamageMultiplier;
+            _world.EnemyProjectiles.Add(new SimulationProjectile(source.Position, SimVector.Zero, 0, 0, radius, EXPLOSION_VISUAL_SECONDS, true, 0, true));
+            if (SimVector.Distance(source.Position, _world.Player.Position) <= radius + _world.Sector.PlayerRadius) HurtPlayer(damage);
+            foreach (SimulationEnemy target in _world.Enemies)
+            {
+                if (!target.IsAlive || target.IsPatching || SimVector.Distance(source.Position, target.Position) > radius + target.Radius) continue;
+                double actual = target.Hurt(damage, _simulation.Time);
+                if (actual > 0)
+                {
+                    _stats.EnemyDamageEventCount++;
+                    _feedback.AddDamageNumber(target.Position, actual, "raw");
+                }
+                if (target.IsAlive && target.Boss != null && target.Boss.IsGovernorPattern) CheckBossPatch(target, target.Boss);
+            }
+        }
+    }
+}
