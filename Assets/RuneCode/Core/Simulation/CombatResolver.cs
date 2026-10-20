@@ -11,16 +11,18 @@ namespace RuneCode
         private readonly SimulationStats _stats;
         private readonly EnemyStatusSystem _statuses;
         private readonly EnemySystem _enemy;
+        private readonly SpellExecutor _executor;
         private readonly RuneSimulation _simulation;
 
-        /// <summary>월드·표시 버퍼·통계·상태 이상·적 시스템과 시뮬레이션 참조로 만든다.</summary>
-        internal CombatResolver(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, EnemyStatusSystem statuses, EnemySystem enemy, RuneSimulation simulation)
+        /// <summary>월드·표시 버퍼·통계·상태 이상·적 시스템, 이벤트 후속을 실행할 스펠 실행기와 시뮬레이션 참조로 만든다.</summary>
+        internal CombatResolver(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, EnemyStatusSystem statuses, EnemySystem enemy, SpellExecutor executor, RuneSimulation simulation)
         {
             _world = world;
             _feedback = feedback;
             _stats = stats;
             _statuses = statuses;
             _enemy = enemy;
+            _executor = executor;
             _simulation = simulation;
         }
 
@@ -104,8 +106,8 @@ namespace RuneCode
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action);
             bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
-            _simulation.Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
-            if (isFirstEvent) _simulation.Execute(entity.Action.OnFirstHitOrExpire, context);
+            _executor.Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
+            if (isFirstEvent) _executor.Execute(entity.Action.OnFirstHitOrExpire, context);
         }
 
         /// <summary>
@@ -168,8 +170,8 @@ namespace RuneCode
             SpellContext context = new SpellContext(entity.Position, entity.Direction, null, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id);
             bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
-            _simulation.Execute(entity.Action.OnExpire, context);
-            if (isFirstEvent) _simulation.Execute(entity.Action.OnFirstHitOrExpire, context);
+            _executor.Execute(entity.Action.OnExpire, context);
+            if (isFirstEvent) _executor.Execute(entity.Action.OnFirstHitOrExpire, context);
         }
     }
 }
