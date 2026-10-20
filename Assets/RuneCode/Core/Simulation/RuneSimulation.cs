@@ -10,10 +10,8 @@ namespace RuneCode
         public const int TICK_RATE = CompiledSpell.SIMULATION_TICK_RATE;
         public const int ARC_LINK_TICKS = 12;
         private const int RELAY_REGEN_INTERVAL_TICKS = 60;
-        private const double MIN_KILL_ENERGY = 1;
         internal const double STEP_SECONDS = 1.0 / TICK_RATE;
         private const double DEGREES_TO_RADIANS = Math.PI / 180;
-        private const int STATUS_TYPE_COUNT = 4;
         private const double SAME_SPAWN_DISTANCE = 0.5;
         private const int ARENA_PICK_ROUNDS = 2;
         private const string BOLT_RUNE_ID = "form.bolt";
@@ -27,23 +25,12 @@ namespace RuneCode
         private readonly SimulationWorld _world;
         private readonly SimulationFeedback _feedback;
         private readonly SimulationStats _stats;
-        private readonly Queue<SimulationEnemy> _deadEnemies = new Queue<SimulationEnemy>();
-        private readonly double _scrapGainMultiplier;
-        private readonly double _scrapPickupRangeMultiplier;
-        private readonly double _scrapHealRatio;
-        private readonly double _killEnergyBonus;
-        private readonly List<FragmentOrb> _orbs = new List<FragmentOrb>();
-        private readonly List<SimulationItemDrop> _itemDrops = new List<SimulationItemDrop>();
-        private readonly List<FragmentOrb> _clearOrbs = new List<FragmentOrb>();
-        private readonly List<SimulationItemDrop> _clearItemDrops = new List<SimulationItemDrop>();
-        private readonly List<SimulationItemDrop> _pickedUpItems = new List<SimulationItemDrop>();
-        private readonly List<SimulationItemDrop> _newPickedItems = new List<SimulationItemDrop>();
+        private readonly EnemyStatusSystem _statuses;
+        private readonly LootSystem _loot;
         private readonly List<ScheduledExecution> _scheduled = new List<ScheduledExecution>();
         private readonly List<PendingEnemyShot> _pendingEnemyShots = new List<PendingEnemyShot>();
         private readonly List<PendingSplit> _pendingSplits = new List<PendingSplit>();
         private readonly List<PendingSpawn> _pendingSpawns = new List<PendingSpawn>();
-        private readonly List<EnemyStatusEffect> _enemyStatuses = new List<EnemyStatusEffect>();
-        private readonly Dictionary<int, EnemyStatusEffect> _statusIndex = new Dictionary<int, EnemyStatusEffect>();
         private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
         private SimVector? _aimPoint;
         private readonly bool[] _castHeld = new bool[3];
@@ -56,23 +43,16 @@ namespace RuneCode
         private readonly Func<SimVector, bool> _isArenaPointReserved;
         private readonly EnemySeparation _separation = new EnemySeparation();
         private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
-        private double _statusTime;
         private SpawnDirector _director;
         private double _spawnRadius;
         private int _tickSpawnPositionsTick = -1;
         private int _streamSpawns;
         private int _spawnedEnemies;
-        private int _killCount;
         private int _targetKills;
         private bool _isBossDefeated;
         private int _actionBudgetTick = -1;
         private int _actionsThisTick;
         private int _droppedExecutions;
-        private int _collectedFragments;
-        private int _normalScrapPickupEventCount;
-        private int _bigScrapPickupEventCount;
-        private int _bigScrapSpawnEventCount;
-        private double _scrapRemainder;
         private string _scenario;
         public int Tick => _world.Tick;
         public double Time => _world.Tick * STEP_SECONDS;
@@ -110,17 +90,17 @@ namespace RuneCode
         public IReadOnlyList<SimulationBeamFlash> BeamFlashes => _feedback.BeamFlashes;
         /// <summary>도크 초기화·전투 취소 후 이전 표시 기록을 구분하는 세대 번호다.</summary>
         public int BeamFlashGeneration => _feedback.BeamFlashGeneration;
-        public IReadOnlyList<FragmentOrb> Orbs => _orbs;
+        public IReadOnlyList<FragmentOrb> Orbs => _loot.Orbs;
 
         /// <summary>바닥에 떨어져 줍기를 기다리는 Modifier 드롭 목록이다.</summary>
-        public IReadOnlyList<SimulationItemDrop> ItemDrops => _itemDrops;
+        public IReadOnlyList<SimulationItemDrop> ItemDrops => _loot.ItemDrops;
         /// <summary>지급과 분리한 승리 흡수 연출용 잔여 스크랩 위치를 반환한다.</summary>
-        public IReadOnlyList<FragmentOrb> ClearOrbs => _clearOrbs;
+        public IReadOnlyList<FragmentOrb> ClearOrbs => _loot.ClearOrbs;
         /// <summary>지급과 분리한 승리 흡수 연출용 잔여 룬을 반환한다.</summary>
-        public IReadOnlyList<SimulationItemDrop> ClearItemDrops => _clearItemDrops;
+        public IReadOnlyList<SimulationItemDrop> ClearItemDrops => _loot.ClearItemDrops;
 
         /// <summary>이번 전투에서 주워 확정한 Modifier 드롭의 누적 목록이다.</summary>
-        public IReadOnlyList<SimulationItemDrop> PickedUpItems => _pickedUpItems;
+        public IReadOnlyList<SimulationItemDrop> PickedUpItems => _loot.PickedUpItems;
         public IReadOnlyList<DamageNumber> DamageNumbers => _feedback.DamageNumbers;
         public int EnemyDamageEventCount => _stats.EnemyDamageEventCount;
         public int ShotLaunchEventCount => _stats.ShotLaunchEventCount;
@@ -159,16 +139,16 @@ namespace RuneCode
         public SimVector MapCenter => new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
         public double EnergyRegen => _world.EnergyRegen;
         public int SpawnedEnemies => _spawnedEnemies;
-        public int KillCount => _killCount;
+        public int KillCount => _loot.KillCount;
         public int EnemyLimit => _world.Balance.Limits.MaxEnemies;
         public int DroppedExecutions => _droppedExecutions;
-        public int NormalScrapPickupEventCount => _normalScrapPickupEventCount;
-        public int BigScrapPickupEventCount => _bigScrapPickupEventCount;
-        public int BigScrapSpawnEventCount => _bigScrapSpawnEventCount;
+        public int NormalScrapPickupEventCount => _loot.NormalScrapPickupEventCount;
+        public int BigScrapPickupEventCount => _loot.BigScrapPickupEventCount;
+        public int BigScrapSpawnEventCount => _loot.BigScrapSpawnEventCount;
         /// <summary>플레이어가 직접 줍거나 스테이지 클리어 시 회수한 스크랩 누계를 반환한다.</summary>
-        public int EarnedFragments => _collectedFragments;
+        public int EarnedFragments => _loot.CollectedFragments;
         public int ClearReward => Completed && _world.StageDefinition != null ? _world.Stages.Growth.GetClearReward(_world.StageDefinition.ClearReward, _world.StageNumber) : 0;
-        public int SettlementFragments => IsFailed ? (int)Math.Round(_collectedFragments * _world.Balance.Economy.DeathRetention, MidpointRounding.AwayFromZero) : _collectedFragments + ClearReward;
+        public int SettlementFragments => IsFailed ? (int)Math.Round(_loot.CollectedFragments * _world.Balance.Economy.DeathRetention, MidpointRounding.AwayFromZero) : _loot.CollectedFragments + ClearReward;
         public double TotalDamage => _stats.TotalDamage;
 
         /// <summary>상태 이상(화염) 틱으로 입힌 실제 피해의 누적값이며 TotalDamage에 포함된다.</summary>
@@ -196,18 +176,16 @@ namespace RuneCode
             double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0)
         {
             GameData.Load();
-            _killEnergyBonus = Math.Max(0, killEnergyBonus);
             _world = new SimulationWorld(GameData.Balance, GameData.Enemies, GameData.Sector, GameData.Bosses, GameData.Formations, GameData.Drops,
                 new ModifierGradeDropSource(GameData.ModifierGrades), GameData.Stages, carrier, isMission, maxHp, maxEnergy, stageNumber, energyRegen,
                 damageMultiplier, moveSpeedMultiplier, new SimRandom(seed), new AdaptationNet(GameData.Balance));
             _feedback = new SimulationFeedback(_world);
             _stats = new SimulationStats();
-            _scrapGainMultiplier = scrapGainMultiplier;
-            _scrapPickupRangeMultiplier = scrapPickupRangeMultiplier;
+            _statuses = new EnemyStatusSystem(_world, _stats, this);
+            _loot = new LootSystem(_world, _stats, _statuses, this, scrapGainMultiplier, scrapPickupRangeMultiplier, scrapHealRatio, killEnergyBonus);
             _spawnSlots = new SpawnSlots(_world.Random.Next, _world.Enemies);
             _arenaSpawnPoints = new ArenaSpawnPoints(_world.Random.Next, _world.Enemies);
             _isArenaPointReserved = IsArenaPointReserved;
-            _scrapHealRatio = Math.Max(0, Math.Min(1, scrapHealRatio));
             _isSeparationFixed = IsSeparationFixed;
             if (isMission) BeginTimedBattle();
             else ResetBench("dummy_single");
@@ -234,51 +212,14 @@ namespace RuneCode
         }
 
         /// <summary>아직 지급하지 않은 새로 주운 Modifier 드롭 목록을 반환하고 미지급 목록을 비운다.</summary>
-        public List<SimulationItemDrop> TakeNewPickedItems()
-        {
-            var items = new List<SimulationItemDrop>(_newPickedItems);
-            _newPickedItems.Clear();
-            return items;
-        }
+        public List<SimulationItemDrop> TakeNewPickedItems() => _loot.TakeNewPickedItems();
 
         /// <summary>
         /// 보스 스테이지 클리어 Modifier 선택 정보와 결정적 난수로 후보와 후보별 등급을 뽑아 반환한다. 선택 보상이 없으면 false를 반환한다.
         /// 슬롯별 등급 확률이 있으면 슬롯마다 등급을 따로 굴리고, 없으면 모든 슬롯이 설정 등급을 쓴다. 같은 Modifier는 다시 뽑지 않는다.
         /// </summary>
         public bool TryDrawClearModifierChoices(out EliteModifierClearChoice choice, out List<string> candidates, out List<string> grades)
-        {
-            choice = _world.EliteDrops.GetClearChoice(_world.StageNumber);
-            candidates = new List<string>();
-            grades = new List<string>();
-            if (choice == null || choice.ChoiceCount <= 0) return false;
-            for (int i = 0; i < choice.ChoiceCount; i++)
-            {
-                string grade = choice.SlotGradeChances != null ? RollSlotGrade(choice.SlotGradeChances) : choice.Grade;
-                var pool = new List<string>();
-                foreach (string runeId in _world.EliteDrops.GetModifiersWithGrade(grade))
-                    if (!candidates.Contains(runeId)) pool.Add(runeId);
-                // 이 등급에 남은 후보가 없으면 슬롯을 비운다.
-                if (pool.Count == 0) continue;
-                candidates.Add(pool[Math.Min(pool.Count - 1, (int)(_world.Random.Next() * pool.Count))]);
-                grades.Add(grade);
-            }
-            return candidates.Count > 0;
-        }
-
-        /// <summary>등급 확률 목록(퍼센트)으로 등급 하나를 굴려 반환한다. 확률 0인 등급은 뽑지 않는다.</summary>
-        private string RollSlotGrade(IReadOnlyList<EliteModifierGradeChance> chances)
-        {
-            double roll = _world.Random.Next() * 100;
-            string last = null;
-            foreach (EliteModifierGradeChance chance in chances)
-            {
-                if (chance.Percent <= 0) continue;
-                last = chance.Grade;
-                roll -= chance.Percent;
-                if (roll < 0) return chance.Grade;
-            }
-            return last;
-        }
+            => _loot.TryDrawClearModifierChoices(out choice, out candidates, out grades);
 
         /// <summary>
         /// 슬롯 쿨다운을 시작하고 루트 실행을 등록한다. 직접 공격 빔은 구간 비용을 선결제하며 연장은 현재 슬롯 입력으로 판단한다.
@@ -413,17 +354,17 @@ namespace RuneCode
             if (input.CastA || _beamQueued[0]) TryCastTriggered(_loadout[0], SpellGrammar.TRIGGER_ON_ATTACK, 0);
             if (input.CastB || _beamQueued[1]) TryCastTriggered(_loadout[1], SpellGrammar.TRIGGER_ON_ATTACK, 1);
             if (input.CastC || _beamQueued[2]) TryCastTriggered(_loadout[2], SpellGrammar.TRIGGER_ON_ATTACK, 2);
-            AdvanceStatuses();
+            _statuses.AdvanceStatuses();
             AdvanceRelayRegen();
             AdvanceEnemies();
             if (_world.IsMission) _separation.Apply(_world.Enemies, _world.Map, _world.Balance.Combat, _isSeparationFixed);
             RunEnemyShots();
             AdvanceSpellEntities();
             AdvanceHostileProjectiles();
-            CleanupEnemies();
-            CollectNearbyOrbs();
-            CollectNearbyItemDrops();
-            if (_world.IsMission && _world.Player.Hp <= 0) { _world.Stage = MissionStage.Dead; DiscardUncollectedOrbs(); CancelCombat(); }
+            _loot.CleanupEnemies();
+            _loot.CollectNearbyOrbs();
+            _loot.CollectNearbyItemDrops();
+            if (_world.IsMission && _world.Player.Hp <= 0) { _world.Stage = MissionStage.Dead; _loot.DiscardUncollectedOrbs(); CancelCombat(); }
             else if (!_world.IsMission && _scenario == "adapt_loop" && _world.Enemies.Count == 0) SpawnBenchDummy(new SimVector(_world.Balance.Sim.BenchDummyX, _world.Balance.Sim.BenchDummyY), _world.Balance.Sim.BenchHp);
             Adaptation.Advance(Time, Time + STEP_SECONDS);
             _world.Tick++;
@@ -444,17 +385,13 @@ namespace RuneCode
         public void ResetBench(string scenario, int dummyCount = 0)
         {
             _feedback.ClearBeamFlashes();
-            _clearOrbs.Clear();
-            _clearItemDrops.Clear();
+            _loot.ClearClearFeedback();
             if (_world.IsMission) throw new InvalidOperationException("미션은 시험 도크로 초기화할 수 없습니다.");
             if (scenario != "dummy_single" && scenario != "dummy_line" && scenario != "dummy_swarm" && scenario != "aegis" && scenario != "adapt_loop") throw new ArgumentException("알 수 없는 시험 시나리오입니다.", nameof(scenario));
             _scenario = scenario; _world.Stage = MissionStage.Bench; _world.Tick = 0; _world.ResetEntityIds(); _world.Random.Reset();
-            _world.Enemies.Clear(); _orbs.Clear(); _itemDrops.Clear(); _pickedUpItems.Clear(); _newPickedItems.Clear(); _feedback.ClearForBench(); CancelCombat();
-            _enemyStatuses.Clear(); _statusIndex.Clear(); _statusTime = 0;
-            _stats.ResetForBench(); _collectedFragments = 0; _scrapRemainder = 0; _killCount = 0; _spawnedEnemies = 0;
-            _normalScrapPickupEventCount = 0;
-            _bigScrapPickupEventCount = 0;
-            _bigScrapSpawnEventCount = 0;
+            _world.Enemies.Clear(); _loot.ClearForBench(); _feedback.ClearForBench(); CancelCombat();
+            _statuses.ClearAll();
+            _stats.ResetForBench(); _loot.ResetForBench(); _spawnedEnemies = 0;
             _actionBudgetTick = -1; _actionsThisTick = 0; _droppedExecutions = 0;
             SimulationBalance bench = _world.Balance.Sim;
             _world.Map = new MissionMap(_world.Sector.BenchTiles, _world.Sector.TileSize); _world.Player = new SimulationPlayer(_world.MaxHp, _world.MaxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
@@ -495,7 +432,7 @@ namespace RuneCode
             if (_world.IsMission && _world.Stage != MissionStage.Combat) return;
             foreach (SimulationEnemy enemy in _world.Enemies)
                 if (enemy.Hurt(enemy.Hp, Time) > 0) _stats.EnemyDamageEventCount++;
-            CleanupEnemies(false);
+            _loot.CleanupEnemies(false);
             _pendingSplits.Clear();
         }
 
@@ -506,16 +443,16 @@ namespace RuneCode
             state.Append("beamInput:");
             for (int slot = 0; slot < _castHeld.Length; slot++)
                 state.Append('|').Append(_castHeld[slot]).Append(':').Append(_beamQueued[slot]);
-            state.Append(_world.Tick).Append('|').Append(_world.Random.State).Append('|').Append(_world.NextEntityId).Append('|').Append(_world.Stage).Append('|').Append(_world.StageNumber).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_killCount).Append('|').Append(_scenario).Append('|').Append(_world.DebugInvulnerable);
+            state.Append(_world.Tick).Append('|').Append(_world.Random.State).Append('|').Append(_world.NextEntityId).Append('|').Append(_world.Stage).Append('|').Append(_world.StageNumber).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_loot.KillCount).Append('|').Append(_scenario).Append('|').Append(_world.DebugInvulnerable);
             state.Append('|').Append(_actionBudgetTick).Append('|').Append(_actionsThisTick).Append('|').Append(_droppedExecutions);
             SimHash.AppendNumber(state, TimeLimit); SimHash.AppendNumber(state, _world.EnergyRegen);
             state.Append('|').Append(_aimPoint.HasValue);
             if (_aimPoint.HasValue) { SimHash.AppendNumber(state, _aimPoint.Value.X); SimHash.AppendNumber(state, _aimPoint.Value.Y); }
             SimHash.AppendNumber(state, _world.DamageMultiplier); SimHash.AppendNumber(state, _world.MoveSpeedMultiplier);
-            SimHash.AppendNumber(state, _scrapGainMultiplier); SimHash.AppendNumber(state, _scrapPickupRangeMultiplier); SimHash.AppendNumber(state, _scrapHealRatio); SimHash.AppendNumber(state, _scrapRemainder);
+            SimHash.AppendNumber(state, _loot.ScrapGainMultiplier); SimHash.AppendNumber(state, _loot.ScrapPickupRangeMultiplier); SimHash.AppendNumber(state, _loot.ScrapHealRatio); SimHash.AppendNumber(state, _loot.ScrapRemainder);
             _world.Player.WriteState(state);
             foreach (SimulationEnemy enemy in _world.Enemies) enemy.WriteState(state);
-            foreach (EnemyStatusEffect status in _enemyStatuses) status.WriteState(state);
+            foreach (EnemyStatusEffect status in _statuses.Statuses) status.WriteState(state);
             foreach (SimulationSpellEntity entity in _world.SpellEntities) entity.WriteState(state);
             foreach (SimulationProjectile projectile in _world.EnemyProjectiles) projectile.WriteState(state);
             Adaptation.WriteState(state);
@@ -543,9 +480,9 @@ namespace RuneCode
                 pending.Context.Modifiers.AppendState(state);
                 if (pending.Context.Target != null && !pending.Context.Target.IsAlive) pending.Context.Target.WriteState(state);
             }
-            foreach (FragmentOrb orb in _orbs) { SimHash.AppendNumber(state, orb.Position.X); SimHash.AppendNumber(state, orb.Position.Y); state.Append(orb.Amount).Append('|').Append(orb.IsAttracted).Append('|').Append(orb.IsBigScrap); }
-            foreach (SimulationItemDrop drop in _itemDrops) SimHash.AppendItemDropState(state, drop);
-            foreach (SimulationItemDrop drop in _pickedUpItems) SimHash.AppendItemDropState(state, drop);
+            foreach (FragmentOrb orb in _loot.Orbs) { SimHash.AppendNumber(state, orb.Position.X); SimHash.AppendNumber(state, orb.Position.Y); state.Append(orb.Amount).Append('|').Append(orb.IsAttracted).Append('|').Append(orb.IsBigScrap); }
+            foreach (SimulationItemDrop drop in _loot.ItemDrops) SimHash.AppendItemDropState(state, drop);
+            foreach (SimulationItemDrop drop in _loot.PickedUpItems) SimHash.AppendItemDropState(state, drop);
             foreach (CompiledSpell spell in _loadout) state.Append('|').Append(spell?.Signature);
             foreach (string element in _unlockedElements) state.Append('|').Append(element);
             foreach (PendingEnemyShot shot in _pendingEnemyShots) { state.Append(shot.Tick).Append('|').Append(shot.Owner.Id); SimHash.AppendNumber(state, shot.Direction.X); SimHash.AppendNumber(state, shot.Direction.Y); SimHash.AppendNumber(state, shot.SpeedMultiplier); }
@@ -564,9 +501,9 @@ namespace RuneCode
                 SimHash.AppendNumber(state, spawn.Position.X); SimHash.AppendNumber(state, spawn.Position.Y);
                 SimHash.AppendNumber(state, spawn.WarningCenter.X); SimHash.AppendNumber(state, spawn.WarningCenter.Y); SimHash.AppendNumber(state, spawn.WarningRadius);
             }
-            SimHash.AppendNumber(state, _stats.TotalDamage); state.Append(_collectedFragments).Append(_stats.NodeExecutionCount).Append('|').Append(_stats.EnemyDamageEventCount)
+            SimHash.AppendNumber(state, _stats.TotalDamage); state.Append(_loot.CollectedFragments).Append(_stats.NodeExecutionCount).Append('|').Append(_stats.EnemyDamageEventCount)
                 .Append('|').Append(_stats.BurnTickDamageEventCount).Append('|').Append(_stats.ArcDamageEventCount).Append('|').Append(_stats.FreezeStartEventCount);
-            state.Append('|').Append(_normalScrapPickupEventCount).Append('|').Append(_bigScrapPickupEventCount);
+            state.Append('|').Append(_loot.NormalScrapPickupEventCount).Append('|').Append(_loot.BigScrapPickupEventCount);
             if (_director != null)
             { _director.WriteState(state); SimHash.AppendNumber(state, _world.MoveDirection.X); SimHash.AppendNumber(state, _world.MoveDirection.Y); state.Append(_world.HasMoveDirection); }
             uint hash = 2166136261;
@@ -1093,7 +1030,7 @@ namespace RuneCode
         }
 
         /// <summary>피해에 적응·이지스 방패와 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
-        private double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
+        internal double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
             double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null)
         {
             if (!enemy.IsAlive || enemy.IsPatching) return 0;
@@ -1107,7 +1044,7 @@ namespace RuneCode
                 break;
             }
             actual = enemy.Hurt(Math.Max(minimumDamage, actual), Time);
-            if (applyStatus) ApplyStatus(enemy, element, form, noise, damage, sourceAction);
+            if (applyStatus) _statuses.ApplyStatus(enemy, element, form, noise, damage, sourceAction);
             if (actual > 0)
             {
                 if (sourceAction != null) _stats.GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
@@ -1139,127 +1076,11 @@ namespace RuneCode
             }
         }
 
-        /// <summary>
-        /// 상태 판정 시각을 현재 틱으로 갱신하고, 적 목록 순서로 화염의 마지막 만료 틱까지 지속 피해를 적용한 뒤 만료된 상태 이상을 제거한다.
-        /// </summary>
-        private void AdvanceStatuses()
-        {
-            _statusTime = Time;
-            while (_world.Player.Hp > 0 && _world.Player.TryTakeBurnTick(Time, _world.Balance.Combat.BurnInterval))
-                HurtPlayerByStatus(_world.Balance.Combat.BurnDps * _world.Balance.Combat.BurnInterval);
-            foreach (SimulationEnemy enemy in _world.Enemies)
-            {
-                enemy.Observe(Time);
-                EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
-                if (burn == null) continue;
-                while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && Time + 0.000001 >= burn.NextTickTime)
-                {
-                    double actual = ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false, sourceAction: burn.DamageSourceAction, damageStatus: "burn");
-                    _stats.StatusDamage += actual;
-                    if (actual > 0) _stats.BurnTickDamageEventCount++;
-                    burn.NextTickTime += _world.Balance.Combat.BurnInterval;
-                }
-            }
-            for (int i = _enemyStatuses.Count - 1; i >= 0; i--)
-                if (IsStatusExpired(_enemyStatuses[i])) { RemoveStatusIndex(_enemyStatuses[i]); _enemyStatuses.RemoveAt(i); }
-        }
-
-        /// <summary>
-        /// 상태 이상이 더 이상 판정·진행에 쓰이지 않는지 반환한다.
-        /// 화염은 마지막 지속 피해 틱까지 처리된 뒤, 빙결은 빙결 면역까지 끝난 뒤 만료된다.
-        /// </summary>
-        private bool IsStatusExpired(EnemyStatusEffect status)
-        {
-            switch (status.Type)
-            {
-                case EnemyStatusType.Burn: return status.NextTickTime > status.Until + 0.000001 && Time >= status.Until;
-                case EnemyStatusType.Freeze: return Time >= status.ImmuneUntil;
-                default: return Time >= status.Until;
-            }
-        }
-
-        /// <summary>피해 속성에 맞는 상태 이상을 부여한다. 화염은 전투 공통 보정 전 공격 피해 sourceDamage를 틱 피해 계산에 전달한다.</summary>
-        private void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise, double sourceDamage, SpellAction sourceAction)
-        {
-            if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage, sourceAction);
-            else if (element == "ice") ApplyChill(enemy);
-            else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = Time + _world.Balance.Combat.EmpSeconds;
-        }
-
-        /// <summary>공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 계산하고, 새 화상이거나 기존보다 클 때만 피해·출처를 갱신한다. 재점화 때마다 지속시간은 갱신하며 진행 중인 화상의 다음 틱 시각은 유지한다.</summary>
-        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage, SpellAction sourceAction)
-        {
-            EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
-            bool isNewBurn = burn == null || Time >= burn.Until;
-            if (isNewBurn)
-            {
-                burn ??= AddStatus(enemy.Id, EnemyStatusType.Burn);
-                burn.NextTickTime = Time + _world.Balance.Combat.BurnInterval;
-            }
-            burn.Until = Time + _world.Balance.Combat.BurnSeconds;
-            double tickDamage = sourceDamage * _world.Balance.Combat.BurnDamageRatio;
-            if (isNewBurn || tickDamage > burn.TickDamage)
-            {
-                burn.TickDamage = tickDamage;
-                burn.DamageSourceAction = sourceAction;
-                burn.SourceForm = form;
-                burn.IsNoise = noise;
-            }
-        }
-
-        /// <summary>
-        /// 냉기 스택과 지속시간을 갱신하고, 최대 스택에서 빙결 면역이 아니면 빙결을 부여하며 냉기를 제거한다.
-        /// 빙결 면역 중에는 냉기 스택이 면역 중 상한(백서 기준 2)을 넘지 않는다.
-        /// </summary>
-        private void ApplyChill(SimulationEnemy enemy)
-        {
-            CombatBalance combat = _world.Balance.Combat;
-            EnemyStatusEffect freeze = FindStatus(enemy.Id, EnemyStatusType.Freeze);
-            bool isImmune = freeze != null && Time < freeze.ImmuneUntil;
-            EnemyStatusEffect chill = GetOrAddStatus(enemy.Id, EnemyStatusType.Chill);
-            int maxStacks = isImmune ? combat.ChillImmuneMaxStacks : combat.ChillMaxStacks;
-            chill.Stacks = Math.Min(maxStacks, chill.Stacks + 1); chill.Until = Time + combat.ChillSeconds;
-            if (isImmune || chill.Stacks < combat.ChillMaxStacks) return;
-            freeze ??= AddStatus(enemy.Id, EnemyStatusType.Freeze);
-            freeze.Until = Time + combat.FreezeSeconds; freeze.ImmuneUntil = freeze.Until + combat.FreezeImmunity;
-            _stats.FreezeStartEventCount++;
-            RemoveStatusIndex(chill); _enemyStatuses.Remove(chill);
-        }
-
         /// <summary>적의 상태 이상이 현재 상태 판정 시각에 활성인지 반환한다. 냉기는 스택 보유 여부로 판정한다.</summary>
-        public bool HasEnemyStatus(SimulationEnemy enemy, EnemyStatusType type)
-        {
-            EnemyStatusEffect status = FindStatus(enemy.Id, type);
-            if (status == null) return false;
-            return type == EnemyStatusType.Chill ? status.Stacks > 0 : _statusTime < status.Until;
-        }
+        public bool HasEnemyStatus(SimulationEnemy enemy, EnemyStatusType type) => _statuses.HasEnemyStatus(enemy, type);
 
         /// <summary>적의 현재 냉기 스택을 반환하며 냉기가 없으면 0을 반환한다.</summary>
-        public int GetChillStacks(SimulationEnemy enemy) => FindStatus(enemy.Id, EnemyStatusType.Chill)?.Stacks ?? 0;
-
-        /// <summary>적 ID와 종류로 상태 이상을 찾고 없으면 null을 반환한다.</summary>
-        private EnemyStatusEffect FindStatus(int enemyId, EnemyStatusType type)
-        { _statusIndex.TryGetValue(GetStatusKey(enemyId, type), out EnemyStatusEffect status); return status; }
-
-        /// <summary>적 ID와 종류의 상태 이상을 찾고 없으면 새로 추가하여 반환한다.</summary>
-        private EnemyStatusEffect GetOrAddStatus(int enemyId, EnemyStatusType type) => FindStatus(enemyId, type) ?? AddStatus(enemyId, type);
-
-        /// <summary>새 상태 이상을 목록 끝과 조회 인덱스에 추가하여 반환한다.</summary>
-        private EnemyStatusEffect AddStatus(int enemyId, EnemyStatusType type)
-        { var status = new EnemyStatusEffect(enemyId, type); _enemyStatuses.Add(status); _statusIndex.Add(GetStatusKey(enemyId, type), status); return status; }
-
-        /// <summary>제거된 적의 모든 상태 이상을 목록과 조회 인덱스에서 삭제한다.</summary>
-        private void RemoveEnemyStatuses(int enemyId)
-        {
-            for (int i = _enemyStatuses.Count - 1; i >= 0; i--)
-                if (_enemyStatuses[i].EnemyId == enemyId) { RemoveStatusIndex(_enemyStatuses[i]); _enemyStatuses.RemoveAt(i); }
-        }
-
-        /// <summary>상태 이상을 조회 인덱스에서 삭제한다.</summary>
-        private void RemoveStatusIndex(EnemyStatusEffect status) { _statusIndex.Remove(GetStatusKey(status.EnemyId, status.Type)); }
-
-        /// <summary>적 ID와 상태 이상 종류를 하나의 조회 키로 합친다.</summary>
-        private static int GetStatusKey(int enemyId, EnemyStatusType type) => enemyId * STATUS_TYPE_COUNT + (int)type;
+        public int GetChillStacks(SimulationEnemy enemy) => _statuses.GetChillStacks(enemy);
 
         /// <summary>
         /// 적마다 이동 전 플레이어 방향을 구해 이동 판단을 적용한 뒤 접촉, 예고 사격, 돌진 및 거버너 페이즈 패턴을 진행한다.
@@ -1431,7 +1252,7 @@ namespace RuneCode
         /// 시전자의 상태 이상 피해(화상 DoT)를 적용한다. 피격 무적을 무시하고 주지 않으며 OnHitTaken을 발생시키지 않는다.
         /// 시험 도크(비전투)에서는 상태만 표시하고 체력을 깎지 않는다(결정 Q13).
         /// </summary>
-        private void HurtPlayerByStatus(double damage)
+        internal void HurtPlayerByStatus(double damage)
         {
             if (_world.DebugInvulnerable || !_world.IsMission) return;
             double actual = _world.Player.HurtByStatus(damage);
@@ -1544,57 +1365,15 @@ namespace RuneCode
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
         }
 
-        /// <summary>적의 처치 재화에 설정 비율을 곱해 내림한 기본 회복량을 최소 1로 보정하고 트리의 추가 전력을 더해 회복한다.</summary>
-        private void GrantKillEnergy(int droppedCredits)
+        /// <summary>목표 처치 대상 집계와 보스 처치 판정을 기록한다.</summary>
+        internal void RecordKillProgress(SimulationEnemy enemy)
         {
-            double amount = Math.Floor(droppedCredits * _world.Balance.Economy.KillEnergyCreditRatio);
-            _world.Player.RestoreEnergy(Math.Max(MIN_KILL_ENERGY, amount) + _killEnergyBonus);
-        }
-
-        /// <summary>처치된 적과 그 상태 이상을 제거하고 시간제 전투의 처치 통계, 목표 처치 수 집계, 보스 처치 판정과 RAM 오브를 생성한다. 분열형은 미션 중 처치되면 자식 생성을 예약한다.</summary>
-        private void CleanupEnemies(bool canExplode = true)
-        {
-            CollectDeadEnemies();
-            while (_deadEnemies.Count > 0)
-            {
-                SimulationEnemy enemy = _deadEnemies.Dequeue();
-                int droppedCredits = 0;
-                if (_world.IsMission)
-                {
-                    if (enemy.IsKillTarget) _targetKills++;
-                    if (enemy.Boss != null) _isBossDefeated = true;
-                    if (enemy.Definition.CanSplit) EnqueueSplits(enemy);
-                    if (enemy.Reward > 0)
-                    {
-                        // 오브에 실제로 담기는 크레딧을 한 번만 산출해 나머지 누적이 이중 반영되지 않게 한다.
-                        droppedCredits = ScaleKillScrap(enemy.Reward);
-                        bool isBigScrap = enemy.IsElite || enemy.Boss != null;
-                        _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits, isBigScrap));
-                        if (isBigScrap) _bigScrapSpawnEventCount++;
-                    }
-                    string dropTableId = enemy.CarrierOwnerId == 0 ? GetDropTableId(enemy) : null;
-                    if (dropTableId != null) RollDropTable(_world.Drops.Get(dropTableId), enemy.Position);
-                    _stats.KillCounts.TryGetValue(enemy.Kind, out int count); _stats.KillCounts[enemy.Kind] = count + 1; _killCount++;
-                }
-                GrantKillEnergy(droppedCredits);
-                RemoveEnemyStatuses(enemy.Id);
-                if (canExplode && enemy.Definition.HasTrait(EnemyDefinition.TRAIT_DEATH_EXPLOSION))
-                { ExplodeEnemy(enemy); CollectDeadEnemies(); }
-            }
-        }
-
-        /// <summary>죽은 적을 역순으로 목록에서 분리해 사망 처리 큐에 넣는다. 큐에 넣은 적은 다시 발견되지 않는다.</summary>
-        private void CollectDeadEnemies()
-        {
-            for (int i = _world.Enemies.Count - 1; i >= 0; i--)
-            {
-                if (_world.Enemies[i].IsAlive) continue;
-                _deadEnemies.Enqueue(_world.Enemies[i]); _world.Enemies.RemoveAt(i);
-            }
+            if (enemy.IsKillTarget) _targetKills++;
+            if (enemy.Boss != null) _isBossDefeated = true;
         }
 
         /// <summary>사망 위치 주변 플레이어와 살아 있는 적에게 단발 폭발 피해를 주고 짧은 표시를 남긴다. 플레이어 강화·학습·DPS는 적용하지 않는다.</summary>
-        private void ExplodeEnemy(SimulationEnemy source)
+        internal void ExplodeEnemy(SimulationEnemy source)
         {
             double radius = source.Definition.ExplosionRadius;
             double damage = source.Definition.ExplosionDamage * source.DamageMultiplier;
@@ -1614,7 +1393,7 @@ namespace RuneCode
         }
 
         /// <summary>분열형 적이 미션 중 처치되면 자식 수만큼 대기 항목을 만든다. 위치는 부모 진행 방향의 수직선 위에서 자식 반경 간격으로 균등 분배하고, 엘리트 정의는 그대로 물려준다.</summary>
-        private void EnqueueSplits(SimulationEnemy parent)
+        internal void EnqueueSplits(SimulationEnemy parent)
         {
             EnemyDefinition definition = parent.Definition;
             int delayTicks = Math.Max(1, (int)Math.Round(definition.SplitDelay * TICK_RATE));
@@ -1627,112 +1406,8 @@ namespace RuneCode
             }
         }
 
-        /// <summary>스크랩을 매 틱 끌어당기고 도착한 오브의 재화·획득 횟수를 더하며 살아 있는 플레이어의 최대 체력 비율만큼 회복한다.</summary>
-        private void CollectNearbyOrbs()
-        {
-            for (int i = _orbs.Count - 1; i >= 0; i--)
-            {
-                FragmentOrb orb = _orbs[i];
-                if (!TryAttractPickup(orb.Position, orb.IsAttracted, out SimVector nextPosition, out bool hasArrived)) continue;
-                if (hasArrived)
-                {
-                    _collectedFragments += orb.Amount;
-                    if (_scrapHealRatio > 0 && _world.Player.Hp > 0) _world.Player.Heal(_world.Player.MaxHp * _scrapHealRatio);
-                    if (orb.IsBigScrap) _bigScrapPickupEventCount++;
-                    else _normalScrapPickupEventCount++;
-                    _orbs.RemoveAt(i);
-                }
-                else
-                {
-                    orb.AttractTo(nextPosition);
-                    _orbs[i] = orb;
-                }
-            }
-        }
-
-        /// <summary>공통 줍기 반경과 추적 상태로 자석 이동 여부를 반환하고 다음 위치와 플레이어 도착 여부를 계산한다.</summary>
-        private bool TryAttractPickup(SimVector position, bool isAttracted, out SimVector nextPosition, out bool hasArrived)
-        {
-            SimVector offset = _world.Player.Position - position;
-            double distance = offset.Length;
-            nextPosition = position;
-            hasArrived = false;
-            if (!isAttracted && distance > _world.Balance.Economy.OrbAbsorbRadius * _scrapPickupRangeMultiplier) return false;
-            double step = _world.Balance.Economy.PickupAttractSpeed * STEP_SECONDS;
-            hasArrived = distance <= step;
-            nextPosition = hasArrived ? _world.Player.Position : position + offset * (step / distance);
-            return true;
-        }
-
-        /// <summary>전투 종료 시 획득하지 않은 스크랩 오브를 보상에 더하지 않고 정리한다.</summary>
-        private void DiscardUncollectedOrbs() { _orbs.Clear(); }
-
-        /// <summary>클리어 시 잔여 드롭을 연출용으로 보존하고 스크랩과 룬을 한 번 회수한 뒤 바닥 드롭 목록을 비운다.</summary>
-        private void CollectRemainingDrops()
-        {
-            _clearOrbs.AddRange(_orbs);
-            _clearItemDrops.AddRange(_itemDrops);
-            foreach (FragmentOrb orb in _orbs) _collectedFragments += orb.Amount;
-            _orbs.Clear();
-            _pickedUpItems.AddRange(_itemDrops);
-            _newPickedItems.AddRange(_itemDrops);
-            _itemDrops.Clear();
-        }
-
-        /// <summary>
-        /// 처치된 적의 드롭 테이블 ID를 반환하고 없으면 null을 반환한다. 엘리트는 엘리트 정의의 드롭 확률로 판정해 당첨되면 그 테이블을 쓴다.
-        /// 엘리트·보스가 아닌 일반 적은 보스 스테이지를 포함한 모든 스테이지에서 그 스테이지의 일반 적 드롭 확률로 1회 판정해 당첨되면 설정된 테이블을 쓴다.
-        /// </summary>
-        private string GetDropTableId(SimulationEnemy enemy)
-        {
-            if (enemy.Elite != null)
-            {
-                EliteSpawnDefinition elite = enemy.Elite;
-                if (string.IsNullOrEmpty(elite.DropTable)) return null;
-                // 확률이 100%면 난수를 쓰지 않아 기존 판정 순서를 유지한다.
-                return elite.DropChancePercent >= 100 || _world.Random.Next() * 100 < elite.DropChancePercent ? elite.DropTable : null;
-            }
-            NormalEnemyDropDefinition normalDrop = _world.Drops.NormalEnemyDrop;
-            if (enemy.Boss != null || normalDrop == null || !normalDrop.IsEnabled(_world.StageNumber)) return null;
-            return _world.Random.Next() * 100 < normalDrop.GetChancePercent(_world.StageNumber) ? normalDrop.DropTable : null;
-        }
-
-        /// <summary>적 처치 스크랩에 획득 배율을 적용하고 소수 보너스를 다음 드롭으로 이월해 정수 스크랩량을 반환한다.</summary>
-        private int ScaleKillScrap(int amount)
-        {
-            double scaled = amount * _scrapGainMultiplier + _scrapRemainder;
-            int result = (int)Math.Floor(scaled + 0.000001);
-            _scrapRemainder = Math.Max(0, scaled - result);
-            return result;
-        }
-
         /// <summary>처치 드롭과 같은 테이블·결정적 난수로 완료 스테이지의 클리어 룬 1개를 추첨한다.</summary>
-        public DropRoll DrawClearRuneReward()
-        {
-            return RuneRewardRoller.DrawRune(_world.Drops.Get(_world.Drops.NormalEnemyDrop.DropTable), _world.StageNumber, _world.EliteDrops, _world.Random.Next);
-        }
-
-        /// <summary>처치 위치에 놓을 룬의 분류·종류·등급을 추첨해 드롭 개체 1개를 생성한다.</summary>
-        private void RollDropTable(DropTableDefinition table, SimVector position)
-        {
-            DropRoll roll = RuneRewardRoller.DrawRune(table, _world.StageNumber, _world.EliteDrops, _world.Random.Next);
-            _itemDrops.Add(new SimulationItemDrop(roll.RuneId, roll.Grade, roll.Count, _world.Tick, position));
-        }
-
-        /// <summary>스크랩과 같은 반경에서 Modifier를 끌어당기고 플레이어에게 도착하면 누적 목록과 미지급 목록에 넣는다.</summary>
-        private void CollectNearbyItemDrops()
-        {
-            for (int i = _itemDrops.Count - 1; i >= 0; i--)
-            {
-                SimulationItemDrop drop = _itemDrops[i];
-                if (!TryAttractPickup(drop.Position, drop.IsAttracted, out SimVector nextPosition, out bool hasArrived)) continue;
-                drop.AttractTo(nextPosition);
-                if (!hasArrived) continue;
-                _itemDrops.RemoveAt(i);
-                _pickedUpItems.Add(drop);
-                _newPickedItems.Add(drop);
-            }
-        }
+        public DropRoll DrawClearRuneReward() => _loot.DrawClearRuneReward();
 
         /// <summary>
         /// 일반 스테이지는 TimeLimit까지 버티면, 보스 스테이지는 TimeLimit 안에 보스를 처치하면 클리어하고 남은 스크랩·Modifier를 모두 회수한다.
@@ -1745,11 +1420,11 @@ namespace RuneCode
             if (IsBossStage ? _isBossDefeated : hasReachedTimeLimit) _world.Stage = MissionStage.Cleared;
             else if (IsBossStage && hasReachedTimeLimit) _world.Stage = MissionStage.TimedOut;
             else return;
-            if (_world.Stage == MissionStage.Cleared) CollectRemainingDrops();
-            else DiscardUncollectedOrbs();
+            if (_world.Stage == MissionStage.Cleared) _loot.CollectRemainingDrops();
+            else _loot.DiscardUncollectedOrbs();
             CancelCombat();
             if (_world.Stage != MissionStage.Cleared) return;
-            _enemyStatuses.Clear(); _statusIndex.Clear();
+            _statuses.ClearOnClear();
         }
 
         /// <summary>
@@ -2035,7 +1710,7 @@ namespace RuneCode
             _feedback.CancelBeamFlashes();
             CancelBeamChannels();
             foreach (SimulationEnemy enemy in _world.Enemies) enemy.CancelDisplacement();
-            _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _scheduled.Clear(); _pendingEnemyShots.Clear(); _pendingSplits.Clear(); _deadEnemies.Clear();
+            _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _scheduled.Clear(); _pendingEnemyShots.Clear(); _pendingSplits.Clear(); _loot.ClearDeadEnemies();
             _pendingSpawns.Clear(); _feedback.ClearSpawnWarnings();
             if (_world.Player != null) _world.Player.CancelSpellExecutions();
         }
