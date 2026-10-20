@@ -251,9 +251,6 @@ namespace RuneCode
         /// <summary>회복량을 최대 체력 범위로 제한하여 플레이어 체력에 적용한다.</summary>
         internal void Heal(double amount) { _hp = Math.Min(_maxHp, _hp + Math.Max(0, amount)); }
 
-        /// <summary>보호막 수치와 만료 시간을 룬 설정에 따라 갱신한다.</summary>
-        internal void GiveShield(double amount, double seconds, double time) { _shield = Math.Max(_shield, amount); _shieldUntil = time + seconds; }
-
         /// <summary>터미널에 도착하여 최대 체력 비율을 회복하고 에너지를 충전한다.</summary>
         internal void Rest(double healFraction) { _hp = Math.Min(_maxHp, _hp + _maxHp * healFraction); _energy = _maxEnergy; for (int i = 0; i < _cooldowns.Length; i++) _cooldowns[i] = 0; _dashRemaining = 0; }
 
@@ -483,7 +480,6 @@ namespace RuneCode
         private readonly double _warmupSeconds;
         private readonly SimVector _anchor;
         private readonly double _angle;
-        private readonly SpellEventScope _callEvents;
         private readonly SpellModifierValues _modifiers;
         private readonly double _costMultiplier;
         private readonly SimulationPlayer _caster;
@@ -619,7 +615,6 @@ namespace RuneCode
         internal double VisualSeconds => _visualSeconds;
         internal bool FromEvent => _fromEvent;
         internal string CastNoiseElement => _castNoiseElement;
-        internal SpellEventScope CallEvents => _callEvents;
         internal SpellModifierValues Modifiers => _modifiers;
 
         /// <summary>이 개체의 이벤트 분기 노드 비용에 곱하는 배율(개체를 만든 문맥의 배율)이다.</summary>
@@ -641,12 +636,12 @@ namespace RuneCode
         internal static SimVector GetConeApex(SimVector center, SimVector direction, double radius) => center - direction.Normalized() * radius;
 
         /// <summary>
-        /// 컴파일된 Form 수치, 호출 이벤트 문맥과 이벤트 분기의 비용 배율을 가진 독립 마법 개체를 생성한다.
+        /// 컴파일된 Form 수치와 이벤트 분기의 비용 배율을 가진 독립 마법 개체를 생성한다.
         /// warmupSeconds는 Burst의 확장 시간 또는 Persist의 예고 시간이며 그 외 형태는 0이다.
         /// </summary>
         internal SimulationSpellEntity(int id, SpellAction action, SpellStats stats, string element, SimVector position,
             SimVector direction, bool fromEvent, SimVector anchor, double angle, string castNoiseElement,
-            double visualSeconds, double warmupSeconds, SpellEventScope callEvents, SpellModifierValues modifiers, double costMultiplier, SimulationPlayer caster)
+            double visualSeconds, double warmupSeconds, SpellModifierValues modifiers, double costMultiplier, SimulationPlayer caster)
         {
             _warmupSeconds = warmupSeconds;
             _costMultiplier = costMultiplier;
@@ -662,7 +657,6 @@ namespace RuneCode
             _visualSeconds = visualSeconds;
             _anchor = anchor;
             _angle = angle;
-            _callEvents = callEvents;
             _modifiers = modifiers ?? SpellModifierValues.None;
             _behavior = SpellBehaviorRuntimeRegistry.Get(action.Form);
             _behaviorState = _behavior.CreateState(this);
@@ -785,7 +779,6 @@ namespace RuneCode
             if (_stats.KnockbackDistance > 0)
                 state.Append(FormattableString.Invariant($"|knockback:{_stats.KnockbackDistance:R}:{_stats.KnockbackSeconds:R}"));
             _modifiers.AppendState(state);
-            _callEvents?.AppendState(state);
             var ids = new List<int>(_hitTimes.Keys); ids.Sort();
             foreach (int id in ids) state.Append(FormattableString.Invariant($"|{id}:{_hitTimes[id]:R}"));
             _behavior.WriteState(this, state);

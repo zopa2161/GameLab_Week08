@@ -15,7 +15,6 @@ namespace RuneCode
         internal const double STEP_SECONDS = 1.0 / TICK_RATE;
         private const double DEGREES_TO_RADIANS = Math.PI / 180;
         private const int STATUS_TYPE_COUNT = 4;
-        private const int PLAYER_TARGET_ID = -1;
         private const double SAME_SPAWN_DISTANCE = 0.5;
         private const int ARENA_PICK_ROUNDS = 2;
         private const string BOLT_RUNE_ID = "form.bolt";
@@ -632,11 +631,6 @@ namespace RuneCode
                 state.Append(pending.Tick);
                 if (pending.IsBranchStart)
                     state.Append("|branch:").Append(pending.Action.NodeId);
-                else if (pending.IsIteration)
-                {
-                    state.Append("|iteration");
-                    foreach (SpellAction action in pending.Actions) state.Append('|').Append(action.NodeId);
-                }
                 else if (pending.Wave > 0)
                     state.Append("|wave:").Append(pending.Action.NodeId).Append(':').Append(pending.Wave);
                 else state.Append("|finish:").Append(pending.Action.NodeId);
@@ -644,7 +638,6 @@ namespace RuneCode
                 AppendNumber(state, pending.Context.Direction.X); AppendNumber(state, pending.Context.Direction.Y);
                 AppendNumber(state, pending.Context.DirectionOffset);
                 state.Append(pending.Context.Target?.Id ?? 0).Append('|').Append(pending.Context.FromEvent).Append('|').Append(pending.Context.NoiseElement);
-                state.Append('|').Append(pending.IsIteration);
                 AppendNumber(state, pending.Context.CostMultiplier);
                 if (pending.Context.IsManaPrepaid) state.Append("|manaPrepaid");
                 state.Append(pending.Context.SourceEntityId).Append('|');
@@ -654,9 +647,7 @@ namespace RuneCode
                     state.Append(':').Append(pending.Tracker.RootCast?.CycleEndTick ?? -1);
                     pending.Tracker.RootCast?.WriteTargetState(state);
                 }
-                pending.Context.Repeat?.AppendState(state);
                 pending.Context.Modifiers.AppendState(state);
-                pending.Context.CallEvents?.AppendState(state);
                 if (pending.Context.Target != null && !pending.Context.Target.IsAlive) pending.Context.Target.WriteState(state);
             }
             foreach (FragmentOrb orb in _orbs) { AppendNumber(state, orb.Position.X); AppendNumber(state, orb.Position.Y); state.Append(orb.Amount).Append('|').Append(orb.IsAttracted).Append('|').Append(orb.IsBigScrap); }
@@ -719,7 +710,7 @@ namespace RuneCode
             for (int slot = 0; slot < _loadout.Length; slot++) TryCastTriggered(_loadout[slot], trigger, slot);
         }
 
-        /// <summary>현재 틱에 도달한 노드 완료, Repeat 회차와 연속 회차 예약을 등록 순서대로 적용한다.</summary>
+        /// <summary>현재 틱에 도달한 노드 완료와 연속 회차 예약을 등록 순서대로 적용한다.</summary>
         private void RunScheduled()
         {
             for (int i = 0; i < _scheduled.Count;)
@@ -731,13 +722,6 @@ namespace RuneCode
                 {
                     Execute(new[] { pending.Action }, pending.Context, pending.Tracker);
                     pending.Tracker.Release();
-                }
-                else if (pending.IsIteration)
-                {
-                    RepeatScope scope = pending.Context.Repeat;
-                    if (scope == null) continue;
-                    if (scope.IsFailed) ReleaseRepeat(scope);
-                    else StartRepeatIteration(pending.Actions, pending.Context, scope);
                 }
                 else if (pending.Wave > 0) RunSequenceWave(pending);
                 else CompleteAction(pending.Action, pending.Context, pending.Tracker);
@@ -824,7 +808,7 @@ namespace RuneCode
             }
             ResourceCostSet costs = active != null ? active.CycleCosts
                 : root.Spell.GetBeamCycleCosts(action, _balance.Sim.ExecutionTimeScale,
-                    context.Modifiers, context.CostMultiplier, context.IsManaPrepaid, context.CallEvents);
+                    context.Modifiers, context.CostMultiplier, context.IsManaPrepaid);
             if (active != null)
                 costs = costs.WithAmount("mana", costs.GetAmount("mana") * active.GetManaMultiplier(_tick));
             if (!TrySpendBeamCosts(costs))
@@ -845,68 +829,6 @@ namespace RuneCode
             else _scheduled.Add(new ScheduledExecution(_tick + delayTicks, action, context, tracker));
         }
 
-        /// <summary>Repeat 회차를 간격대로 시작하고 Body 실행이 모두 끝난 뒤 완료 분기를 연결한다.</summary>
-        private void ExecuteRepeat(SpellAction action, SpellContext context, ExecutionTracker tracker)
-        {
-            var scope = new RepeatScope(action.OnComplete, context, context.Repeat, tracker);
-            SpellContext bodyContext = context.WithRepeat(scope);
-            double interval = action.Interval * _balance.Sim.ExecutionTimeScale;
-            int immediateIterations = 0;
-            for (int repeat = 1; repeat < action.Times; repeat++)
-            {
-                if (action.Body.Count == 0) break;
-                if (interval <= 0)
-                {
-                    scope.Acquire();
-                    immediateIterations++;
-                }
-                else if (!ScheduleRepeatIteration(action.Body, bodyContext, scope, repeat * interval)) break;
-            }
-            if (action.Times > 0)
-            {
-                scope.Acquire();
-                StartRepeatIteration(action.Body, bodyContext, scope);
-                for (int repeat = 0; repeat < immediateIterations; repeat++)
-                    StartRepeatIteration(action.Body, bodyContext, scope);
-            }
-            else FinishRepeat(scope);
-        }
-
-        /// <summary>Repeat 회차마다 실행 추적기를 만들고 해당 Body의 timed node들이 끝나면 회차를 반환한다.</summary>
-        private void StartRepeatIteration(IReadOnlyList<SpellAction> actions, SpellContext context, RepeatScope scope)
-        {
-            var tracker = new ExecutionTracker(scope.ExecutionTracker.RootCast, () => ReleaseRepeat(scope));
-            Execute(actions, context, tracker);
-        }
-
-        /// <summary>Repeat 회차 Body를 나중에 시작하도록 예약하고 수용 상한 오류를 표시한다.</summary>
-        private bool ScheduleRepeatIteration(IReadOnlyList<SpellAction> actions, SpellContext context, RepeatScope scope, double seconds)
-        {
-            if (_scheduled.Count >= _balance.Limits.MaxScheduledExecutions)
-            {
-                _droppedExecutions += actions.Count;
-                scope.Fail();
-                return false;
-            }
-            scope.Acquire();
-            int delayTicks = Math.Max(1, (int)Math.Min(int.MaxValue / 4, Math.Round(seconds * TICK_RATE)));
-            _scheduled.Add(new ScheduledExecution(_tick + delayTicks, actions, context, true));
-            return true;
-        }
-
-        /// <summary>Repeat 회차를 끝내고 마지막 회차라면 완료 분기를 시작한다.</summary>
-        private void ReleaseRepeat(RepeatScope scope)
-        {
-            if (scope.Release()) FinishRepeat(scope);
-        }
-
-        /// <summary>모든 회차가 끝난 Repeat의 완료 분기를 실행하고 Repeat 노드 실행 토큰을 반환한다.</summary>
-        private void FinishRepeat(RepeatScope scope)
-        {
-            if (!scope.IsFailed) Execute(scope.OnComplete, scope.CompleteContext, scope.ExecutionTracker);
-            scope.ExecutionTracker.Release();
-        }
-
         /// <summary>이벤트로 시작한 후속 분기를 슬롯과 분리된 실행 추적기로 시작한다.</summary>
         private void Execute(IReadOnlyList<SpellAction> actions, SpellContext context)
         {
@@ -925,7 +847,6 @@ namespace RuneCode
                     if (_actionsThisTick >= _balance.Limits.MaxActionsPerTick)
                     {
                         _droppedExecutions += actions.Count - i;
-                        context.Repeat?.Fail();
                         break;
                     }
                     _actionsThisTick++;
@@ -935,12 +856,10 @@ namespace RuneCode
                     if (durationTicks > 0 && _scheduled.Count >= _balance.Limits.MaxScheduledExecutions)
                     {
                         _droppedExecutions++;
-                        context.Repeat?.Fail();
                         continue;
                     }
                     if (!TrySpendFor(action, context))
                     {
-                        context.Repeat?.Fail();
                         continue;
                     }
                     RecordNode(action.NodeId);
@@ -958,7 +877,7 @@ namespace RuneCode
         /// <summary>지정 노드가 시작된 시점의 배율을 적용한 실행 시간을 반환한다.</summary>
         private double GetExecutionSeconds(SpellAction action, SpellContext context)
         {
-            double seconds = action.Kind == "delay" ? action.Seconds : action.GetExecutionSeconds(context.Modifiers);
+            double seconds = action.GetExecutionSeconds(context.Modifiers);
             return seconds * _balance.Sim.ExecutionTimeScale;
         }
 
@@ -974,23 +893,17 @@ namespace RuneCode
         private void CompleteAction(SpellAction action, SpellContext context, ExecutionTracker tracker)
         {
             tracker.BeginDispatch();
-            bool isRepeat = action.Kind == "repeat";
             try
             {
                 context = GetEffectContext(context, tracker);
                 switch (action.Kind)
                 {
                     case "spawn": SpawnForm(action, context, tracker); break;
-                    case "buff": ApplyBuff(action, context, tracker); break;
-                    case "call": ExecuteCall(action, context, tracker); break;
-                    case "delay": Execute(action.Then, context, tracker); break;
-                    case "repeat": ExecuteRepeat(action, context, tracker); break;
-                    case "if": Execute(Evaluate(action.Condition, context) ? action.Then : action.Else, context, tracker); break;
                 }
             }
             finally
             {
-                if (!isRepeat) tracker.Release();
+                tracker.Release();
                 tracker.EndDispatch();
             }
         }
@@ -1016,13 +929,12 @@ namespace RuneCode
 
         /// <summary>
         /// 최초 행동의 onHit 전력 선결제와 나머지 노드 자원 비용을 함께 차감하고 성공 여부를 반환한다. 선결제 후속은 전력을 다시 내지 않는다.
-        /// 흐름 제어(Delay·Repeat·Condition)는 비용이 없고, 비용이 0이면 항상 성공한다.
+        /// 비용이 0이면 항상 성공한다.
         /// </summary>
         private bool TrySpendFor(SpellAction action, SpellContext context)
         {
-            if (action.Kind == "delay" || action.Kind == "repeat" || action.Kind == "if") return true;
             ResourceCostSet costs = action.GetExecutionCosts(context.Modifiers, context.CostMultiplier,
-                context.IsManaPrepaid, context.CallEvents);
+                context.IsManaPrepaid);
             if (costs.Amounts.Count == 0) return true;
             if (!_player.TrySpend(costs)) return false;
             foreach (ResourceAmount amount in costs.Amounts)
@@ -1031,58 +943,6 @@ namespace RuneCode
                 _resourceCostsSpent[amount.Resource] = spent + amount.Amount;
             }
             return true;
-        }
-
-        /// <summary>SpellCall의 컴파일된 대상과 호출부 수식·이벤트 범위를 적용해 반복 실행한다.</summary>
-        private void ExecuteCall(SpellAction action, SpellContext context, ExecutionTracker tracker)
-        {
-            foreach (string attachedNodeId in action.AttachedNodeIds) RecordNode(attachedNodeId);
-            SpellModifierValues modifiers = context.Modifiers.Combine(action.ModifierValues);
-            SpellEventScope events = new SpellEventScope(action.OnHit, action.OnExpire, action.OnFirstHitOrExpire, context.CallEvents, context.Modifiers,
-                context.CostMultiplier);
-            // 호출 노드에 붙은 효과의 비용 배율은 호출된 마법의 각 노드 비용에 곱한다.
-            SpellContext callContext = new SpellContext(context.Origin, context.Direction, context.Target,
-                context.FromEvent, context.NoiseElement, modifiers, events, context.Repeat, context.CostMultiplier * action.EnergyMultiplier,
-                context.Caster, context.SourceEntityId, context.DirectionOffset, context.RandomState, context.IsManaPrepaid, context.OnHitSource);
-            for (int instance = 0; instance < action.Count; instance++)
-            {
-                double spread = action.Count > 1
-                    ? (instance / (double)(action.Count - 1) * 2 - 1) * action.ModifierValues.SpreadAngle * DEGREES_TO_RADIANS
-                    : 0;
-                SpellContext instanceContext = new SpellContext(callContext.Origin, callContext.Direction.Rotated(spread),
-                    callContext.Target, callContext.FromEvent, callContext.NoiseElement, callContext.Modifiers, callContext.CallEvents, callContext.Repeat,
-                    callContext.CostMultiplier, callContext.Caster, callContext.SourceEntityId,
-                    callContext.DirectionOffset + spread, callContext.RandomState, callContext.IsManaPrepaid, callContext.OnHitSource);
-                ExecuteRootBranches(action.CalledSpell.Root, instanceContext, tracker);
-            }
-        }
-
-        /// <summary>
-        /// Apply의 자기 적용 효과를 호출부 수식에 맞춰 시전자에게 적용하고 완료 분기를 실행한다.
-        /// 회복은 즉시 회복, 보호는 보호막, 화염은 시전자에게 화상(자해 허용)을 부여한다.
-        /// </summary>
-        private void ApplyBuff(SpellAction action, SpellContext context, ExecutionTracker tracker)
-        {
-            foreach (string attachedNodeId in action.AttachedNodeIds) RecordNode(attachedNodeId);
-            // Apply는 전달된 명중 대상이 아니라 문맥의 시전자에게 적용한다(백서 6장).
-            SimulationPlayer caster = context.Caster;
-            double amount = action.Power * action.Count * action.ModifierValues.DamageMultiplier * context.Modifiers.DamageMultiplier;
-            if (action.SourceElement == "heal") caster.Heal(amount);
-            else if (action.SourceElement == "protection")
-                caster.GiveShield(amount, action.BuffDuration * action.ModifierValues.DurationMultiplier
-                    * context.Modifiers.DurationMultiplier, Time);
-            else if (action.SourceElement == "fire") caster.ApplyBurn(Time, _balance.Combat.BurnInterval, _balance.Combat.BurnSeconds);
-            for (int instance = 0; instance < action.Count; instance++)
-                Execute(action.OnFirstHitOrExpire, context.WithManaPrepaid(false), tracker);
-        }
-
-        /// <summary>대상 또는 자신 상태에 따른 조건 분기를 평가하며 대상이 없으면 대상 조건을 false로 반환한다.</summary>
-        private bool Evaluate(SpellCondition condition, SpellContext context)
-        {
-            if (condition.Type == "selfHpBelow") return _player.Hp / _player.MaxHp * 100 < condition.Pct;
-            if (context.Target == null) return false;
-            switch (condition.Type)
-            { case "targetHpBelow": return context.Target.Hp / context.Target.MaxHp * 100 < condition.Pct; case "targetHasStatus": return HasEnemyStatus(context.Target, condition.Status); case "targetDistanceBelow": return SimVector.Distance(_player.Position, context.Target.Position) < condition.Px; default: return false; }
         }
 
         /// <summary>
@@ -1135,7 +995,7 @@ namespace RuneCode
                 double warmup = behavior.GetWarmupSeconds(stats);
                 var entity = new SimulationSpellEntity(++_nextEntityId, action, stats, element, position, direction,
                     context.FromEvent, context.Origin, angle, context.NoiseElement, _balance.Sim.SpellVisualSeconds, warmup,
-                    context.CallEvents, context.Modifiers, context.CostMultiplier, context.Caster);
+                    context.Modifiers, context.CostMultiplier, context.Caster);
                 if (entity.BehaviorState is SlashBehaviorRuntime.SlashState slash) slash.SetAnchorTarget(context.Target);
                 RecordActionSpawn(action, context);
                 _spellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _spellEntities.Count);
@@ -1252,13 +1112,6 @@ namespace RuneCode
         /// </summary>
         internal void HitArea(SimulationSpellEntity entity, bool isBurst)
         {
-            string source = entity.Action.SourceElement;
-            if (source == "heal" || (source == "protection" && isBurst))
-            {
-                ApplyFunctionalArea(entity, isBurst);
-                return;
-            }
-            if (source == "protection") return;
             var targets = new List<SimulationEnemy>();
             foreach (SimulationEnemy enemy in _enemies)
             {
@@ -1286,22 +1139,6 @@ namespace RuneCode
                         RaiseHitEvent(entity, SpellGeometry.GetContactPoint(entity, enemy.Position), enemy);
                 }
             }
-        }
-
-        /// <summary>
-        /// 회복·보호(Functional) 범위 효과를 범위 안의 시전자에게만 적용한다(결정 Q15). 적에게는 효과가 없다.
-        /// Burst는 한 번, Persist는 시전자 기준 TickInterval마다 즉시 회복하며 별도 상태 이상을 만들지 않는다.
-        /// </summary>
-        private void ApplyFunctionalArea(SimulationSpellEntity entity, bool isBurst)
-        {
-            if (!SpellGeometry.IsInsideArea(entity, _player.Position, _sector.PlayerRadius)) return;
-            bool hasApplied = entity.HitTimes.TryGetValue(PLAYER_TARGET_ID, out double lastTime);
-            if (hasApplied && (isBurst || Time - lastTime + 0.000001 < entity.Stats.TickInterval)) return;
-            entity.HitTimes[PLAYER_TARGET_ID] = Time;
-            SpellAction action = entity.Action;
-            double amount = action.Power * action.ModifierValues.DamageMultiplier * entity.Modifiers.DamageMultiplier;
-            if (action.SourceElement == "heal") _player.Heal(amount);
-            else _player.GiveShield(amount, action.BuffDuration * action.ModifierValues.DurationMultiplier * entity.Modifiers.DurationMultiplier, Time);
         }
 
         /// <summary>스펠 피해·상태와 전격 연쇄를 처리하며 관통 직접 피해는 보정 후에도 최소 1을 유지한다. 직접 실제 피해에 비례한 밀어내기를 pushDirection으로 예약하고 잔류 피해를 누적한다.</summary>
@@ -1347,11 +1184,10 @@ namespace RuneCode
             bool tracksDirectHit = entity.Behavior.TracksDirectHit;
             if (tracksDirectHit) entity.HasDirectHit = true;
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
-                entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action);
+                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action);
             bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
-            ExecuteCallEvent(entity, true, isFirstEvent, position, target);
         }
 
         /// <summary>
@@ -1377,23 +1213,6 @@ namespace RuneCode
             if (target == null) return entity.Direction;
             SimVector offset = target.Position - contact;
             return offset.Length > 0.000001 ? offset.Normalized() : entity.Direction;
-        }
-
-        /// <summary>
-        /// 개체를 만든 호출 객체들의 이벤트 분기를 안쪽에서 바깥쪽으로 각각 한 번 실행한다. 이벤트 원본은 그 개체다.
-        /// 개체의 첫 적중·소멸 이벤트이면 적중·소멸 분기 다음에 onFirstHitOrExpire 분기도 실행한다.
-        /// </summary>
-        private void ExecuteCallEvent(SimulationSpellEntity entity, bool isHit, bool isFirstEvent, SimVector origin, SimulationEnemy target)
-        {
-            for (SpellEventScope current = entity.CallEvents; current != null; current = current.Parent)
-            {
-                IReadOnlyList<SpellAction> actions = isHit ? current.OnHit : current.OnExpire;
-                SpellContext context = new SpellContext(origin, GetEventDirection(entity, origin, target), target, true, entity.CastNoiseElement,
-                    current.ParentModifiers, current.Parent, null, current.ParentCostMultiplier, entity.Caster, entity.Id,
-                    onHitSource: isHit ? entity.Action : null);
-                Execute(actions, context.WithManaPrepaid(isHit));
-                if (isFirstEvent) Execute(current.OnFirstHitOrExpire, context);
-            }
         }
 
         /// <summary>피해에 적응·이지스 방패와 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
@@ -1536,19 +1355,6 @@ namespace RuneCode
             EnemyStatusEffect status = FindStatus(enemy.Id, type);
             if (status == null) return false;
             return type == EnemyStatusType.Chill ? status.Stacks > 0 : _statusTime < status.Until;
-        }
-
-        /// <summary>조건 룬의 상태 이름(burn, chill, freeze, emp)으로 활성 여부를 반환하며 알 수 없는 이름은 false를 반환한다.</summary>
-        private bool HasEnemyStatus(SimulationEnemy enemy, string status)
-        {
-            switch (status)
-            {
-                case "burn": return HasEnemyStatus(enemy, EnemyStatusType.Burn);
-                case "chill": return HasEnemyStatus(enemy, EnemyStatusType.Chill);
-                case "freeze": return HasEnemyStatus(enemy, EnemyStatusType.Freeze);
-                case "emp": return HasEnemyStatus(enemy, EnemyStatusType.Emp);
-                default: return false;
-            }
         }
 
         /// <summary>적의 현재 냉기 스택을 반환하며 냉기가 없으면 0을 반환한다.</summary>
@@ -1851,15 +1657,14 @@ namespace RuneCode
             RaiseExpireEvent(entity);
         }
 
-        /// <summary>소멸 이벤트를 개체 위치와 대상 없이 실행한다. OnExpire 다음 첫 이벤트, 호출부 onExpire 분기 순서다.</summary>
+        /// <summary>소멸 이벤트를 개체 위치와 대상 없이 실행한다. OnExpire 다음 첫 이벤트 순서다.</summary>
         private void RaiseExpireEvent(SimulationSpellEntity entity)
         {
             SpellContext context = new SpellContext(entity.Position, entity.Direction, null, true,
-                entity.CastNoiseElement, entity.Modifiers, entity.CallEvents, null, entity.CostMultiplier, entity.Caster, entity.Id);
+                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id);
             bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             Execute(entity.Action.OnExpire, context);
             if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
-            ExecuteCallEvent(entity, false, isFirstEvent, entity.Position, null);
         }
 
         /// <summary>적의 처치 재화에 설정 비율을 곱해 내림한 기본 회복량을 최소 1로 보정하고 트리의 추가 전력을 더해 회복한다.</summary>
@@ -2550,8 +2355,6 @@ namespace RuneCode
             private readonly bool _fromEvent;
             private readonly string _noiseElement;
             private readonly SpellModifierValues _modifiers;
-            private readonly SpellEventScope _callEvents;
-            private readonly RepeatScope _repeat;
             private readonly double _costMultiplier;
             private readonly SimulationPlayer _caster;
             private readonly int _sourceEntityId;
@@ -2566,13 +2369,9 @@ namespace RuneCode
             public bool FromEvent => _fromEvent;
             public string NoiseElement => _randomState.NoiseElement ?? _noiseElement;
             public SpellModifierValues Modifiers => _modifiers;
-            public SpellEventScope CallEvents => _callEvents;
             public double DirectionOffset => _directionOffset;
             public SpellRandomState RandomState => _randomState;
             public bool IsManaPrepaid => _isManaPrepaid;
-
-            /// <summary>이 실행 경로가 속한 가장 안쪽 Repeat다. 개체 이벤트로 시작한 경로는 Repeat에 속하지 않는다.</summary>
-            public RepeatScope Repeat => _repeat;
 
             /// <summary>이 경로의 노드 비용에 곱하는 배율이다. 프리셋 호출 안에서는 호출 노드 효과의 비용 배율이 곱해진다.</summary>
             public double CostMultiplier => _costMultiplier;
@@ -2584,36 +2383,32 @@ namespace RuneCode
             public int SourceEntityId => _sourceEntityId;
 
             /// <summary>
-            /// 발생 위치, 방향, 선택 대상, 이벤트 유래 여부, 소속 Repeat, 비용 배율, 시전자와 이벤트 원본을 예약 가능한 스냅샷으로 보관한다.
+            /// 발생 위치, 방향, 선택 대상, 이벤트 유래 여부, 비용 배율, 시전자와 이벤트 원본을 예약 가능한 스냅샷으로 보관한다.
             /// </summary>
             public SpellContext(SimVector origin, SimVector direction, SimulationEnemy target, bool fromEvent,
-                string noiseElement, SpellModifierValues modifiers = null, SpellEventScope callEvents = null, RepeatScope repeat = null,
+                string noiseElement, SpellModifierValues modifiers = null,
                 double costMultiplier = 1d, SimulationPlayer caster = null, int sourceEntityId = 0,
                 double directionOffset = 0, SpellRandomState randomState = null, bool isManaPrepaid = false, SpellAction onHitSource = null)
             {
                 _origin = origin; _direction = direction; _target = target; _fromEvent = fromEvent; _noiseElement = noiseElement;
-                _modifiers = modifiers ?? SpellModifierValues.None; _callEvents = callEvents; _repeat = repeat; _costMultiplier = costMultiplier;
+                _modifiers = modifiers ?? SpellModifierValues.None; _costMultiplier = costMultiplier;
                 _caster = caster; _sourceEntityId = sourceEntityId; _directionOffset = directionOffset;
                 _randomState = randomState ?? new SpellRandomState(noiseElement);
                 _isManaPrepaid = isManaPrepaid;
                 _onHitSource = onHitSource;
             }
 
-            /// <summary>소속 Repeat만 바꾼 문맥을 반환한다.</summary>
-            public SpellContext WithRepeat(RepeatScope repeat)
-                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
-
             /// <summary>실행 위치만 바꾼 문맥을 반환한다.</summary>
             public SpellContext WithOrigin(SimVector origin)
-                => new SpellContext(origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
+                => new SpellContext(origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
 
             /// <summary>시전 시점 문맥의 원점과 방향을 완료 순간 값으로 바꾼 복사본을 반환한다.</summary>
             public SpellContext WithOriginAndDirection(SimVector origin, SimVector direction)
-                => new SpellContext(origin, direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
+                => new SpellContext(origin, direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
 
-            /// <summary>위치·예약·호출 문맥을 유지하고 onHit 전력 선결제 여부만 바꾼 복사본을 반환한다.</summary>
+            /// <summary>위치·예약 문맥을 유지하고 onHit 전력 선결제 여부만 바꾼 복사본을 반환한다.</summary>
             public SpellContext WithManaPrepaid(bool isManaPrepaid)
-                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _callEvents, _repeat, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, isManaPrepaid, _onHitSource);
+                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, isManaPrepaid, _onHitSource);
         }
 
         /// <summary>같은 루트 시전에서 첫 Noise 효과 시 정한 원소를 공유한다.</summary>
@@ -2734,89 +2529,34 @@ namespace RuneCode
             }
         }
 
-        /// <summary>
-        /// 실행 중인 Repeat 하나의 완료 추적 상태다. 대기 수는 아직 끝나지 않은 회차 예약·Delay 예약·안쪽 Repeat와
-        /// 회차 예약 단계 자체를 센다. 0이 되면 완료이며, 실패 표시가 있으면 OnComplete를 실행하지 않는다.
-        /// </summary>
-        private sealed class RepeatScope
-        {
-            private readonly IReadOnlyList<SpellAction> _onComplete;
-            private readonly SpellContext _completeContext;
-            private readonly RepeatScope _parent;
-            private readonly ExecutionTracker _executionTracker;
-            private int _pending;
-            private bool _isFailed;
-            public IReadOnlyList<SpellAction> OnComplete => _onComplete;
-            public SpellContext CompleteContext => _completeContext;
-            public RepeatScope Parent => _parent;
-            public ExecutionTracker ExecutionTracker => _executionTracker;
-            public bool IsFailed => _isFailed;
-
-            /// <summary>완료 분기와 Repeat 진입 문맥(바깥 Repeat 소속), 바깥 Repeat로 추적 상태를 만든다.</summary>
-            public RepeatScope(IReadOnlyList<SpellAction> onComplete, SpellContext entryContext, RepeatScope parent,
-                ExecutionTracker executionTracker)
-            {
-                _onComplete = onComplete;
-                _completeContext = entryContext;
-                _parent = parent;
-                _executionTracker = executionTracker;
-            }
-
-            /// <summary>기다릴 작업을 하나 추가한다.</summary>
-            public void Acquire() { _pending++; }
-
-            /// <summary>기다리던 작업 하나를 끝내고 모든 작업이 끝났으면 true를 반환한다.</summary>
-            public bool Release() { _pending--; return _pending == 0; }
-
-            /// <summary>회차 실패를 표시한다. 남은 회차는 실행하지 않으며 OnComplete도 실행하지 않는다.</summary>
-            public void Fail() { _isFailed = true; }
-
-            /// <summary>대기 수와 실패 여부를 바깥 Repeat까지 결정성 해시 버퍼에 기록한다.</summary>
-            public void AppendState(StringBuilder state)
-            {
-                for (RepeatScope scope = this; scope != null; scope = scope._parent)
-                    state.Append("|r").Append(scope._pending).Append(scope._isFailed ? 'f' : 'o');
-            }
-        }
-
         private readonly struct ScheduledExecution
         {
             private readonly int _tick;
-            private readonly IReadOnlyList<SpellAction> _actions;
             private readonly SpellAction _action;
             private readonly SpellContext _context;
-            private readonly bool _isIteration;
             private readonly bool _isBranchStart;
             private readonly int _wave;
             private readonly ExecutionTracker _tracker;
             public int Tick => _tick;
-            public IReadOnlyList<SpellAction> Actions => _actions;
             public SpellAction Action => _action;
             public SpellContext Context => _context;
             public ExecutionTracker Tracker => _tracker;
-
-            /// <summary>Repeat의 남은 회차 예약인지 나타낸다. 소속 Repeat가 실패하면 실행하지 않는다.</summary>
-            public bool IsIteration => _isIteration;
             public bool IsBranchStart => _isBranchStart;
 
             /// <summary>연속 모드가 다시 생성할 회차 번호다. 0이면 회차 예약이 아니다.</summary>
             public int Wave => _wave;
 
-            /// <summary>목표 틱, Repeat 실행 목록, 컨텍스트와 회차 여부를 예약 실행 데이터에 보관한다.</summary>
-            public ScheduledExecution(int tick, IReadOnlyList<SpellAction> actions, SpellContext context, bool isIteration)
-            { _tick = tick; _actions = actions; _action = null; _context = context; _isIteration = isIteration; _isBranchStart = false; _wave = 0; _tracker = null; }
-
             /// <summary>목표 틱, 완료할 노드, 문맥과 실행 추적기를 저장한다.</summary>
             public ScheduledExecution(int tick, SpellAction action, SpellContext context, ExecutionTracker tracker)
-            { _tick = tick; _actions = null; _action = action; _context = context; _isIteration = false; _isBranchStart = false; _wave = 0; _tracker = tracker; }
+            { _tick = tick; _action = action; _context = context; _isBranchStart = false; _wave = 0; _tracker = tracker; }
 
             /// <summary>Stores a root branch scheduled to start after the other root branches.</summary>
             public ScheduledExecution(int tick, SpellAction action, SpellContext context, ExecutionTracker tracker, bool isBranchStart)
-            { _tick = tick; _actions = null; _action = action; _context = context; _isIteration = false; _isBranchStart = isBranchStart; _wave = 0; _tracker = tracker; }
+            { _tick = tick; _action = action; _context = context; _isBranchStart = isBranchStart; _wave = 0; _tracker = tracker; }
 
             /// <summary>목표 틱, 다시 생성할 노드, 문맥, 실행 추적기와 회차 번호를 연속 회차 예약 데이터에 보관한다.</summary>
             public ScheduledExecution(int tick, SpellAction action, SpellContext context, ExecutionTracker tracker, int wave)
-            { _tick = tick; _actions = null; _action = action; _context = context; _isIteration = false; _isBranchStart = false; _wave = wave; _tracker = tracker; }
+            { _tick = tick; _action = action; _context = context; _isBranchStart = false; _wave = wave; _tracker = tracker; }
         }
 
         private readonly struct DamageSample

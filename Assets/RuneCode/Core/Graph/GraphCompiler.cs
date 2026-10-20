@@ -304,25 +304,16 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// Inline Magic의 종류·속성·형태 조합과 버프의 이벤트 출력을 검사한다. 해금은 문법 블록 단계에서 검사한다.
-        /// Apply는 회복·보호·화염, 회복 Shape는 Burst·Persist, 보호 Shape는 Burst만 허용한다.
+        /// Inline Magic의 종류·속성 조합을 검사한다. 해금은 문법 블록 단계에서 검사한다.
+        /// 시뮬레이션이 지원하지 않는 buff 종류와 회복·보호 속성은 E14로 거부한다.
         /// </summary>
         private static void ValidateMagicNode(GraphNode node, RuneDefinition rune, IReadOnlyList<GraphEdge> edges, List<CompileIssue> errors)
         {
             if (rune.Id != "magic.inline") return;
             string magicType = node.GetText("magicType", "sphere");
             string element = node.GetText("element", "normal");
-            string form = node.GetText("form", "launch");
-            bool isBuffElement = element == "heal" || element == "protection" || element == "fire";
-            bool isValid;
-            if (magicType == "buff") isValid = isBuffElement && form == "remain";
-            else if (element == "heal") isValid = form == "explosion" || form == "remain";
-            else if (element == "protection") isValid = form == "explosion";
-            else isValid = true;
-            if (!isValid) errors.Add(new CompileIssue("E14", node.Id));
-            if (magicType == "buff" && edges.Any(edge => edge.FromNode == node.Id
-                && (edge.FromPort == SpellGrammar.ON_HIT_PORT || edge.FromPort == SpellGrammar.ON_EXPIRE_PORT)))
-                errors.Add(new CompileIssue("E16", node.Id));
+            if (magicType == SpellGrammar.MAGIC_TYPE_BUFF || element == "heal" || element == "protection")
+                errors.Add(new CompileIssue("E14", node.Id));
         }
 
         /// <summary>Inline Magic의 form 값에 해당하는 행동 수치 룬 ID(form.bolt 등)를 반환한다. 알 수 없는 form이면 빈 문자열이다.</summary>

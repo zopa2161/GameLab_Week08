@@ -29,7 +29,8 @@ namespace RuneCode
                 var stage = int.Parse(Argument(arguments, "--stage", "1"), CultureInfo.InvariantCulture);
                 var duration = double.Parse(Argument(arguments, "--duration", "0"), CultureInfo.InvariantCulture);
                 if (duration != 0) UnityEngine.Debug.LogWarning("--duration은 더 이상 쓰이지 않습니다. 일반 스테이지는 목표 처치 수 달성, 보스 스테이지는 보스 처치 또는 제한시간으로 끝납니다.");
-                var report = Run(spell, scenario, ticks, seed, stage);
+                var isInvulnerable = arguments.Contains("--invulnerable");
+                var report = Run(spell, scenario, ticks, seed, stage, isInvulnerable);
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output)));
                 File.WriteAllText(output, report);
                 UnityEngine.Debug.Log(report);
@@ -43,8 +44,8 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>전달한 마법과 시드로 고정 tick 시뮬레이션을 실행하여 피해·DPS·실행 횟수 JSON을 반환한다.</summary>
-        public static string Run(string spellPath, string scenario, int ticks, int seed, int stage = 1)
+        /// <summary>전달한 마법과 시드로 고정 tick 시뮬레이션을 실행하여 피해·DPS·실행 횟수 JSON을 반환한다. isInvulnerable이면 플레이어가 피해를 받지 않는다.</summary>
+        public static string Run(string spellPath, string scenario, int ticks, int seed, int stage = 1, bool isInvulnerable = false)
         {
             GameData.Load();
             if (ticks < 1 || ticks > 1000000) throw new ArgumentOutOfRangeException(nameof(ticks));
@@ -70,6 +71,7 @@ namespace RuneCode
             simulation.SetUnlockedElements(new[] { "raw", "fire", "ice", "arc" });
             simulation.SetLoadout(new[] { compiled.Spell });
             var castRange = GetAutomaticCastRange(compiled.Spell);
+            if (isInvulnerable) simulation.SetDebugInvulnerable(true);
             var timer = Stopwatch.StartNew();
             for (var tick = 0; tick < ticks && !simulation.Completed && !simulation.IsFailed; tick++)
                 simulation.Step(isTimedBattle ? CreateAutomaticInput(simulation, castRange) : new SimulationInput(SimVector.Zero, new SimVector(1, 0), true, isAutomatic: true));
@@ -102,7 +104,7 @@ namespace RuneCode
             return (range > 0 ? range : FALLBACK_CAST_RANGE) + GameData.Balance.Sim.WandOffset;
         }
 
-        /// <summary>중첩 분기와 후속 실행에서 볼트·영역·순간이동의 최대 도달 거리를 계산한다.</summary>
+        /// <summary>후속 실행에서 볼트·영역·순간이동의 최대 도달 거리를 계산한다.</summary>
         private static double GetActionRange(IReadOnlyList<SpellAction> actions)
         {
             var range = 0.0;
@@ -114,9 +116,6 @@ namespace RuneCode
                     var stats = action.Stats;
                     candidate = action.GetReach(stats) + (action.Form == SlashBehaviorRules.KIND ? 0 : stats.Radius);
                 }
-                else if (action.Kind == "repeat") candidate = Math.Max(GetActionRange(action.Body), GetActionRange(action.OnComplete));
-                else if (action.Kind == "delay") candidate = GetActionRange(action.Then);
-                else if (action.Kind == "if") candidate = Math.Max(GetActionRange(action.Then), GetActionRange(action.Else));
                 else candidate = GetActionRange(action.Next);
                 range = Math.Max(range, candidate);
             }

@@ -50,10 +50,10 @@ namespace RuneCode
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
             => PlaceAreaSpawn(simulation, action, stats, index, isFromEvent, caster, ref position, direction);
 
-        /// <summary>예고가 없으면 생성 즉시 판정한다. 보호 잔류는 판정하지 않는다(백서 v3).</summary>
+        /// <summary>예고가 없으면 생성 즉시 판정한다.</summary>
         public override void OnSpawned(RuneSimulation simulation, SimulationSpellEntity entity)
         {
-            if (entity.Action.SourceElement != "protection") Judge(simulation, entity);
+            Judge(simulation, entity);
         }
 
         /// <summary>예고가 끝난 뒤 수명 종료 시점 전까지만 매 틱 범위 판정을 처리한다.</summary>

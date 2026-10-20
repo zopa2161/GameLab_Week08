@@ -113,19 +113,15 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 범위형 행동의 생성 위치를 정한다. 직접 시전한 일반 범위는 진행 방향으로 생성 거리만큼, 부채꼴·사각형은 실행 위치에 두고,
-        /// 직접 시전한 회복·보호 사각형은 시전자 중심에 둔다. 개체가 여럿일 때의 원형 배치는 이 처리 다음에 다중 모드가 정한다.
+        /// 범위형 행동의 생성 위치를 정한다. 직접 시전한 일반 범위는 진행 방향으로 생성 거리만큼, 부채꼴·사각형은 실행 위치에 둔다.
+        /// 개체가 여럿일 때의 원형 배치는 이 처리 다음에 다중 모드가 정한다.
         /// </summary>
         protected static void PlaceAreaSpawn(RuneSimulation simulation, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, SimVector direction)
         {
-            // 회복·보호 범위는 시전자에게 적용되므로 생성 거리 없이 현재 실행 위치에 만든다.
             // 부채꼴은 실행 위치를 꼭짓점으로, Beam은 실행 위치를 뒤쪽 면으로 진행 방향에 펼친다(결정 Q17, 백서 v7).
-            bool isFunctional = action.SourceElement == "heal" || action.SourceElement == "protection";
             bool isAnchored = action.MagicType == SpellGrammar.MAGIC_TYPE_CONE || action.MagicType == SpellGrammar.MAGIC_TYPE_BOX;
-            if (!isFromEvent && !isFunctional && !isAnchored) position += direction * stats.Offset;
-            // 지팡이 끝은 시전자 몸 밖이므로 직접 시전한 회복·보호 Beam은 뒤쪽 면을 시전자 중심에 둬 자신을 포함한다.
-            if (!isFromEvent && isFunctional && action.MagicType == SpellGrammar.MAGIC_TYPE_BOX) position = caster.Position;
+            if (!isFromEvent && !isAnchored) position += direction * stats.Offset;
         }
     }
 }
