@@ -12,11 +12,7 @@ namespace RuneCode
         internal const double STEP_SECONDS = 1.0 / TICK_RATE;
         internal const double DEGREES_TO_RADIANS = Math.PI / 180;
         private const string BOLT_RUNE_ID = "form.bolt";
-        private const double BEAM_CLIP_MIN_STEP = 4;
-        private const double BEAM_CLIP_STEP_RATIO = 0.25;
-        private const int BEAM_CLIP_REFINEMENT_STEPS = 6;
         internal const double COLLISION_EPSILON = 0.000001;
-        private const int WALL_CONTACT_REFINEMENT_STEPS = 12;
         internal static readonly Dictionary<int, double> NoExcludedTargets = new Dictionary<int, double>();
         private readonly SimulationWorld _world;
         private readonly SimulationFeedback _feedback;
@@ -25,6 +21,8 @@ namespace RuneCode
         private readonly LootSystem _loot;
         private readonly SpawnSystem _spawn;
         private readonly EnemySystem _enemy;
+        private readonly CombatResolver _combat;
+        private readonly SpellEntitySystem _entities;
         private readonly List<ScheduledExecution> _scheduled = new List<ScheduledExecution>();
         private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
         private SimVector? _aimPoint;
@@ -147,7 +145,7 @@ namespace RuneCode
         public bool AdaptationEnabled => Adaptation.Enabled;
         public bool DebugInvulnerable => _world.DebugInvulnerable;
         /// <summary>저격수의 저장된 조준 경로를 벽과 공격 사거리로 제한한 끝점을 반환한다.</summary>
-        public SimVector GetSniperEnd(SimulationEnemy enemy) => enemy.AttackOrigin + enemy.AimedDirection * ClipBeamLength(enemy.AttackOrigin, enemy.AimedDirection, enemy.Definition.AttackRange);
+        public SimVector GetSniperEnd(SimulationEnemy enemy) => enemy.AttackOrigin + enemy.AimedDirection * _entities.ClipBeamLength(enemy.AttackOrigin, enemy.AimedDirection, enemy.Definition.AttackRange);
         /// <summary>시험 도크의 적응 학습 및 피해 감쇠 사용 여부를 변경한다.</summary>
         public void SetAdaptationEnabled(bool isEnabled) { Adaptation.SetEnabled(isEnabled); }
 
@@ -169,6 +167,8 @@ namespace RuneCode
             _loot = new LootSystem(_world, _stats, _statuses, this, scrapGainMultiplier, scrapPickupRangeMultiplier, scrapHealRatio, killEnergyBonus);
             _spawn = new SpawnSystem(_world, _feedback, this);
             _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, this);
+            _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, this);
+            _entities = new SpellEntitySystem(_world, _combat, this);
             if (isMission) BeginTimedBattle();
             else ResetBench("dummy_single");
         }
@@ -341,7 +341,8 @@ namespace RuneCode
             _enemy.AdvanceEnemies();
             if (_world.IsMission) _enemy.ApplySeparation();
             _enemy.RunEnemyShots();
-            AdvanceSpellEntities();
+            _entities.AdvanceSpellEntities();
+            RemoveStoppedBeamChannels();
             _enemy.AdvanceHostileProjectiles();
             _loot.CleanupEnemies();
             _loot.CollectNearbyOrbs();
@@ -631,7 +632,7 @@ namespace RuneCode
         }
 
         /// <summary>이벤트로 시작한 후속 분기를 슬롯과 분리된 실행 추적기로 시작한다.</summary>
-        private void Execute(IReadOnlyList<SpellAction> actions, SpellContext context)
+        internal void Execute(IReadOnlyList<SpellAction> actions, SpellContext context)
         {
             Execute(actions, context, new ExecutionTracker(null, null));
         }
@@ -828,26 +829,9 @@ namespace RuneCode
             }
         }
 
-        /// <summary>
-        /// 마법 개체마다 이동 전 위치를 기록하고, 우선순위가 높은 이동 모드가 이동을 맡거나 없으면 행동의 기본 경로로 옮긴 뒤
-        /// 행동의 판정을 처리한다. 이후 수명을 늘리고 소멸 이벤트를 한 번만 발생시킨다.
-        /// </summary>
-        private void AdvanceSpellEntities()
+        /// <summary>정지된 빔 채널을 역순으로 제거한다. 마법 개체 진행 직후 호출한다.</summary>
+        private void RemoveStoppedBeamChannels()
         {
-            int initialCount = _world.SpellEntities.Count;
-            int processed = 0;
-            for (int i = 0; processed < initialCount && i < _world.SpellEntities.Count; processed++)
-            {
-                SimulationSpellEntity entity = _world.SpellEntities[i];
-                entity.MarkPreviousPosition();
-                if (!entity.MoveByModifiers(this)) entity.Behavior.MoveAlongPath(this, entity);
-                entity.Behavior.Judge(this, entity);
-                entity.Advance(STEP_SECONDS);
-                entity.Behavior.AfterAdvance(this, entity);
-                if ((entity.Behavior.RemovesWhenExpired && entity.HasExpired) || entity.Age + 0.000001 >= entity.Lifetime)
-                { Expire(entity); _world.SpellEntities.RemoveAt(i); }
-                else i++;
-            }
             for (int index = _beamChannels.Count - 1; index >= 0; index--)
                 if (_beamChannels[index].IsStopped) _beamChannels.RemoveAt(index);
         }
@@ -856,217 +840,34 @@ namespace RuneCode
         internal void RecordBeamFlash(SimulationSpellEntity entity, IReadOnlyList<SimVector> path)
             => _feedback.RecordBeamFlash(entity, path);
 
-        /// <summary>원점 origin과 방향 direction의 중심선을 최대 length까지 검사해 첫 벽 앞의 길이를 반환한다.</summary>
-        private double ClipBeamLength(SimVector origin, SimVector direction, double length)
-        {
-            double step = Math.Max(BEAM_CLIP_MIN_STEP, _world.Map.TileSize * BEAM_CLIP_STEP_RATIO);
-            double free = 0;
-            double distance = Math.Min(step, length);
-            while (distance <= length + COLLISION_EPSILON)
-            {
-                if (_world.Map.IsWall(origin + direction * distance)) return RefineBeamClip(origin, direction, free, distance);
-                free = distance;
-                distance += step;
-            }
-            return length;
-        }
+        /// <summary>원형 개체의 직선 이동에서 첫 벽 접촉 비율을 반환한다. 마법 개체 시스템에 위임한다.</summary>
+        internal double FirstWallFraction(SimVector start, SimVector end, double radius) => _entities.FirstWallFraction(start, end, radius);
 
-        /// <summary>원점 origin과 방향 direction에서 통과 길이 free와 벽 진입 길이 hit 사이를 좁혀 벽 앞 길이를 반환한다.</summary>
-        private double RefineBeamClip(SimVector origin, SimVector direction, double free, double hit)
-        {
-            for (int i = 0; i < BEAM_CLIP_REFINEMENT_STEPS; i++)
-            {
-                double middle = (free + hit) * 0.5;
-                if (_world.Map.IsWall(origin + direction * middle)) hit = middle;
-                else free = middle;
-            }
-            return free;
-        }
+        /// <summary>범위 마법의 대상별 주기 피해와 OnHit을 처리한다. 전투 판정기에 위임한다.</summary>
+        internal void HitArea(SimulationSpellEntity entity, bool isBurst) => _combat.HitArea(entity, isBurst);
 
-        /// <summary>원형 개체의 직선 이동을 작은 구간으로 검사하고 첫 벽 접촉 비율을 반환한다.</summary>
-        internal double FirstWallFraction(SimVector start, SimVector end, double radius)
-        {
-            int steps = Math.Max(1, (int)Math.Ceiling((end - start).Length / Math.Max(1, Math.Min(radius, _world.Map.TileSize * 0.25))));
-            double last = 0;
-            for (int i = 1; i <= steps; i++)
-            {
-                double high = i / (double)steps;
-                if (_world.Map.CanOccupy(start + (end - start) * high, radius)) { last = high; continue; }
-                for (int j = 0; j < WALL_CONTACT_REFINEMENT_STEPS; j++)
-                {
-                    double middle = (last + high) * 0.5;
-                    if (_world.Map.CanOccupy(start + (end - start) * middle, radius)) last = middle; else high = middle;
-                }
-                return high;
-            }
-            return double.PositiveInfinity;
-        }
-
-        /// <summary>
-        /// 범위 마법의 가까운 적부터 대상별 주기에 맞춰 피해를 적용하고, 실제 피해 타격 횟수에 따른 행동별 규칙으로 OnHit을 낸다.
-        /// isBurst이면 대상별 한 번만 적중하고 확장 범위가 대상과 처음 겹친 접촉 위치로 OnHit을 낸다(Burst).
-        /// </summary>
-        internal void HitArea(SimulationSpellEntity entity, bool isBurst)
-        {
-            var targets = new List<SimulationEnemy>();
-            foreach (SimulationEnemy enemy in _world.Enemies)
-            {
-                if (enemy.IsAlive && SpellGeometry.IsInsideArea(entity, enemy.Position, enemy.Radius)) targets.Add(enemy);
-            }
-            targets.Sort((a, b) =>
-            {
-                int distanceOrder = (a.Position - entity.Position).LengthSquared.CompareTo((b.Position - entity.Position).LengthSquared);
-                return distanceOrder != 0 ? distanceOrder : a.Id.CompareTo(b.Id);
-            });
-            double interval = entity.Behavior.GetAreaHitInterval(entity.Stats);
-            foreach (SimulationEnemy enemy in targets)
-            {
-                if (!enemy.IsAlive) continue;
-                bool hasHit = entity.HitTimes.TryGetValue(enemy.Id, out double lastTime);
-                if (!hasHit || (!isBurst && Time - lastTime + 0.000001 >= interval))
-                {
-                    entity.HitTimes[enemy.Id] = Time;
-                    SimVector pushDirection = enemy.Position - entity.Position;
-                    if (pushDirection.Length <= COLLISION_EPSILON) pushDirection = entity.Direction;
-                    double previousHp = enemy.Hp;
-                    Hit(entity, enemy, entity.Stats.Damage, entity.Behavior.IsDamageOverTime, pushDirection);
-                    // 폭발은 대상별 한 번, 잔류는 실제 피해 타격 횟수에 따라 접촉 위치에서 후속 행동을 실행한다.
-                    if (isBurst || (enemy.Hp < previousHp && entity.Behavior.RecordPeriodicHit(entity, enemy.Id)))
-                        RaiseHitEvent(entity, SpellGeometry.GetContactPoint(entity, enemy.Position), enemy);
-                }
-            }
-        }
-
-        /// <summary>스펠 피해·상태와 전격 연쇄를 처리하며 관통 직접 피해는 보정 후에도 최소 1을 유지한다. 직접 실제 피해에 비례한 밀어내기를 pushDirection으로 예약하고 잔류 피해를 누적한다.</summary>
+        /// <summary>스펠 피해·상태·전격 연쇄와 밀어내기를 적용한다. 전투 판정기에 위임한다.</summary>
         internal void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot, SimVector pushDirection)
-        {
-            double minimumDamage = entity.Behavior.TracksDirectHit && entity.Stats.Pierce > 0 && !isDot ? 1d : 0d;
-            double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true, minimumDamage, entity.Action);
-            if (_enemy.IsSeparationFixed(enemy)) enemy.CancelDisplacement();
-            else if (actual > 0 && enemy.IsAlive && entity.Stats.KnockbackDistance > 0)
-            {
-                double referenceDamage = GameData.Runes.Get("mod.knockback").Stats.KnockbackReferenceDamage;
-                double distance = entity.Stats.KnockbackDistance * actual / referenceDamage;
-                enemy.QueueDisplacement(pushDirection, distance, entity.Stats.KnockbackSeconds, _world.Tick);
-            }
-            if (entity.Element == "arc")
-            {
-                RuneStats arc = GameData.Runes.Get("elem.arc").Stats;
-                var chain = new List<SimulationEnemy>();
-                foreach (SimulationEnemy other in _world.Enemies)
-                    if (other != enemy && other.IsAlive && SimVector.Distance(other.Position, enemy.Position) <= arc.ArcRange) chain.Add(other);
-                chain.Sort((a, b) =>
-                {
-                    int distanceOrder = (a.Position - enemy.Position).LengthSquared.CompareTo((b.Position - enemy.Position).LengthSquared);
-                    return distanceOrder != 0 ? distanceOrder : a.Id.CompareTo(b.Id);
-                });
-                for (int i = 0; i < Math.Min(arc.ArcTargets, chain.Count); i++)
-                {
-                    actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action, damageStatus: "arc_chain");
-                    _feedback.AddArcLink(enemy.Position, chain[i].Position);
-                }
-                if (actual > 0) _stats.ArcDamageEventCount++;
-            }
-            if (entity.Behavior.AccumulatesPersistDamage) _stats.PersistDamage += actual;
-        }
+            => _combat.Hit(entity, enemy, damage, isDot, pushDirection);
 
-        /// <summary>
-        /// 개체의 OnHit 이벤트를 지정 위치·대상(벽이면 null)으로 실행한다. 직접 충돌을 추적하는 행동(발사)은 직접 충돌로 기록하고
-        /// 첫 이벤트이면 OnFirstHitOrExpire도 실행한다.
-        /// </summary>
+        /// <summary>개체의 OnHit 이벤트를 지정 위치·대상으로 실행한다. 전투 판정기에 위임한다.</summary>
         internal void RaiseHitEvent(SimulationSpellEntity entity, SimVector position, SimulationEnemy target)
-        {
-            _stats.GetActionCombatStats(entity.Action).RecordOnHit();
-            bool tracksDirectHit = entity.Behavior.TracksDirectHit;
-            if (tracksDirectHit) entity.HasDirectHit = true;
-            SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
-                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action);
-            bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
-            Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
-            if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
-        }
+            => _combat.RaiseHitEvent(entity, position, target);
 
-        /// <summary>
-        /// 발사체의 적중 보정과 피해 배율을 보호막 체력에 적용하고 명중·소멸 이벤트를 실행한다.
-        /// OnHit과 첫 이벤트는 접촉 위치와 쉴드 소유자 대상으로, OnExpire는 개체 위치와 대상 없이 낸다.
-        /// </summary>
+        /// <summary>발사체의 보호막 피해와 명중·소멸 이벤트를 처리한다. 전투 판정기에 위임한다.</summary>
         internal void RaiseShieldHitEvent(SimulationSpellEntity entity, SimVector contact, SimulationEnemy shieldOwner)
-        {
-            double damage = entity.Stats.Damage;
-            bool isConsumed = true;
-            entity.ApplyHitModifiers(this, shieldOwner, ref damage, ref isConsumed);
-            shieldOwner.HurtShield(damage * _world.DamageMultiplier * Adaptation.GetMultiplier(entity.Element, entity.Kind));
-            RaiseHitEvent(entity, contact, shieldOwner);
-            RaiseExpireEvent(entity);
-        }
+            => _combat.RaiseShieldHitEvent(entity, contact, shieldOwner);
 
-        /// <summary>
-        /// 적중 후속 실행의 방향을 접촉 위치(시작점)에서 적중 대상의 위치(도착점)로 반환한다(백서 v7 6장).
-        /// 대상이 없거나 두 위치가 같으면 개체의 진행 방향을 쓴다.
-        /// </summary>
-        private static SimVector GetEventDirection(SimulationSpellEntity entity, SimVector contact, SimulationEnemy target)
-        {
-            if (target == null) return entity.Direction;
-            SimVector offset = target.Position - contact;
-            return offset.Length > 0.000001 ? offset.Normalized() : entity.Direction;
-        }
-
-        /// <summary>피해에 적응·이지스 방패와 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
+        /// <summary>적응·방패·하한을 반영한 실제 피해를 적용하고 반환한다. 상태 이상 화상 틱이 호출하며 전투 판정기에 위임한다.</summary>
         internal double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
             double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null)
-        {
-            if (!enemy.IsAlive || enemy.IsPatching) return 0;
-            double actual = damage * _world.DamageMultiplier * Adaptation.GetMultiplier(element, form);
-            if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_AEGIS_SHIELD) && !HasEnemyStatus(enemy, EnemyStatusType.Emp) && form == "bolt" && !isDot && SimVector.Dot(enemy.Facing, direction * -1) >= Math.Cos(_world.Balance.Combat.AegisAngle * 0.5 * DEGREES_TO_RADIANS)) actual *= 1 - _world.Balance.Combat.AegisReduction;
-            bool relayAlive = false;
-            foreach (SimulationEnemy relay in _world.Enemies)
-            {
-                if (!relay.Definition.HasTrait(EnemyDefinition.TRAIT_RELAY_AURA) || !relay.IsAlive) continue;
-                relayAlive = true;
-                break;
-            }
-            actual = enemy.Hurt(Math.Max(minimumDamage, actual), Time);
-            if (applyStatus) _statuses.ApplyStatus(enemy, element, form, noise, damage, sourceAction);
-            if (actual > 0)
-            {
-                if (sourceAction != null) _stats.GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
-                _stats.EnemyDamageEventCount++;
-                enemy.SetDamageTags(element, form);
-                _stats.RecordEnemyDamage(actual, _world.Tick);
-                _feedback.AddDamageNumber(enemy.Position, actual, element);
-                Adaptation.Learn(element, form, Time, actual, isDot, noise, relayAlive);
-            }
-            if (enemy.Boss != null && enemy.Boss.IsGovernorPattern && enemy.IsAlive) _enemy.CheckBossPatch(enemy, enemy.Boss);
-            return actual;
-        }
+            => _combat.ApplyDamage(enemy, damage, element, form, noise, isDot, direction, applyStatus, minimumDamage, sourceAction, damageStatus);
 
         /// <summary>적의 상태 이상이 현재 상태 판정 시각에 활성인지 반환한다. 냉기는 스택 보유 여부로 판정한다.</summary>
         public bool HasEnemyStatus(SimulationEnemy enemy, EnemyStatusType type) => _statuses.HasEnemyStatus(enemy, type);
 
         /// <summary>적의 현재 냉기 스택을 반환하며 냉기가 없으면 0을 반환한다.</summary>
         public int GetChillStacks(SimulationEnemy enemy) => _statuses.GetChillStacks(enemy);
-
-        /// <summary>
-        /// 개체의 자연 소멸(수명·사거리 종료)을 처리하고 OnExpire를 소멸 위치에서 한 번 실행한다.
-        /// 소멸 이벤트를 내지 않는 행동(Burst)과 직접 충돌한 발사체는 OnExpire를 내지 않는다. 명중 없이 사라지는 발사체만 OnFirstHitOrExpire도 실행한다.
-        /// </summary>
-        private void Expire(SimulationSpellEntity entity)
-        {
-            if (entity.HasExpired) return;
-            entity.HasExpired = true;
-            if (!entity.Behavior.RaisesExpireEvent || entity.HasDirectHit) return;
-            RaiseExpireEvent(entity);
-        }
-
-        /// <summary>소멸 이벤트를 개체 위치와 대상 없이 실행한다. OnExpire 다음 첫 이벤트 순서다.</summary>
-        private void RaiseExpireEvent(SimulationSpellEntity entity)
-        {
-            SpellContext context = new SpellContext(entity.Position, entity.Direction, null, true,
-                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id);
-            bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
-            Execute(entity.Action.OnExpire, context);
-            if (isFirstEvent) Execute(entity.Action.OnFirstHitOrExpire, context);
-        }
 
         /// <summary>목표 처치 대상 집계와 보스 처치 판정을 기록한다.</summary>
         internal void RecordKillProgress(SimulationEnemy enemy)
@@ -1172,9 +973,9 @@ namespace RuneCode
             _stats.TrimRollingDamage(_world.Tick);
         }
 
-        /// <summary>이미 적중한 적을 제외하고 탐지 반경 내 가장 가까운 생존 적을 반환한다.</summary>
+        /// <summary>이미 적중한 적을 제외하고 탐지 반경 내 가장 가까운 생존 적을 반환한다. 마법 개체 시스템에 위임한다.</summary>
         internal SimulationEnemy NearestEnemy(SimVector position, double range, Dictionary<int, double> excluded)
-        { SimulationEnemy result = null; double best = range * range; foreach (SimulationEnemy enemy in _world.Enemies) { if (!enemy.IsAlive || excluded.ContainsKey(enemy.Id)) continue; double distance = (enemy.Position - position).LengthSquared; if (distance < best) { result = enemy; best = distance; } } return result; }
+            => _entities.NearestEnemy(position, range, excluded);
 
         /// <summary>장착된 행동을 순회하고 노드별 실제 피해와 OnHit 후속 생성 누계를 로그용 복사본으로 반환한다.</summary>
         public IReadOnlyList<Dictionary<string, object>> GetActionCombatLogSnapshot()
