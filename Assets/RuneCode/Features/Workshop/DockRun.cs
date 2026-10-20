@@ -60,10 +60,10 @@ namespace RuneCode
             SoundManager.Instance.StopShotBeam();
             _session.SetDockDummyCount(dummyCount);
             _session.SetDockOptions("dummy_line", _session.DockAutoFire, _session.DockAdaptation, _session.DockSpeed);
-            _dock = new RuneSimulation(1, false, _session.MaxHp, _session.MaxEnergy, energyRegen: _session.EnergyRegen,
+            _dock = new RuneSimulation(SimulationSetup.FromGameData(1, false, _session.MaxHp, _session.MaxEnergy, energyRegen: _session.EnergyRegen,
                 damageMultiplier: _session.DamageMultiplier, moveSpeedMultiplier: _session.MoveSpeedMultiplier,
                 scrapGainMultiplier: _session.ScrapGainMultiplier, carrier: GameData.Carrier,
-                killEnergyBonus: _session.KillEnergyBonus);
+                killEnergyBonus: _session.KillEnergyBonus));
             _dock.ResetBench(Scenario, DummyCount);
             _dock.SetAdaptationEnabled(_session.DockAdaptation);
             _dock.SetUnlockedElements(_session.GetUnlockedElements());

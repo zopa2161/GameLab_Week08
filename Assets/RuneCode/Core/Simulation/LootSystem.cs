@@ -10,6 +10,7 @@ namespace RuneCode
         private readonly SimulationWorld _world;
         private readonly SimulationStats _stats;
         private readonly EnemyStatusSystem _statuses;
+        private readonly BattleRules _rules;
         private readonly RuneSimulation _simulation;
         private readonly Queue<SimulationEnemy> _deadEnemies = new Queue<SimulationEnemy>();
         private readonly List<FragmentOrb> _orbs = new List<FragmentOrb>();
@@ -57,15 +58,16 @@ namespace RuneCode
         internal double KillEnergyBonus { get; }
 
         /// <summary>
-        /// 공유 월드·통계·상태이상 시스템과 시뮬레이션, 스크랩 배율·보너스 값을 받아 전리품 시스템을 만든다.
+        /// 공유 월드·통계·상태이상 시스템, 처치 집계를 기록할 전투 규칙과 시뮬레이션, 스크랩 배율·보너스 값을 받아 전리품 시스템을 만든다.
         /// 회복 비율은 0~1로, 처치 전력 보너스는 0 이상으로 제한한다.
         /// </summary>
-        internal LootSystem(SimulationWorld world, SimulationStats stats, EnemyStatusSystem statuses, RuneSimulation simulation,
+        internal LootSystem(SimulationWorld world, SimulationStats stats, EnemyStatusSystem statuses, BattleRules rules, RuneSimulation simulation,
             double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
         {
             _world = world;
             _stats = stats;
             _statuses = statuses;
+            _rules = rules;
             _simulation = simulation;
             ScrapGainMultiplier = scrapGainMultiplier;
             ScrapPickupRangeMultiplier = scrapPickupRangeMultiplier;
@@ -129,7 +131,7 @@ namespace RuneCode
                 int droppedCredits = 0;
                 if (_world.IsMission)
                 {
-                    _simulation.RecordKillProgress(enemy);
+                    _rules.RecordKillProgress(enemy);
                     if (enemy.Definition.CanSplit) _simulation.EnqueueSplits(enemy);
                     if (enemy.Reward > 0)
                     {

@@ -112,10 +112,10 @@ namespace RuneCode
             // 미션마다 시드를 바꿔 스폰·드롭·보상 순서가 매번 달라지게 한다. 재현용으로 시작 텔레메트리에 남긴다.
             int seed = Environment.TickCount;
             _seed = seed;
-            _simulation = new RuneSimulation(seed, true, session.MaxHp, session.MaxEnergy, session.SelectedStage, session.EnergyRegen,
+            _simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, true, session.MaxHp, session.MaxEnergy, session.SelectedStage, session.EnergyRegen,
                 session.DamageMultiplier, session.MoveSpeedMultiplier, session.ScrapGainMultiplier,
                 carrier: GameData.Carrier, scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
-                killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio);
+                killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio));
             _simulation.SetLoadout(new[] { spell });
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
             _coreNodeId = null;

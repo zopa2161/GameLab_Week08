@@ -25,9 +25,8 @@ namespace RuneCode
         private readonly EnemySystem _enemy;
         private readonly CombatResolver _combat;
         private readonly SpellEntitySystem _entities;
-        private int _targetKills;
-        private bool _isBossDefeated;
-        private string _scenario;
+        private readonly BattleRules _rules;
+        private readonly BenchScenario _bench;
         public int Tick => _world.Tick;
         public double Time => _world.Tick * STEP_SECONDS;
         public SimulationPlayer Player => _world.Player;
@@ -109,7 +108,7 @@ namespace RuneCode
         public bool IsBossStage => _world.StageDefinition != null && _world.StageDefinition.IsBoss;
         public double TimeLimit => _world.StageDefinition?.TimeLimit ?? 0;
         public double RemainingTime => Math.Max(0, TimeLimit - Time);
-        public int TargetKills => _targetKills;
+        public int TargetKills => _rules.TargetKills;
         public SimVector MapCenter => new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
         public double EnergyRegen => _world.EnergyRegen;
         public int SpawnedEnemies => _spawn.SpawnedEnemies;
@@ -121,8 +120,8 @@ namespace RuneCode
         public int BigScrapSpawnEventCount => _loot.BigScrapSpawnEventCount;
         /// <summary>플레이어가 직접 줍거나 스테이지 클리어 시 회수한 스크랩 누계를 반환한다.</summary>
         public int EarnedFragments => _loot.CollectedFragments;
-        public int ClearReward => Completed && _world.StageDefinition != null ? _world.Stages.Growth.GetClearReward(_world.StageDefinition.ClearReward, _world.StageNumber) : 0;
-        public int SettlementFragments => IsFailed ? (int)Math.Round(_loot.CollectedFragments * _world.Balance.Economy.DeathRetention, MidpointRounding.AwayFromZero) : _loot.CollectedFragments + ClearReward;
+        public int ClearReward => _rules.ClearReward;
+        public int SettlementFragments => _rules.GetSettlementFragments(_loot.CollectedFragments);
         public double TotalDamage => _stats.TotalDamage;
 
         /// <summary>상태 이상(화염) 틱으로 입힌 실제 피해의 누적값이며 TotalDamage에 포함된다.</summary>
@@ -144,26 +143,25 @@ namespace RuneCode
         /// <summary>명시적으로 열린 디버그 기능에서 플레이어 무적 상태를 변경한다.</summary>
         public void SetDebugInvulnerable(bool isInvulnerable) { _world.DebugInvulnerable = isInvulnerable; }
 
-        /// <summary>시드, 스테이지와 트리 능력치·처치 전력 보너스·스크랩 회복 비율을 받아 독립 전투 또는 시험 도크를 생성한다. 생략한 배율은 1, 보너스는 0을 사용한다.</summary>
-        public RuneSimulation(int seed = 1, bool isMission = false, double maxHp = 0, double maxEnergy = 0, int stageNumber = 1, double energyRegen = 0,
-            double damageMultiplier = 1, double moveSpeedMultiplier = 1, double scrapGainMultiplier = 1, CarrierDefinition carrier = null,
-            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0)
+        /// <summary>생성 설정의 시드, 스테이지와 트리 능력치·처치 전력 보너스·스크랩 회복 비율, 카탈로그로 독립 전투 또는 시험 도크를 생성한다.</summary>
+        public RuneSimulation(SimulationSetup setup)
         {
-            GameData.Load();
-            _world = new SimulationWorld(GameData.Balance, GameData.Enemies, GameData.Sector, GameData.Bosses, GameData.Formations, GameData.Drops,
-                new ModifierGradeDropSource(GameData.ModifierGrades), GameData.Stages, carrier, isMission, maxHp, maxEnergy, stageNumber, energyRegen,
-                damageMultiplier, moveSpeedMultiplier, new SimRandom(seed), new AdaptationNet(GameData.Balance));
+            _world = new SimulationWorld(setup.Balance, setup.Enemies, setup.Sector, setup.Bosses, setup.Formations, setup.Drops,
+                new ModifierGradeDropSource(setup.ModifierGrades), setup.Stages, setup.Carrier, setup.IsMission, setup.MaxHp, setup.MaxEnergy, setup.StageNumber, setup.EnergyRegen,
+                setup.DamageMultiplier, setup.MoveSpeedMultiplier, new SimRandom(setup.Seed), new AdaptationNet(setup.Balance));
             _feedback = new SimulationFeedback(_world);
             _stats = new SimulationStats();
             _beam = new BeamChannelController(_world, _stats);
             _executor = new SpellExecutor(_world, _feedback, _stats, _beam, this);
             _statuses = new EnemyStatusSystem(_world, _stats, this);
-            _loot = new LootSystem(_world, _stats, _statuses, this, scrapGainMultiplier, scrapPickupRangeMultiplier, scrapHealRatio, killEnergyBonus);
+            _rules = new BattleRules(_world, this);
+            _loot = new LootSystem(_world, _stats, _statuses, _rules, this, setup.ScrapGainMultiplier, setup.ScrapPickupRangeMultiplier, setup.ScrapHealRatio, setup.KillEnergyBonus);
             _spawn = new SpawnSystem(_world, _feedback, this);
+            _bench = new BenchScenario(_world, _spawn);
             _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, this);
-            _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, this);
+            _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, setup.Runes, this);
             _entities = new SpellEntitySystem(_world, _combat, this);
-            if (isMission) BeginTimedBattle();
+            if (setup.IsMission) BeginTimedBattle(setup.Runes);
             else ResetBench("dummy_single");
         }
 
@@ -234,7 +232,7 @@ namespace RuneCode
             _loot.CollectNearbyOrbs();
             _loot.CollectNearbyItemDrops();
             if (_world.IsMission && _world.Player.Hp <= 0) { _world.Stage = MissionStage.Dead; _loot.DiscardUncollectedOrbs(); CancelCombat(); }
-            else if (!_world.IsMission && _scenario == "adapt_loop" && _world.Enemies.Count == 0) _spawn.SpawnBenchDummy(new SimVector(_world.Balance.Sim.BenchDummyX, _world.Balance.Sim.BenchDummyY), _world.Balance.Sim.BenchHp);
+            else if (!_world.IsMission) _bench.RespawnAdaptDummy();
             Adaptation.Advance(Time, Time + STEP_SECONDS);
             _world.Tick++;
             _executor.RunScheduled();
@@ -248,25 +246,16 @@ namespace RuneCode
             _feedback.ClearBeamFlashes();
             _loot.ClearClearFeedback();
             if (_world.IsMission) throw new InvalidOperationException("미션은 시험 도크로 초기화할 수 없습니다.");
-            if (scenario != "dummy_single" && scenario != "dummy_line" && scenario != "dummy_swarm" && scenario != "aegis" && scenario != "adapt_loop") throw new ArgumentException("알 수 없는 시험 시나리오입니다.", nameof(scenario));
-            _scenario = scenario; _world.Stage = MissionStage.Bench; _world.Tick = 0; _world.ResetEntityIds(); _world.Random.Reset();
+            _bench.Begin(scenario);
+            _world.ResetForBench();
             _world.Enemies.Clear(); _loot.ClearForBench(); _feedback.ClearForBench(); CancelCombat();
             _statuses.ClearAll();
-            _stats.ResetForBench(); _loot.ResetForBench(); _spawn.SpawnedEnemies = 0;
+            _stats.ResetForBench(); _loot.ResetForBench(); _spawn.ResetForBench();
             _executor.ResetForBench();
             SimulationBalance bench = _world.Balance.Sim;
             _world.Map = new MissionMap(_world.Sector.BenchTiles, _world.Sector.TileSize); _world.Player = new SimulationPlayer(_world.MaxHp, _world.MaxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
             Adaptation.Clear(); Adaptation.SetEnabled(scenario == "adapt_loop");
-            if (scenario == "dummy_line")
-            {
-                int count = dummyCount == 0 ? bench.BenchLineCount : dummyCount;
-                for (int i = count - 1; i >= 0; i--)
-                    _spawn.SpawnBenchDummy(new SimVector(bench.BenchLineStartX + i * bench.BenchLineGap, bench.BenchDummyY), bench.BenchHp);
-            }
-            else if (scenario == "dummy_swarm")
-                for (int i = 0; i < bench.BenchSwarmColumns * bench.BenchSwarmRows; i++) SpawnEnemy("enemy.scout", new SimVector(bench.BenchSwarmX + (i % bench.BenchSwarmColumns) * bench.BenchSwarmGapX, bench.BenchSwarmY + (i / bench.BenchSwarmColumns) * bench.BenchSwarmGapY), false, bench.BenchHp);
-            else if (scenario == "aegis") SpawnEnemy("enemy.aegis", new SimVector(bench.BenchDummyX, bench.BenchDummyY), true, bench.BenchHp);
-            else _spawn.SpawnBenchDummy(new SimVector(bench.BenchDummyX, bench.BenchDummyY), bench.BenchHp);
+            _bench.PlaceEnemies(dummyCount);
         }
 
         /// <summary>디버그 기능에서 지정한 적을 추가한다. 엘리트는 체력·보상 2배, 속도 1.2배, 반경 2배와 현재 스테이지의 드롭 테이블을 사용한다.</summary>
@@ -302,7 +291,7 @@ namespace RuneCode
         {
             var state = new StringBuilder();
             _beam.WriteInputState(state);
-            state.Append(_world.Tick).Append('|').Append(_world.Random.State).Append('|').Append(_world.NextEntityId).Append('|').Append(_world.Stage).Append('|').Append(_world.StageNumber).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawn.SpawnedEnemies).Append('|').Append(_loot.KillCount).Append('|').Append(_scenario).Append('|').Append(_world.DebugInvulnerable);
+            state.Append(_world.Tick).Append('|').Append(_world.Random.State).Append('|').Append(_world.NextEntityId).Append('|').Append(_world.Stage).Append('|').Append(_world.StageNumber).Append('|').Append(_rules.TargetKills).Append('|').Append(_rules.IsBossDefeated).Append('|').Append(_spawn.SpawnedEnemies).Append('|').Append(_loot.KillCount).Append('|').Append(_bench.Scenario).Append('|').Append(_world.DebugInvulnerable);
             state.Append('|').Append(_executor.ActionBudgetTick).Append('|').Append(_executor.ActionsThisTick).Append('|').Append(_executor.DroppedExecutions);
             SimHash.AppendNumber(state, TimeLimit); SimHash.AppendNumber(state, _world.EnergyRegen);
             state.Append('|').Append(_executor.AimPoint.HasValue);
@@ -391,13 +380,6 @@ namespace RuneCode
         /// <summary>적의 현재 냉기 스택을 반환하며 냉기가 없으면 0을 반환한다.</summary>
         public int GetChillStacks(SimulationEnemy enemy) => _statuses.GetChillStacks(enemy);
 
-        /// <summary>목표 처치 대상 집계와 보스 처치 판정을 기록한다.</summary>
-        internal void RecordKillProgress(SimulationEnemy enemy)
-        {
-            if (enemy.IsKillTarget) _targetKills++;
-            if (enemy.Boss != null) _isBossDefeated = true;
-        }
-
         /// <summary>상태 이상 피해를 플레이어에게 적용한다. 적 시스템에 위임한다.</summary>
         internal void HurtPlayerByStatus(double damage) => _enemy.HurtPlayerByStatus(damage);
 
@@ -408,16 +390,12 @@ namespace RuneCode
         public DropRoll DrawClearRuneReward() => _loot.DrawClearRuneReward();
 
         /// <summary>
-        /// 일반 스테이지는 TimeLimit까지 버티면, 보스 스테이지는 TimeLimit 안에 보스를 처치하면 클리어하고 남은 스크랩·Modifier를 모두 회수한다.
-        /// 보스 제한시간 초과는 미획득 스크랩을 버린다. 클리어는 남은 적을 정지된 전장 표시용으로 보존하고 상태 이상을 정리하며 같은 틱의 시간 초과보다 우선한다.
-        /// 같은 틱의 사망은 Step에서 먼저 판정되므로 이 확인보다 우선한다.
+        /// 전투 규칙의 종료 판정(일반은 TimeLimit 도달, 보스는 처치·제한시간)으로 끝났으면 클리어는 남은 스크랩·Modifier를 모두 회수하고, 보스 제한시간 초과는 미획득 스크랩을 버린다.
+        /// 이후 전투를 취소하고 클리어는 남은 적을 정지된 전장 표시용으로 보존하며 상태 이상을 정리한다. 같은 틱의 사망은 Step에서 먼저 판정되므로 이 확인보다 우선한다.
         /// </summary>
         private void CheckBattleEnd()
         {
-            bool hasReachedTimeLimit = Time + 0.000001 >= TimeLimit;
-            if (IsBossStage ? _isBossDefeated : hasReachedTimeLimit) _world.Stage = MissionStage.Cleared;
-            else if (IsBossStage && hasReachedTimeLimit) _world.Stage = MissionStage.TimedOut;
-            else return;
+            if (!_rules.TryEndBattle()) return;
             if (_world.Stage == MissionStage.Cleared) _loot.CollectRemainingDrops();
             else _loot.DiscardUncollectedOrbs();
             CancelCombat();
@@ -429,21 +407,22 @@ namespace RuneCode
         /// 스테이지 편성으로 외곽 벽만 있는 맵, 맵 중앙의 플레이어, 스폰 반경, 처치 집계와 스폰 진행을 준비하고 0틱 예약을 바로 스폰한다.
         /// 스폰 반경 = 기본 발사 사거리 + 가장 큰 적 반경 + 여유이며 막 스폰된 적에게 기본 발사체가 닿지 않게 한다.
         /// 적 분리 격자를 맵 크기와 적 상한, 가장 큰 적 반경의 2배 칸 크기로 준비한다. 가장 큰 적 반경에는 이 스테이지 엘리트 타입의 반경 배율을 반영한다.
+        /// 기본 발사 수치는 runes에서 조회한다.
         /// </summary>
-        private void BeginTimedBattle()
+        private void BeginTimedBattle(RuneCatalog runes)
         {
             _world.Stage = MissionStage.Combat;
             _world.StageDefinition = _world.Stages.Get(_world.StageNumber);
             _world.Map = MissionMap.CreateOpen(_world.Stages.Map.Columns, _world.Stages.Map.Rows, _world.Sector.TileSize);
             _world.Player = new SimulationPlayer(_world.MaxHp, _world.MaxEnergy, MapCenter);
             Adaptation.SetEnabled(false);
-            RuneStats bolt = GameData.Runes.Get(BOLT_RUNE_ID).Stats;
+            RuneStats bolt = runes.Get(BOLT_RUNE_ID).Stats;
             double largestRadius = 0;
             foreach (EnemyDefinition enemy in _world.EnemyCatalog.Enemies) largestRadius = Math.Max(largestRadius, enemy.Radius);
             foreach (EliteSpawnDefinition elite in _world.StageDefinition.EliteTypes) largestRadius = Math.Max(largestRadius, _world.EnemyCatalog.Get(elite.EnemyId).Radius * elite.RadiusMultiplier);
             _enemy.ResizeSeparation(_world.Map.Width, _world.Map.Height, EnemyLimit, largestRadius * 2);
             _spawn.SpawnRadius = (double)bolt.Speed * bolt.Lifetime + largestRadius + _world.Stages.Spawn.RingMargin;
-            _targetKills = 0; _isBossDefeated = false;
+            _rules.ResetForBattle();
             _spawn.Director = new SpawnDirector(_world.StageDefinition, _world.StageNumber, _world.Formations, TICK_RATE);
             _spawn.AdvanceSpawns();
             _spawn.RefreshSpawnWarnings();

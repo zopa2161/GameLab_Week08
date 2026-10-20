@@ -37,7 +37,10 @@ namespace RuneCode
         internal double SpawnRadius { get => _spawnRadius; set => _spawnRadius = value; }
 
         /// <summary>이번 미션에서 생성한 적 수다. 시험 도크 초기화 때 0으로 되돌린다.</summary>
-        internal int SpawnedEnemies { get => _spawnedEnemies; set => _spawnedEnemies = value; }
+        internal int SpawnedEnemies => _spawnedEnemies;
+
+        /// <summary>시험 도크 초기화 시 생성한 적 수를 0으로 되돌린다.</summary>
+        internal void ResetForBench() => _spawnedEnemies = 0;
 
         /// <summary>월드·표시 버퍼·시뮬레이션 참조로 만들고 공유 난수와 적 목록을 쓰는 슬롯·맵 배치 보조를 준비한다.</summary>
         internal SpawnSystem(SimulationWorld world, SimulationFeedback feedback, RuneSimulation simulation)

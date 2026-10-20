@@ -12,10 +12,12 @@ namespace RuneCode
         private readonly EnemyStatusSystem _statuses;
         private readonly EnemySystem _enemy;
         private readonly SpellExecutor _executor;
+        private readonly RuneCatalog _runes;
         private readonly RuneSimulation _simulation;
 
-        /// <summary>월드·표시 버퍼·통계·상태 이상·적 시스템, 이벤트 후속을 실행할 스펠 실행기와 시뮬레이션 참조로 만든다.</summary>
-        internal CombatResolver(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, EnemyStatusSystem statuses, EnemySystem enemy, SpellExecutor executor, RuneSimulation simulation)
+        /// <summary>월드·표시 버퍼·통계·상태 이상·적 시스템, 이벤트 후속을 실행할 스펠 실행기, 넉백·전격 수치를 조회할 룬 카탈로그와 시뮬레이션 참조로 만든다.</summary>
+        internal CombatResolver(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, EnemyStatusSystem statuses, EnemySystem enemy, SpellExecutor executor,
+            RuneCatalog runes, RuneSimulation simulation)
         {
             _world = world;
             _feedback = feedback;
@@ -23,6 +25,7 @@ namespace RuneCode
             _statuses = statuses;
             _enemy = enemy;
             _executor = executor;
+            _runes = runes;
             _simulation = simulation;
         }
 
@@ -69,13 +72,13 @@ namespace RuneCode
             if (_enemy.IsSeparationFixed(enemy)) enemy.CancelDisplacement();
             else if (actual > 0 && enemy.IsAlive && entity.Stats.KnockbackDistance > 0)
             {
-                double referenceDamage = GameData.Runes.Get("mod.knockback").Stats.KnockbackReferenceDamage;
+                double referenceDamage = _runes.Get("mod.knockback").Stats.KnockbackReferenceDamage;
                 double distance = entity.Stats.KnockbackDistance * actual / referenceDamage;
                 enemy.QueueDisplacement(pushDirection, distance, entity.Stats.KnockbackSeconds, _world.Tick);
             }
             if (entity.Element == "arc")
             {
-                RuneStats arc = GameData.Runes.Get("elem.arc").Stats;
+                RuneStats arc = _runes.Get("elem.arc").Stats;
                 var chain = new List<SimulationEnemy>();
                 foreach (SimulationEnemy other in _world.Enemies)
                     if (other != enemy && other.IsAlive && SimVector.Distance(other.Position, enemy.Position) <= arc.ArcRange) chain.Add(other);

@@ -129,7 +129,10 @@ namespace RuneCode
         /// <summary>다음 개체 ID를 하나 발급하고 카운터를 증가시켜 반환한다.</summary>
         internal int AllocateEntityId() => ++_nextEntityId;
 
-        /// <summary>개체 ID 카운터를 0으로 되돌린다. 도크 초기화에 쓴다.</summary>
-        internal void ResetEntityIds() { _nextEntityId = 0; }
+        /// <summary>시험 도크 초기화 시 단계를 Bench로, 틱과 개체 ID 카운터를 0으로 되돌리고 공유 난수를 처음 상태로 돌린다.</summary>
+        internal void ResetForBench()
+        {
+            Stage = MissionStage.Bench; Tick = 0; _nextEntityId = 0; Random.Reset();
+        }
     }
 }
