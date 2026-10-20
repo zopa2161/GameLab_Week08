@@ -13,6 +13,8 @@ namespace RuneCode
         private readonly SimulationFeedback _feedback;
         private readonly SimulationStats _stats;
         private readonly SpawnSystem _spawn;
+        private readonly EnemyStatusSystem _statuses;
+        private readonly SpellExecutor _executor;
         private readonly RuneSimulation _simulation;
         private readonly List<PendingEnemyShot> _pendingEnemyShots = new List<PendingEnemyShot>();
         private readonly EnemySeparation _separation = new EnemySeparation();
@@ -21,13 +23,18 @@ namespace RuneCode
         /// <summary>예약 사격 목록이다. 상태 해시와 전투 취소가 같은 인스턴스를 쓴다.</summary>
         internal List<PendingEnemyShot> PendingEnemyShots => _pendingEnemyShots;
 
-        /// <summary>월드·표시 버퍼·통계·스폰·시뮬레이션 참조로 만들고 분리 고정 판정 대리자를 준비한다.</summary>
-        internal EnemySystem(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, SpawnSystem spawn, RuneSimulation simulation)
+        /// <summary>
+        /// 월드·표시 버퍼·통계·스폰·상태 이상·스펠 실행기와 시뮬레이션 참조로 만들고 분리 고정 판정 대리자를 준비한다.
+        /// 시뮬레이션 참조는 생성 순서가 순환하는 벽 접촉 판정(FirstWallFraction)에만 쓴다.
+        /// </summary>
+        internal EnemySystem(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats, SpawnSystem spawn, EnemyStatusSystem statuses, SpellExecutor executor, RuneSimulation simulation)
         {
             _world = world;
             _feedback = feedback;
             _stats = stats;
             _spawn = spawn;
+            _statuses = statuses;
+            _executor = executor;
             _simulation = simulation;
             _isSeparationFixed = IsSeparationFixed;
         }
@@ -65,13 +72,13 @@ namespace RuneCode
             for (int i = 0; i < initialCount; i++)
             {
                 SimulationEnemy enemy = _world.Enemies[i]; if (!enemy.IsAlive) continue;
-                enemy.Observe(_simulation.Time);
+                enemy.Observe(_world.Time);
                 bool hasDisplacement = AdvanceEnemyDisplacement(enemy);
                 if (enemy.IsDummy) continue;
-                if (_simulation.HasEnemyStatus(enemy, EnemyStatusType.Freeze))
+                if (_statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze))
                 {
                     if (enemy.Definition.Attack == EnemyDefinition.ATTACK_SNIPER)
-                    { enemy.AimEndsAt = 0; enemy.WarningUntil = 0; enemy.AttackAt = _simulation.Time + RuneSimulation.STEP_SECONDS; }
+                    { enemy.AimEndsAt = 0; enemy.WarningUntil = 0; enemy.AttackAt = _world.Time + RuneSimulation.STEP_SECONDS; }
                     continue;
                 }
                 SimVector offset = _world.Player.Position - enemy.Position; SimVector direction = offset.Normalized();
@@ -79,7 +86,7 @@ namespace RuneCode
                 bool isBoss = bossPattern != null && bossPattern.IsGovernorPattern;
                 if (isBoss) { CheckBossPatch(enemy, bossPattern); if (enemy.IsPatching) continue; }
                 double speedMultiplier = isBoss && enemy.Phase == 3 ? bossPattern.PhaseThreeMultiplier : 1;
-                var context = new EnemyMoveContext(offset, direction, _simulation.Time, _world.IsMission, _world.Stages.StationaryAdvanceSpeed, isBoss ? bossPattern.PreferredDistance : 0, speedMultiplier);
+                var context = new EnemyMoveContext(offset, direction, _world.Time, _world.IsMission, _world.Stages.StationaryAdvanceSpeed, isBoss ? bossPattern.PreferredDistance : 0, speedMultiplier);
                 if (!hasDisplacement) ApplyMove(enemy, EnemyMovements.Decide(enemy, context));
                 if (isBoss) AdvanceBoss(enemy, bossPattern, direction);
                 else AdvanceEnemyAttack(enemy, offset, direction);
@@ -123,22 +130,22 @@ namespace RuneCode
             if (definition.Attack == EnemyDefinition.ATTACK_NONE) return;
             if (definition.Attack == EnemyDefinition.ATTACK_BURST)
             {
-                if (enemy.WarningUntil > 0 && _simulation.Time + 0.000001 >= enemy.WarningUntil)
-                { ShootBurst(enemy, enemy.AttackDirection, 1); enemy.WarningUntil = 0; enemy.AttackAt = _simulation.Time + definition.AttackInterval - definition.WarningSeconds; }
-                else if (enemy.WarningUntil == 0 && _simulation.Time + 0.000001 >= enemy.AttackAt)
-                { enemy.AttackDirection = direction; enemy.WarningUntil = _simulation.Time + definition.WarningSeconds; }
+                if (enemy.WarningUntil > 0 && _world.Time + 0.000001 >= enemy.WarningUntil)
+                { ShootBurst(enemy, enemy.AttackDirection, 1); enemy.WarningUntil = 0; enemy.AttackAt = _world.Time + definition.AttackInterval - definition.WarningSeconds; }
+                else if (enemy.WarningUntil == 0 && _world.Time + 0.000001 >= enemy.AttackAt)
+                { enemy.AttackDirection = direction; enemy.WarningUntil = _world.Time + definition.WarningSeconds; }
                 return;
             }
             if (definition.Attack == EnemyDefinition.ATTACK_DASH_CONTACT)
             {
-                if (_simulation.Time < enemy.DashUntil) { HurtByContact(enemy); return; }
+                if (_world.Time < enemy.DashUntil) { HurtByContact(enemy); return; }
                 if (enemy.WarningUntil > 0)
-                { if (_simulation.Time + 0.000001 >= enemy.WarningUntil) { enemy.WarningUntil = 0; enemy.DashUntil = _simulation.Time + definition.DashSeconds; enemy.AttackAt = _simulation.Time + definition.AttackInterval; } return; }
-                if (offset.Length < definition.AttackRange && _simulation.Time >= enemy.AttackAt)
-                { enemy.WarningUntil = _simulation.Time + definition.WarningSeconds; enemy.AttackDirection = direction; }
+                { if (_world.Time + 0.000001 >= enemy.WarningUntil) { enemy.WarningUntil = 0; enemy.DashUntil = _world.Time + definition.DashSeconds; enemy.AttackAt = _world.Time + definition.AttackInterval; } return; }
+                if (offset.Length < definition.AttackRange && _world.Time >= enemy.AttackAt)
+                { enemy.WarningUntil = _world.Time + definition.WarningSeconds; enemy.AttackDirection = direction; }
                 return;
             }
-            if (_simulation.Time >= enemy.AttackAt && HurtByContact(enemy)) enemy.AttackAt = _simulation.Time + definition.AttackInterval;
+            if (_world.Time >= enemy.AttackAt && HurtByContact(enemy)) enemy.AttackAt = _world.Time + definition.AttackInterval;
         }
 
         /// <summary>저격수의 추적 조준, 고정 대기와 단발 발사를 진행하며 같은 저장 경로를 표시와 사격에 사용한다.</summary>
@@ -147,19 +154,19 @@ namespace RuneCode
             EnemyDefinition definition = enemy.Definition;
             if (!enemy.IsAiming)
             {
-                if (_simulation.Time + RuneSimulation.COLLISION_EPSILON < enemy.AttackAt) return;
-                enemy.AimEndsAt = _simulation.Time + definition.AimSeconds;
+                if (_world.Time + RuneSimulation.COLLISION_EPSILON < enemy.AttackAt) return;
+                enemy.AimEndsAt = _world.Time + definition.AimSeconds;
                 enemy.WarningUntil = enemy.AimEndsAt + definition.LockSeconds;
                 enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction;
                 return;
             }
-            if (_simulation.Time + RuneSimulation.COLLISION_EPSILON < enemy.AimEndsAt)
+            if (_world.Time + RuneSimulation.COLLISION_EPSILON < enemy.AimEndsAt)
             { enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction; return; }
-            if (_simulation.Time + RuneSimulation.COLLISION_EPSILON < enemy.WarningUntil) return;
+            if (_world.Time + RuneSimulation.COLLISION_EPSILON < enemy.WarningUntil) return;
             _world.EnemyProjectiles.Add(new SimulationProjectile(enemy.AttackOrigin, enemy.AttackDirection, definition.ProjectileSpeed,
                 enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime));
             enemy.AimEndsAt = 0; enemy.WarningUntil = 0;
-            enemy.AttackAt = _simulation.Time + definition.AttackInterval - definition.AimSeconds - definition.LockSeconds;
+            enemy.AttackAt = _world.Time + definition.AttackInterval - definition.AimSeconds - definition.LockSeconds;
         }
 
         /// <summary>인터셉터의 이동·정지 남은 시간을 줄이고 이동 종료마다 플레이어 방향에 한 발을 발사한다.</summary>
@@ -183,14 +190,14 @@ namespace RuneCode
             }
             int alive = 0;
             foreach (SimulationEnemy child in _world.Enemies) if (child.IsAlive && child.CarrierOwnerId == enemy.Id) alive++;
-            while (enemy.SpawnRemaining > 0 && _world.Enemies.Count < _simulation.EnemyLimit && alive < _world.Carrier.MaxAlive)
+            while (enemy.SpawnRemaining > 0 && _world.Enemies.Count < _world.EnemyLimit && alive < _world.Carrier.MaxAlive)
             {
                 string id = _world.Carrier.EnemyIds[enemy.SpawnCursor % _world.Carrier.EnemyIds.Count];
                 double radius = _world.EnemyCatalog.Get(id).Radius;
                 double angle = enemy.SpawnCursor * Math.PI * (3 - Math.Sqrt(5));
                 double distance = Math.Max(_world.Carrier.Distance, enemy.Radius + radius + SpawnSystem.SAME_SPAWN_DISTANCE);
                 SimVector position = enemy.Position + new SimVector(Math.Cos(angle), Math.Sin(angle)) * distance;
-                _simulation.SpawnEnemy(id, _world.Map.NearestFree(position, radius), carrierOwnerId: enemy.Id);
+                _spawn.SpawnEnemy(id, _world.Map.NearestFree(position, radius), carrierOwnerId: enemy.Id);
                 enemy.SpawnCursor++; enemy.SpawnRemaining--; alive++;
             }
             if (enemy.SpawnRemaining == 0) enemy.SpawnRemainingSeconds = _world.Carrier.Interval;
@@ -199,15 +206,15 @@ namespace RuneCode
 
         /// <summary>냉기 감속을 반영하여 적을 벽 충돌 가능한 방향으로 이동시킨다.</summary>
         private void MoveEnemy(SimulationEnemy enemy, SimVector direction, double speed)
-        { double slow = Math.Max(0, 1 - _world.Balance.Combat.ChillSlow * _simulation.GetChillStacks(enemy)); enemy.Move(_world.Map.Move(enemy.Position, direction * (speed * enemy.SpeedMultiplier * slow * RuneSimulation.STEP_SECONDS), enemy.Radius), direction); }
+        { double slow = Math.Max(0, 1 - _world.Balance.Combat.ChillSlow * _statuses.GetChillStacks(enemy)); enemy.Move(_world.Map.Move(enemy.Position, direction * (speed * enemy.SpeedMultiplier * slow * RuneSimulation.STEP_SECONDS), enemy.Radius), direction); }
 
         /// <summary>적 분리에서 밀리지 않는 고정 대상인지 반환한다. 보스, 빙결 중인 적, 돌진 중인 적은 자리를 지키고 상대만 밀어낸다.</summary>
-        internal bool IsSeparationFixed(SimulationEnemy enemy) => enemy.Boss != null || _simulation.HasEnemyStatus(enemy, EnemyStatusType.Freeze) || _simulation.Time < enemy.DashUntil;
+        internal bool IsSeparationFixed(SimulationEnemy enemy) => enemy.Boss != null || _statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze) || _world.Time < enemy.DashUntil;
 
         /// <summary>적과 플레이어가 겹치면 피해를 적용하고 접촉 여부를 반환한다.</summary>
         private bool HurtByContact(SimulationEnemy enemy)
         {
-            if (!_world.IsMission || _simulation.Time < enemy.ContactGraceUntil || SimVector.Distance(enemy.Position, _world.Player.Position) > enemy.Radius + _world.Sector.PlayerRadius) return false;
+            if (!_world.IsMission || _world.Time < enemy.ContactGraceUntil || SimVector.Distance(enemy.Position, _world.Player.Position) > enemy.Radius + _world.Sector.PlayerRadius) return false;
             HurtPlayer(enemy.Damage); return true;
         }
 
@@ -216,9 +223,9 @@ namespace RuneCode
         {
             if (_world.DebugInvulnerable || !_world.IsMission) return;
             double shieldBefore = _world.Player.Shield;
-            double actual = _world.Player.Hurt(damage, _simulation.Time, _world.Balance.Player.HurtInvulnerability);
+            double actual = _world.Player.Hurt(damage, _world.Time, _world.Balance.Player.HurtInvulnerability);
             if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
-            if (actual > 0 || _world.Player.Shield < shieldBefore) _simulation.TryCastTrigger(SpellGrammar.TRIGGER_ON_HIT_TAKEN);
+            if (actual > 0 || _world.Player.Shield < shieldBefore) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_HIT_TAKEN);
         }
 
         /// <summary>
@@ -253,7 +260,7 @@ namespace RuneCode
             for (int i = 0; i < _pendingEnemyShots.Count;)
             {
                 PendingEnemyShot shot = _pendingEnemyShots[i];
-                if (!shot.Owner.IsAlive || shot.Owner.IsPatching || _simulation.HasEnemyStatus(shot.Owner, EnemyStatusType.Freeze)) { _pendingEnemyShots.RemoveAt(i); continue; }
+                if (!shot.Owner.IsAlive || shot.Owner.IsPatching || _statuses.HasEnemyStatus(shot.Owner, EnemyStatusType.Freeze)) { _pendingEnemyShots.RemoveAt(i); continue; }
                 if (shot.Tick > _world.Tick) { i++; continue; }
                 _pendingEnemyShots.RemoveAt(i); ShootFan(shot.Owner, shot.Direction, 1, shot.SpeedMultiplier);
             }
@@ -266,21 +273,21 @@ namespace RuneCode
         private void AdvanceBoss(SimulationEnemy boss, BossDefinition pattern, SimVector direction)
         {
             double multiplier = boss.Phase == 3 ? pattern.PhaseThreeMultiplier : 1;
-            if (_simulation.Time + 0.000001 >= boss.AttackAt)
+            if (_world.Time + 0.000001 >= boss.AttackAt)
             {
                 if (boss.Phase == 1 || boss.Phase == 3)
                     for (int i = 0; i < pattern.RadialCount; i++)
                     { double angle = i * 2 * Math.PI / pattern.RadialCount; ShootFan(boss, new SimVector(Math.Cos(angle), Math.Sin(angle)), 1, multiplier); }
                 if (boss.Phase >= 2) ShootBurst(boss, direction, multiplier);
-                boss.AttackAt = _simulation.Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval) / multiplier;
+                boss.AttackAt = _world.Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval) / multiplier;
             }
-            if (boss.Phase >= 2 && _simulation.Time >= boss.HazardAt)
-            { _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, pattern.HazardDamage * boss.DamageMultiplier, pattern.HazardRadius, pattern.HazardLifetime + pattern.HazardWarning, true, pattern.HazardWarning)); boss.HazardAt = _simulation.Time + pattern.HazardInterval / multiplier; }
-            if (_simulation.Time >= boss.ReinforcementAt)
+            if (boss.Phase >= 2 && _world.Time >= boss.HazardAt)
+            { _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, pattern.HazardDamage * boss.DamageMultiplier, pattern.HazardRadius, pattern.HazardLifetime + pattern.HazardWarning, true, pattern.HazardWarning)); boss.HazardAt = _world.Time + pattern.HazardInterval / multiplier; }
+            if (_world.Time >= boss.ReinforcementAt)
             {
                 if (_world.IsMission) _spawn.SpawnReinforcements(boss, pattern.Reinforcement);
-                else for (int i = 0; i < pattern.Reinforcement.Count; i++) _simulation.SpawnEnemy(pattern.Reinforcement.EnemyId, _world.Map.GetPoint((char)('1' + i * 2)), false, 0);
-                boss.ReinforcementAt = _simulation.Time + pattern.Reinforcement.Interval;
+                else for (int i = 0; i < pattern.Reinforcement.Count; i++) _spawn.SpawnEnemy(pattern.Reinforcement.EnemyId, _world.Map.GetPoint((char)('1' + i * 2)), false, 0);
+                boss.ReinforcementAt = _world.Time + pattern.Reinforcement.Interval;
             }
             HurtByContact(boss);
         }
@@ -291,8 +298,8 @@ namespace RuneCode
             if (boss.IsPatching) return;
             int next = boss.Phase == 1 && boss.Hp / boss.MaxHp <= pattern.PhaseTwoThreshold ? 2 : boss.Phase == 2 && boss.Hp / boss.MaxHp <= pattern.PhaseThreeThreshold ? 3 : boss.Phase;
             if (next == boss.Phase) return;
-            boss.Patch(next, _simulation.Time, pattern.PatchSeconds); boss.Observe(_simulation.Time); _simulation.Adaptation.LockTopDamageTags();
-            boss.AttackAt = _simulation.Time + pattern.PatchSeconds + boss.Definition.WarningSeconds;
+            boss.Patch(next, _world.Time, pattern.PatchSeconds); boss.Observe(_world.Time); _world.Adaptation.LockTopDamageTags();
+            boss.AttackAt = _world.Time + pattern.PatchSeconds + boss.Definition.WarningSeconds;
         }
 
         /// <summary>적 탄환과 위험 장판의 수명, 벽 충돌 및 플레이어 피격을 처리한다.</summary>
@@ -325,7 +332,7 @@ namespace RuneCode
             foreach (SimulationEnemy target in _world.Enemies)
             {
                 if (!target.IsAlive || target.IsPatching || SimVector.Distance(source.Position, target.Position) > radius + target.Radius) continue;
-                double actual = target.Hurt(damage, _simulation.Time);
+                double actual = target.Hurt(damage, _world.Time);
                 if (actual > 0)
                 {
                     _stats.EnemyDamageEventCount++;

@@ -17,7 +17,10 @@ namespace RuneCode
         /// <summary>현재 관리 중인 상태 이상 목록이다. 상태 해시가 같은 인스턴스를 순회한다.</summary>
         internal IReadOnlyList<EnemyStatusEffect> Statuses => _enemyStatuses;
 
-        /// <summary>공유 월드와 통계, 피해 판정을 호출할 시뮬레이션을 받아 상태 이상 시스템을 만든다.</summary>
+        /// <summary>
+        /// 공유 월드와 통계, 피해 판정을 호출할 시뮬레이션을 받아 상태 이상 시스템을 만든다.
+        /// 피해 판정기·적 시스템이 이 시스템을 참조하므로 화상 피해(ApplyDamage)와 플레이어 피해(HurtPlayerByStatus)는 시뮬레이션 위임으로 부른다.
+        /// </summary>
         internal EnemyStatusSystem(SimulationWorld world, SimulationStats stats, RuneSimulation simulation)
         {
             _world = world;
@@ -30,15 +33,15 @@ namespace RuneCode
         /// </summary>
         internal void AdvanceStatuses()
         {
-            _statusTime = _simulation.Time;
-            while (_world.Player.Hp > 0 && _world.Player.TryTakeBurnTick(_simulation.Time, _world.Balance.Combat.BurnInterval))
+            _statusTime = _world.Time;
+            while (_world.Player.Hp > 0 && _world.Player.TryTakeBurnTick(_world.Time, _world.Balance.Combat.BurnInterval))
                 _simulation.HurtPlayerByStatus(_world.Balance.Combat.BurnDps * _world.Balance.Combat.BurnInterval);
             foreach (SimulationEnemy enemy in _world.Enemies)
             {
-                enemy.Observe(_simulation.Time);
+                enemy.Observe(_world.Time);
                 EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
                 if (burn == null) continue;
-                while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && _simulation.Time + 0.000001 >= burn.NextTickTime)
+                while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && _world.Time + 0.000001 >= burn.NextTickTime)
                 {
                     double actual = _simulation.ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false, sourceAction: burn.DamageSourceAction, damageStatus: "burn");
                     _stats.StatusDamage += actual;
@@ -58,9 +61,9 @@ namespace RuneCode
         {
             switch (status.Type)
             {
-                case EnemyStatusType.Burn: return status.NextTickTime > status.Until + 0.000001 && _simulation.Time >= status.Until;
-                case EnemyStatusType.Freeze: return _simulation.Time >= status.ImmuneUntil;
-                default: return _simulation.Time >= status.Until;
+                case EnemyStatusType.Burn: return status.NextTickTime > status.Until + 0.000001 && _world.Time >= status.Until;
+                case EnemyStatusType.Freeze: return _world.Time >= status.ImmuneUntil;
+                default: return _world.Time >= status.Until;
             }
         }
 
@@ -69,20 +72,20 @@ namespace RuneCode
         {
             if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage, sourceAction);
             else if (element == "ice") ApplyChill(enemy);
-            else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = _simulation.Time + _world.Balance.Combat.EmpSeconds;
+            else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = _world.Time + _world.Balance.Combat.EmpSeconds;
         }
 
         /// <summary>공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 계산하고, 새 화상이거나 기존보다 클 때만 피해·출처를 갱신한다. 재점화 때마다 지속시간은 갱신하며 진행 중인 화상의 다음 틱 시각은 유지한다.</summary>
         private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage, SpellAction sourceAction)
         {
             EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
-            bool isNewBurn = burn == null || _simulation.Time >= burn.Until;
+            bool isNewBurn = burn == null || _world.Time >= burn.Until;
             if (isNewBurn)
             {
                 burn ??= AddStatus(enemy.Id, EnemyStatusType.Burn);
-                burn.NextTickTime = _simulation.Time + _world.Balance.Combat.BurnInterval;
+                burn.NextTickTime = _world.Time + _world.Balance.Combat.BurnInterval;
             }
-            burn.Until = _simulation.Time + _world.Balance.Combat.BurnSeconds;
+            burn.Until = _world.Time + _world.Balance.Combat.BurnSeconds;
             double tickDamage = sourceDamage * _world.Balance.Combat.BurnDamageRatio;
             if (isNewBurn || tickDamage > burn.TickDamage)
             {
@@ -101,13 +104,13 @@ namespace RuneCode
         {
             CombatBalance combat = _world.Balance.Combat;
             EnemyStatusEffect freeze = FindStatus(enemy.Id, EnemyStatusType.Freeze);
-            bool isImmune = freeze != null && _simulation.Time < freeze.ImmuneUntil;
+            bool isImmune = freeze != null && _world.Time < freeze.ImmuneUntil;
             EnemyStatusEffect chill = GetOrAddStatus(enemy.Id, EnemyStatusType.Chill);
             int maxStacks = isImmune ? combat.ChillImmuneMaxStacks : combat.ChillMaxStacks;
-            chill.Stacks = Math.Min(maxStacks, chill.Stacks + 1); chill.Until = _simulation.Time + combat.ChillSeconds;
+            chill.Stacks = Math.Min(maxStacks, chill.Stacks + 1); chill.Until = _world.Time + combat.ChillSeconds;
             if (isImmune || chill.Stacks < combat.ChillMaxStacks) return;
             freeze ??= AddStatus(enemy.Id, EnemyStatusType.Freeze);
-            freeze.Until = _simulation.Time + combat.FreezeSeconds; freeze.ImmuneUntil = freeze.Until + combat.FreezeImmunity;
+            freeze.Until = _world.Time + combat.FreezeSeconds; freeze.ImmuneUntil = freeze.Until + combat.FreezeImmunity;
             _stats.FreezeStartEventCount++;
             RemoveStatusIndex(chill); _enemyStatuses.Remove(chill);
         }

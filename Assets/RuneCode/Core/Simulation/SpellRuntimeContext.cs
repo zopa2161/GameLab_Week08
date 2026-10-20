@@ -20,7 +20,7 @@ namespace RuneCode
         internal int Tick => _world.Tick;
 
         /// <summary>현재 시뮬레이션 시각(초)이다.</summary>
-        internal double Time => _world.Tick * RuneSimulation.STEP_SECONDS;
+        internal double Time => _world.Time;
 
         /// <summary>활성 적 목록이다.</summary>
         internal IReadOnlyList<SimulationEnemy> Enemies => _world.Enemies;

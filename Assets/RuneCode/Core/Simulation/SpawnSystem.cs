@@ -11,7 +11,6 @@ namespace RuneCode
 
         private readonly SimulationWorld _world;
         private readonly SimulationFeedback _feedback;
-        private readonly RuneSimulation _simulation;
         private readonly List<PendingSplit> _pendingSplits = new List<PendingSplit>();
         private readonly List<PendingSpawn> _pendingSpawns = new List<PendingSpawn>();
         private readonly List<SimVector> _tickSpawnPositions = new List<SimVector>();
@@ -42,12 +41,11 @@ namespace RuneCode
         /// <summary>시험 도크 초기화 시 생성한 적 수를 0으로 되돌린다.</summary>
         internal void ResetForBench() => _spawnedEnemies = 0;
 
-        /// <summary>월드·표시 버퍼·시뮬레이션 참조로 만들고 공유 난수와 적 목록을 쓰는 슬롯·맵 배치 보조를 준비한다.</summary>
-        internal SpawnSystem(SimulationWorld world, SimulationFeedback feedback, RuneSimulation simulation)
+        /// <summary>월드·표시 버퍼로 만들고 공유 난수와 적 목록을 쓰는 슬롯·맵 배치 보조를 준비한다.</summary>
+        internal SpawnSystem(SimulationWorld world, SimulationFeedback feedback)
         {
             _world = world;
             _feedback = feedback;
-            _simulation = simulation;
             _spawnSlots = new SpawnSlots(_world.Random.Next, _world.Enemies);
             _arenaSpawnPoints = new ArenaSpawnPoints(_world.Random.Next, _world.Enemies);
             _isArenaPointReserved = IsArenaPointReserved;
@@ -74,7 +72,7 @@ namespace RuneCode
         {
             while (_director.TryPeek(_world.Tick, out SpawnOrder order))
             {
-                if (_world.Enemies.Count + _pendingSpawns.Count >= _simulation.EnemyLimit) return;
+                if (_world.Enemies.Count + _pendingSpawns.Count >= _world.EnemyLimit) return;
                 _director.Consume(_world.Tick);
                 bool isStream = order.IsStream;
                 EliteSpawnDefinition elite = null;
@@ -88,7 +86,7 @@ namespace RuneCode
         {
             for (int i = 0; i < _pendingSplits.Count;)
             {
-                if (_world.Enemies.Count >= _simulation.EnemyLimit) return;
+                if (_world.Enemies.Count >= _world.EnemyLimit) return;
                 PendingSplit split = _pendingSplits[i];
                 if (split.Tick > _world.Tick) { i++; continue; }
                 _pendingSplits.RemoveAt(i);
@@ -184,7 +182,7 @@ namespace RuneCode
                 if (spawn.Tick > _world.Tick) { i++; continue; }
                 SimulationEnemy enemy = SpawnEnemy(spawn.EnemyId, spawn.Position, false, 0, spawn.Elite, spawn.IsKillTarget);
                 if (enemy == null) return;
-                enemy.ContactGraceUntil = _simulation.Time + _world.Stages.Spawn.SpawnGraceSeconds;
+                enemy.ContactGraceUntil = _world.Time + _world.Stages.Spawn.SpawnGraceSeconds;
                 _pendingSpawns.RemoveAt(i);
             }
         }
@@ -300,7 +298,7 @@ namespace RuneCode
         /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부와 캐리어 소유자 ID로 적을 생성하고 공격 일정을 설정한다. 엘리트는 체력·보상·이동 속도·반경 배율을 적용하며 캐리어 자식의 보상은 0으로 설정한다.</summary>
         internal SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0)
         {
-            if (_simulation.Completed || _simulation.IsFailed || _world.Enemies.Count >= _simulation.EnemyLimit) return null;
+            if (_world.Completed || _world.IsFailed || _world.Enemies.Count >= _world.EnemyLimit) return null;
             EnemyDefinition definition = _world.EnemyCatalog.Get(id);
             if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER) && _world.Carrier == null)
                 throw new InvalidOperationException("캐리어 Prefab 생성 설정을 시뮬레이션에 전달해야 합니다.");
@@ -312,11 +310,11 @@ namespace RuneCode
             _world.Bosses.TryGet(id, out BossDefinition boss);
             double radius = definition.Radius * (elite != null ? elite.RadiusMultiplier : 1);
             var enemy = new SimulationEnemy(_world.AllocateEntityId(), definition, EnemyMovements.Resolve(definition.Movement), boss, _world.Map.NearestFree(position, radius), isDummy, hp, _world.Balance.Sim.HitFlashSeconds, hpMultiplier, damageMultiplier, carrierOwnerId == 0 ? reward : 0, elite != null, elite != null ? elite.SpeedMultiplier : 1, elite, isKillTarget, carrierOwnerId);
-            enemy.AttackAt = _simulation.Time + definition.AttackInterval;
-            if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = _simulation.Time;
+            enemy.AttackAt = _world.Time + definition.AttackInterval;
+            if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = _world.Time;
             if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = _world.Carrier.Interval;
-            if (boss != null && boss.IsGovernorPattern) { enemy.ReinforcementAt = _simulation.Time + boss.Reinforcement.Interval; enemy.HazardAt = _simulation.Time + boss.HazardInterval; }
-            enemy.Observe(_simulation.Time); _world.Enemies.Add(enemy); if (_world.IsMission) _spawnedEnemies++; return enemy;
+            if (boss != null && boss.IsGovernorPattern) { enemy.ReinforcementAt = _world.Time + boss.Reinforcement.Interval; enemy.HazardAt = _world.Time + boss.HazardInterval; }
+            enemy.Observe(_world.Time); _world.Enemies.Add(enemy); if (_world.IsMission) _spawnedEnemies++; return enemy;
         }
     }
 }

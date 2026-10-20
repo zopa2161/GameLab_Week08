@@ -48,7 +48,7 @@ namespace RuneCode
         /// <summary>범위형 생성 위치 규칙으로 배치한다.</summary>
         public override void PlaceSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
-            => PlaceAreaSpawn(context, action, stats, index, isFromEvent, caster, ref position, direction);
+            => PlaceAreaSpawn(action, stats, isFromEvent, ref position, direction);
 
         /// <summary>예고가 없으면 생성 즉시 판정한다.</summary>
         public override void OnSpawned(SpellRuntimeContext context, SimulationSpellEntity entity)

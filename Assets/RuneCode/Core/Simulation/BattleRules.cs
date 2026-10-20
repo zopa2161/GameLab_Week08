@@ -6,7 +6,6 @@ namespace RuneCode
     internal sealed class BattleRules
     {
         private readonly SimulationWorld _world;
-        private readonly RuneSimulation _simulation;
         private int _targetKills;
         private bool _isBossDefeated;
 
@@ -17,13 +16,12 @@ namespace RuneCode
         internal bool IsBossDefeated => _isBossDefeated;
 
         /// <summary>완료 스테이지의 클리어 보상 스크랩이다. 클리어 전이면 0이다.</summary>
-        internal int ClearReward => _simulation.Completed && _world.StageDefinition != null ? _world.Stages.Growth.GetClearReward(_world.StageDefinition.ClearReward, _world.StageNumber) : 0;
+        internal int ClearReward => _world.Completed && _world.StageDefinition != null ? _world.Stages.Growth.GetClearReward(_world.StageDefinition.ClearReward, _world.StageNumber) : 0;
 
-        /// <summary>월드와 시간·스테이지 판정을 읽을 시뮬레이션 참조로 만든다.</summary>
-        internal BattleRules(SimulationWorld world, RuneSimulation simulation)
+        /// <summary>시간·스테이지 판정을 읽을 월드로 만든다.</summary>
+        internal BattleRules(SimulationWorld world)
         {
             _world = world;
-            _simulation = simulation;
         }
 
         /// <summary>미션 시작 시 처치 목표 집계와 보스 처치 판정을 되돌린다.</summary>
@@ -45,15 +43,15 @@ namespace RuneCode
         /// </summary>
         internal bool TryEndBattle()
         {
-            bool hasReachedTimeLimit = _simulation.Time + 0.000001 >= _simulation.TimeLimit;
-            if (_simulation.IsBossStage ? _isBossDefeated : hasReachedTimeLimit) _world.Stage = MissionStage.Cleared;
-            else if (_simulation.IsBossStage && hasReachedTimeLimit) _world.Stage = MissionStage.TimedOut;
+            bool hasReachedTimeLimit = _world.Time + 0.000001 >= _world.TimeLimit;
+            if (_world.IsBossStage ? _isBossDefeated : hasReachedTimeLimit) _world.Stage = MissionStage.Cleared;
+            else if (_world.IsBossStage && hasReachedTimeLimit) _world.Stage = MissionStage.TimedOut;
             else return false;
             return true;
         }
 
         /// <summary>회수한 스크랩 collectedFragments로 정산 스크랩을 반환한다. 실패는 보존 비율로 반올림하고, 그 외에는 클리어 보상을 더한다.</summary>
         internal int GetSettlementFragments(int collectedFragments)
-            => _simulation.IsFailed ? (int)Math.Round(collectedFragments * _world.Balance.Economy.DeathRetention, MidpointRounding.AwayFromZero) : collectedFragments + ClearReward;
+            => _world.IsFailed ? (int)Math.Round(collectedFragments * _world.Balance.Economy.DeathRetention, MidpointRounding.AwayFromZero) : collectedFragments + ClearReward;
     }
 }

@@ -28,7 +28,7 @@ namespace RuneCode
         private readonly BattleRules _rules;
         private readonly BenchScenario _bench;
         public int Tick => _world.Tick;
-        public double Time => _world.Tick * STEP_SECONDS;
+        public double Time => _world.Time;
         public SimulationPlayer Player => _world.Player;
         public IReadOnlyList<SimulationEnemy> Enemies => _world.Enemies;
         public IReadOnlyList<SimulationSpellEntity> SpellEntities => _world.SpellEntities;
@@ -95,21 +95,21 @@ namespace RuneCode
         public AdaptationNet Adaptation => _world.Adaptation;
         public MissionMap Map => _world.Map;
         public MissionStage Stage => _world.Stage;
-        public bool Completed => _world.Stage == MissionStage.Cleared;
+        public bool Completed => _world.Completed;
         public bool IsDead => _world.Stage == MissionStage.Dead;
         public bool IsTimedOut => _world.Stage == MissionStage.TimedOut;
-        public bool IsFailed => IsDead || IsTimedOut;
+        public bool IsFailed => _world.IsFailed;
         public bool IsTimedBattle => _world.IsMission;
         public int StageNumber => _world.StageNumber;
-        public bool IsBossStage => _world.StageDefinition != null && _world.StageDefinition.IsBoss;
-        public double TimeLimit => _world.StageDefinition?.TimeLimit ?? 0;
+        public bool IsBossStage => _world.IsBossStage;
+        public double TimeLimit => _world.TimeLimit;
         public double RemainingTime => Math.Max(0, TimeLimit - Time);
         public int TargetKills => _rules.TargetKills;
         public SimVector MapCenter => new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
         public double EnergyRegen => _world.EnergyRegen;
         public int SpawnedEnemies => _spawn.SpawnedEnemies;
         public int KillCount => _loot.KillCount;
-        public int EnemyLimit => _world.Balance.Limits.MaxEnemies;
+        public int EnemyLimit => _world.EnemyLimit;
         public int DroppedExecutions => _executor.DroppedExecutions;
         public int NormalScrapPickupEventCount => _loot.NormalScrapPickupEventCount;
         public int BigScrapPickupEventCount => _loot.BigScrapPickupEventCount;
@@ -151,11 +151,11 @@ namespace RuneCode
             _beam = new BeamChannelController(_world, _stats);
             _executor = new SpellExecutor(_world, _feedback, _stats, _beam, _runtime);
             _statuses = new EnemyStatusSystem(_world, _stats, this);
-            _rules = new BattleRules(_world, this);
-            _loot = new LootSystem(_world, _stats, _statuses, _rules, this, setup.ScrapGainMultiplier, setup.ScrapPickupRangeMultiplier, setup.ScrapHealRatio, setup.KillEnergyBonus);
-            _spawn = new SpawnSystem(_world, _feedback, this);
+            _rules = new BattleRules(_world);
+            _spawn = new SpawnSystem(_world, _feedback);
             _bench = new BenchScenario(_world, _spawn);
-            _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, this);
+            _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, _statuses, _executor, this);
+            _loot = new LootSystem(_world, _stats, _statuses, _rules, _spawn, _enemy, setup.ScrapGainMultiplier, setup.ScrapPickupRangeMultiplier, setup.ScrapHealRatio, setup.KillEnergyBonus);
             _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, setup.Runes, _runtime);
             _entities = new SpellEntitySystem(_world, _combat, _runtime);
             _runtime.Connect(_combat, _entities);
@@ -176,9 +176,6 @@ namespace RuneCode
 
         /// <summary>전투 중단 시 예약 노드 실행을 지우고 진행 중 시전 상태를 환급 없이 취소한다.</summary>
         public void CancelPendingSpellExecutions() => _executor.CancelPendingSpellExecutions();
-
-        /// <summary>지정 Trigger를 가진 슬롯을 순서대로 시전한다. 플레이어 피격 시 적 시스템이 호출하며 스펠 실행기에 위임한다.</summary>
-        internal void TryCastTrigger(string trigger) => _executor.TryCastTrigger(trigger);
 
         /// <summary>아직 지급하지 않은 새로 주운 Modifier 드롭 목록을 반환하고 미지급 목록을 비운다.</summary>
         public List<SimulationItemDrop> TakeNewPickedItems() => _loot.TakeNewPickedItems();
@@ -362,9 +359,6 @@ namespace RuneCode
         /// <summary>상태 이상 피해를 플레이어에게 적용한다. 적 시스템에 위임한다.</summary>
         internal void HurtPlayerByStatus(double damage) => _enemy.HurtPlayerByStatus(damage);
 
-        /// <summary>사망한 자폭형 적의 폭발을 처리한다. 적 시스템에 위임한다.</summary>
-        internal void ExplodeEnemy(SimulationEnemy source) => _enemy.ExplodeEnemy(source);
-
         /// <summary>처치 드롭과 같은 테이블·결정적 난수로 완료 스테이지의 클리어 룬 1개를 추첨한다.</summary>
         public DropRoll DrawClearRuneReward() => _loot.DrawClearRuneReward();
 
@@ -411,9 +405,6 @@ namespace RuneCode
         /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부와 캐리어 소유자 ID로 적을 생성한다. 스폰 시스템에 위임한다.</summary>
         public SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0)
             => _spawn.SpawnEnemy(id, position, isDummy, hp, elite, isKillTarget, carrierOwnerId);
-
-        /// <summary>분열형 적의 자식 대기 항목을 만든다. 처치 정리에서 호출하며 스폰 시스템에 위임한다.</summary>
-        internal void EnqueueSplits(SimulationEnemy parent) => _spawn.EnqueueSplits(parent);
 
         /// <summary>사망, 클리어 및 시간 초과 시 지속 개체, 예약 실행과 분열 대기를 취소한다.</summary>
         private void CancelCombat()

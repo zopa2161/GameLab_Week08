@@ -204,7 +204,7 @@ namespace RuneCode
                 if (!isAllowedRune) errors.Add(new CompileIssue("E25", node.Id));
                 if (!context.UnlockedIds.Contains(rune.Id)) errors.Add(new CompileIssue("E10", node.Id));
                 ValidateParameters(node, rune, runes.ModifierGrades, errors);
-                ValidateMagicNode(node, rune, graph.Edges, errors);
+                ValidateMagicNode(node, rune, errors);
             }
             if (cores.Count != 1) errors.Add(new CompileIssue("E1"));
             ValidateEdges(graph, definitions, errors);
@@ -307,7 +307,7 @@ namespace RuneCode
         /// Inline Magic의 종류·속성 조합을 검사한다. 해금은 문법 블록 단계에서 검사한다.
         /// 시뮬레이션이 지원하지 않는 buff 종류와 회복·보호 속성은 E14로 거부한다.
         /// </summary>
-        private static void ValidateMagicNode(GraphNode node, RuneDefinition rune, IReadOnlyList<GraphEdge> edges, List<CompileIssue> errors)
+        private static void ValidateMagicNode(GraphNode node, RuneDefinition rune, List<CompileIssue> errors)
         {
             if (rune.Id != "magic.inline") return;
             string magicType = node.GetText("magicType", "sphere");

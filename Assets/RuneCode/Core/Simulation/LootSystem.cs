@@ -11,7 +11,8 @@ namespace RuneCode
         private readonly SimulationStats _stats;
         private readonly EnemyStatusSystem _statuses;
         private readonly BattleRules _rules;
-        private readonly RuneSimulation _simulation;
+        private readonly SpawnSystem _spawn;
+        private readonly EnemySystem _enemy;
         private readonly Queue<SimulationEnemy> _deadEnemies = new Queue<SimulationEnemy>();
         private readonly List<FragmentOrb> _orbs = new List<FragmentOrb>();
         private readonly List<SimulationItemDrop> _itemDrops = new List<SimulationItemDrop>();
@@ -58,17 +59,18 @@ namespace RuneCode
         internal double KillEnergyBonus { get; }
 
         /// <summary>
-        /// 공유 월드·통계·상태이상 시스템, 처치 집계를 기록할 전투 규칙과 시뮬레이션, 스크랩 배율·보너스 값을 받아 전리품 시스템을 만든다.
+        /// 공유 월드·통계·상태이상 시스템, 처치 집계를 기록할 전투 규칙, 분열 대기를 넣을 스폰 시스템과 자폭을 처리할 적 시스템, 스크랩 배율·보너스 값을 받아 전리품 시스템을 만든다.
         /// 회복 비율은 0~1로, 처치 전력 보너스는 0 이상으로 제한한다.
         /// </summary>
-        internal LootSystem(SimulationWorld world, SimulationStats stats, EnemyStatusSystem statuses, BattleRules rules, RuneSimulation simulation,
+        internal LootSystem(SimulationWorld world, SimulationStats stats, EnemyStatusSystem statuses, BattleRules rules, SpawnSystem spawn, EnemySystem enemy,
             double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
         {
             _world = world;
             _stats = stats;
             _statuses = statuses;
             _rules = rules;
-            _simulation = simulation;
+            _spawn = spawn;
+            _enemy = enemy;
             ScrapGainMultiplier = scrapGainMultiplier;
             ScrapPickupRangeMultiplier = scrapPickupRangeMultiplier;
             ScrapHealRatio = Math.Max(0, Math.Min(1, scrapHealRatio));
@@ -132,7 +134,7 @@ namespace RuneCode
                 if (_world.IsMission)
                 {
                     _rules.RecordKillProgress(enemy);
-                    if (enemy.Definition.CanSplit) _simulation.EnqueueSplits(enemy);
+                    if (enemy.Definition.CanSplit) _spawn.EnqueueSplits(enemy);
                     if (enemy.Reward > 0)
                     {
                         // 오브에 실제로 담기는 크레딧을 한 번만 산출해 나머지 누적이 이중 반영되지 않게 한다.
@@ -148,7 +150,7 @@ namespace RuneCode
                 GrantKillEnergy(droppedCredits);
                 _statuses.RemoveEnemyStatuses(enemy.Id);
                 if (canExplode && enemy.Definition.HasTrait(EnemyDefinition.TRAIT_DEATH_EXPLOSION))
-                { _simulation.ExplodeEnemy(enemy); CollectDeadEnemies(); }
+                { _enemy.ExplodeEnemy(enemy); CollectDeadEnemies(); }
             }
         }
 

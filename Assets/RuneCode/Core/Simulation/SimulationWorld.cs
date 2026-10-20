@@ -98,6 +98,24 @@ namespace RuneCode
         /// <summary>다음에 발급할 개체 ID다. 상태 해시 기록에 쓴다.</summary>
         internal int NextEntityId => _nextEntityId;
 
+        /// <summary>현재 시뮬레이션 시각(초)이다.</summary>
+        internal double Time => Tick * RuneSimulation.STEP_SECONDS;
+
+        /// <summary>미션을 클리어했는지 나타낸다.</summary>
+        internal bool Completed => Stage == MissionStage.Cleared;
+
+        /// <summary>사망 또는 보스 제한시간 초과로 실패했는지 나타낸다.</summary>
+        internal bool IsFailed => Stage == MissionStage.Dead || Stage == MissionStage.TimedOut;
+
+        /// <summary>현재 스테이지가 보스 스테이지인지 나타낸다.</summary>
+        internal bool IsBossStage => StageDefinition != null && StageDefinition.IsBoss;
+
+        /// <summary>현재 스테이지 제한시간(초)이다. 스테이지 정의가 없으면 0이다.</summary>
+        internal double TimeLimit => StageDefinition?.TimeLimit ?? 0;
+
+        /// <summary>동시에 살아 있을 수 있는 적 수 상한이다.</summary>
+        internal int EnemyLimit => Balance.Limits.MaxEnemies;
+
         /// <summary>
         /// 카탈로그 참조와 전투 설정, 공유 난수·적응망으로 월드를 만든다. 체력·전력·재생량이 0이면 밸런스 기본값을 쓰고 스테이지 번호는 1 미만을 허용하지 않는다.
         /// </summary>

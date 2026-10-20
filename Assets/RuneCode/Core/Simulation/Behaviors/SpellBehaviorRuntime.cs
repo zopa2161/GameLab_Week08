@@ -116,8 +116,7 @@ namespace RuneCode
         /// 범위형 행동의 생성 위치를 정한다. 직접 시전한 일반 범위는 진행 방향으로 생성 거리만큼, 부채꼴·사각형은 실행 위치에 둔다.
         /// 개체가 여럿일 때의 원형 배치는 이 처리 다음에 다중 모드가 정한다.
         /// </summary>
-        protected static void PlaceAreaSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
-            bool isFromEvent, SimulationPlayer caster, ref SimVector position, SimVector direction)
+        protected static void PlaceAreaSpawn(SpellAction action, SpellStats stats, bool isFromEvent, ref SimVector position, SimVector direction)
         {
             // 부채꼴은 실행 위치를 꼭짓점으로, Beam은 실행 위치를 뒤쪽 면으로 진행 방향에 펼친다(결정 Q17, 백서 v7).
             bool isAnchored = action.MagicType == SpellGrammar.MAGIC_TYPE_CONE || action.MagicType == SpellGrammar.MAGIC_TYPE_BOX;
