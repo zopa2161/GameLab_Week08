@@ -85,8 +85,7 @@ namespace RuneCode
         private readonly Func<SimVector, bool> _isArenaPointReserved;
         private readonly EnemySeparation _separation = new EnemySeparation();
         private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
-        private readonly int _initialSeed;
-        private uint _rngState;
+        private readonly SimRandom _random;
         private SimulationPlayer _player;
         private MissionMap _map;
         private MissionStage _stage;
@@ -141,57 +140,26 @@ namespace RuneCode
 
         /// <summary>지면에 배치하는 폭발·잔류 명령인지 반환한다. 궤도 생성 등 다른 모드의 생성 규칙은 보존한다.</summary>
         public static bool IsAreaPreviewAction(SpellAction action)
-            => action.Kind == "spawn" && action.SpawnOrigin == SpellSpawnOrigin.Ground
-                && action.Form == SpellGrammar.FORM_ZONE;
+            => AreaTargeting.IsAreaPreviewAction(action);
 
         /// <summary>지면 범위 명령 중 공전 모듈이 없는 경우에만 미리보기를 표시할 수 있는지 반환한다.</summary>
         public static bool CanShowAreaPreview(SpellAction action)
-        {
-            if (!IsAreaPreviewAction(action)) return false;
-            foreach (SpellModifierRules rule in action.ModifierRules)
-                if (rule.RuneId == OrbitModifierRules.RUNE_ID) return false;
-            return true;
-        }
+            => AreaTargeting.CanShowAreaPreview(action);
 
         /// <summary>폭발·잔류가 함께 사용하는 플레이어 중심 최대 배치 반경을 반환한다.</summary>
         public double GetAreaPlacementRange() => _balance.Sim.AreaPlacementRange;
 
         /// <summary>다중 분산을 제외하고 포인터를 최대 사거리로만 제한한 기본 범위 미리보기 위치를 반환한다.</summary>
-        public SimVector GetAreaPreviewPosition(SimVector pointer) => ClampAreaTargetPosition(pointer, _player.Position);
+        public SimVector GetAreaPreviewPosition(SimVector pointer)
+            => AreaTargeting.GetAreaPreviewPosition(pointer, _player, GetAreaPlacementRange());
 
         /// <summary>범위 조준 미리보기의 위치와 방향을 반환한다. 참격은 시전자 중심과 다중 퍼짐 방향을 사용한다.</summary>
         public void GetRangePreview(SpellAction action, SimVector pointer, int index, out SimVector position, out SimVector direction)
-        {
-            SimVector delta = pointer - _player.Position;
-            direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : _player.AimDirection;
-            position = GetAreaPreviewPosition(pointer);
-            if (action.Form != SlashBehaviorRules.KIND) return;
-            position = _player.Position;
-            foreach (SpellModifierRules rule in action.ModifierRules)
-                if (SpellModifierRuntimeRegistry.TryGet(rule.RuneId, out SpellModifierRuntime modifier))
-                    modifier.BeforePlaceSpawn(this, action, action.Stats, index, ref position, ref direction);
-        }
-
-        /// <summary>시전자 위치를 중심으로 포인터를 공통 최대 사거리 안에 제한하여 반환한다. 최소 거리는 없다.</summary>
-        private SimVector ClampAreaTargetPosition(SimVector pointer, SimVector origin)
-        {
-            SimVector delta = pointer - origin;
-            double range = GetAreaPlacementRange();
-            return delta.Length > range ? origin + delta.Normalized() * range : pointer;
-        }
+            => AreaTargeting.GetRangePreview(this, action, pointer, index, out position, out direction);
 
         /// <summary>포인터를 시전자 중심 최대 사거리로만 제한하고 index번째 모드 배치를 적용한 생성 위치를 반환한다. 최소 거리는 없다.</summary>
         public SimVector GetAreaTargetPosition(SpellAction action, SimVector pointer, int index = 0, SimVector? playerPosition = null)
-        {
-            SimVector origin = playerPosition ?? _player.Position;
-            SimVector delta = pointer - origin;
-            SimVector direction = delta.LengthSquared > 0.000001 ? delta.Normalized() : _player.AimDirection;
-            SimVector position = ClampAreaTargetPosition(pointer, origin);
-            foreach (SpellModifierRules rule in action.ModifierRules)
-                if (SpellModifierRuntimeRegistry.TryGet(rule.RuneId, out SpellModifierRuntime modifier))
-                    modifier.AfterPlaceSpawn(this, action, action.Stats, index, ref position, ref direction);
-            return position;
-        }
+            => AreaTargeting.GetAreaTargetPosition(this, action, pointer, index, playerPosition);
         public IReadOnlyList<SimulationProjectile> EnemyProjectiles => _enemyProjectiles;
         /// <summary>짧은 빔의 최초 경로를 화면에서 읽도록 보관한 최근 표시 기록이다. 피해 판정에는 사용하지 않는다.</summary>
         public IReadOnlyList<SimulationBeamFlash> BeamFlashes => _beamFlashes;
@@ -293,15 +261,15 @@ namespace RuneCode
             _drops = GameData.Drops;
             _eliteDrops = new ModifierGradeDropSource(GameData.ModifierGrades);
             _stages = GameData.Stages;
-            _isMission = isMission; _initialSeed = seed; _rngState = (uint)seed; _maxHp = maxHp > 0 ? maxHp : _balance.Player.Hp; _maxEnergy = maxEnergy > 0 ? maxEnergy : _balance.Player.Energy;
+            _isMission = isMission; _random = new SimRandom(seed); _maxHp = maxHp > 0 ? maxHp : _balance.Player.Hp; _maxEnergy = maxEnergy > 0 ? maxEnergy : _balance.Player.Energy;
             _stageNumber = Math.Max(1, stageNumber);
             _energyRegen = energyRegen > 0 ? energyRegen : _balance.Player.EnergyRegen;
             _damageMultiplier = damageMultiplier;
             _moveSpeedMultiplier = moveSpeedMultiplier;
             _scrapGainMultiplier = scrapGainMultiplier;
             _scrapPickupRangeMultiplier = scrapPickupRangeMultiplier;
-            _spawnSlots = new SpawnSlots(NextRandom, _enemies);
-            _arenaSpawnPoints = new ArenaSpawnPoints(NextRandom, _enemies);
+            _spawnSlots = new SpawnSlots(_random.Next, _enemies);
+            _arenaSpawnPoints = new ArenaSpawnPoints(_random.Next, _enemies);
             _isArenaPointReserved = IsArenaPointReserved;
             _scrapHealRatio = Math.Max(0, Math.Min(1, scrapHealRatio));
             _isSeparationFixed = IsSeparationFixed;
@@ -356,7 +324,7 @@ namespace RuneCode
                     if (!candidates.Contains(runeId)) pool.Add(runeId);
                 // 이 등급에 남은 후보가 없으면 슬롯을 비운다.
                 if (pool.Count == 0) continue;
-                candidates.Add(pool[Math.Min(pool.Count - 1, (int)(NextRandom() * pool.Count))]);
+                candidates.Add(pool[Math.Min(pool.Count - 1, (int)(_random.Next() * pool.Count))]);
                 grades.Add(grade);
             }
             return candidates.Count > 0;
@@ -365,7 +333,7 @@ namespace RuneCode
         /// <summary>등급 확률 목록(퍼센트)으로 등급 하나를 굴려 반환한다. 확률 0인 등급은 뽑지 않는다.</summary>
         private string RollSlotGrade(IReadOnlyList<EliteModifierGradeChance> chances)
         {
-            double roll = NextRandom() * 100;
+            double roll = _random.Next() * 100;
             string last = null;
             foreach (EliteModifierGradeChance chance in chances)
             {
@@ -546,7 +514,7 @@ namespace RuneCode
             _clearItemDrops.Clear();
             if (_isMission) throw new InvalidOperationException("미션은 시험 도크로 초기화할 수 없습니다.");
             if (scenario != "dummy_single" && scenario != "dummy_line" && scenario != "dummy_swarm" && scenario != "aegis" && scenario != "adapt_loop") throw new ArgumentException("알 수 없는 시험 시나리오입니다.", nameof(scenario));
-            _scenario = scenario; _stage = MissionStage.Bench; _tick = 0; _nextEntityId = 0; _rngState = (uint)_initialSeed;
+            _scenario = scenario; _stage = MissionStage.Bench; _tick = 0; _nextEntityId = 0; _random.Reset();
             _enemies.Clear(); _orbs.Clear(); _itemDrops.Clear(); _pickedUpItems.Clear(); _newPickedItems.Clear(); _damageNumbers.Clear(); _healPulses.Clear(); _arcLinks.Clear(); _nodeEvents.Clear(); _damageWindow.Clear(); _killCounts.Clear(); CancelCombat();
             _enemyStatuses.Clear(); _statusIndex.Clear(); _statusTime = 0;
             _totalDamage = 0; _statusDamage = 0; _persistDamage = 0; _rollingDamage = 0; _resourceCostsSpent.Clear(); _peakSpellEntities = 0;
@@ -613,13 +581,13 @@ namespace RuneCode
             state.Append("beamInput:");
             for (int slot = 0; slot < _castHeld.Length; slot++)
                 state.Append('|').Append(_castHeld[slot]).Append(':').Append(_beamQueued[slot]);
-            state.Append(_tick).Append('|').Append(_rngState).Append('|').Append(_nextEntityId).Append('|').Append(_stage).Append('|').Append(_stageNumber).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_killCount).Append('|').Append(_scenario).Append('|').Append(_debugInvulnerable);
+            state.Append(_tick).Append('|').Append(_random.State).Append('|').Append(_nextEntityId).Append('|').Append(_stage).Append('|').Append(_stageNumber).Append('|').Append(_targetKills).Append('|').Append(_isBossDefeated).Append('|').Append(_spawnedEnemies).Append('|').Append(_killCount).Append('|').Append(_scenario).Append('|').Append(_debugInvulnerable);
             state.Append('|').Append(_actionBudgetTick).Append('|').Append(_actionsThisTick).Append('|').Append(_droppedExecutions);
-            AppendNumber(state, TimeLimit); AppendNumber(state, _energyRegen);
+            SimHash.AppendNumber(state, TimeLimit); SimHash.AppendNumber(state, _energyRegen);
             state.Append('|').Append(_aimPoint.HasValue);
-            if (_aimPoint.HasValue) { AppendNumber(state, _aimPoint.Value.X); AppendNumber(state, _aimPoint.Value.Y); }
-            AppendNumber(state, _damageMultiplier); AppendNumber(state, _moveSpeedMultiplier);
-            AppendNumber(state, _scrapGainMultiplier); AppendNumber(state, _scrapPickupRangeMultiplier); AppendNumber(state, _scrapHealRatio); AppendNumber(state, _scrapRemainder);
+            if (_aimPoint.HasValue) { SimHash.AppendNumber(state, _aimPoint.Value.X); SimHash.AppendNumber(state, _aimPoint.Value.Y); }
+            SimHash.AppendNumber(state, _damageMultiplier); SimHash.AppendNumber(state, _moveSpeedMultiplier);
+            SimHash.AppendNumber(state, _scrapGainMultiplier); SimHash.AppendNumber(state, _scrapPickupRangeMultiplier); SimHash.AppendNumber(state, _scrapHealRatio); SimHash.AppendNumber(state, _scrapRemainder);
             _player.WriteState(state);
             foreach (SimulationEnemy enemy in _enemies) enemy.WriteState(state);
             foreach (EnemyStatusEffect status in _enemyStatuses) status.WriteState(state);
@@ -634,11 +602,11 @@ namespace RuneCode
                 else if (pending.Wave > 0)
                     state.Append("|wave:").Append(pending.Action.NodeId).Append(':').Append(pending.Wave);
                 else state.Append("|finish:").Append(pending.Action.NodeId);
-                AppendNumber(state, pending.Context.Origin.X); AppendNumber(state, pending.Context.Origin.Y);
-                AppendNumber(state, pending.Context.Direction.X); AppendNumber(state, pending.Context.Direction.Y);
-                AppendNumber(state, pending.Context.DirectionOffset);
+                SimHash.AppendNumber(state, pending.Context.Origin.X); SimHash.AppendNumber(state, pending.Context.Origin.Y);
+                SimHash.AppendNumber(state, pending.Context.Direction.X); SimHash.AppendNumber(state, pending.Context.Direction.Y);
+                SimHash.AppendNumber(state, pending.Context.DirectionOffset);
                 state.Append(pending.Context.Target?.Id ?? 0).Append('|').Append(pending.Context.FromEvent).Append('|').Append(pending.Context.NoiseElement);
-                AppendNumber(state, pending.Context.CostMultiplier);
+                SimHash.AppendNumber(state, pending.Context.CostMultiplier);
                 if (pending.Context.IsManaPrepaid) state.Append("|manaPrepaid");
                 state.Append(pending.Context.SourceEntityId).Append('|');
                 if (pending.Tracker != null)
@@ -650,46 +618,35 @@ namespace RuneCode
                 pending.Context.Modifiers.AppendState(state);
                 if (pending.Context.Target != null && !pending.Context.Target.IsAlive) pending.Context.Target.WriteState(state);
             }
-            foreach (FragmentOrb orb in _orbs) { AppendNumber(state, orb.Position.X); AppendNumber(state, orb.Position.Y); state.Append(orb.Amount).Append('|').Append(orb.IsAttracted).Append('|').Append(orb.IsBigScrap); }
-            foreach (SimulationItemDrop drop in _itemDrops) AppendItemDropState(state, drop);
-            foreach (SimulationItemDrop drop in _pickedUpItems) AppendItemDropState(state, drop);
+            foreach (FragmentOrb orb in _orbs) { SimHash.AppendNumber(state, orb.Position.X); SimHash.AppendNumber(state, orb.Position.Y); state.Append(orb.Amount).Append('|').Append(orb.IsAttracted).Append('|').Append(orb.IsBigScrap); }
+            foreach (SimulationItemDrop drop in _itemDrops) SimHash.AppendItemDropState(state, drop);
+            foreach (SimulationItemDrop drop in _pickedUpItems) SimHash.AppendItemDropState(state, drop);
             foreach (CompiledSpell spell in _loadout) state.Append('|').Append(spell?.Signature);
             foreach (string element in _unlockedElements) state.Append('|').Append(element);
-            foreach (PendingEnemyShot shot in _pendingEnemyShots) { state.Append(shot.Tick).Append('|').Append(shot.Owner.Id); AppendNumber(state, shot.Direction.X); AppendNumber(state, shot.Direction.Y); AppendNumber(state, shot.SpeedMultiplier); }
+            foreach (PendingEnemyShot shot in _pendingEnemyShots) { state.Append(shot.Tick).Append('|').Append(shot.Owner.Id); SimHash.AppendNumber(state, shot.Direction.X); SimHash.AppendNumber(state, shot.Direction.Y); SimHash.AppendNumber(state, shot.SpeedMultiplier); }
             foreach (PendingSplit split in _pendingSplits)
             {
                 state.Append('|').Append(split.Tick).Append('|').Append(split.EnemyId).Append('|').Append(split.Elite != null);
-                AppendNumber(state, split.Position.X); AppendNumber(state, split.Position.Y);
-                AppendNumber(state, split.Elite != null ? split.Elite.RawHpMultiplier : 0);
-                AppendNumber(state, split.Elite != null ? split.Elite.RawRewardMultiplier : 0);
-                AppendNumber(state, split.Elite != null ? split.Elite.RawSpeedMultiplier : 0);
+                SimHash.AppendNumber(state, split.Position.X); SimHash.AppendNumber(state, split.Position.Y);
+                SimHash.AppendNumber(state, split.Elite != null ? split.Elite.RawHpMultiplier : 0);
+                SimHash.AppendNumber(state, split.Elite != null ? split.Elite.RawRewardMultiplier : 0);
+                SimHash.AppendNumber(state, split.Elite != null ? split.Elite.RawSpeedMultiplier : 0);
                 if (split.CarrierOwnerId != 0) state.Append("|owner:").Append(split.CarrierOwnerId);
             }
             foreach (PendingSpawn spawn in _pendingSpawns)
             {
                 state.Append("|ps").Append(spawn.Tick).Append('|').Append(spawn.EnemyId).Append('|').Append(spawn.Elite != null).Append('|').Append(spawn.IsKillTarget);
-                AppendNumber(state, spawn.Position.X); AppendNumber(state, spawn.Position.Y);
-                AppendNumber(state, spawn.WarningCenter.X); AppendNumber(state, spawn.WarningCenter.Y); AppendNumber(state, spawn.WarningRadius);
+                SimHash.AppendNumber(state, spawn.Position.X); SimHash.AppendNumber(state, spawn.Position.Y);
+                SimHash.AppendNumber(state, spawn.WarningCenter.X); SimHash.AppendNumber(state, spawn.WarningCenter.Y); SimHash.AppendNumber(state, spawn.WarningRadius);
             }
-            AppendNumber(state, _totalDamage); state.Append(_collectedFragments).Append(_nodeExecutionCount).Append('|').Append(_enemyDamageEventCount)
+            SimHash.AppendNumber(state, _totalDamage); state.Append(_collectedFragments).Append(_nodeExecutionCount).Append('|').Append(_enemyDamageEventCount)
                 .Append('|').Append(_burnTickDamageEventCount).Append('|').Append(_arcDamageEventCount).Append('|').Append(_freezeStartEventCount);
             state.Append('|').Append(_normalScrapPickupEventCount).Append('|').Append(_bigScrapPickupEventCount);
             if (_director != null)
-            { _director.WriteState(state); AppendNumber(state, _moveDirection.X); AppendNumber(state, _moveDirection.Y); state.Append(_hasMoveDirection); }
+            { _director.WriteState(state); SimHash.AppendNumber(state, _moveDirection.X); SimHash.AppendNumber(state, _moveDirection.Y); state.Append(_hasMoveDirection); }
             uint hash = 2166136261;
             foreach (char value in state.ToString()) { hash ^= value; hash *= 16777619; }
             return hash.ToString("x8", CultureInfo.InvariantCulture);
-        }
-
-        /// <summary>불변 문화권 숫자 표기를 상태 해시 버퍼에 추가한다.</summary>
-        private static void AppendNumber(StringBuilder state, double value) { state.Append(value.ToString("R", CultureInfo.InvariantCulture)).Append('|'); }
-
-        /// <summary>바닥 드롭 또는 주운 Modifier 아이템의 종류, 등급, 수량, 위치를 결정성 해시 버퍼에 기록한다.</summary>
-        private static void AppendItemDropState(StringBuilder state, SimulationItemDrop drop)
-        {
-            state.Append('|').Append(drop.RuneId).Append('|').Append(drop.Grade).Append('|').Append(drop.Count);
-            AppendNumber(state, drop.Position.X); AppendNumber(state, drop.Position.Y);
-            state.Append('|').Append(drop.IsAttracted);
         }
 
         /// <summary>대시와 일반 이동을 처리하고 이번 입력으로 대시가 시작됐는지 반환한다.</summary>
@@ -921,7 +878,7 @@ namespace RuneCode
         private string ChooseNoiseElement(SpellContext context)
         {
             if (context.NoiseElement != null) return context.NoiseElement;
-            int index = Math.Min(_unlockedElements.Count - 1, (int)(NextRandom() * _unlockedElements.Count));
+            int index = Math.Min(_unlockedElements.Count - 1, (int)(_random.Next() * _unlockedElements.Count));
             string element = _unlockedElements[index];
             context.RandomState.SetNoiseElement(element);
             return element;
@@ -1813,11 +1770,11 @@ namespace RuneCode
                 EliteSpawnDefinition elite = enemy.Elite;
                 if (string.IsNullOrEmpty(elite.DropTable)) return null;
                 // 확률이 100%면 난수를 쓰지 않아 기존 판정 순서를 유지한다.
-                return elite.DropChancePercent >= 100 || NextRandom() * 100 < elite.DropChancePercent ? elite.DropTable : null;
+                return elite.DropChancePercent >= 100 || _random.Next() * 100 < elite.DropChancePercent ? elite.DropTable : null;
             }
             NormalEnemyDropDefinition normalDrop = _drops.NormalEnemyDrop;
             if (enemy.Boss != null || normalDrop == null || !normalDrop.IsEnabled(_stageNumber)) return null;
-            return NextRandom() * 100 < normalDrop.GetChancePercent(_stageNumber) ? normalDrop.DropTable : null;
+            return _random.Next() * 100 < normalDrop.GetChancePercent(_stageNumber) ? normalDrop.DropTable : null;
         }
 
         /// <summary>적 처치 스크랩에 획득 배율을 적용하고 소수 보너스를 다음 드롭으로 이월해 정수 스크랩량을 반환한다.</summary>
@@ -1832,13 +1789,13 @@ namespace RuneCode
         /// <summary>처치 드롭과 같은 테이블·결정적 난수로 완료 스테이지의 클리어 룬 1개를 추첨한다.</summary>
         public DropRoll DrawClearRuneReward()
         {
-            return RuneRewardRoller.DrawRune(_drops.Get(_drops.NormalEnemyDrop.DropTable), _stageNumber, _eliteDrops, NextRandom);
+            return RuneRewardRoller.DrawRune(_drops.Get(_drops.NormalEnemyDrop.DropTable), _stageNumber, _eliteDrops, _random.Next);
         }
 
         /// <summary>처치 위치에 놓을 룬의 분류·종류·등급을 추첨해 드롭 개체 1개를 생성한다.</summary>
         private void RollDropTable(DropTableDefinition table, SimVector position)
         {
-            DropRoll roll = RuneRewardRoller.DrawRune(table, _stageNumber, _eliteDrops, NextRandom);
+            DropRoll roll = RuneRewardRoller.DrawRune(table, _stageNumber, _eliteDrops, _random.Next);
             _itemDrops.Add(new SimulationItemDrop(roll.RuneId, roll.Grade, roll.Count, _tick, position));
         }
 
@@ -1946,7 +1903,7 @@ namespace RuneCode
             if (!_director.IsStarted(order.Group))
             {
                 double startAngle = settings.Angle == SpawnFormations.ANGLE_AHEAD ? GetAheadAngle()
-                    : settings.Angle == SpawnFormations.ANGLE_FIXED ? 0 : NextRandom() * 2 * Math.PI / slotCount;
+                    : settings.Angle == SpawnFormations.ANGLE_FIXED ? 0 : _random.Next() * 2 * Math.PI / slotCount;
                 _spawnSlots.Refresh(_map, _player.Position, spawnRadius, slotCount, startAngle, radius);
                 _director.Start(order.Group, startAngle, formation.ChooseAnchor(_spawnSlots, settings));
             }
@@ -2084,7 +2041,7 @@ namespace RuneCode
             _tickSpawnPositions.Add(position);
             if (!isTaken) return position;
             double range = radius * _stages.Spawn.JitterScale;
-            SimVector spread = position + new SimVector((NextRandom() * 2 - 1) * range, (NextRandom() * 2 - 1) * range);
+            SimVector spread = position + new SimVector((_random.Next() * 2 - 1) * range, (_random.Next() * 2 - 1) * range);
             return _map.CanOccupy(spread, radius) ? spread : position;
         }
 
@@ -2115,7 +2072,7 @@ namespace RuneCode
             IReadOnlyList<StreamCandidate> candidates = _stageDefinition.Stream.Candidates;
             double totalWeight = 0;
             foreach (StreamCandidate candidate in candidates) if (candidate.FirstStage <= _stageNumber) totalWeight += candidate.Weight;
-            double choice = NextRandom() * totalWeight;
+            double choice = _random.Next() * totalWeight;
             string last = null;
             foreach (StreamCandidate candidate in candidates)
             {
@@ -2192,12 +2149,6 @@ namespace RuneCode
             for (int i = _arcLinks.Count - 1; i >= 0; i--) if (_tick - _arcLinks[i].Tick > ARC_LINK_TICKS) _arcLinks.RemoveAt(i);
             for (int i = _nodeEvents.Count - 1; i >= 0; i--) if (_tick - _nodeEvents[i].Tick > TICK_RATE) _nodeEvents.RemoveAt(i);
             while (_damageWindow.Count > 0 && _tick - _damageWindow.Peek().Tick > 5 * TICK_RATE) _rollingDamage -= _damageWindow.Dequeue().Amount;
-        }
-
-        /// <summary>시드 기반 mulberry32 연산으로 0 이상 1 미만의 결정적 난수를 반환한다.</summary>
-        private double NextRandom()
-        {
-            unchecked { _rngState += 0x6D2B79F5; uint value = _rngState; value = (value ^ (value >> 15)) * (value | 1); value ^= value + ((value ^ (value >> 7)) * (value | 61)); return (value ^ (value >> 14)) / 4294967296.0; }
         }
 
         /// <summary>이미 적중한 적을 제외하고 탐지 반경 내 가장 가까운 생존 적을 반환한다.</summary>
@@ -2280,350 +2231,5 @@ namespace RuneCode
             if (context.OnHitSource != null) GetActionCombatStats(context.OnHitSource).RecordOnHitTarget(action);
         }
 
-        private sealed class ActionCombatStats
-        {
-            private readonly string _key;
-            private readonly Dictionary<SpellAction, long> _onHitTargets = new Dictionary<SpellAction, long>();
-            private readonly Dictionary<string, double> _directDamageByElement = new Dictionary<string, double>
-            { ["raw"] = 0d, ["fire"] = 0d, ["ice"] = 0d, ["arc"] = 0d };
-            private readonly Dictionary<string, double> _statusDamageByType = new Dictionary<string, double>
-            { ["burn"] = 0d, ["chill"] = 0d, ["freeze"] = 0d, ["emp"] = 0d, ["arc_chain"] = 0d };
-            private long _spawnCount;
-            private long _damageCount;
-            private long _hitCount;
-            private long _onHitEvents;
-            private long _onHitSpawnCount;
-            private long _triggeredByOnHitCount;
-            private double _damage;
-            private double _statusDamage;
-            public string Key => _key;
-            public long SpawnCount => _spawnCount;
-            public long DamageCount => _damageCount;
-            public long HitCount => _hitCount;
-            public long OnHitEvents => _onHitEvents;
-            public long OnHitSpawnCount => _onHitSpawnCount;
-            public long TriggeredByOnHitCount => _triggeredByOnHitCount;
-            public double Damage => _damage;
-            public double StatusDamage => _statusDamage;
-            public IReadOnlyDictionary<string, double> DirectDamageByElement => _directDamageByElement;
-            public IReadOnlyDictionary<string, double> StatusDamageByType => _statusDamageByType;
-            public IReadOnlyDictionary<SpellAction, long> OnHitTargets => _onHitTargets;
-
-            /// <summary>로그 내 행동 키를 저장하고 빈 전투 누계를 만든다.</summary>
-            public ActionCombatStats(string key) { _key = key; }
-
-            /// <summary>실제 생성 수와 OnHit 유래 생성 수를 증가시킨다.</summary>
-            public void RecordSpawn(bool isOnHit) { _spawnCount++; if (isOnHit) _triggeredByOnHitCount++; }
-
-            /// <summary>원본 행동의 실제 OnHit 이벤트 수를 증가시킨다.</summary>
-            public void RecordOnHit() { _onHitEvents++; }
-
-            /// <summary>OnHit으로 실제 생성된 후속 행동 개체 수를 대상별로 증가시킨다.</summary>
-            public void RecordOnHitTarget(SpellAction target)
-            {
-                _onHitSpawnCount++;
-                _onHitTargets.TryGetValue(target, out long count);
-                _onHitTargets[target] = count + 1;
-            }
-
-            /// <summary>실제 차감 피해 actual을 누적하고 실제 속성 element와 상태 종류 damageStatus별로 분리한다.</summary>
-            public void RecordDamage(double actual, string element, string damageStatus)
-            {
-                _damage += actual; _damageCount++;
-                if (damageStatus != null)
-                {
-                    _statusDamage += actual;
-                    _statusDamageByType.TryGetValue(damageStatus, out double previous);
-                    _statusDamageByType[damageStatus] = previous + actual;
-                    if (damageStatus != "burn") _hitCount++;
-                }
-                else
-                {
-                    _hitCount++;
-                    string key = string.IsNullOrEmpty(element) ? "unknown" : element;
-                    _directDamageByElement.TryGetValue(key, out double previous);
-                    _directDamageByElement[key] = previous + actual;
-                }
-            }
-        }
-
-        private readonly struct SpellContext
-        {
-            private readonly SimVector _origin;
-            private readonly SimVector _direction;
-            private readonly SimulationEnemy _target;
-            private readonly bool _fromEvent;
-            private readonly string _noiseElement;
-            private readonly SpellModifierValues _modifiers;
-            private readonly double _costMultiplier;
-            private readonly SimulationPlayer _caster;
-            private readonly int _sourceEntityId;
-            private readonly double _directionOffset;
-            private readonly SpellRandomState _randomState;
-            private readonly bool _isManaPrepaid;
-            private readonly SpellAction _onHitSource;
-            public SpellAction OnHitSource => _onHitSource;
-            public SimVector Origin => _origin;
-            public SimVector Direction => _direction;
-            public SimulationEnemy Target => _target;
-            public bool FromEvent => _fromEvent;
-            public string NoiseElement => _randomState.NoiseElement ?? _noiseElement;
-            public SpellModifierValues Modifiers => _modifiers;
-            public double DirectionOffset => _directionOffset;
-            public SpellRandomState RandomState => _randomState;
-            public bool IsManaPrepaid => _isManaPrepaid;
-
-            /// <summary>이 경로의 노드 비용에 곱하는 배율이다. 프리셋 호출 안에서는 호출 노드 효과의 비용 배율이 곱해진다.</summary>
-            public double CostMultiplier => _costMultiplier;
-
-            /// <summary>마법을 시전한 주체다. Apply 등 자기 적용 효과의 대상이다.</summary>
-            public SimulationPlayer Caster => _caster;
-
-            /// <summary>이 경로를 시작한 이벤트의 원본 개체 ID다. 시전·흐름 제어로 시작한 경로는 0이다.</summary>
-            public int SourceEntityId => _sourceEntityId;
-
-            /// <summary>
-            /// 발생 위치, 방향, 선택 대상, 이벤트 유래 여부, 비용 배율, 시전자와 이벤트 원본을 예약 가능한 스냅샷으로 보관한다.
-            /// </summary>
-            public SpellContext(SimVector origin, SimVector direction, SimulationEnemy target, bool fromEvent,
-                string noiseElement, SpellModifierValues modifiers = null,
-                double costMultiplier = 1d, SimulationPlayer caster = null, int sourceEntityId = 0,
-                double directionOffset = 0, SpellRandomState randomState = null, bool isManaPrepaid = false, SpellAction onHitSource = null)
-            {
-                _origin = origin; _direction = direction; _target = target; _fromEvent = fromEvent; _noiseElement = noiseElement;
-                _modifiers = modifiers ?? SpellModifierValues.None; _costMultiplier = costMultiplier;
-                _caster = caster; _sourceEntityId = sourceEntityId; _directionOffset = directionOffset;
-                _randomState = randomState ?? new SpellRandomState(noiseElement);
-                _isManaPrepaid = isManaPrepaid;
-                _onHitSource = onHitSource;
-            }
-
-            /// <summary>실행 위치만 바꾼 문맥을 반환한다.</summary>
-            public SpellContext WithOrigin(SimVector origin)
-                => new SpellContext(origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
-
-            /// <summary>시전 시점 문맥의 원점과 방향을 완료 순간 값으로 바꾼 복사본을 반환한다.</summary>
-            public SpellContext WithOriginAndDirection(SimVector origin, SimVector direction)
-                => new SpellContext(origin, direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource);
-
-            /// <summary>위치·예약 문맥을 유지하고 onHit 전력 선결제 여부만 바꾼 복사본을 반환한다.</summary>
-            public SpellContext WithManaPrepaid(bool isManaPrepaid)
-                => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, isManaPrepaid, _onHitSource);
-        }
-
-        /// <summary>같은 루트 시전에서 첫 Noise 효과 시 정한 원소를 공유한다.</summary>
-        private sealed class SpellRandomState
-        {
-            private string _noiseElement;
-            public string NoiseElement => _noiseElement;
-
-            /// <summary>선택된 원소를 공유 상태에 저장한다.</summary>
-            public SpellRandomState(string noiseElement = null) { _noiseElement = noiseElement; }
-
-            /// <summary>아직 선택하지 않은 경우 첫 효과 시점의 원소를 기록한다.</summary>
-            public void SetNoiseElement(string noiseElement)
-            {
-                if (_noiseElement == null) _noiseElement = noiseElement;
-            }
-        }
-
-        /// <summary>슬롯과 컴파일 마법을 루트 체인 완료 시점까지 연결한다.</summary>
-        private sealed class RootSpellExecution
-        {
-            private readonly int _slot;
-            private readonly IReadOnlyList<SpellAction> _actions;
-            private readonly CompiledSpell _spell;
-            private readonly int _cycleTicks;
-            private readonly int _cycleEndTick;
-            private readonly Dictionary<SpellAction, ResourceCostSet> _beamCycleCosts = new Dictionary<SpellAction, ResourceCostSet>();
-            private readonly SimVector _playerPosition;
-            private readonly SimVector _aimDirection;
-            private readonly SimVector? _aimPoint;
-            public int Slot => _slot;
-            public CompiledSpell Spell => _spell;
-            public int CycleEndTick => _cycleEndTick;
-            public SimVector PlayerPosition => _playerPosition;
-            public SimVector AimDirection => _aimDirection;
-            public SimVector? AimPoint => _aimPoint;
-
-            /// <summary>슬롯·실행 루트·공통 주기와 종료 틱, 시전 시작 위치·조준 방향·포인터 좌표를 보관한다.</summary>
-            public RootSpellExecution(int slot, CompiledSpell spell, int cycleTicks, int cycleEndTick,
-                SimVector playerPosition, SimVector aimDirection, SimVector? aimPoint)
-            {
-                _slot = slot; _actions = spell.Root; _spell = spell;
-                _cycleTicks = cycleTicks; _cycleEndTick = cycleEndTick;
-                _playerPosition = playerPosition; _aimDirection = aimDirection; _aimPoint = aimPoint;
-            }
-
-            /// <summary>명령이 슬롯 주기로 결제·연장할 직접 공격 빔인지 반환한다.</summary>
-            public bool IsSlotCycleBeam(SpellAction action) => _spell.IsSlotCycleBeam(action);
-
-            /// <summary>최초 생성 예약에 사용할 빔의 결제 완료 구간 비용을 저장한다.</summary>
-            public void SetBeamCycleCosts(SpellAction action, ResourceCostSet costs) => _beamCycleCosts[action] = costs;
-
-            /// <summary>최초 결제한 빔 구간 비용을 생성 시 채널에 전달한다.</summary>
-            public ResourceCostSet GetBeamCycleCosts(SpellAction action) => _beamCycleCosts[action];
-
-            /// <summary>명령이 시작 노드에 직접 연결된 실행 대상인지 반환한다.</summary>
-            public bool IsDirectAction(SpellAction action)
-            {
-                foreach (SpellAction direct in _actions)
-                    if (ReferenceEquals(direct, action)) return true;
-                return false;
-            }
-
-            /// <summary>예약된 범위 마법의 생성 위치·방향을 결정하는 시전 시점 상태를 해시에 기록한다.</summary>
-            public void WriteTargetState(StringBuilder state)
-            {
-                state.Append('|').Append(_aimPoint.HasValue);
-                state.Append(':').Append(_cycleTicks).Append(':').Append(_cycleEndTick);
-                AppendNumber(state, _playerPosition.X); AppendNumber(state, _playerPosition.Y);
-                AppendNumber(state, _aimDirection.X); AppendNumber(state, _aimDirection.Y);
-                if (_aimPoint.HasValue) { AppendNumber(state, _aimPoint.Value.X); AppendNumber(state, _aimPoint.Value.Y); }
-            }
-
-            /// <summary>행동 인스턴스가 시작 조건에 직접 연결된 빔인지 검사한다.</summary>
-            public bool IsDirectBeam(SpellAction action)
-            {
-                if (action.Form != BeamBehaviorRules.BEAM_KIND) return false;
-                return IsDirectAction(action);
-            }
-        }
-
-        /// <summary>분기와 예약된 후속 노드의 대기 수를 세고 모두 끝나면 콜백을 한 번 호출한다.</summary>
-        private sealed class ExecutionTracker
-        {
-            private readonly RootSpellExecution _rootCast;
-            private readonly Action _onCompleted;
-            private int _pending;
-            private int _dispatchDepth;
-            private bool _isCompleted;
-            public RootSpellExecution RootCast => _rootCast;
-            public int Pending => _pending;
-
-            /// <summary>루트 시전 범위와 완료 작업을 추적기에 연결한다.</summary>
-            public ExecutionTracker(RootSpellExecution rootCast, Action onCompleted)
-            {
-                _rootCast = rootCast;
-                _onCompleted = onCompleted;
-            }
-
-            /// <summary>동일 출력의 병렬 노드를 모두 등록할 때까지 완료 확인을 보류한다.</summary>
-            public void BeginDispatch() { _dispatchDepth++; }
-
-            /// <summary>노드 목록 등록을 끝내고 비어 있는 실행 분기를 완료한다.</summary>
-            public void EndDispatch() { _dispatchDepth--; TryComplete(); }
-
-            /// <summary>실행 중인 노드 또는 대기 예약 하나를 추적한다.</summary>
-            public void Acquire() { _pending++; }
-
-            /// <summary>노드 실행을 끝내고 마지막 대기 작업이면 완료 콜백을 호출한다.</summary>
-            public void Release() { _pending--; TryComplete(); }
-
-            /// <summary>실행 대기 수와 분기 등록이 모두 끝난 경우 완료 작업을 한 번 실행한다.</summary>
-            private void TryComplete()
-            {
-                if (_isCompleted || _pending != 0 || _dispatchDepth != 0) return;
-                _isCompleted = true;
-                _onCompleted?.Invoke();
-            }
-        }
-
-        private readonly struct ScheduledExecution
-        {
-            private readonly int _tick;
-            private readonly SpellAction _action;
-            private readonly SpellContext _context;
-            private readonly bool _isBranchStart;
-            private readonly int _wave;
-            private readonly ExecutionTracker _tracker;
-            public int Tick => _tick;
-            public SpellAction Action => _action;
-            public SpellContext Context => _context;
-            public ExecutionTracker Tracker => _tracker;
-            public bool IsBranchStart => _isBranchStart;
-
-            /// <summary>연속 모드가 다시 생성할 회차 번호다. 0이면 회차 예약이 아니다.</summary>
-            public int Wave => _wave;
-
-            /// <summary>목표 틱, 완료할 노드, 문맥과 실행 추적기를 저장한다.</summary>
-            public ScheduledExecution(int tick, SpellAction action, SpellContext context, ExecutionTracker tracker)
-            { _tick = tick; _action = action; _context = context; _isBranchStart = false; _wave = 0; _tracker = tracker; }
-
-            /// <summary>Stores a root branch scheduled to start after the other root branches.</summary>
-            public ScheduledExecution(int tick, SpellAction action, SpellContext context, ExecutionTracker tracker, bool isBranchStart)
-            { _tick = tick; _action = action; _context = context; _isBranchStart = isBranchStart; _wave = 0; _tracker = tracker; }
-
-            /// <summary>목표 틱, 다시 생성할 노드, 문맥, 실행 추적기와 회차 번호를 연속 회차 예약 데이터에 보관한다.</summary>
-            public ScheduledExecution(int tick, SpellAction action, SpellContext context, ExecutionTracker tracker, int wave)
-            { _tick = tick; _action = action; _context = context; _isBranchStart = false; _wave = wave; _tracker = tracker; }
-        }
-
-        private readonly struct DamageSample
-        {
-            private readonly int _tick;
-            private readonly double _amount;
-            public int Tick => _tick;
-            public double Amount => _amount;
-            /// <summary>피해 틱과 실제 적용량을 5초 롤링 DPS 계산용으로 보관한다.</summary>
-            public DamageSample(int tick, double amount) { _tick = tick; _amount = amount; }
-        }
-
-        private readonly struct PendingEnemyShot
-        {
-            private readonly int _tick;
-            private readonly SimulationEnemy _owner;
-            private readonly SimVector _direction;
-            private readonly double _speedMultiplier;
-            public int Tick => _tick;
-            public SimulationEnemy Owner => _owner;
-            public SimVector Direction => _direction;
-            public double SpeedMultiplier => _speedMultiplier;
-
-            /// <summary>연사 탄환의 발사 틱, 소유 적, 방향 및 속도 배율을 보관한다.</summary>
-            public PendingEnemyShot(int tick, SimulationEnemy owner, SimVector direction, double speedMultiplier) { _tick = tick; _owner = owner; _direction = direction; _speedMultiplier = speedMultiplier; }
-        }
-
-        private readonly struct PendingSplit
-        {
-            private readonly int _tick;
-            private readonly string _enemyId;
-            private readonly SimVector _position;
-            private readonly EliteSpawnDefinition _elite;
-            private readonly int _carrierOwnerId;
-            public int Tick => _tick;
-            public string EnemyId => _enemyId;
-            public SimVector Position => _position;
-            public EliteSpawnDefinition Elite => _elite;
-            public int CarrierOwnerId => _carrierOwnerId;
-
-            /// <summary>분열 자식의 생성 틱, 적 ID, 생성 위치와 부모에게서 물려받은 엘리트 정의를 보관한다.</summary>
-            public PendingSplit(int tick, string enemyId, SimVector position, EliteSpawnDefinition elite, int carrierOwnerId = 0) { _tick = tick; _enemyId = enemyId; _position = position; _elite = elite; _carrierOwnerId = carrierOwnerId; }
-        }
-
-        private readonly struct PendingSpawn
-        {
-            private readonly int _tick;
-            private readonly string _enemyId;
-            private readonly SimVector _position;
-            private readonly EliteSpawnDefinition _elite;
-            private readonly bool _isKillTarget;
-            private readonly SimVector _warningCenter;
-            private readonly double _warningRadius;
-            public int Tick => _tick;
-            public string EnemyId => _enemyId;
-            public SimVector Position => _position;
-            public EliteSpawnDefinition Elite => _elite;
-            public bool IsKillTarget => _isKillTarget;
-            public SimVector WarningCenter => _warningCenter;
-            public double WarningRadius => _warningRadius;
-
-            /// <summary>맵형 스폰의 생성 틱, 적 ID, 생성 위치, 엘리트 정의, 처치 집계 여부와 예고 표시 중심·반경을 보관한다.</summary>
-            public PendingSpawn(int tick, string enemyId, SimVector position, EliteSpawnDefinition elite, bool isKillTarget, SimVector warningCenter, double warningRadius)
-            {
-                _tick = tick; _enemyId = enemyId; _position = position; _elite = elite; _isKillTarget = isKillTarget;
-                _warningCenter = warningCenter; _warningRadius = warningRadius;
-            }
-        }
     }
 }
