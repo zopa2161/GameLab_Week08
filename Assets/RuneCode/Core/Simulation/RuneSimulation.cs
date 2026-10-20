@@ -8,7 +8,6 @@ namespace RuneCode
     public sealed class RuneSimulation
     {
         public const int TICK_RATE = CompiledSpell.SIMULATION_TICK_RATE;
-        private const int MAX_BEAM_FLASHES = 128;
         public const int ARC_LINK_TICKS = 12;
         private const int RELAY_REGEN_INTERVAL_TICKS = 60;
         private const double MIN_KILL_ENERGY = 1;
@@ -26,33 +25,25 @@ namespace RuneCode
         private const int WALL_CONTACT_REFINEMENT_STEPS = 12;
         internal static readonly Dictionary<int, double> NoExcludedTargets = new Dictionary<int, double>();
         private readonly SimulationWorld _world;
+        private readonly SimulationFeedback _feedback;
+        private readonly SimulationStats _stats;
         private readonly Queue<SimulationEnemy> _deadEnemies = new Queue<SimulationEnemy>();
         private readonly double _scrapGainMultiplier;
         private readonly double _scrapPickupRangeMultiplier;
         private readonly double _scrapHealRatio;
         private readonly double _killEnergyBonus;
-        private readonly List<SimulationBeamFlash> _beamFlashes = new List<SimulationBeamFlash>();
         private readonly List<FragmentOrb> _orbs = new List<FragmentOrb>();
         private readonly List<SimulationItemDrop> _itemDrops = new List<SimulationItemDrop>();
         private readonly List<FragmentOrb> _clearOrbs = new List<FragmentOrb>();
         private readonly List<SimulationItemDrop> _clearItemDrops = new List<SimulationItemDrop>();
         private readonly List<SimulationItemDrop> _pickedUpItems = new List<SimulationItemDrop>();
         private readonly List<SimulationItemDrop> _newPickedItems = new List<SimulationItemDrop>();
-        private readonly List<DamageNumber> _damageNumbers = new List<DamageNumber>();
-        private readonly List<HealPulse> _healPulses = new List<HealPulse>();
-        private readonly List<SpawnWarning> _spawnWarnings = new List<SpawnWarning>();
-        private readonly List<ArcLink> _arcLinks = new List<ArcLink>();
-        private readonly List<NodeExecutionEvent> _nodeEvents = new List<NodeExecutionEvent>();
         private readonly List<ScheduledExecution> _scheduled = new List<ScheduledExecution>();
         private readonly List<PendingEnemyShot> _pendingEnemyShots = new List<PendingEnemyShot>();
         private readonly List<PendingSplit> _pendingSplits = new List<PendingSplit>();
         private readonly List<PendingSpawn> _pendingSpawns = new List<PendingSpawn>();
         private readonly List<EnemyStatusEffect> _enemyStatuses = new List<EnemyStatusEffect>();
         private readonly Dictionary<int, EnemyStatusEffect> _statusIndex = new Dictionary<int, EnemyStatusEffect>();
-        private readonly Queue<DamageSample> _damageWindow = new Queue<DamageSample>();
-        private readonly Dictionary<SpellAction, ActionCombatStats> _actionCombatStats = new Dictionary<SpellAction, ActionCombatStats>();
-        private readonly Dictionary<SpellAction, int> _actionLogSlots = new Dictionary<SpellAction, int>();
-        private readonly Dictionary<string, int> _killCounts = new Dictionary<string, int>();
         private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
         private SimVector? _aimPoint;
         private readonly bool[] _castHeld = new bool[3];
@@ -66,7 +57,6 @@ namespace RuneCode
         private readonly EnemySeparation _separation = new EnemySeparation();
         private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
         private double _statusTime;
-        private int _beamFlashGeneration;
         private SpawnDirector _director;
         private double _spawnRadius;
         private int _tickSpawnPositionsTick = -1;
@@ -83,21 +73,6 @@ namespace RuneCode
         private int _bigScrapPickupEventCount;
         private int _bigScrapSpawnEventCount;
         private double _scrapRemainder;
-        private double _totalDamage;
-        private double _statusDamage;
-        private double _persistDamage;
-        private double _rollingDamage;
-        private readonly Dictionary<string, double> _resourceCostsSpent = new Dictionary<string, double>(StringComparer.Ordinal);
-        private int _peakSpellEntities;
-        private int _nodeExecutionCount;
-        private int _enemyDamageEventCount;
-        private int _shotLaunchEventCount;
-        private int _shotBurstEventCount;
-        private int _shotPersistEventCount;
-        private int _shotSlashEventCount;
-        private int _burnTickDamageEventCount;
-        private int _arcDamageEventCount;
-        private int _freezeStartEventCount;
         private string _scenario;
         public int Tick => _world.Tick;
         public double Time => _world.Tick * STEP_SECONDS;
@@ -132,9 +107,9 @@ namespace RuneCode
             => AreaTargeting.GetAreaTargetPosition(this, action, pointer, index, playerPosition);
         public IReadOnlyList<SimulationProjectile> EnemyProjectiles => _world.EnemyProjectiles;
         /// <summary>짧은 빔의 최초 경로를 화면에서 읽도록 보관한 최근 표시 기록이다. 피해 판정에는 사용하지 않는다.</summary>
-        public IReadOnlyList<SimulationBeamFlash> BeamFlashes => _beamFlashes;
+        public IReadOnlyList<SimulationBeamFlash> BeamFlashes => _feedback.BeamFlashes;
         /// <summary>도크 초기화·전투 취소 후 이전 표시 기록을 구분하는 세대 번호다.</summary>
-        public int BeamFlashGeneration => _beamFlashGeneration;
+        public int BeamFlashGeneration => _feedback.BeamFlashGeneration;
         public IReadOnlyList<FragmentOrb> Orbs => _orbs;
 
         /// <summary>바닥에 떨어져 줍기를 기다리는 Modifier 드롭 목록이다.</summary>
@@ -146,24 +121,24 @@ namespace RuneCode
 
         /// <summary>이번 전투에서 주워 확정한 Modifier 드롭의 누적 목록이다.</summary>
         public IReadOnlyList<SimulationItemDrop> PickedUpItems => _pickedUpItems;
-        public IReadOnlyList<DamageNumber> DamageNumbers => _damageNumbers;
-        public int EnemyDamageEventCount => _enemyDamageEventCount;
-        public int ShotLaunchEventCount => _shotLaunchEventCount;
-        public int ShotBurstEventCount => _shotBurstEventCount;
-        public int ShotPersistEventCount => _shotPersistEventCount;
-        public int ShotSlashEventCount => _shotSlashEventCount;
-        public int BurnTickDamageEventCount => _burnTickDamageEventCount;
-        public int ArcDamageEventCount => _arcDamageEventCount;
-        public int FreezeStartEventCount => _freezeStartEventCount;
-        public IReadOnlyList<HealPulse> HealPulses => _healPulses;
+        public IReadOnlyList<DamageNumber> DamageNumbers => _feedback.DamageNumbers;
+        public int EnemyDamageEventCount => _stats.EnemyDamageEventCount;
+        public int ShotLaunchEventCount => _stats.ShotLaunchEventCount;
+        public int ShotBurstEventCount => _stats.ShotBurstEventCount;
+        public int ShotPersistEventCount => _stats.ShotPersistEventCount;
+        public int ShotSlashEventCount => _stats.ShotSlashEventCount;
+        public int BurnTickDamageEventCount => _stats.BurnTickDamageEventCount;
+        public int ArcDamageEventCount => _stats.ArcDamageEventCount;
+        public int FreezeStartEventCount => _stats.FreezeStartEventCount;
+        public IReadOnlyList<HealPulse> HealPulses => _feedback.HealPulses;
 
         /// <summary>대기 중인 맵형 스폰의 예고 표시 목록이다. 무리는 하나로 묶여 있으며 표시 전용이다.</summary>
-        public IReadOnlyList<SpawnWarning> SpawnWarnings => _spawnWarnings;
+        public IReadOnlyList<SpawnWarning> SpawnWarnings => _feedback.SpawnWarnings;
 
         /// <summary>최근 ARC_LINK_TICKS 동안 발생한 전격 연쇄 구간 목록이다. 표시 전용이다.</summary>
-        public IReadOnlyList<ArcLink> ArcLinks => _arcLinks;
-        public IReadOnlyList<NodeExecutionEvent> NodeEvents => _nodeEvents;
-        public IReadOnlyDictionary<string, int> KillCounts => _killCounts;
+        public IReadOnlyList<ArcLink> ArcLinks => _feedback.ArcLinks;
+        public IReadOnlyList<NodeExecutionEvent> NodeEvents => _feedback.NodeEvents;
+        public IReadOnlyDictionary<string, int> KillCounts => _stats.KillCounts;
         public AdaptationNet Adaptation => _world.Adaptation;
         public MissionMap Map => _world.Map;
 
@@ -194,17 +169,17 @@ namespace RuneCode
         public int EarnedFragments => _collectedFragments;
         public int ClearReward => Completed && _world.StageDefinition != null ? _world.Stages.Growth.GetClearReward(_world.StageDefinition.ClearReward, _world.StageNumber) : 0;
         public int SettlementFragments => IsFailed ? (int)Math.Round(_collectedFragments * _world.Balance.Economy.DeathRetention, MidpointRounding.AwayFromZero) : _collectedFragments + ClearReward;
-        public double TotalDamage => _totalDamage;
+        public double TotalDamage => _stats.TotalDamage;
 
         /// <summary>상태 이상(화염) 틱으로 입힌 실제 피해의 누적값이며 TotalDamage에 포함된다.</summary>
-        public double StatusDamage => _statusDamage;
+        public double StatusDamage => _stats.StatusDamage;
         /// <summary>잔류(Persist) 판정 틱으로 입힌 실제 피해의 누적값이며 연쇄 전격을 포함하고 TotalDamage에 포함된다.</summary>
-        public double PersistDamage => _persistDamage;
-        public double RollingDps => _rollingDamage / Math.Min(5, Math.Max(STEP_SECONDS, Time));
-        public double EnergySpent => _resourceCostsSpent.TryGetValue("mana", out double amount) ? amount : 0;
-        public IReadOnlyDictionary<string, double> ResourceCostsSpent => _resourceCostsSpent;
-        public int PeakSpellEntities => _peakSpellEntities;
-        public int NodeExecutionCount => _nodeExecutionCount;
+        public double PersistDamage => _stats.PersistDamage;
+        public double RollingDps => _stats.RollingDamage / Math.Min(5, Math.Max(STEP_SECONDS, Time));
+        public double EnergySpent => _stats.EnergySpent;
+        public IReadOnlyDictionary<string, double> ResourceCostsSpent => _stats.ResourceCostsSpent;
+        public int PeakSpellEntities => _stats.PeakSpellEntities;
+        public int NodeExecutionCount => _stats.NodeExecutionCount;
         public bool AdaptationEnabled => Adaptation.Enabled;
         public bool DebugInvulnerable => _world.DebugInvulnerable;
         /// <summary>저격수의 저장된 조준 경로를 벽과 공격 사거리로 제한한 끝점을 반환한다.</summary>
@@ -225,6 +200,8 @@ namespace RuneCode
             _world = new SimulationWorld(GameData.Balance, GameData.Enemies, GameData.Sector, GameData.Bosses, GameData.Formations, GameData.Drops,
                 new ModifierGradeDropSource(GameData.ModifierGrades), GameData.Stages, carrier, isMission, maxHp, maxEnergy, stageNumber, energyRegen,
                 damageMultiplier, moveSpeedMultiplier, new SimRandom(seed), new AdaptationNet(GameData.Balance));
+            _feedback = new SimulationFeedback(_world);
+            _stats = new SimulationStats();
             _scrapGainMultiplier = scrapGainMultiplier;
             _scrapPickupRangeMultiplier = scrapPickupRangeMultiplier;
             _spawnSlots = new SpawnSlots(_world.Random.Next, _world.Enemies);
@@ -404,8 +381,7 @@ namespace RuneCode
             if (!_world.Player.TrySpend(costs)) return false;
             foreach (ResourceAmount amount in costs.Amounts)
             {
-                _resourceCostsSpent.TryGetValue(amount.Resource, out double spent);
-                _resourceCostsSpent[amount.Resource] = spent + amount.Amount;
+                _stats.AddResourceCost(amount);
             }
             return true;
         }
@@ -467,24 +443,15 @@ namespace RuneCode
         /// <summary>독립 시험의 시드·상태·통계·시나리오 적을 초기화한다. dummyCount가 0이면 기존 일렬 배치 기본 수를 사용한다.</summary>
         public void ResetBench(string scenario, int dummyCount = 0)
         {
-            _beamFlashes.Clear();
+            _feedback.ClearBeamFlashes();
             _clearOrbs.Clear();
             _clearItemDrops.Clear();
             if (_world.IsMission) throw new InvalidOperationException("미션은 시험 도크로 초기화할 수 없습니다.");
             if (scenario != "dummy_single" && scenario != "dummy_line" && scenario != "dummy_swarm" && scenario != "aegis" && scenario != "adapt_loop") throw new ArgumentException("알 수 없는 시험 시나리오입니다.", nameof(scenario));
             _scenario = scenario; _world.Stage = MissionStage.Bench; _world.Tick = 0; _world.ResetEntityIds(); _world.Random.Reset();
-            _world.Enemies.Clear(); _orbs.Clear(); _itemDrops.Clear(); _pickedUpItems.Clear(); _newPickedItems.Clear(); _damageNumbers.Clear(); _healPulses.Clear(); _arcLinks.Clear(); _nodeEvents.Clear(); _damageWindow.Clear(); _killCounts.Clear(); CancelCombat();
+            _world.Enemies.Clear(); _orbs.Clear(); _itemDrops.Clear(); _pickedUpItems.Clear(); _newPickedItems.Clear(); _feedback.ClearForBench(); CancelCombat();
             _enemyStatuses.Clear(); _statusIndex.Clear(); _statusTime = 0;
-            _totalDamage = 0; _statusDamage = 0; _persistDamage = 0; _rollingDamage = 0; _resourceCostsSpent.Clear(); _peakSpellEntities = 0;
-            _nodeExecutionCount = 0; _collectedFragments = 0; _scrapRemainder = 0; _killCount = 0; _spawnedEnemies = 0;
-            _enemyDamageEventCount = 0;
-            _shotLaunchEventCount = 0;
-            _shotBurstEventCount = 0;
-            _shotPersistEventCount = 0;
-            _shotSlashEventCount = 0;
-            _burnTickDamageEventCount = 0;
-            _arcDamageEventCount = 0;
-            _freezeStartEventCount = 0;
+            _stats.ResetForBench(); _collectedFragments = 0; _scrapRemainder = 0; _killCount = 0; _spawnedEnemies = 0;
             _normalScrapPickupEventCount = 0;
             _bigScrapPickupEventCount = 0;
             _bigScrapSpawnEventCount = 0;
@@ -527,7 +494,7 @@ namespace RuneCode
         {
             if (_world.IsMission && _world.Stage != MissionStage.Combat) return;
             foreach (SimulationEnemy enemy in _world.Enemies)
-                if (enemy.Hurt(enemy.Hp, Time) > 0) _enemyDamageEventCount++;
+                if (enemy.Hurt(enemy.Hp, Time) > 0) _stats.EnemyDamageEventCount++;
             CleanupEnemies(false);
             _pendingSplits.Clear();
         }
@@ -597,8 +564,8 @@ namespace RuneCode
                 SimHash.AppendNumber(state, spawn.Position.X); SimHash.AppendNumber(state, spawn.Position.Y);
                 SimHash.AppendNumber(state, spawn.WarningCenter.X); SimHash.AppendNumber(state, spawn.WarningCenter.Y); SimHash.AppendNumber(state, spawn.WarningRadius);
             }
-            SimHash.AppendNumber(state, _totalDamage); state.Append(_collectedFragments).Append(_nodeExecutionCount).Append('|').Append(_enemyDamageEventCount)
-                .Append('|').Append(_burnTickDamageEventCount).Append('|').Append(_arcDamageEventCount).Append('|').Append(_freezeStartEventCount);
+            SimHash.AppendNumber(state, _stats.TotalDamage); state.Append(_collectedFragments).Append(_stats.NodeExecutionCount).Append('|').Append(_stats.EnemyDamageEventCount)
+                .Append('|').Append(_stats.BurnTickDamageEventCount).Append('|').Append(_stats.ArcDamageEventCount).Append('|').Append(_stats.FreezeStartEventCount);
             state.Append('|').Append(_normalScrapPickupEventCount).Append('|').Append(_bigScrapPickupEventCount);
             if (_director != null)
             { _director.WriteState(state); SimHash.AppendNumber(state, _world.MoveDirection.X); SimHash.AppendNumber(state, _world.MoveDirection.Y); state.Append(_world.HasMoveDirection); }
@@ -854,8 +821,7 @@ namespace RuneCode
             if (!_world.Player.TrySpend(costs)) return false;
             foreach (ResourceAmount amount in costs.Amounts)
             {
-                _resourceCostsSpent.TryGetValue(amount.Resource, out double spent);
-                _resourceCostsSpent[amount.Resource] = spent + amount.Amount;
+                _stats.AddResourceCost(amount);
             }
             return true;
         }
@@ -912,12 +878,12 @@ namespace RuneCode
                     context.FromEvent, context.Origin, angle, context.NoiseElement, _world.Balance.Sim.SpellVisualSeconds, warmup,
                     context.Modifiers, context.CostMultiplier, context.Caster);
                 if (entity.BehaviorState is SlashBehaviorRuntime.SlashState slash) slash.SetAnchorTarget(context.Target);
-                RecordActionSpawn(action, context);
-                _world.SpellEntities.Add(entity); _peakSpellEntities = Math.Max(_peakSpellEntities, _world.SpellEntities.Count);
-                if (action.Form == SpellGrammar.FORM_BOLT) _shotLaunchEventCount++;
-                else if (action.Form == SpellGrammar.FORM_BURST) _shotBurstEventCount++;
-                else if (action.Form == SpellGrammar.FORM_ZONE) _shotPersistEventCount++;
-                else if (action.Form == SlashBehaviorRules.KIND) _shotSlashEventCount++;
+                _stats.RecordActionSpawn(action, context);
+                _world.SpellEntities.Add(entity); _stats.PeakSpellEntities = Math.Max(_stats.PeakSpellEntities, _world.SpellEntities.Count);
+                if (action.Form == SpellGrammar.FORM_BOLT) _stats.ShotLaunchEventCount++;
+                else if (action.Form == SpellGrammar.FORM_BURST) _stats.ShotBurstEventCount++;
+                else if (action.Form == SpellGrammar.FORM_ZONE) _stats.ShotPersistEventCount++;
+                else if (action.Form == SlashBehaviorRules.KIND) _stats.ShotSlashEventCount++;
                 if (channel != null) ((BeamBehaviorRuntime.BeamState)entity.BehaviorState).Attach(channel);
                 behavior.OnSpawned(this, entity);
             }
@@ -969,11 +935,7 @@ namespace RuneCode
 
         /// <summary>첫 판정 빔의 경로를 표시 전용으로 복사하고 최근 기록 수를 제한한다.</summary>
         internal void RecordBeamFlash(SimulationSpellEntity entity, IReadOnlyList<SimVector> path)
-        {
-            if (path.Count < 2) return;
-            if (_beamFlashes.Count >= MAX_BEAM_FLASHES) _beamFlashes.RemoveAt(0);
-            _beamFlashes.Add(new SimulationBeamFlash(entity, path, _world.Tick));
-        }
+            => _feedback.RecordBeamFlash(entity, path);
 
         /// <summary>원점 origin과 방향 direction의 중심선을 최대 length까지 검사해 첫 벽 앞의 길이를 반환한다.</summary>
         private double ClipBeamLength(SimVector origin, SimVector direction, double length)
@@ -1082,11 +1044,11 @@ namespace RuneCode
                 for (int i = 0; i < Math.Min(arc.ArcTargets, chain.Count); i++)
                 {
                     actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action, damageStatus: "arc_chain");
-                    _arcLinks.Add(new ArcLink(enemy.Position, chain[i].Position, _world.Tick));
+                    _feedback.AddArcLink(enemy.Position, chain[i].Position);
                 }
-                if (actual > 0) _arcDamageEventCount++;
+                if (actual > 0) _stats.ArcDamageEventCount++;
             }
-            if (entity.Behavior.AccumulatesPersistDamage) _persistDamage += actual;
+            if (entity.Behavior.AccumulatesPersistDamage) _stats.PersistDamage += actual;
         }
 
         /// <summary>
@@ -1095,7 +1057,7 @@ namespace RuneCode
         /// </summary>
         internal void RaiseHitEvent(SimulationSpellEntity entity, SimVector position, SimulationEnemy target)
         {
-            GetActionCombatStats(entity.Action).RecordOnHit();
+            _stats.GetActionCombatStats(entity.Action).RecordOnHit();
             bool tracksDirectHit = entity.Behavior.TracksDirectHit;
             if (tracksDirectHit) entity.HasDirectHit = true;
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
@@ -1148,11 +1110,11 @@ namespace RuneCode
             if (applyStatus) ApplyStatus(enemy, element, form, noise, damage, sourceAction);
             if (actual > 0)
             {
-                if (sourceAction != null) GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
-                _enemyDamageEventCount++;
+                if (sourceAction != null) _stats.GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
+                _stats.EnemyDamageEventCount++;
                 enemy.SetDamageTags(element, form);
-                _totalDamage += actual; _rollingDamage += actual; _damageWindow.Enqueue(new DamageSample(_world.Tick, actual));
-                _damageNumbers.Add(new DamageNumber(enemy.Position, actual, element, _world.Tick));
+                _stats.RecordEnemyDamage(actual, _world.Tick);
+                _feedback.AddDamageNumber(enemy.Position, actual, element);
                 Adaptation.Learn(element, form, Time, actual, isDot, noise, relayAlive);
             }
             if (enemy.Boss != null && enemy.Boss.IsGovernorPattern && enemy.IsAlive) CheckBossPatch(enemy, enemy.Boss);
@@ -1172,7 +1134,7 @@ namespace RuneCode
                 foreach (SimulationEnemy enemy in _world.Enemies)
                 {
                     if (enemy == relay || !enemy.IsAlive || SimVector.Distance(relay.Position, enemy.Position) > _world.Balance.Combat.RelayRadius) continue;
-                    if (enemy.Heal(_world.Balance.Combat.RelayRegen) > 0) _healPulses.Add(new HealPulse(enemy.Position, _world.Tick));
+                    if (enemy.Heal(_world.Balance.Combat.RelayRegen) > 0) _feedback.AddHealPulse(enemy.Position);
                 }
             }
         }
@@ -1193,8 +1155,8 @@ namespace RuneCode
                 while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && Time + 0.000001 >= burn.NextTickTime)
                 {
                     double actual = ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false, sourceAction: burn.DamageSourceAction, damageStatus: "burn");
-                    _statusDamage += actual;
-                    if (actual > 0) _burnTickDamageEventCount++;
+                    _stats.StatusDamage += actual;
+                    if (actual > 0) _stats.BurnTickDamageEventCount++;
                     burn.NextTickTime += _world.Balance.Combat.BurnInterval;
                 }
             }
@@ -1260,7 +1222,7 @@ namespace RuneCode
             if (isImmune || chill.Stacks < combat.ChillMaxStacks) return;
             freeze ??= AddStatus(enemy.Id, EnemyStatusType.Freeze);
             freeze.Until = Time + combat.FreezeSeconds; freeze.ImmuneUntil = freeze.Until + combat.FreezeImmunity;
-            _freezeStartEventCount++;
+            _stats.FreezeStartEventCount++;
             RemoveStatusIndex(chill); _enemyStatuses.Remove(chill);
         }
 
@@ -1461,7 +1423,7 @@ namespace RuneCode
             if (_world.DebugInvulnerable || !_world.IsMission) return;
             double shieldBefore = _world.Player.Shield;
             double actual = _world.Player.Hurt(damage, Time, _world.Balance.Player.HurtInvulnerability);
-            if (actual > 0) _damageNumbers.Add(new DamageNumber(_world.Player.Position, actual, "player", _world.Tick));
+            if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
             if (actual > 0 || _world.Player.Shield < shieldBefore) TryCastTrigger(SpellGrammar.TRIGGER_ON_HIT_TAKEN);
         }
 
@@ -1473,7 +1435,7 @@ namespace RuneCode
         {
             if (_world.DebugInvulnerable || !_world.IsMission) return;
             double actual = _world.Player.HurtByStatus(damage);
-            if (actual > 0) _damageNumbers.Add(new DamageNumber(_world.Player.Position, actual, "player", _world.Tick));
+            if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
         }
 
         /// <summary>적 공격 설정의 탄환을 부채꼴로 발사한다.</summary>
@@ -1612,7 +1574,7 @@ namespace RuneCode
                     }
                     string dropTableId = enemy.CarrierOwnerId == 0 ? GetDropTableId(enemy) : null;
                     if (dropTableId != null) RollDropTable(_world.Drops.Get(dropTableId), enemy.Position);
-                    _killCounts.TryGetValue(enemy.Kind, out int count); _killCounts[enemy.Kind] = count + 1; _killCount++;
+                    _stats.KillCounts.TryGetValue(enemy.Kind, out int count); _stats.KillCounts[enemy.Kind] = count + 1; _killCount++;
                 }
                 GrantKillEnergy(droppedCredits);
                 RemoveEnemyStatuses(enemy.Id);
@@ -1644,8 +1606,8 @@ namespace RuneCode
                 double actual = target.Hurt(damage, Time);
                 if (actual > 0)
                 {
-                    _enemyDamageEventCount++;
-                    _damageNumbers.Add(new DamageNumber(target.Position, actual, "raw", _world.Tick));
+                    _stats.EnemyDamageEventCount++;
+                    _feedback.AddDamageNumber(target.Position, actual, "raw");
                 }
                 if (target.IsAlive && target.Boss != null && target.Boss.IsGovernorPattern) CheckBossPatch(target, target.Boss);
             }
@@ -1942,17 +1904,17 @@ namespace RuneCode
         /// </summary>
         private void RefreshSpawnWarnings()
         {
-            _spawnWarnings.Clear();
+            _feedback.SpawnWarnings.Clear();
             int warningTicks = (int)Math.Round(_world.Stages.Spawn.WarningSeconds * TICK_RATE);
             foreach (PendingSpawn spawn in _pendingSpawns)
             {
                 double progress = warningTicks <= 0 ? 1 : Math.Max(0, Math.Min(1, 1 - (spawn.Tick - _world.Tick) / (double)warningTicks));
                 int merged = -1;
-                for (int i = 0; i < _spawnWarnings.Count; i++)
-                    if (_spawnWarnings[i].Position.X == spawn.WarningCenter.X && _spawnWarnings[i].Position.Y == spawn.WarningCenter.Y) { merged = i; break; }
-                if (merged < 0) { _spawnWarnings.Add(new SpawnWarning(spawn.WarningCenter, spawn.WarningRadius, progress, spawn.Elite != null)); continue; }
-                SpawnWarning current = _spawnWarnings[merged];
-                _spawnWarnings[merged] = new SpawnWarning(current.Position, Math.Max(current.Radius, spawn.WarningRadius),
+                for (int i = 0; i < _feedback.SpawnWarnings.Count; i++)
+                    if (_feedback.SpawnWarnings[i].Position.X == spawn.WarningCenter.X && _feedback.SpawnWarnings[i].Position.Y == spawn.WarningCenter.Y) { merged = i; break; }
+                if (merged < 0) { _feedback.SpawnWarnings.Add(new SpawnWarning(spawn.WarningCenter, spawn.WarningRadius, progress, spawn.Elite != null)); continue; }
+                SpawnWarning current = _feedback.SpawnWarnings[merged];
+                _feedback.SpawnWarnings[merged] = new SpawnWarning(current.Position, Math.Max(current.Radius, spawn.WarningRadius),
                     Math.Max(current.Progress, progress), current.IsElite || spawn.Elite != null);
             }
         }
@@ -2070,12 +2032,11 @@ namespace RuneCode
         /// <summary>사망, 클리어 및 시간 초과 시 지속 개체, 예약 실행과 분열 대기를 취소한다.</summary>
         private void CancelCombat()
         {
-            _beamFlashGeneration++;
-            _beamFlashes.Clear();
+            _feedback.CancelBeamFlashes();
             CancelBeamChannels();
             foreach (SimulationEnemy enemy in _world.Enemies) enemy.CancelDisplacement();
             _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _scheduled.Clear(); _pendingEnemyShots.Clear(); _pendingSplits.Clear(); _deadEnemies.Clear();
-            _pendingSpawns.Clear(); _spawnWarnings.Clear();
+            _pendingSpawns.Clear(); _feedback.ClearSpawnWarnings();
             if (_world.Player != null) _world.Player.CancelSpellExecutions();
         }
 
@@ -2097,16 +2058,13 @@ namespace RuneCode
         }
 
         /// <summary>노드 실행 틱을 기록하고 누적 실행 수를 증가시킨다.</summary>
-        private void RecordNode(string nodeId) { _nodeEvents.Add(new NodeExecutionEvent(nodeId, _world.Tick)); _nodeExecutionCount++; }
+        private void RecordNode(string nodeId) { _feedback.AddNodeEvent(nodeId); _stats.NodeExecutionCount++; }
 
         /// <summary>표시 수명이 지난 피해 숫자, 체력 회복 표시, 전격 연쇄 구간, 노드 이벤트 및 5초 DPS 샘플을 제거한다.</summary>
         private void TrimFeedback()
         {
-            for (int i = _damageNumbers.Count - 1; i >= 0; i--) if (_world.Tick - _damageNumbers[i].Tick > _world.Balance.Sim.DamageNumberSeconds * TICK_RATE) _damageNumbers.RemoveAt(i);
-            for (int i = _healPulses.Count - 1; i >= 0; i--) if (_world.Tick - _healPulses[i].Tick > _world.Balance.Sim.DamageNumberSeconds * TICK_RATE) _healPulses.RemoveAt(i);
-            for (int i = _arcLinks.Count - 1; i >= 0; i--) if (_world.Tick - _arcLinks[i].Tick > ARC_LINK_TICKS) _arcLinks.RemoveAt(i);
-            for (int i = _nodeEvents.Count - 1; i >= 0; i--) if (_world.Tick - _nodeEvents[i].Tick > TICK_RATE) _nodeEvents.RemoveAt(i);
-            while (_damageWindow.Count > 0 && _world.Tick - _damageWindow.Peek().Tick > 5 * TICK_RATE) _rollingDamage -= _damageWindow.Dequeue().Amount;
+            _feedback.Trim();
+            _stats.TrimRollingDamage(_world.Tick);
         }
 
         /// <summary>이미 적중한 적을 제외하고 탐지 반경 내 가장 가까운 생존 적을 반환한다.</summary>
@@ -2115,79 +2073,7 @@ namespace RuneCode
 
         /// <summary>장착된 행동을 순회하고 노드별 실제 피해와 OnHit 후속 생성 누계를 로그용 복사본으로 반환한다.</summary>
         public IReadOnlyList<Dictionary<string, object>> GetActionCombatLogSnapshot()
-        {
-            var visited = new HashSet<SpellAction>();
-            for (int slot = 0; slot < _loadout.Length; slot++)
-                if (_loadout[slot] != null) RegisterActionLogNodes(_loadout[slot].Root, slot, visited);
-            var result = new List<Dictionary<string, object>>();
-            foreach (KeyValuePair<SpellAction, ActionCombatStats> entry in _actionCombatStats)
-            {
-                SpellAction action = entry.Key;
-                ActionCombatStats stats = entry.Value;
-                var targets = new List<Dictionary<string, object>>();
-                foreach (KeyValuePair<SpellAction, long> target in stats.OnHitTargets)
-                    targets.Add(new Dictionary<string, object>
-                    {
-                        ["action_key"] = GetActionCombatStats(target.Key).Key,
-                        ["node_id"] = target.Key.NodeId,
-                        ["spawn_count"] = target.Value,
-                    });
-                result.Add(new Dictionary<string, object>
-                {
-                    ["action_key"] = stats.Key,
-                    ["node_id"] = action.NodeId,
-                    ["loadout_slot"] = _actionLogSlots.TryGetValue(action, out int slot) ? slot : -1,
-                    ["action_type"] = action.Form ?? action.Kind,
-                    ["element"] = action.Element,
-                    ["mods"] = action.Mods,
-                    ["attached_node_ids"] = action.AttachedNodeIds,
-                    ["spawn_count"] = stats.SpawnCount,
-                    ["damage_dealt"] = stats.Damage,
-                    ["status_damage"] = stats.StatusDamage,
-                    ["direct_damage_by_element"] = new Dictionary<string, double>(stats.DirectDamageByElement),
-                    ["status_damage_by_type"] = new Dictionary<string, double>(stats.StatusDamageByType),
-                    ["damage_count"] = stats.DamageCount,
-                    ["hit_count"] = stats.HitCount,
-                    ["on_hit_events"] = stats.OnHitEvents,
-                    ["on_hit_spawn_count"] = stats.OnHitSpawnCount,
-                    ["triggered_by_on_hit_count"] = stats.TriggeredByOnHitCount,
-                    ["on_hit_targets"] = targets,
-                });
-            }
-            return result;
-        }
-
-        /// <summary>장착 슬롯의 연결 분기를 순회해 미발동 생성 행동도 0으로 등록하고 노드의 슬롯을 연결한다.</summary>
-        private void RegisterActionLogNodes(IReadOnlyList<SpellAction> actions, int slot, HashSet<SpellAction> visited)
-        {
-            foreach (SpellAction action in actions)
-            {
-                if (!visited.Add(action)) continue;
-                _actionLogSlots[action] = slot;
-                if (action.Kind == "spawn") GetActionCombatStats(action);
-                foreach (IReadOnlyList<SpellAction> branch in action.Branches) RegisterActionLogNodes(branch, slot, visited);
-                if (action.CalledSpell != null) RegisterActionLogNodes(action.CalledSpell.Root, slot, visited);
-            }
-        }
-
-        /// <summary>컴파일 행동 인스턴스의 전투 누계를 반환하고 처음 관측하면 로그 내 고유 키로 생성한다.</summary>
-        private ActionCombatStats GetActionCombatStats(SpellAction action)
-        {
-            if (!_actionCombatStats.TryGetValue(action, out ActionCombatStats stats))
-            {
-                stats = new ActionCombatStats("action-" + (_actionCombatStats.Count + 1).ToString(CultureInfo.InvariantCulture));
-                _actionCombatStats.Add(action, stats);
-            }
-            return stats;
-        }
-
-        /// <summary>실제로 생성된 개체만 세고 OnHit 문맥이면 원본 행동과 후속 행동의 연결 누계를 함께 갱신한다.</summary>
-        private void RecordActionSpawn(SpellAction action, SpellContext context)
-        {
-            ActionCombatStats stats = GetActionCombatStats(action);
-            stats.RecordSpawn(context.OnHitSource != null);
-            if (context.OnHitSource != null) GetActionCombatStats(context.OnHitSource).RecordOnHitTarget(action);
-        }
+            => _stats.GetActionCombatLogSnapshot(_loadout);
 
     }
 }
