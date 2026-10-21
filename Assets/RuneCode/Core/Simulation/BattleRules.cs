@@ -30,6 +30,9 @@ namespace RuneCode
             _targetKills = 0; _isBossDefeated = false;
         }
 
+        /// <summary>새 웨이브의 보스 처치 판정만 초기화하고 미션 전체 처치 수는 유지한다.</summary>
+        internal void ResetForWave() => _isBossDefeated = false;
+
         /// <summary>목표 처치 대상 집계와 보스 처치 판정을 기록한다.</summary>
         internal void RecordKillProgress(SimulationEnemy enemy)
         {
@@ -49,6 +52,10 @@ namespace RuneCode
             else return false;
             return true;
         }
+
+        /// <summary>보스 웨이브는 보스 처치로, 일반 웨이브는 모든 배출·예약·적 소멸로 종료 가능한지 반환한다.</summary>
+        internal bool IsProgressionWaveFinished(bool hasFinishedSpawning)
+            => _world.IsBossStage ? _isBossDefeated : hasFinishedSpawning && _world.Enemies.Count == 0;
 
         /// <summary>회수한 스크랩 collectedFragments로 정산 스크랩을 반환한다. 실패는 보존 비율로 반올림하고, 그 외에는 클리어 보상을 더한다.</summary>
         internal int GetSettlementFragments(int collectedFragments)

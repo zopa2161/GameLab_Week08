@@ -99,8 +99,12 @@ namespace RuneCode
         public bool IsDead => _world.Stage == MissionStage.Dead;
         public bool IsTimedOut => _world.Stage == MissionStage.TimedOut;
         public bool IsFailed => _world.IsFailed;
-        public bool IsTimedBattle => _world.IsMission;
+        public bool IsTimedBattle => _world.IsMission && !_world.IsProgressionMission;
+        public bool IsProgressionMission => _world.IsProgressionMission;
         public int StageNumber => _world.StageNumber;
+        public int RoundNumber => _world.RoundNumber;
+        public int WaveNumber => _world.WaveNumber;
+        public bool IsWaitingForNextRound => _world.Stage == MissionStage.RoundBreak;
         public bool IsBossStage => _world.IsBossStage;
         public double TimeLimit => _world.TimeLimit;
         public double RemainingTime => Math.Max(0, TimeLimit - Time);
@@ -144,7 +148,7 @@ namespace RuneCode
         {
             _world = new SimulationWorld(setup.Balance, setup.Enemies, setup.Sector, setup.Bosses, setup.Formations, setup.Drops,
                 new ModifierGradeDropSource(setup.ModifierGrades), setup.Stages, setup.Carrier, setup.IsMission, setup.MaxHp, setup.MaxEnergy, setup.StageNumber, setup.EnergyRegen,
-                setup.DamageMultiplier, setup.MoveSpeedMultiplier, new SimRandom(setup.Seed), new AdaptationNet(setup.Balance));
+                setup.DamageMultiplier, setup.MoveSpeedMultiplier, new SimRandom(setup.Seed), new AdaptationNet(setup.Balance), setup.IsProgressionMission);
             _feedback = new SimulationFeedback(_world);
             _runtime = new SpellRuntimeContext(_world, _feedback);
             _stats = new SimulationStats();
@@ -196,13 +200,30 @@ namespace RuneCode
         /// <summary>입력 중단 시 기존 빔 홀드와 예약 클릭을 취소하며 다른 행동의 입력 규칙은 유지한다.</summary>
         public void CancelBeamInput() => _beam.CancelBeamInput();
 
+        /// <summary>라운드 소강상태에서 한 번만 다음 라운드 또는 스테이지로 전환하고 그 첫 웨이브를 시작한다.</summary>
+        public bool TryStartNextRound()
+        {
+            if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak) return false;
+            if (_world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT)
+            {
+                _world.StageNumber++;
+                _world.RoundNumber = 1;
+                _world.StageDefinition = _world.Stages.Get(_world.StageNumber);
+            }
+            else _world.RoundNumber++;
+            _world.WaveNumber = 1;
+            _world.Stage = MissionStage.Combat;
+            StartProgressionWave();
+            return true;
+        }
+
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         public bool TryCast(CompiledSpell spell, SimVector aimDirection, int slot = 0) { _world.Player.Aim(aimDirection); return TryCast(spell, slot); }
 
         /// <summary>입력, 예약된 적 스폰, 전투, 적응 및 전투 종료(전부 처치·사망·보스 제한시간)를 정확히 한 60Hz 틱만큼 갱신한다.</summary>
         public void Step(SimulationInput input)
         {
-            if (Completed || IsFailed) return;
+            if (Completed || IsFailed || IsWaitingForNextRound) return;
             _executor.AimPoint = input.AimPoint;
             _beam.ReadBeamInput(input, _executor.Loadout);
             bool wasDashing = _world.Player.DashRemaining > 0.000001;
@@ -231,7 +252,11 @@ namespace RuneCode
             Adaptation.Advance(Time, Time + STEP_SECONDS);
             _world.Tick++;
             _executor.RunScheduled();
-            if (_world.IsMission && _world.Stage == MissionStage.Combat) CheckBattleEnd();
+            if (_world.IsMission && _world.Stage == MissionStage.Combat)
+            {
+                if (_world.IsProgressionMission) CheckProgressionWaveEnd();
+                else CheckBattleEnd();
+            }
             TrimFeedback();
         }
 
@@ -287,6 +312,7 @@ namespace RuneCode
             var state = new StringBuilder();
             _beam.WriteInputState(state);
             state.Append(_world.Tick).Append('|').Append(_world.Random.State).Append('|').Append(_world.NextEntityId).Append('|').Append(_world.Stage).Append('|').Append(_world.StageNumber).Append('|').Append(_rules.TargetKills).Append('|').Append(_rules.IsBossDefeated).Append('|').Append(_spawn.SpawnedEnemies).Append('|').Append(_loot.KillCount).Append('|').Append(_bench.Scenario).Append('|').Append(_world.DebugInvulnerable);
+            if (_world.IsProgressionMission) state.Append("|progression:").Append(_world.RoundNumber).Append(':').Append(_world.WaveNumber);
             state.Append('|').Append(_executor.ActionBudgetTick).Append('|').Append(_executor.ActionsThisTick).Append('|').Append(_executor.DroppedExecutions);
             SimHash.AppendNumber(state, TimeLimit); SimHash.AppendNumber(state, _world.EnergyRegen);
             state.Append('|').Append(_executor.AimPoint.HasValue);
@@ -376,6 +402,37 @@ namespace RuneCode
             _statuses.ClearOnClear();
         }
 
+        /// <summary>현재 웨이브가 배출·처치 완료되면 다음 웨이브를 시작하거나 라운드 대기·최종 클리어 상태로 전환한다.</summary>
+        private void CheckProgressionWaveEnd()
+        {
+            if (!_rules.IsProgressionWaveFinished(_spawn.IsWaveSpawnFinished)) return;
+            if (_world.WaveNumber < StageCatalog.PROGRESSION_WAVE_COUNT)
+            {
+                _world.WaveNumber++;
+                StartProgressionWave();
+                return;
+            }
+            if (_world.IsBossStage) _world.Enemies.Clear();
+            _statuses.ClearAll();
+            _world.Player.CancelDash(Time);
+            if (_world.StageNumber == StageCatalog.PROGRESSION_STAGE_COUNT && _world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT)
+            {
+                _world.Stage = MissionStage.Cleared;
+                _loot.CollectRemainingDrops();
+            }
+            else _world.Stage = MissionStage.RoundBreak;
+            CancelCombat();
+            _spawn.Director = null;
+        }
+
+        /// <summary>현재 스테이지·라운드·웨이브의 유한 편성을 스폰 진행기에 설치하고 보스 판정을 초기화한다.</summary>
+        private void StartProgressionWave()
+        {
+            _rules.ResetForWave();
+            WaveDefinition wave = _world.Stages.GetProgressionStage(_world.StageNumber).Rounds[_world.RoundNumber - 1].Waves[_world.WaveNumber - 1];
+            _spawn.StartWave(wave);
+        }
+
         /// <summary>
         /// 스테이지 편성으로 외곽 벽만 있는 맵, 맵 중앙의 플레이어, 스폰 반경, 처치 집계와 스폰 진행을 준비하고 0틱 예약을 바로 스폰한다.
         /// 스폰 반경 = 기본 발사 사거리 + 가장 큰 적 반경 + 여유이며 막 스폰된 적에게 기본 발사체가 닿지 않게 한다.
@@ -385,6 +442,12 @@ namespace RuneCode
         private void BeginTimedBattle(RuneCatalog runes)
         {
             _world.Stage = MissionStage.Combat;
+            if (_world.IsProgressionMission)
+            {
+                _world.StageNumber = 1;
+                _world.RoundNumber = 1;
+                _world.WaveNumber = 1;
+            }
             _world.StageDefinition = _world.Stages.Get(_world.StageNumber);
             _world.Map = MissionMap.CreateOpen(_world.Stages.Map.Columns, _world.Stages.Map.Rows, _world.Sector.TileSize);
             _world.Player = new SimulationPlayer(_world.MaxHp, _world.MaxEnergy, MapCenter);
@@ -396,9 +459,13 @@ namespace RuneCode
             _enemy.ResizeSeparation(_world.Map.Width, _world.Map.Height, EnemyLimit, largestRadius * 2);
             _spawn.SpawnRadius = (double)bolt.Speed * bolt.Lifetime + largestRadius + _world.Stages.Spawn.RingMargin;
             _rules.ResetForBattle();
-            _spawn.Director = new SpawnDirector(_world.StageDefinition, _world.StageNumber, _world.Formations, TICK_RATE);
-            _spawn.AdvanceSpawns();
-            _spawn.RefreshSpawnWarnings();
+            if (_world.IsProgressionMission) StartProgressionWave();
+            else
+            {
+                _spawn.Director = new SpawnDirector(_world.StageDefinition, _world.StageNumber, _world.Formations, TICK_RATE);
+                _spawn.AdvanceSpawns();
+                _spawn.RefreshSpawnWarnings();
+            }
         }
 
 

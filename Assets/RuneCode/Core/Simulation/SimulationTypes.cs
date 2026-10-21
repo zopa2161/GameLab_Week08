@@ -77,7 +77,7 @@ namespace RuneCode
         }
     }
 
-    public enum MissionStage { Bench, Combat, Cleared, Dead, TimedOut }
+    public enum MissionStage { Bench, Combat, Cleared, Dead, TimedOut, RoundBreak }
 
     public sealed class SimulationPlayer
     {
@@ -219,6 +219,14 @@ namespace RuneCode
 
         /// <summary>진행 중인 대시의 이동 방향을 반환한다.</summary>
         internal SimVector GetDashDirection() => _dashDirection;
+
+        /// <summary>라운드 종료 시 진행 중인 대시와 대시 무적만 취소하고 위치·자원·쿨다운을 유지한다.</summary>
+        internal void CancelDash(double time)
+        {
+            if (_dashRemaining <= 0) return;
+            _dashRemaining = 0;
+            _invulnerableUntil = Math.Min(_invulnerableUntil, time);
+        }
 
         /// <summary>무적을 확인하고 보호막과 체력에 피해를 적용하여 실제 체력 피해를 반환한다.</summary>
         internal double Hurt(double damage, double time, double invulnerability)
