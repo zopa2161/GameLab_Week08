@@ -7,8 +7,9 @@ namespace RuneCode
     internal sealed class LootSystem
     {
         private const double MIN_KILL_ENERGY = 1;
-        private const int PROGRESSION_CLEAR_CHOICE_STAGE = 5;
         private readonly SimulationWorld _world;
+        private readonly RuneCatalog _runes;
+        private readonly ModifierGradeTable _modifierGrades;
         private readonly SimulationStats _stats;
         private readonly EnemyStatusSystem _statuses;
         private readonly BattleRules _rules;
@@ -60,13 +61,15 @@ namespace RuneCode
         internal double KillEnergyBonus { get; private set; }
 
         /// <summary>
-        /// 공유 월드·통계·상태이상 시스템, 처치 집계를 기록할 전투 규칙, 분열 대기를 넣을 스폰 시스템과 자폭을 처리할 적 시스템, 스크랩 배율·보너스 값을 받아 전리품 시스템을 만든다.
+        /// 공유 월드·통계·상태이상·전투·스폰·적 시스템, 룬·등급 카탈로그와 스크랩 배율·보너스로 전리품 시스템을 만든다.
         /// 회복 비율은 0~1로, 처치 전력 보너스는 0 이상으로 제한한다.
         /// </summary>
         internal LootSystem(SimulationWorld world, SimulationStats stats, EnemyStatusSystem statuses, BattleRules rules, SpawnSystem spawn, EnemySystem enemy,
-            double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
+            RuneCatalog runes, ModifierGradeTable modifierGrades, double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
         {
             _world = world;
+            _runes = runes;
+            _modifierGrades = modifierGrades;
             _stats = stats;
             _statuses = statuses;
             _rules = rules;
@@ -85,12 +88,14 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 보스 스테이지 클리어 Modifier 선택 정보와 결정적 난수로 후보와 후보별 등급을 뽑아 반환한다. 선택 보상이 없으면 false를 반환한다.
-        /// 슬롯별 등급 확률이 있으면 슬롯마다 등급을 따로 굴리고, 없으면 모든 슬롯이 설정 등급을 쓴다. 같은 Modifier는 다시 뽑지 않는다.
+        /// 연속 미션은 현재 라운드의 후보·등급 확률을, 일반 미션은 기존 클리어 설정을 사용해 후보와 등급을 추첨한다. 선택 보상이 없으면 false를 반환한다.
+        /// 슬롯별 등급 확률이 있으면 따로 굴리고, 없으면 설정 등급을 쓴다. 연속 미션은 행동·Modifier를 지원하며 같은 룬은 다시 뽑지 않는다.
         /// </summary>
         internal bool TryDrawClearModifierChoices(out EliteModifierClearChoice choice, out List<string> candidates, out List<string> grades)
         {
-            choice = _world.EliteDrops.GetClearChoice(_world.IsProgressionMission ? PROGRESSION_CLEAR_CHOICE_STAGE : _world.StageNumber);
+            RoundRewardDefinition roundReward = _world.IsProgressionMission
+                ? _world.Stages.GetProgressionStage(_world.StageNumber).Rounds[_world.RoundNumber - 1].Reward : null;
+            choice = _world.IsProgressionMission ? roundReward.ToChoice() : _world.EliteDrops.GetClearChoice(_world.StageNumber);
             candidates = new List<string>();
             grades = new List<string>();
             if (choice == null || choice.ChoiceCount <= 0) return false;
@@ -98,8 +103,10 @@ namespace RuneCode
             {
                 string grade = choice.SlotGradeChances != null ? RollSlotGrade(choice.SlotGradeChances) : choice.Grade;
                 var pool = new List<string>();
-                foreach (string runeId in _world.EliteDrops.GetModifiersWithGrade(grade))
-                    if (!candidates.Contains(runeId)) pool.Add(runeId);
+                IReadOnlyList<string> source = roundReward != null ? roundReward.Candidates : _world.EliteDrops.GetModifiersWithGrade(grade);
+                foreach (string runeId in source)
+                    if (!candidates.Contains(runeId)
+                        && (roundReward == null || RoundRewardDefinition.IsCandidateGradeAvailable(_runes, _modifierGrades, runeId, grade))) pool.Add(runeId);
                 // 이 등급에 남은 후보가 없으면 슬롯을 비운다.
                 if (pool.Count == 0) continue;
                 candidates.Add(pool[Math.Min(pool.Count - 1, (int)(_world.Random.Next() * pool.Count))]);

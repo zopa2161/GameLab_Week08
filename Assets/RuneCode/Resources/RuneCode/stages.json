@@ -69,96 +69,150 @@
     ],
     "_progressionStages": [
         { "_stage": 1, "_rounds": [
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 4 }] },
                 { "_formation": { "_id": "line", "_angle": "ahead", "_spacing": 40 }, "_units": [{ "_enemyId": "enemy.scout", "_count": 5 }] },
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 6 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 6 }] },
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 8 }] },
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 8 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "scatter" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 7 }, { "_enemyId": "enemy.hunter", "_count": 1 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 8 }] },
                 { "_formation": { "_id": "ambush" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 8 }, { "_enemyId": "enemy.hunter", "_count": 1 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 9 }, { "_enemyId": "enemy.hunter", "_count": 1 }] },
                 { "_formation": { "_id": "line", "_angle": "ahead", "_spacing": 40 }, "_units": [{ "_enemyId": "enemy.scout", "_count": 8 }, { "_enemyId": "enemy.hunter", "_count": 2 }] },
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.hunter", "_count": 1 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.aegis", "_count": 1 }] },
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.hunter", "_count": 2 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["behavior.launch", "behavior.burst", "behavior.beam", "behavior.slash", "behavior.persist"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 30 }, { "_grade": "B", "_percent": 40 }, {"_grade": "A", "_percent": 20 }, {"_grade": "S", "_percent": 10 }]
+            }, "_waves": [
                 { "_formation": { "_id": "scatter" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.hunter", "_count": 2 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.aegis", "_count": 2 }] },
                 { "_formation": { "_id": "halfSurround" }, "_units": [{ "_enemyId": "boss.hydra", "_count": 1 }] }
             ] }
         ] },
         { "_stage": 2, "_rounds": [
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 8 }, { "_enemyId": "enemy.hunter", "_count": 2 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 9 }, { "_enemyId": "enemy.aegis", "_count": 1 }] },
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.hunter", "_count": 1 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "ambush" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.splitter", "_count": 1 }] },
                 { "_formation": { "_id": "line", "_angle": "ahead", "_spacing": 40 }, "_units": [{ "_enemyId": "enemy.scout", "_count": 9 }, { "_enemyId": "enemy.hunter", "_count": 2 }] },
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.aegis", "_count": 2 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.sentry", "_count": 1 }] },
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.hunter", "_count": 1 }] },
                 { "_formation": { "_id": "ambush" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.splitter", "_count": 2 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.hunter", "_count": 2 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.sentry", "_count": 1 }] },
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.splitter", "_count": 2 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "ambush" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.splitter", "_count": 2 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.sentry", "_count": 2 }] },
                 { "_formation": { "_id": "halfSurround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 14 }, { "_enemyId": "enemy.hunter", "_count": 2 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["behavior.launch", "behavior.burst", "behavior.beam", "behavior.slash", "behavior.persist"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 30 }, { "_grade": "B", "_percent": 40 }, {"_grade": "A", "_percent": 20 }, {"_grade": "S", "_percent": 10 }]
+            }, "_waves": [
                 { "_formation": { "_id": "scatter" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 14 }, { "_enemyId": "enemy.hunter", "_count": 2 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 14 }, { "_enemyId": "enemy.sentry", "_count": 2 }] },
                 { "_formation": { "_id": "halfSurround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 14 }, { "_enemyId": "enemy.splitter", "_count": 2 }, { "_enemyId": "boss.governor", "_count": 1 }] }
             ] }
         ] },
         { "_stage": 3, "_rounds": [
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.hunter", "_count": 2 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.sentry", "_count": 1 }] },
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.splitter", "_count": 2 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "ambush" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.splitter", "_count": 2 }] },
                 { "_formation": { "_id": "line", "_angle": "ahead", "_spacing": 40 }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.sentry", "_count": 2 }] },
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 14 }, { "_enemyId": "enemy.hunter", "_count": 2 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "halfSurround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 14 }, { "_enemyId": "enemy.shield_ranged", "_count": 1 }] },
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 16 }, { "_enemyId": "enemy.aegis", "_count": 2 }] },
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 18 }, { "_enemyId": "enemy.sentry", "_count": 1 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "halfSurround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 16 }, { "_enemyId": "enemy.shield_melee", "_count": 2 }] },
                 { "_formation": { "_id": "scatter" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 16 }, { "_enemyId": "enemy.clock_sniper", "_count": 1 }] },
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 20 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["mod.saving", "mod.beamEmpower", "mod.knockback", "mod.amplify", "mod.multi", "mod.pierce", "mod.expand", "mod.duration", "mod.speed", "mod.homing", "mod.orbit", "mod.sequence"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 50 }, { "_grade": "B", "_percent": 30 }, {"_grade": "A", "_percent": 15 }, {"_grade": "S", "_percent": 5 }]
+            }, "_waves": [
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 16 }, { "_enemyId": "enemy.carrier", "_count": 1 }] },
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 18 }, { "_enemyId": "enemy.shield_ranged", "_count": 2 }] },
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 18 }, { "_enemyId": "enemy.relay", "_count": 1 }] }
             ] },
-            { "_waves": [
+            { "_reward": {
+                "_candidates": ["behavior.launch", "behavior.burst", "behavior.beam", "behavior.slash", "behavior.persist"],
+                "_gradeChances": [{ "_grade": "C", "_percent": 30 }, { "_grade": "B", "_percent": 40 }, {"_grade": "A", "_percent": 20 }, {"_grade": "S", "_percent": 10 }]
+            }, "_waves": [
                 { "_formation": { "_id": "herd" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 18 }, { "_enemyId": "enemy.carrier", "_count": 1 }] },
                 { "_formation": { "_id": "surround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 18 }, { "_enemyId": "enemy.shield_melee", "_count": 2 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "boss.governor", "_count": 1 }] }

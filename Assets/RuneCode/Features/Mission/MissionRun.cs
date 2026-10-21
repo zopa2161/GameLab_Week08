@@ -325,7 +325,7 @@ namespace RuneCode
             if (_simulation.Completed || _simulation.IsFailed) FinishMission();
         }
 
-        /// <summary>라운드 종료 시 기존 클리어 보상 설정과 시뮬레이션 난수로 후보와 등급을 한 번 추첨한다.</summary>
+        /// <summary>라운드 종료 시 해당 라운드의 보상 설정과 시뮬레이션 난수로 후보와 등급을 한 번 추첨한다.</summary>
         private void SetRoundModifierChoices()
         {
             if (!_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
@@ -492,7 +492,7 @@ namespace RuneCode
             });
         }
 
-        /// <summary>라운드 또는 최종 클리어 후보 순번에 해당하는 Modifier를 한 번 지급한다. 선택 가능 상태가 아니거나 이미 선택했으면 false를 반환한다.</summary>
+        /// <summary>라운드 또는 최종 클리어 후보 순번의 행동·Modifier 룬을 해당 등급으로 한 번 지급한다. 선택 불가 상태나 중복 선택이면 false를 반환한다.</summary>
         public bool ChooseClearModifier(int index)
         {
             if ((!_settled && !_simulation.IsWaitingForNextRound) || _clearModifierChoices == null
@@ -502,7 +502,7 @@ namespace RuneCode
             {
                 if (!_session.ClaimProgressionChoice(index)) return false;
             }
-            else if (!_session.IsTestMode) _session.GrantModifier(_clearModifierChoices[index], grade, 1,
+            else if (!_session.IsTestMode) _session.GrantRune(_clearModifierChoices[index], grade, 1,
                 _settled ? "clear_choice" : "round_clear_choice");
             AddModifierReward(_clearModifierChoices[index], grade, 1);
             _isClearModifierChosen = true;
