@@ -49,7 +49,7 @@ namespace RuneCode
             _ui.OpenPopup<SettingsPopup>().Configure(_session, _ui, isTitle: true);
         }
 
-        /// <summary>새 메모리 디버그 진행을 열고 작업실로 전환한다.</summary>
+        /// <summary>새 메모리 디버그 진행을 열고 전투로 바로 전환한다.</summary>
         private void StartDebug()
         {
             _session.StartGame(true);

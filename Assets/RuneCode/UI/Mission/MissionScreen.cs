@@ -6,7 +6,7 @@ namespace RuneCode
 {
     /// <summary>
     /// 미션 화면 View다. 미션 월드(카메라·월드 표시)·HUD·결과 View를 묶고 진행은 MissionPresenter에 맡긴다.
-    /// 표시할 때마다 새 미션을 시작하며, Esc는 UIManager가 열린 팝업이 없을 때 전달한다.
+    /// 표시할 때마다 새 미션을 시작하거나 작업실에서 보관한 런을 이어 가며, Esc는 UIManager가 열린 팝업이 없을 때 전달한다.
     /// 월드는 UI 캔버스 배율을 받지 않도록 씬 루트에 따로 만들고 화면 표시 여부에 맞춰 켜고 끈다.
     /// </summary>
     public sealed class MissionScreen : UiView
@@ -62,14 +62,14 @@ namespace RuneCode
         /// <summary>Esc 입력을 Presenter에 전달해 일시정지를 연다.</summary>
         public override bool HandleEscape() => _presenter != null && _presenter.HandleEscape();
 
-        /// <summary>미션 화면에 들어올 때마다 월드를 켜고 새 미션을 시작한다.</summary>
+        /// <summary>미션 화면에 들어올 때마다 월드를 켜고 새 미션을 시작하거나 보관한 런을 이어 간다.</summary>
         protected override void OnShown()
         {
             _worldView.gameObject.SetActive(true);
             _presenter.Begin();
         }
 
-        /// <summary>미션 화면을 떠날 때 진행 중인 미션을 놓고 월드를 끈다.</summary>
+        /// <summary>미션 화면을 떠날 때 월드를 끈다. 진행 중인 미션은 작업실로 보관한 경우에만 유지한다.</summary>
         protected override void OnHidden()
         {
             _presenter.End();

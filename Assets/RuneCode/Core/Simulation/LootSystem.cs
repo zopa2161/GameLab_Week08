@@ -51,13 +51,13 @@ namespace RuneCode
         /// <summary>대형 스크랩 생성 횟수다.</summary>
         internal int BigScrapSpawnEventCount => _bigScrapSpawnEventCount;
         /// <summary>적 처치 스크랩에 곱하는 획득 배율이다.</summary>
-        internal double ScrapGainMultiplier { get; }
+        internal double ScrapGainMultiplier { get; private set; }
         /// <summary>줍기 반경에 곱하는 배율이다.</summary>
-        internal double ScrapPickupRangeMultiplier { get; }
+        internal double ScrapPickupRangeMultiplier { get; private set; }
         /// <summary>줍은 스크랩량의 최대 체력 비율 회복치다.</summary>
-        internal double ScrapHealRatio { get; }
+        internal double ScrapHealRatio { get; private set; }
         /// <summary>처치 전력 회복에 더하는 고정 보너스다.</summary>
-        internal double KillEnergyBonus { get; }
+        internal double KillEnergyBonus { get; private set; }
 
         /// <summary>
         /// 공유 월드·통계·상태이상 시스템, 처치 집계를 기록할 전투 규칙, 분열 대기를 넣을 스폰 시스템과 자폭을 처리할 적 시스템, 스크랩 배율·보너스 값을 받아 전리품 시스템을 만든다.
@@ -72,6 +72,12 @@ namespace RuneCode
             _rules = rules;
             _spawn = spawn;
             _enemy = enemy;
+            SetUpgradeStats(scrapGainMultiplier, scrapPickupRangeMultiplier, scrapHealRatio, killEnergyBonus);
+        }
+
+        /// <summary>스크랩 획득·줍기 반경 배율과 회복 비율, 처치 전력 보너스를 설정한다. 회복 비율은 0~1로, 보너스는 0 이상으로 제한한다.</summary>
+        internal void SetUpgradeStats(double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
+        {
             ScrapGainMultiplier = scrapGainMultiplier;
             ScrapPickupRangeMultiplier = scrapPickupRangeMultiplier;
             ScrapHealRatio = Math.Max(0, Math.Min(1, scrapHealRatio));

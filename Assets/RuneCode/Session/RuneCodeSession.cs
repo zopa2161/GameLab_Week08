@@ -31,6 +31,7 @@ namespace RuneCode
         private long _statusRevision;
         private bool _isSaveDirty;
         private bool _hasStartedGame;
+        private bool _isRunSuspended;
 
         private string _dockScenario = "dummy_single";
         private int _dockDummyCount = 1;
@@ -53,6 +54,9 @@ namespace RuneCode
         public string StatusMessage => _statusMessage;
         /// <summary>SetStatus 또는 SetStatusText가 호출될 때마다 증가하는 상태 메시지 revision이다.</summary>
         public long StatusRevision => _statusRevision;
+
+        /// <summary>라운드 대기 중 작업실을 열어 진행 중인 런을 보관하고 있는지 반환한다.</summary>
+        public bool IsRunSuspended => _isRunSuspended;
 
         public string DockScenario => _dockScenario;
         public int DockDummyCount => _dockDummyCount;
@@ -110,19 +114,37 @@ namespace RuneCode
         /// <summary>등록된 전환 콜백으로 지정 화면 전환을 요청한다.</summary>
         public void RequestScreen(AppScreen screen) { ScreenRequested?.Invoke(screen); }
 
-        /// <summary>기존 저장 정책으로 편집 내용을 반영하고 로그 회차를 마감한 뒤 타이틀 화면으로 전환한다.</summary>
+        /// <summary>진행 중인 런을 보관 상태로 표시하고 작업실 화면 전환을 요청한다. 미션 화면은 이 표시를 보고 런을 버리지 않는다.</summary>
+        public void SuspendRunForWorkshop()
+        {
+            _isRunSuspended = true;
+            RequestScreen(AppScreen.Workshop);
+        }
+
+        /// <summary>보관 중인 런을 이어 가기 위해 보관 표시를 해제한다.</summary>
+        public void ResumeSuspendedRun()
+        {
+            _isRunSuspended = false;
+        }
+
+        /// <summary>기존 저장 정책으로 편집 내용을 반영하고 로그 회차를 마감한 뒤 보관 중인 런을 버리고 타이틀 화면으로 전환한다.</summary>
         public void ReturnToTitle()
         {
             SaveAll();
             LocalTelemetry.EndUsabilityTest("return_to_title", _spells.Graph);
             _hasStartedGame = false;
+            _isRunSuspended = false;
             RequestScreen(AppScreen.Title);
         }
 
-        /// <summary>일반 저장 또는 메모리 디버그 진행을 열고, 빌드의 일반 시작은 로그 회차도 자동 생성해 작업실로 전환한다.</summary>
+        /// <summary>
+        /// 일반 저장 또는 메모리 디버그 진행을 열고, 빌드의 일반 시작은 로그 회차도 자동 생성한다.
+        /// 출격 요청을 기록한 뒤 전투 화면으로 바로 전환하며, 출격 준비에 실패하면 미션 화면이 작업실로 보낸다.
+        /// </summary>
         public void StartGame(bool isDebug)
         {
             _hasStartedGame = true;
+            _isRunSuspended = false;
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("mode_changed", _spells.Graph);
             bool isFirstGameStart = !isDebug && !SaveStore.HasSlot(SaveStore.ActiveSlot);
             _isDebugEnabled = isDebug;
@@ -138,7 +160,12 @@ namespace RuneCode
             else PersistRestoredRuneUnlocks(restoredRuneUnlocks);
             _spells.Reload();
             if (!isDebug && !Application.isEditor) BeginNormalPlayLog();
-            RequestScreen(AppScreen.Workshop);
+            LocalTelemetry.RecordUsabilityEvent("simulation_request", "title", new Dictionary<string, object>
+            {
+                ["input_method"] = "title_start",
+                ["stage"] = SelectedStage,
+            });
+            RequestScreen(AppScreen.Mission);
         }
 
         /// <summary>기기에 저장한 임의 참가자 ID로 일반 플레이 로그를 시작하고 실패해도 게임 진행은 유지한다.</summary>
@@ -256,6 +283,7 @@ namespace RuneCode
                 return false;
             }
             _hasStartedGame = true;
+            _isRunSuspended = false;
             RequestScreen(AppScreen.Workshop);
             return true;
         }
@@ -270,6 +298,7 @@ namespace RuneCode
             {
                 _save = loaded;
                 _isSaveDirty = false;
+                _isRunSuspended = false;
                 bool restoredRuneUnlocks = RestorePurchasedRuneUnlocks(_save);
                 _spells.Reload();
                 PersistRestoredRuneUnlocks(restoredRuneUnlocks);
@@ -286,6 +315,7 @@ namespace RuneCode
             {
                 _save = created;
                 _isSaveDirty = false;
+                _isRunSuspended = false;
                 _spells.Reload();
             }
             return true;
@@ -302,6 +332,7 @@ namespace RuneCode
                 {
                     _save = _normalSave;
                     _isSaveDirty = false;
+                    _isRunSuspended = false;
                     _spells.Reload();
                 }
             }
@@ -318,13 +349,14 @@ namespace RuneCode
             return WriteCurrentSave(_save);
         }
 
-        /// <summary>현재 슬롯의 저장 데이터를 다시 읽어 미저장 진행과 편집 사본을 교체한다.</summary>
+        /// <summary>현재 슬롯의 저장 데이터를 다시 읽어 미저장 진행과 편집 사본을 교체하고 보관 중인 런을 버린다.</summary>
         public bool LoadActiveSave()
         {
             if (IsMemorySession || !SaveStore.TryLoadSlot(SaveStore.ActiveSlot, out PlayerSave loaded)) return false;
             _save = loaded;
             _normalSave = loaded;
             _isSaveDirty = false;
+            _isRunSuspended = false;
             bool restoredRuneUnlocks = RestorePurchasedRuneUnlocks(_save);
             _spells.Reload();
             PersistRestoredRuneUnlocks(restoredRuneUnlocks);
@@ -572,12 +604,13 @@ namespace RuneCode
             if (!WriteCurrentSave(_save)) SetStatusText(SaveStore.LastWarning);
         }
 
-        /// <summary>현재 모드에 맞는 새 진행으로 바꾸고 편집 세션을 다시 연다. 일반 진행은 _normalSave도 함께 바꾸고 디버그면 룬을 전부 해금한다.</summary>
+        /// <summary>현재 모드에 맞는 새 진행으로 바꾸고 보관 중인 런을 버린 뒤 편집 세션을 다시 연다. 일반 진행은 _normalSave도 함께 바꾸고 디버그면 룬을 전부 해금한다.</summary>
         private void RenewSave()
         {
             _save = _isTestMode ? CreateTestSave() : PlayerSave.CreateNew();
             if (_isDebugEnabled) UnlockDebugRunes();
             else if (!_isTestMode) _normalSave = _save;
+            _isRunSuspended = false;
             _spells.Reload();
         }
 
@@ -656,6 +689,20 @@ namespace RuneCode
             PersistProgress();
             if (modifierRewards.Count > 0) _spells.Recompile();
             return modifierRewards;
+        }
+
+        /// <summary>
+        /// 라운드 동안 모아 둔 조각과 소지 아이템 드롭을 세이브에 한 번에 지급하고, persist이면 저장 정책에 맞춰 한 번 기록한다.
+        /// 아이템이 늘면 소지량 검사를 위해 다시 컴파일한다. 테스트 모드에서는 지급하지 않는다.
+        /// </summary>
+        public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, bool persist = true)
+        {
+            if (_isTestMode) return;
+            _save.Settle(fragments, false);
+            foreach (SimulationItemDrop drop in drops)
+                GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup", persist: false);
+            if (drops.Count > 0) _spells.Recompile();
+            if (persist) PersistProgress();
         }
 
         /// <summary>저장된 연속 미션 보상 후보 index를 하나 지급하고 후보 삭제와 소지량 변경을 한 번에 저장한다.</summary>

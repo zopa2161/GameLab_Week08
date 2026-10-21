@@ -321,6 +321,14 @@
       "_value": "일시정지"
     },
     {
+      "_key": "ui.openWorkshop",
+      "_value": "작업실"
+    },
+    {
+      "_key": "ui.resumeBattle",
+      "_value": "전투 복귀"
+    },
+    {
       "_key": "ui.resume",
       "_value": "계속"
     },

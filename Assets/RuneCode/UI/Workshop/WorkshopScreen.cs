@@ -44,6 +44,8 @@ namespace RuneCode
         private WorkshopPresenter _presenter;
         private readonly Vector3[] _graphCanvasCorners = new Vector3[4];
         private bool _showStageSelectionOnNextEntry;
+        private TextMeshProUGUI _deployLabel;
+        private string _deployDefaultText;
 
         public SpellEditorPanel SpellEditor => _spellEditor;
         public DockPanel Dock => _dockPanel;
@@ -75,6 +77,8 @@ namespace RuneCode
                 _tabButtons[i].onClick.AddListener(() => TabClicked?.Invoke(tab));
             }
             _deployButton.onClick.AddListener(() => DeployClicked?.Invoke());
+            _deployLabel = _deployButton.GetComponentInChildren<TextMeshProUGUI>(true);
+            _deployDefaultText = _deployLabel.text;
             _helpButton.onClick.AddListener(() => HelpClicked?.Invoke());
             _settingsButton.onClick.AddListener(() => SettingsClicked?.Invoke());
             _backButton.onClick.AddListener(() => BackClicked?.Invoke());
@@ -95,6 +99,12 @@ namespace RuneCode
                 _tabButtons[i].gameObject.SetActive(!isDeploy);
                 _tabButtons[i].GetComponent<TabButton>().SetSelected(TABS[i] == tab);
             }
+        }
+
+        /// <summary>보관 중인 런으로 돌아가는 상태면 진입 버튼 문구를 전투 복귀로, 아니면 원래 문구로 표시한다.</summary>
+        public void SetDeployResume(bool isResume)
+        {
+            _deployLabel.text = isResume ? GameData.L("ui.resumeBattle") : _deployDefaultText;
         }
 
         /// <summary>다음 작업실 진입 때 스테이지 선택 UI를 연다.</summary>

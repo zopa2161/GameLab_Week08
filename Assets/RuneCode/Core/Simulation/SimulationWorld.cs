@@ -48,19 +48,19 @@ namespace RuneCode
         internal int WaveNumber { get; set; }
 
         /// <summary>플레이어 최대 체력이다. maxHp가 0이면 밸런스 기본값을 쓴다.</summary>
-        internal double MaxHp { get; }
+        internal double MaxHp { get; private set; }
 
         /// <summary>플레이어 최대 전력이다. maxEnergy가 0이면 밸런스 기본값을 쓴다.</summary>
-        internal double MaxEnergy { get; }
+        internal double MaxEnergy { get; private set; }
 
         /// <summary>초당 전력 재생량이다. energyRegen이 0이면 밸런스 기본값을 쓴다.</summary>
-        internal double EnergyRegen { get; }
+        internal double EnergyRegen { get; private set; }
 
         /// <summary>전투 공통 피해 배율이다.</summary>
-        internal double DamageMultiplier { get; }
+        internal double DamageMultiplier { get; private set; }
 
         /// <summary>플레이어 이동 속도 배율이다.</summary>
-        internal double MoveSpeedMultiplier { get; }
+        internal double MoveSpeedMultiplier { get; private set; }
 
         /// <summary>시뮬레이션 공유 난수 발생기다. 모든 난수 호출이 같은 인스턴스를 쓴다.</summary>
         internal SimRandom Random { get; }
@@ -143,14 +143,23 @@ namespace RuneCode
             Carrier = carrier;
             IsMission = isMission;
             IsProgressionMission = isProgressionMission;
+            StageNumber = Math.Max(1, stageNumber);
+            SetPlayerStats(maxHp, maxEnergy, energyRegen, damageMultiplier, moveSpeedMultiplier);
+            Random = random;
+            Adaptation = adaptation;
+        }
+
+        /// <summary>
+        /// 플레이어 최대 체력·최대 전력·전력 재생량과 피해·이동 속도 배율을 설정한다. 체력·전력·재생량이 0 이하이면 밸런스 기본값을 쓴다.
+        /// 생성 시와 진행 중 런의 강화 반영에서 같은 규칙으로 쓴다.
+        /// </summary>
+        internal void SetPlayerStats(double maxHp, double maxEnergy, double energyRegen, double damageMultiplier, double moveSpeedMultiplier)
+        {
             MaxHp = maxHp > 0 ? maxHp : Balance.Player.Hp;
             MaxEnergy = maxEnergy > 0 ? maxEnergy : Balance.Player.Energy;
-            StageNumber = Math.Max(1, stageNumber);
             EnergyRegen = energyRegen > 0 ? energyRegen : Balance.Player.EnergyRegen;
             DamageMultiplier = damageMultiplier;
             MoveSpeedMultiplier = moveSpeedMultiplier;
-            Random = random;
-            Adaptation = adaptation;
         }
 
         /// <summary>다음 개체 ID를 하나 발급하고 카운터를 증가시켜 반환한다.</summary>
