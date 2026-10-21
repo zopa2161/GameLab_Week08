@@ -15,6 +15,7 @@ namespace RuneCode
         public const string MOVEMENT_KEEP_DISTANCE = "keepDistance";
         public const string MOVEMENT_SNIPER = "sniper";
         public const string MOVEMENT_INTERCEPTOR = "interceptor";
+        public const string MOVEMENT_TURN_CHASE = "turnChase";
         public const string ATTACK_NONE = "none";
         public const string ATTACK_CONTACT = "contact";
         public const string ATTACK_BURST = "burst";
@@ -27,7 +28,7 @@ namespace RuneCode
         public const string TRAIT_CIRCLE_SHIELD = "circleShield";
         public const string TRAIT_CARRIER = "carrier";
 
-        private static readonly string[] MOVEMENT_TYPES = { MOVEMENT_CHASE, MOVEMENT_TURRET, MOVEMENT_ANCHOR, MOVEMENT_DASH_CHASE, MOVEMENT_KEEP_DISTANCE, MOVEMENT_SNIPER, MOVEMENT_INTERCEPTOR };
+        private static readonly string[] MOVEMENT_TYPES = { MOVEMENT_CHASE, MOVEMENT_TURRET, MOVEMENT_ANCHOR, MOVEMENT_DASH_CHASE, MOVEMENT_KEEP_DISTANCE, MOVEMENT_SNIPER, MOVEMENT_INTERCEPTOR, MOVEMENT_TURN_CHASE };
         private static readonly string[] ATTACK_TYPES = { ATTACK_NONE, ATTACK_CONTACT, ATTACK_BURST, ATTACK_DASH_CONTACT, ATTACK_SNIPER, ATTACK_INTERCEPTOR };
         private static readonly string[] TRAIT_TYPES = { TRAIT_AEGIS_SHIELD, TRAIT_RELAY_AURA, TRAIT_DEATH_EXPLOSION, TRAIT_CIRCLE_SHIELD, TRAIT_CARRIER };
 
@@ -56,6 +57,7 @@ namespace RuneCode
         [SerializeField] private string _attack;
         [SerializeField] private string _dropTable;
         [SerializeField] private int _sides;
+        [SerializeField] private bool _isHidden;
 
         [Header("추가 적 행동")]
         [SerializeField] private double _explosionRadius;
@@ -66,6 +68,7 @@ namespace RuneCode
         [SerializeField] private double _moveSeconds;
         [SerializeField] private double _stopSeconds;
         [SerializeField] private double _preferredDistance;
+        [SerializeField] private double _turnSeconds;
         public double ExplosionRadius => _explosionRadius;
         public double ExplosionDamage => _explosionDamage;
         public double ShieldRadius => _shieldRadius;
@@ -74,6 +77,20 @@ namespace RuneCode
         public double MoveSeconds => _moveSeconds;
         public double StopSeconds => _stopSeconds;
         public double PreferredDistance => _preferredDistance;
+        /// <summary>180도 방향 전환에 걸리는 시간(초)이다. 데이터에 기재하지 않으면(0) 즉시 방향을 바꾼다.</summary>
+        public double TurnSeconds => _turnSeconds;
+
+        [Header("캐리어 생성")]
+        [SerializeField] private string[] _carrierTargets;
+        [SerializeField] private double _carrierInterval;
+        [SerializeField] private int _carrierCount;
+        [SerializeField] private double _carrierDistance;
+        [SerializeField] private int _carrierMaxAlive;
+        public IReadOnlyList<string> CarrierTargets => _carrierTargets ?? Array.Empty<string>();
+        public double CarrierInterval => _carrierInterval;
+        public int CarrierCount => _carrierCount;
+        public double CarrierDistance => _carrierDistance;
+        public int CarrierMaxAlive => _carrierMaxAlive;
         public string Id => _id;
         public double Hp => _hp;
         public double Speed => _speed;
@@ -97,6 +114,8 @@ namespace RuneCode
         public string Movement => _movement;
         public string DropTable => _dropTable;
         public int Sides => _sides;
+        /// <summary>소환·분열로만 등장해 편집 도구의 적 선택 목록에서 숨길 적인지 반환한다.</summary>
+        public bool IsHidden => _isHidden;
         public string Attack => string.IsNullOrEmpty(_attack) ? ATTACK_CONTACT : _attack;
 
         /// <summary>이 적이 지정 특수 능력을 정의에 포함하는지 반환한다.</summary>
@@ -125,6 +144,9 @@ namespace RuneCode
                 throw new FormatException("사망 폭발 설정 오류입니다: " + _id);
             if (HasTrait(TRAIT_CIRCLE_SHIELD) && (!IsPositive(_shieldRadius) || _shieldRadius <= _radius))
                 throw new FormatException("원형 보호막은 몸체보다 커야 합니다: " + _id);
+            if (HasTrait(TRAIT_CARRIER) && (_carrierTargets == null || _carrierTargets.Length == 0 || !IsPositive(_carrierInterval)
+                || _carrierCount < 1 || !IsPositive(_carrierDistance) || _carrierMaxAlive < 1))
+                throw new FormatException("캐리어 생성 설정 오류입니다: " + _id);
             if (Attack == ATTACK_SNIPER && (_movement != MOVEMENT_SNIPER || !IsPositive(_aimSeconds) || !IsPositive(_lockSeconds)
                 || !IsPositive(_attackInterval) || !IsPositive(_attackRange) || _attackInterval <= _aimSeconds + _lockSeconds))
                 throw new FormatException("저격 설정 오류입니다: " + _id);
@@ -134,6 +156,10 @@ namespace RuneCode
             if ((Attack == ATTACK_SNIPER || Attack == ATTACK_INTERCEPTOR)
                 && (!IsPositive(_projectileSpeed) || !IsPositive(_projectileRadius) || !IsPositive(_projectileLifetime)))
                 throw new FormatException("추가 적 탄환 설정 오류입니다: " + _id);
+            if (double.IsNaN(_turnSeconds) || double.IsInfinity(_turnSeconds) || _turnSeconds < 0)
+                throw new FormatException("방향 전환 시간 설정 오류입니다: " + _id);
+            if (_movement == MOVEMENT_TURN_CHASE && !IsPositive(_turnSeconds))
+                throw new FormatException("방향 전환 추적은 방향 전환 시간이 양수여야 합니다: " + _id);
             if ((_movement == MOVEMENT_SNIPER && Attack != ATTACK_SNIPER) || (_movement == MOVEMENT_INTERCEPTOR && Attack != ATTACK_INTERCEPTOR))
                 throw new FormatException("새 적의 이동·공격 조합 오류입니다: " + _id);
         }
@@ -153,7 +179,7 @@ namespace RuneCode
         public EnemyDefinition Get(string id)
         { for (int i = 0; i < _enemies.Length; i++) if (_enemies[i].Id == id) return _enemies[i]; throw new FormatException("등록되지 않은 적: " + id); }
 
-        /// <summary>JSON 적 설정을 읽고 배열 구성, 고유 ID, 체력, 크기, 보상 범위, 행동 어휘, 분열 대상과 순환 분열을 검증한다.</summary>
+        /// <summary>JSON 적 설정을 읽고 배열 구성, 고유 ID, 체력, 크기, 보상 범위, 행동 어휘, 분열 대상과 순환 분열, 캐리어 생성 대상을 검증한다.</summary>
         public static EnemyCatalog FromJson(string json)
         {
             var catalog = JsonUtility.FromJson<EnemyCatalog>(json);
@@ -167,6 +193,11 @@ namespace RuneCode
             foreach (EnemyDefinition enemy in catalog._enemies)
                 for (string current = enemy.CanSplit ? enemy.SplitInto : null; !string.IsNullOrEmpty(current); current = catalog.Get(current).CanSplit ? catalog.Get(current).SplitInto : null)
                     if (current == enemy.Id) throw new FormatException("순환 분열 설정입니다: " + enemy.Id);
+            foreach (EnemyDefinition enemy in catalog._enemies)
+                if (enemy.HasTrait(EnemyDefinition.TRAIT_CARRIER))
+                    foreach (string target in enemy.CarrierTargets)
+                        if (!ids.Contains(target) || catalog.Get(target).HasTrait(EnemyDefinition.TRAIT_CARRIER) || target.StartsWith("boss.", StringComparison.Ordinal))
+                            throw new FormatException("캐리어의 생성 대상은 등록된 생성형·보스가 아닌 일반 적이어야 합니다: " + enemy.Id + ", " + target);
             return catalog;
         }
     }

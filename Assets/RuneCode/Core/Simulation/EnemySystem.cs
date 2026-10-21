@@ -187,28 +187,29 @@ namespace RuneCode
             enemy.BehaviorRemaining += enemy.IsStopping ? enemy.Definition.StopSeconds : enemy.Definition.MoveSeconds;
         }
 
-        /// <summary>캐리어의 생성 타이머와 보류 수를 진행하고 설정 목록 순서대로 보상 없는 자식을 주변에 생성한다.</summary>
+        /// <summary>캐리어의 생성 타이머와 보류 수를 진행하고 적 정의의 생성 대상 순서대로 보상 없는 자식을 주변에 생성한다.</summary>
         private void AdvanceCarrier(SimulationEnemy enemy)
         {
+            EnemyDefinition carrier = enemy.Definition;
             enemy.SpawnRemainingSeconds -= RuneSimulation.STEP_SECONDS;
             if (enemy.SpawnRemaining == 0)
             {
                 if (enemy.SpawnRemainingSeconds > RuneSimulation.COLLISION_EPSILON) return;
-                enemy.SpawnRemaining = _world.Carrier.Count;
+                enemy.SpawnRemaining = carrier.CarrierCount;
             }
             int alive = 0;
             foreach (SimulationEnemy child in _world.Enemies) if (child.IsAlive && child.CarrierOwnerId == enemy.Id) alive++;
-            while (enemy.SpawnRemaining > 0 && _world.Enemies.Count < _world.EnemyLimit && alive < _world.Carrier.MaxAlive)
+            while (enemy.SpawnRemaining > 0 && _world.Enemies.Count < _world.EnemyLimit && alive < carrier.CarrierMaxAlive)
             {
-                string id = _world.Carrier.EnemyIds[enemy.SpawnCursor % _world.Carrier.EnemyIds.Count];
+                string id = carrier.CarrierTargets[enemy.SpawnCursor % carrier.CarrierTargets.Count];
                 double radius = _world.EnemyCatalog.Get(id).Radius;
                 double angle = enemy.SpawnCursor * Math.PI * (3 - Math.Sqrt(5));
-                double distance = Math.Max(_world.Carrier.Distance, enemy.Radius + radius + SpawnSystem.SAME_SPAWN_DISTANCE);
+                double distance = Math.Max(carrier.CarrierDistance, enemy.Radius + radius + SpawnSystem.SAME_SPAWN_DISTANCE);
                 SimVector position = enemy.Position + new SimVector(Math.Cos(angle), Math.Sin(angle)) * distance;
                 _spawn.SpawnEnemy(id, _world.Map.NearestFree(position, radius), carrierOwnerId: enemy.Id);
                 enemy.SpawnCursor++; enemy.SpawnRemaining--; alive++;
             }
-            if (enemy.SpawnRemaining == 0) enemy.SpawnRemainingSeconds = _world.Carrier.Interval;
+            if (enemy.SpawnRemaining == 0) enemy.SpawnRemainingSeconds = carrier.CarrierInterval;
             else enemy.SpawnRemainingSeconds = 0;
         }
 

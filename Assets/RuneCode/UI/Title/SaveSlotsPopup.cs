@@ -78,8 +78,7 @@ namespace RuneCode
                 string slotName = GameData.L("save.slot") + " " + slot;
                 if (hasSave)
                 {
-                    _slotLabels[index].text = slotName + " · " + GameData.L("save.stage") + " " + save.SelectedStage
-                        + " · " + GameData.L("save.highestStage") + " " + save.HighestClearedStage
+                    _slotLabels[index].text = slotName + " · " + FormatProgress(save)
                         + " · " + GameData.L("ui.fragments") + " " + save.Currency;
                 }
                 else
@@ -95,6 +94,14 @@ namespace RuneCode
                 _deleteButtons[index].gameObject.SetActive(_mode == Mode.Manage && hasFile);
                 _deleteButtons[index].interactable = hasFile;
             }
+        }
+
+        /// <summary>저장된 연속 미션 진행(마지막으로 끝낸 스테이지·라운드와 그 시점 체력)을 슬롯 문구로 반환하고 기록이 없으면 새 진행 문구를 반환한다.</summary>
+        private static string FormatProgress(PlayerSave save)
+        {
+            if (!save.HasProgressionRound) return GameData.L("save.progressNone");
+            return string.Format(GameData.L("save.progressRound"), save.ProgressionStage, save.ProgressionRound)
+                + " · " + string.Format(GameData.L("save.progressHp"), Math.Ceiling(save.ProgressionHp), Math.Ceiling(save.ProgressionMaxHp));
         }
 
         /// <summary>팝업 UI를 최초 표시 때 공용 패널·버튼·글꼴 자산으로 만든다.</summary>

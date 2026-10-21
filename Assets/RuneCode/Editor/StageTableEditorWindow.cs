@@ -451,7 +451,7 @@ namespace RuneCode.Editor
         {
             _foldElite = EditorGUILayout.Foldout(_foldElite, "엘리트", true);
             if (!_foldElite) return;
-            EditorGUILayout.HelpBox("진행 미션은 스트림이 없어 엘리트가 스폰되지 않습니다. 적 크기 계산에만 쓰입니다.", MessageType.Info);
+            EditorGUILayout.HelpBox("시간제 스테이지의 스트림 엘리트 설정이다. 연속 미션 엘리트는 진행 편성 탭의 엘리트 타입과 웨이브 유닛 토글로 설정한다.", MessageType.Info);
             DrawIntFieldLayout(stage.FindPropertyRelative("_eliteEvery"), new GUIContent("엘리트 주기", "기본 스폰 순번이 이 배수일 때 엘리트를 스폰한다. 0 = 엘리트 없음"));
             if (_eliteTypesList != null)
                 _eliteTypesList.DoLayoutList();
@@ -486,6 +486,7 @@ namespace RuneCode.Editor
 
             GUILayout.Label("스테이지 " + stageNumber + " · 라운드 " + (_selectedProgressionRoundIndex + 1), EditorStyles.boldLabel);
             DrawProgressionDefinitionSummary(stageNumber);
+            DrawProgressionEliteSection();
             EditorGUILayout.PropertyField(round.FindPropertyRelative("_reward"), new GUIContent("라운드 선택 보상"), true);
 
             SerializedProperty waves = round.FindPropertyRelative("_waves");
@@ -516,6 +517,19 @@ namespace RuneCode.Editor
                 SwitchTab(EditorTab.StageDefinition);
             }
             EditorGUILayout.EndHorizontal();
+        }
+
+        /// <summary>선택한 진행 스테이지의 엘리트 타입 목록을 그린다. 웨이브 엘리트 유닛이 이 정의로 생성된다.</summary>
+        private void DrawProgressionEliteSection()
+        {
+            _foldElite = EditorGUILayout.Foldout(_foldElite, "엘리트 타입", true);
+            if (!_foldElite) return;
+            if (_eliteTypesList == null)
+            {
+                EditorGUILayout.HelpBox("엘리트 타입 목록 캐시가 준비되지 않았습니다. [다시 로드]로 목록을 갱신하세요.", MessageType.Warning);
+                return;
+            }
+            _eliteTypesList.DoLayoutList();
         }
 
         /// <summary>선택 라운드의 웨이브들을 항상 펼친 형태로 그리고 보스 배치 안내를 표시한다.</summary>
@@ -705,10 +719,36 @@ namespace RuneCode.Editor
             DrawIntField(countRect, element.FindPropertyRelative("_count"), GUIContent.none);
         }
 
-        /// <summary>엘리트 타입 한 행에 적·드롭 테이블 팝업, 드롭 확률과 네 배율 입력칸을 그린다.</summary>
-        private void DrawEliteRow(Rect rect, int index)
+        /// <summary>진행 웨이브 유닛 한 행에 적 ID 팝업, 수량과 엘리트 토글을 그린다.</summary>
+        private void DrawProgressionUnitRow(Rect rect, int index, ReorderableList list)
         {
-            SerializedProperty element = _eliteTypesList.serializedProperty.GetArrayElementAtIndex(index);
+            SerializedProperty element = list.serializedProperty.GetArrayElementAtIndex(index);
+            Rect content = ElementContent(rect);
+            float y = rect.y + 1;
+            float toggleWidth = 56f;
+            float countWidth = Mathf.Min(84f, content.width * 0.35f);
+            Rect toggleRect = new Rect(content.xMax - toggleWidth, y, toggleWidth, ROW_HEIGHT);
+            Rect countRect = new Rect(toggleRect.xMin - FIELD_GAP - countWidth, y, countWidth, ROW_HEIGHT);
+            Rect idRect = new Rect(content.x, y, countRect.xMin - FIELD_GAP - content.x, ROW_HEIGHT);
+            DrawStringPopup(idRect, element.FindPropertyRelative("_enemyId"), GUIContent.none, _enemyIds, _enemyIds);
+            DrawIntField(countRect, element.FindPropertyRelative("_count"), GUIContent.none);
+            DrawBoolField(toggleRect, element.FindPropertyRelative("_isElite"), new GUIContent("엘리트"));
+        }
+
+        /// <summary>Rect 영역에 체크박스를 왼쪽에 둔 bool 토글을 그리고 값이 바뀌면 프로퍼티에 반영한다.</summary>
+        private void DrawBoolField(Rect rect, SerializedProperty property, GUIContent label)
+        {
+            // 좁은 칸에서는 라벨 폭 때문에 체크박스가 밀려나므로 체크박스를 왼쪽에 둔다.
+            bool next = EditorGUI.ToggleLeft(rect, label, property.boolValue);
+            if (next == property.boolValue) return;
+            property.boolValue = next;
+            ApplyChanges();
+        }
+
+        /// <summary>엘리트 타입 한 행에 적·드롭 테이블 팝업, 드롭 확률과 네 배율 입력칸을 그린다.</summary>
+        private void DrawEliteRow(Rect rect, int index, ReorderableList list)
+        {
+            SerializedProperty element = list.serializedProperty.GetArrayElementAtIndex(index);
             Rect content = ElementContent(rect);
             float y = rect.y + 1;
             float chanceWidth = Mathf.Min(96f, content.width * 0.25f);
@@ -939,16 +979,16 @@ namespace RuneCode.Editor
             }
         }
 
-        /// <summary>리소스 JSON에서 ID 항목 배열을 추출해 문자열 배열로 반환하고 실패하면 빈 배열을 반환한다.</summary>
+        /// <summary>리소스 JSON에서 숨김 표시가 없는 ID 항목만 추출해 문자열 배열로 반환하고 실패하면 빈 배열을 반환한다.</summary>
         private static string[] LoadIdEntries(string resource, Func<string, IdEntry[]> parse)
         {
             try
             {
                 IdEntry[] entries = parse(LoadResourceText(resource));
                 if (entries == null) return Array.Empty<string>();
-                string[] ids = new string[entries.Length];
-                for (int i = 0; i < entries.Length; i++) ids[i] = entries[i].Id;
-                return ids;
+                var ids = new List<string>(entries.Length);
+                foreach (IdEntry entry in entries) if (!entry.IsHidden) ids.Add(entry.Id);
+                return ids.ToArray();
             }
             catch (Exception)
             {
@@ -1115,25 +1155,29 @@ namespace RuneCode.Editor
                 _waveUnitLists.Add(BuildWaveUnitList(waves.GetArrayElementAtIndex(i).FindPropertyRelative("_units")));
         }
 
-        /// <summary>진행 탭에서 정의 탭 전용 리스트 캐시를 비우고 선택 라운드의 웨이브 유닛 리스트를 다시 만든다.</summary>
+        /// <summary>진행 탭에서 정의 탭 전용 리스트 캐시를 비우고 선택 스테이지의 엘리트 타입과 선택 라운드의 웨이브 유닛 리스트를 다시 만든다.</summary>
         private void RebuildProgressionLists()
         {
             _candidatesList = null;
             _wavesList = null;
-            _eliteTypesList = null;
             _modifierRewardsList = null;
             _waveUnitLists.Clear();
             _progressionUnitLists.Clear();
 
             SerializedProperty stage = SelectedProgressionStageProperty();
-            if (stage == null) return;
+            if (stage == null)
+            {
+                _eliteTypesList = null;
+                return;
+            }
+            _eliteTypesList = BuildEliteTypesList(stage.FindPropertyRelative("_eliteTypes"));
             SerializedProperty rounds = stage.FindPropertyRelative("_rounds");
             if (rounds == null || rounds.arraySize == 0) return;
             _selectedProgressionRoundIndex = Mathf.Clamp(_selectedProgressionRoundIndex, 0, rounds.arraySize - 1);
             SerializedProperty waves = rounds.GetArrayElementAtIndex(_selectedProgressionRoundIndex).FindPropertyRelative("_waves");
             if (waves == null || waves.arraySize != StageCatalog.PROGRESSION_WAVE_COUNT) return;
             for (int i = 0; i < waves.arraySize; i++)
-                _progressionUnitLists.Add(BuildWaveUnitList(waves.GetArrayElementAtIndex(i).FindPropertyRelative("_units")));
+                _progressionUnitLists.Add(BuildProgressionUnitList(waves.GetArrayElementAtIndex(i).FindPropertyRelative("_units")));
         }
 
         /// <summary>적 보상표 리스트를 만든다.</summary>
@@ -1186,12 +1230,26 @@ namespace RuneCode.Editor
             return list;
         }
 
+        /// <summary>진행 웨이브 유닛 리스트를 만든다. 유닛 행에 엘리트 토글을 포함한다.</summary>
+        private ReorderableList BuildProgressionUnitList(SerializedProperty property)
+        {
+            ReorderableList list = NewList(property, "유닛 (적 / 수량 / 엘리트)");
+            list.drawElementCallback = (rect, index, active, focused) => DrawProgressionUnitRow(rect, index, list);
+            list.onAddCallback = target => AppendElement(target, element =>
+            {
+                element.FindPropertyRelative("_enemyId").stringValue = _enemyIds.Length > 0 ? _enemyIds[0] : "";
+                element.FindPropertyRelative("_count").intValue = 1;
+                element.FindPropertyRelative("_isElite").boolValue = false;
+            });
+            return list;
+        }
+
         /// <summary>엘리트 타입 리스트를 만든다.</summary>
         private ReorderableList BuildEliteTypesList(SerializedProperty property)
         {
             ReorderableList list = NewList(property, "엘리트 타입 (적 / 드롭 테이블 + 배율)");
             list.elementHeight = ROW_HEIGHT * 2 + ROW_GAP + 4;
-            list.drawElementCallback = (rect, index, active, focused) => DrawEliteRow(rect, index);
+            list.drawElementCallback = (rect, index, active, focused) => DrawEliteRow(rect, index, list);
             list.onAddCallback = target => AppendElement(target, element =>
             {
                 element.FindPropertyRelative("_enemyId").stringValue = _enemyIds.Length > 0 ? _enemyIds[0] : "";
@@ -1370,7 +1428,9 @@ namespace RuneCode.Editor
         private sealed class IdEntry
         {
             [SerializeField] private string _id;
+            [SerializeField] private bool _isHidden;
             public string Id => _id;
+            public bool IsHidden => _isHidden;
         }
 
         /// <summary>enemies.json의 적 ID 목록을 읽기 위한 형식이다.</summary>

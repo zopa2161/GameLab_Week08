@@ -32,9 +32,6 @@ namespace RuneCode
         /// <summary>스테이지 편성 카탈로그다. 미션 스폰과 배율 조회에 쓴다.</summary>
         internal StageCatalog Stages { get; }
 
-        /// <summary>캐리어 자식 생성 설정이다. 캐리어 적의 스폰 규칙이 참조한다.</summary>
-        internal CarrierDefinition Carrier { get; }
-
         /// <summary>미션 모드 여부다. 시험 도크와 미션의 규칙 분기에 쓴다.</summary>
         internal bool IsMission { get; }
 
@@ -129,7 +126,7 @@ namespace RuneCode
         /// </summary>
         internal SimulationWorld(BalanceData balance, EnemyCatalog enemyCatalog, SectorDefinition sector, BossCatalog bosses,
             FormationCatalog formations, DropCatalog drops, IEliteModifierDropSource eliteDrops, StageCatalog stages,
-            CarrierDefinition carrier, bool isMission, double maxHp, double maxEnergy, int stageNumber, double energyRegen,
+            bool isMission, double maxHp, double maxEnergy, int stageNumber, double energyRegen,
             double damageMultiplier, double moveSpeedMultiplier, SimRandom random, AdaptationNet adaptation, bool isProgressionMission = false)
         {
             Balance = balance;
@@ -140,7 +137,6 @@ namespace RuneCode
             Drops = drops;
             EliteDrops = eliteDrops;
             Stages = stages;
-            Carrier = carrier;
             IsMission = isMission;
             IsProgressionMission = isProgressionMission;
             StageNumber = Math.Max(1, stageNumber);

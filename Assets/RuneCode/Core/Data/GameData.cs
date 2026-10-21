@@ -56,11 +56,6 @@ namespace RuneCode
         public static DropCatalog Drops => _drops;
         public static StageCatalog Stages => _stages;
 
-        private static CarrierDefinition _carrier;
-
-        /// <summary>부팅 시 캐리어 Prefab에서 읽어 등록한 생성 설정이다. 등록 전에는 null이다.</summary>
-        public static CarrierDefinition Carrier => _carrier;
-
         private static EncyclopediaData _encyclopedia;
         private static bool _hasLoadedEncyclopedia;
 
@@ -125,15 +120,6 @@ namespace RuneCode
             _modifierGrades = modifierGrades;
             _spells = spells;
             _runes = runes;
-        }
-
-        /// <summary>캐리어 생성 설정을 적 카탈로그로 검증하고 미션·도크·출격 화면이 함께 쓰도록 등록한다. Load 이후에 호출한다.</summary>
-        public static void SetCarrier(CarrierDefinition carrier)
-        {
-            if (!IsLoaded) throw new InvalidOperationException("게임 데이터를 먼저 읽어야 합니다.");
-            if (carrier == null) throw new ArgumentNullException(nameof(carrier));
-            carrier.Validate(_enemies);
-            _carrier = carrier;
         }
 
         /// <summary>

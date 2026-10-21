@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using UnityEngine;
 
@@ -42,7 +43,12 @@ namespace RuneCode
         [SerializeField] private Button _nextRoundButton;
         [SerializeField] private Button _workshopButton;
 
+        [Header("디버그 보스")]
+        [SerializeField] private RectTransform _debugBossRoot;
+        [SerializeField] private Button _debugBossButtonTemplate;
+
         private bool _isBound;
+        private readonly List<Button> _debugBossButtons = new List<Button>();
 
         /// <summary>일시정지 버튼을 눌렀을 때 알린다.</summary>
         public event Action PauseClicked;
@@ -55,6 +61,9 @@ namespace RuneCode
 
         /// <summary>소강상태의 작업실 열기 버튼을 눌렀을 때 알린다.</summary>
         public event Action WorkshopClicked;
+
+        /// <summary>디버그 보스 바로 상대하기 버튼을 눌렀을 때 버튼 순번을 알린다.</summary>
+        public event Action<int> DebugBossClicked;
 
         /// <summary>버튼 클릭을 이벤트로 처음 한 번만 연결하고 디버그 버튼 표시 여부를 정한다.</summary>
         public void Bind(bool isDebugVisible)
@@ -70,6 +79,34 @@ namespace RuneCode
             _debugButton.gameObject.SetActive(isDebugVisible);
             SetNextRound(false, false);
             SetWorkshop(false, false);
+            SetDebugBosses(false, false);
+        }
+
+        /// <summary>
+        /// 보스 이름 목록으로 디버그 보스 버튼을 처음 한 번만 템플릿에서 복제해 만들고 클릭 시 순번을 알리게 연결한다.
+        /// 이미 만들었으면 다시 만들지 않는다.
+        /// </summary>
+        public void BuildDebugBosses(IReadOnlyList<string> labels)
+        {
+            if (_debugBossButtons.Count > 0) return;
+            _debugBossButtonTemplate.gameObject.SetActive(false);
+            for (int index = 0; index < labels.Count; index++)
+            {
+                int bossIndex = index;
+                Button button = Instantiate(_debugBossButtonTemplate, _debugBossRoot, false);
+                button.name = "DebugBossButton" + index;
+                button.GetComponentInChildren<TextMeshProUGUI>().text = labels[index];
+                button.onClick.AddListener(() => DebugBossClicked?.Invoke(bossIndex));
+                button.gameObject.SetActive(true);
+                _debugBossButtons.Add(button);
+            }
+        }
+
+        /// <summary>디버그 보스 버튼 묶음을 표시하거나 숨기고 팝업·일시정지 중에는 입력을 잠근다.</summary>
+        public void SetDebugBosses(bool isVisible, bool isInteractable)
+        {
+            _debugBossRoot.gameObject.SetActive(isVisible);
+            foreach (Button button in _debugBossButtons) button.interactable = isVisible && isInteractable;
         }
 
         /// <summary>라운드 대기 여부에 따라 시작 버튼을 표시하고 팝업·일시정지 중에는 입력을 잠근다.</summary>

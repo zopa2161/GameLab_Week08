@@ -410,8 +410,24 @@ namespace RuneCode
             if (_boss != null && _boss.IsHydraPattern) _hydra = new HydraBossState(_boss.Hydra, time, _maxHp);
         }
 
-        /// <summary>적 위치 및 플레이어를 향한 방향을 갱신한다.</summary>
-        internal void Move(SimVector position, SimVector facing) { _position = position; if (facing.LengthSquared > 0.000001) _facing = facing.Normalized(); }
+        /// <summary>적 위치와 바라볼 방향을 갱신한다. 방향 전환 시간이 설정된 적은 이번 틱 최대 회전각만큼 목표 방향으로 돌고, 없으면 즉시 향한다.</summary>
+        internal void Move(SimVector position, SimVector facing)
+        {
+            _position = position;
+            if (facing.LengthSquared <= 0.000001) return;
+            double turnSeconds = _definition.TurnSeconds;
+            if (turnSeconds <= 0) { _facing = facing.Normalized(); return; }
+            _facing = RotateToward(_facing, facing.Normalized(), Math.PI / turnSeconds * RuneSimulation.STEP_SECONDS);
+        }
+
+        /// <summary>현재 방향을 목표 방향으로 최단 호로 돌린 방향을 반환하고, 각도 차가 maxRadians보다 크면 maxRadians만큼만 돌린다.</summary>
+        private static SimVector RotateToward(SimVector current, SimVector target, double maxRadians)
+        {
+            double cross = current.X * target.Y - current.Y * target.X;
+            double angle = Math.Atan2(cross, SimVector.Dot(current, target));
+            if (Math.Abs(angle) <= maxRadians) return target;
+            return current.Rotated(Math.Sign(angle) * maxRadians);
+        }
 
         /// <summary>지정 틱의 강제 이동 벡터를 합산하고 최대 단일 거리와 유지 시간을 저장한다. 실제 위치는 변경하지 않는다.</summary>
         internal void QueueDisplacement(SimVector direction, double distance, double seconds, int tick)
@@ -839,6 +855,7 @@ namespace RuneCode
         public double Age => _age;
         public bool IsHazard => _isHazard;
         public bool IsWarning => _isHazard && _age < _warning;
+        public double WarningProgress => _warning <= 0 ? 1 : Math.Min(1, _age / _warning);
         internal double Damage => _damage;
         internal double Lifetime => _lifetime;
 

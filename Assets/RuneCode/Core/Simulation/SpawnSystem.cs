@@ -78,7 +78,8 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 현재 틱까지 도달한 스폰을 순서대로 처리한다. 기본 흐름 스폰 순번이 엘리트 주기와 일치하면 그 종족을 엘리트로 생성한다.
+        /// 현재 틱까지 도달한 스폰을 순서대로 처리한다. 기본 흐름 스폰 순번이 엘리트 주기와 일치하면 그 종족을 엘리트로 생성하고,
+        /// 웨이브 엘리트 유닛은 현재 연속 스테이지의 엘리트 정의로 생성한다.
         /// 살아 있는 적과 예고 대기 스폰을 합친 수가 상한이면 이번 틱 처리를 멈춘다.
         /// </summary>
         internal void AdvanceSpawns()
@@ -89,7 +90,11 @@ namespace RuneCode
                 _director.Consume(_world.Tick);
                 bool isStream = order.IsStream;
                 EliteSpawnDefinition elite = null;
-                if (isStream && _world.StageDefinition.TryGetElite(++_streamSpawns, out EliteSpawnDefinition found)) elite = found;
+                if (isStream)
+                {
+                    if (_world.StageDefinition.TryGetElite(++_streamSpawns, out EliteSpawnDefinition found)) elite = found;
+                }
+                else if (order.IsElite) _world.Stages.GetProgressionStage(_world.StageNumber).TryGetElite(order.EnemyId, out elite);
                 SpawnByFormation(order, elite != null ? elite.EnemyId : (isStream ? PickStreamEnemy() : order.EnemyId), elite, isKillTarget: true);
             }
         }
@@ -313,8 +318,6 @@ namespace RuneCode
         {
             if (_world.IsMission && _world.Stage != MissionStage.Combat || _world.Enemies.Count >= _world.EnemyLimit) return null;
             EnemyDefinition definition = _world.EnemyCatalog.Get(id);
-            if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER) && _world.Carrier == null)
-                throw new InvalidOperationException("캐리어 Prefab 생성 설정을 시뮬레이션에 전달해야 합니다.");
             double hpMultiplier = _world.IsMission ? _world.Stages.GetHpMultiplier(_world.StageNumber) : 1;
             if (elite != null) hpMultiplier *= elite.HpMultiplier;
             double damageMultiplier = _world.IsMission ? _world.Stages.Growth.GetDamageMultiplier(_world.StageNumber) : 1;
@@ -326,7 +329,7 @@ namespace RuneCode
             enemy.AttackAt = _world.Time + definition.AttackInterval;
             enemy.InitializeHydra(_world.Time);
             if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = _world.Time;
-            if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = _world.Carrier.Interval;
+            if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = definition.CarrierInterval;
             if (boss != null && boss.IsGovernorPattern) { enemy.ReinforcementAt = _world.Time + boss.Reinforcement.Interval; enemy.HazardAt = _world.Time + boss.HazardInterval; }
             enemy.Observe(_world.Time); _world.Enemies.Add(enemy); if (_world.IsMission) _spawnedEnemies++; return enemy;
         }

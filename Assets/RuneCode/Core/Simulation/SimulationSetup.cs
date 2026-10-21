@@ -35,9 +35,6 @@ namespace RuneCode
         /// <summary>스크랩 획득 배율이다.</summary>
         public double ScrapGainMultiplier { get; private set; }
 
-        /// <summary>캐리어 자식 생성 설정이다. 없으면 null이다.</summary>
-        public CarrierDefinition Carrier { get; private set; }
-
         /// <summary>스크랩 줍기 반경 배율이다.</summary>
         public double ScrapPickupRangeMultiplier { get; private set; }
 
@@ -91,7 +88,7 @@ namespace RuneCode
         /// 매개변수와 기본값은 기존 시뮬레이션 생성자와 같다. 생략한 배율은 1, 보너스는 0을 사용한다.
         /// </summary>
         public static SimulationSetup FromGameData(int seed = 1, bool isMission = false, double maxHp = 0, double maxEnergy = 0, int stageNumber = 1, double energyRegen = 0,
-            double damageMultiplier = 1, double moveSpeedMultiplier = 1, double scrapGainMultiplier = 1, CarrierDefinition carrier = null,
+            double damageMultiplier = 1, double moveSpeedMultiplier = 1, double scrapGainMultiplier = 1,
             double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0, bool isProgressionMission = false,
             int progressionStage = 0, int progressionRound = 0, double progressionHp = 0)
         {
@@ -102,7 +99,7 @@ namespace RuneCode
             return new SimulationSetup
             {
                 Seed = seed, IsMission = isMission, IsProgressionMission = isProgressionMission, MaxHp = maxHp, MaxEnergy = maxEnergy, StageNumber = stageNumber, EnergyRegen = energyRegen,
-                DamageMultiplier = damageMultiplier, MoveSpeedMultiplier = moveSpeedMultiplier, ScrapGainMultiplier = scrapGainMultiplier, Carrier = carrier,
+                DamageMultiplier = damageMultiplier, MoveSpeedMultiplier = moveSpeedMultiplier, ScrapGainMultiplier = scrapGainMultiplier,
                 ScrapPickupRangeMultiplier = scrapPickupRangeMultiplier, KillEnergyBonus = killEnergyBonus, ScrapHealRatio = scrapHealRatio,
                 ProgressionStage = progressionStage, ProgressionRound = progressionRound, ProgressionHp = progressionHp,
                 Balance = GameData.Balance, Enemies = GameData.Enemies, Sector = GameData.Sector, Bosses = GameData.Bosses, Formations = GameData.Formations,

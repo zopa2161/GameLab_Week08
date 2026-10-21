@@ -2,7 +2,7 @@ using System;
 
 namespace RuneCode
 {
-    internal enum EnemyMovementType { Chase, Turret, Anchor, DashChase, KeepDistance, Sniper, Interceptor }
+    internal enum EnemyMovementType { Chase, TurnChase, Turret, Anchor, DashChase, KeepDistance, Sniper, Interceptor }
 
     internal enum EnemyMoveMode { Stay, Face, Move }
 
@@ -63,6 +63,13 @@ namespace RuneCode
             => EnemyMoveDecision.Move(context.Direction, enemy.Definition.Speed);
     }
 
+    internal sealed class TurnChaseMovement : EnemyMovement
+    {
+        /// <summary>플레이어 방향으로 적의 기본 이동 속도만큼 이동하는 판단을 반환한다. 방향 전환 지연은 Move에서 정의의 방향 전환 시간으로 처리한다.</summary>
+        public override EnemyMoveDecision Decide(SimulationEnemy enemy, in EnemyMoveContext context)
+            => EnemyMoveDecision.Move(context.Direction, enemy.Definition.Speed);
+    }
+
     internal sealed class StationaryAdvanceMovement : EnemyMovement
     {
         private readonly bool _isFacingInBench;
@@ -110,6 +117,7 @@ namespace RuneCode
         private static readonly EnemyMovement[] _movements =
         {
             new ChaseMovement(),
+            new TurnChaseMovement(),
             new StationaryAdvanceMovement(true),
             new StationaryAdvanceMovement(false),
             new DashChaseMovement(),
@@ -130,6 +138,7 @@ namespace RuneCode
                 case EnemyDefinition.MOVEMENT_DASH_CHASE: return EnemyMovementType.DashChase;
                 case EnemyDefinition.MOVEMENT_KEEP_DISTANCE: return EnemyMovementType.KeepDistance;
                 case EnemyDefinition.MOVEMENT_CHASE: return EnemyMovementType.Chase;
+                case EnemyDefinition.MOVEMENT_TURN_CHASE: return EnemyMovementType.TurnChase;
                 default: throw new FormatException("알 수 없는 적 이동 방식입니다: " + movement);
             }
         }

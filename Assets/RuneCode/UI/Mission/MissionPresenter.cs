@@ -30,6 +30,7 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private readonly Queue<string> _itemToasts = new Queue<string>();
+        private readonly List<int> _debugBossStages = new List<int>();
 
         private MissionRun _run;
         private PausePopup _pausePopup;
@@ -72,6 +73,8 @@ namespace RuneCode
             _hud.DebugClicked += OpenDebug;
             _hud.NextRoundClicked += StartNextRound;
             _hud.WorkshopClicked += OpenWorkshop;
+            _hud.DebugBossClicked += StartDebugBoss;
+            BuildDebugBosses();
             _result.Bind();
             _result.ImproveClicked += ReturnToWorkshop;
             _result.NextStageClicked += SelectNextStageAndReturnToWorkshop;
@@ -105,6 +108,7 @@ namespace RuneCode
             }
             _hud.SetNextRound(false, false);
             _hud.SetWorkshop(false, false);
+            _hud.SetDebugBosses(false, false);
             if (_session.IsRunSuspended) return;
             _run = null;
         }
@@ -255,6 +259,43 @@ namespace RuneCode
         {
             if (!CanOpenWorkshop || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             _session.SuspendRunForWorkshop();
+        }
+
+        /// <summary>보스 정의마다 그 보스가 처음 보스 웨이브에 나오는 연속 스테이지를 찾아 디버그 보스 버튼과 스테이지 목록을 만든다. 등장 스테이지가 없는 보스는 제외한다.</summary>
+        private void BuildDebugBosses()
+        {
+            var labels = new List<string>();
+            foreach (BossDefinition boss in GameData.Bosses.Bosses)
+            {
+                int stage = FindBossStage(boss.EnemyId);
+                if (stage == 0) continue;
+                _debugBossStages.Add(stage);
+                labels.Add("보스 " + GameData.L(boss.EnemyId) + " · 스테이지 " + stage);
+            }
+            _hud.BuildDebugBosses(labels);
+        }
+
+        /// <summary>연속 스테이지의 보스 웨이브(마지막 라운드·마지막 웨이브) 중 bossId가 처음 나오는 스테이지 번호를 반환하고 없으면 0을 반환한다.</summary>
+        private static int FindBossStage(string bossId)
+        {
+            foreach (ProgressionStageDefinition stage in GameData.Stages.ProgressionStages)
+            {
+                WaveDefinition bossWave = stage.Rounds[StageCatalog.PROGRESSION_ROUND_COUNT - 1].Waves[StageCatalog.PROGRESSION_WAVE_COUNT - 1];
+                foreach (WaveUnit unit in bossWave.Units)
+                    if (unit.EnemyId == bossId) return stage.Stage;
+            }
+            return 0;
+        }
+
+        /// <summary>디버그 라운드 대기 중 순번의 보스 스테이지 보스 웨이브로 바로 진입한다. 표시 중인 라운드 보상 카드는 닫고 버린다.</summary>
+        private void StartDebugBoss(int index)
+        {
+            if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (!_run.DebugStartBoss(_debugBossStages[index])) return;
+            _result.HideClearModifierChoices();
+            _result.Hide();
+            _hasPresentedChoices = false;
+            RenderHud();
         }
 
         /// <summary>미션을 일시정지하고 기존 팝업 위에 일시정지 팝업을 연다. 종료된 미션은 정지 상태를 바꾸지 않는다.</summary>
@@ -598,6 +639,7 @@ namespace RuneCode
             _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished && _run.IsClearModifierChosen,
                 !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetWorkshop(CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
+            _hud.SetDebugBosses(_session.IsDebugEnabled && CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);

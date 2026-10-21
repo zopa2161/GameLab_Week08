@@ -12,6 +12,7 @@ namespace RuneCode
         private readonly int _index;
         private readonly int _count;
         private readonly string _enemyId;
+        private readonly bool _isElite;
         public int Tick => _tick;
         public int Group => _group;
         public int Index => _index;
@@ -19,12 +20,15 @@ namespace RuneCode
         public string EnemyId => _enemyId;
         public bool IsStream => _enemyId == null;
 
+        /// <summary>이 스폰을 웨이브가 속한 스테이지의 엘리트 정의로 생성할지 반환한다. 기본 흐름은 항상 false다.</summary>
+        public bool IsElite => _isElite;
+
         /// <summary>
         /// 스폰 예정 틱, 묶음(0 = 기본 흐름, 1부터 웨이브), 묶음 안 순서와 기체 수,
-        /// 적 ID(null이면 기본 흐름 후보에서 고름)를 보관한다.
+        /// 적 ID(null이면 기본 흐름 후보에서 고름)와 엘리트 여부를 보관한다.
         /// </summary>
-        public SpawnOrder(int tick, int group, int index, int count, string enemyId)
-        { _tick = tick; _group = group; _index = index; _count = count; _enemyId = enemyId; }
+        public SpawnOrder(int tick, int group, int index, int count, string enemyId, bool isElite)
+        { _tick = tick; _group = group; _index = index; _count = count; _enemyId = enemyId; _isElite = isElite; }
     }
 
     /// <summary>
@@ -184,26 +188,27 @@ namespace RuneCode
                 bestTick = candidateTick; waveIndex = wave;
             }
             if (!hasStream && waveIndex < 0) { order = default; return false; }
-            if (waveIndex < 0) order = new SpawnOrder(_nextStreamTick, STREAM_GROUP, _streamUnitIndex, _stream.GroupSize, null);
+            if (waveIndex < 0) order = new SpawnOrder(_nextStreamTick, STREAM_GROUP, _streamUnitIndex, _stream.GroupSize, null, false);
             else
             {
                 WaveDefinition wave = _waves[waveIndex];
                 int unitIndex = _waveUnitIndices[waveIndex];
-                order = new SpawnOrder(bestTick, waveIndex + 1, unitIndex, wave.UnitCount, GetWaveUnitId(wave, unitIndex));
+                WaveUnit unit = GetWaveUnit(wave, unitIndex);
+                order = new SpawnOrder(bestTick, waveIndex + 1, unitIndex, wave.UnitCount, unit.EnemyId, unit.IsElite);
             }
             return true;
         }
 
-        /// <summary>회차 안 유닛 순번의 적 ID를 웨이브 편성에서 찾아 반환한다. 편성 수와 UnitCount가 같으므로 끝에 도달하지 않는다.</summary>
-        private static string GetWaveUnitId(WaveDefinition wave, int unitIndex)
+        /// <summary>회차 안 유닛 순번의 웨이브 유닛을 편성에서 찾아 반환한다. 편성 수와 UnitCount가 같으므로 끝에 도달하지 않는다.</summary>
+        private static WaveUnit GetWaveUnit(WaveDefinition wave, int unitIndex)
         {
             int remaining = unitIndex;
             foreach (WaveUnit unit in wave.Units)
             {
-                if (remaining < unit.Count) return unit.EnemyId;
+                if (remaining < unit.Count) return unit;
                 remaining -= unit.Count;
             }
-            return wave.Units[wave.Units.Count - 1].EnemyId;
+            return wave.Units[wave.Units.Count - 1];
         }
     }
 }

@@ -62,7 +62,7 @@ namespace RuneCode
             _session.SetDockOptions("dummy_line", _session.DockAutoFire, _session.DockAdaptation, _session.DockSpeed);
             _dock = new RuneSimulation(SimulationSetup.FromGameData(1, false, _session.MaxHp, _session.MaxEnergy, energyRegen: _session.EnergyRegen,
                 damageMultiplier: _session.DamageMultiplier, moveSpeedMultiplier: _session.MoveSpeedMultiplier,
-                scrapGainMultiplier: _session.ScrapGainMultiplier, carrier: GameData.Carrier,
+                scrapGainMultiplier: _session.ScrapGainMultiplier,
                 killEnergyBonus: _session.KillEnergyBonus));
             _dock.ResetBench(Scenario, DummyCount);
             _dock.SetAdaptationEnabled(_session.DockAdaptation);

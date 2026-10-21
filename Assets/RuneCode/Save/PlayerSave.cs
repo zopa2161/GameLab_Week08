@@ -483,8 +483,8 @@ namespace RuneCode
                 for (int index = 0; index < _pendingRoundChoiceIds.Length; index++)
                 {
                     string runeId = _pendingRoundChoiceIds[index];
-                    if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER
-                        || !GameData.ModifierGrades.IsGradeAvailable(runeId, _pendingRoundChoiceGrades[index]))
+                    if (!RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades,
+                        runeId, _pendingRoundChoiceGrades[index]))
                     {
                         error = "save.invalidValues";
                         return false;

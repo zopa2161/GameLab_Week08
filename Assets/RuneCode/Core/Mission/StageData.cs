@@ -209,8 +209,12 @@ namespace RuneCode
         [Header("웨이브 유닛")]
         [SerializeField] private string _enemyId;
         [SerializeField] private int _count;
+        [SerializeField] private bool _isElite;
         public string EnemyId => _enemyId;
         public int Count => _count;
+
+        /// <summary>이 유닛을 스테이지 엘리트 정의로 생성할지 반환한다. 연속 미션 웨이브에서만 쓴다.</summary>
+        public bool IsElite => _isElite;
     }
 
     [Serializable]
@@ -412,9 +416,20 @@ namespace RuneCode
         [Header("연속 스테이지")]
         [SerializeField] private int _stage;
         [SerializeField] private ProgressionRoundDefinition[] _rounds;
+        [SerializeField] private EliteSpawnDefinition[] _eliteTypes;
         [SerializeField] private StreamDefinition _stream;
         public int Stage => _stage;
         public IReadOnlyList<ProgressionRoundDefinition> Rounds => _rounds ?? Array.Empty<ProgressionRoundDefinition>();
+        public IReadOnlyList<EliteSpawnDefinition> EliteTypes => _eliteTypes ?? Array.Empty<EliteSpawnDefinition>();
+
+        /// <summary>적 ID가 일치하는 엘리트 정의를 반환하고 없으면 false를 반환한다.</summary>
+        public bool TryGetElite(string enemyId, out EliteSpawnDefinition elite)
+        {
+            elite = null;
+            foreach (EliteSpawnDefinition candidate in EliteTypes)
+                if (candidate.EnemyId == enemyId) { elite = candidate; return true; }
+            return false;
+        }
         // Unity가 누락된 직렬화 클래스를 빈 객체로 생성해도 실제 설정이 있을 때만 스트림으로 판단한다.
         internal bool HasStream => _stream != null
             && ((_stream.Candidates != null && _stream.Candidates.Count > 0)
@@ -562,13 +577,13 @@ namespace RuneCode
                 ValidateStage(stage, enemies, formations, drops, singleStages);
                 ValidateFormationSlots(stage, formations, catalog._spawn.RingSlots);
             }
-            ValidateProgression(catalog, enemies, formations, modifierGrades, runes);
+            ValidateProgression(catalog, enemies, formations, drops, modifierGrades, runes);
             catalog.Get(1); // 1스테이지를 담는 항목이 반드시 있어야 한다.
             return catalog;
         }
 
-        /// <summary>연속 미션의 순서·수량, 유한 웨이브와 마지막 보스만 허용하며 모든 적·진형 참조를 검증한다.</summary>
-        private static void ValidateProgression(StageCatalog catalog, EnemyCatalog enemies, FormationCatalog formations,
+        /// <summary>연속 미션의 순서·수량, 유한 웨이브와 마지막 보스만 허용하며 모든 적·진형 참조와 엘리트 정의·엘리트 유닛 참조를 검증한다.</summary>
+        private static void ValidateProgression(StageCatalog catalog, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops,
             ModifierGradeTable modifierGrades, RuneCatalog runes)
         {
             if (catalog._progressionStages == null || catalog._progressionStages.Length != PROGRESSION_STAGE_COUNT)
@@ -595,10 +610,26 @@ namespace RuneCode
                         bool isBossWave = roundIndex == PROGRESSION_ROUND_COUNT - 1 && waveIndex == PROGRESSION_WAVE_COUNT - 1;
                         int bossCount = 0;
                         foreach (WaveUnit unit in wave.Units)
+                        {
+                            if (unit.IsElite)
+                            {
+                                if (unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal))
+                                    throw new FormatException("보스는 엘리트 유닛이 될 수 없습니다: " + unit.EnemyId + " (스테이지 " + stage.Stage + ")");
+                                if (!stage.TryGetElite(unit.EnemyId, out _))
+                                    throw new FormatException("엘리트 유닛의 스테이지 엘리트 정의가 없습니다: " + unit.EnemyId + " (스테이지 " + stage.Stage + ")");
+                            }
                             if (unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal)) bossCount += unit.Count;
+                        }
                         if (bossCount != (isBossWave ? 1 : 0))
                             throw new FormatException("보스는 각 스테이지의 마지막 웨이브에 1기만 있어야 합니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
                     }
+                }
+                var eliteIds = new HashSet<string>(StringComparer.Ordinal);
+                foreach (EliteSpawnDefinition elite in stage.EliteTypes)
+                {
+                    if (!eliteIds.Add(elite.EnemyId))
+                        throw new FormatException("연속 미션 엘리트 적 ID가 중복입니다: " + elite.EnemyId + " (스테이지 " + stage.Stage + ")");
+                    ValidateEliteDefinition(elite, enemies, drops, "스테이지 " + stage.Stage);
                 }
             }
         }
@@ -678,12 +709,14 @@ namespace RuneCode
             if (!formations.Has(stream.Formation)) throw new FormatException("등록되지 않은 스트림 진형입니다: " + stream.Formation);
         }
 
-        /// <summary>웨이브의 시각, 반복 간격, 진형 재정의 참조와 값, 유닛 편성을 확인한다. waves가 없으면 확인을 생략한다.</summary>
+        /// <summary>웨이브의 시각, 반복 간격, 진형 재정의 참조와 값, 유닛 편성을 확인하고 엘리트 유닛은 금지한다. waves가 없으면 확인을 생략한다.</summary>
         private static void ValidateWaves(StageDefinition stage, EnemyCatalog enemies, FormationCatalog formations)
         {
             foreach (WaveDefinition wave in stage.Waves)
             {
                 ValidateWave(wave, stage.FromStage, enemies, formations);
+                foreach (WaveUnit unit in wave.Units)
+                    if (unit.IsElite) throw new FormatException("시간제 스테이지 웨이브는 엘리트 유닛을 지원하지 않습니다: " + unit.EnemyId + " (스테이지 " + stage.FromStage + ")");
             }
         }
 
@@ -741,24 +774,29 @@ namespace RuneCode
             }
         }
 
-        /// <summary>엘리트 주기와 순회 타입의 대상 적, 배율, 보스 종족 제외, 드롭 확률 범위, 드롭 테이블 참조를 확인한다. 주기가 0이면 타입 확인을 생략한다.</summary>
+        /// <summary>엘리트 주기와 순회 타입 유무를 확인하고 각 정의는 공통 검증에 맡긴다. 주기가 0이면 타입 확인을 생략한다.</summary>
         private static void ValidateElites(StageDefinition stage, EnemyCatalog enemies, DropCatalog drops)
         {
             if (stage.EliteEvery < 0) throw new FormatException("엘리트 주기는 0 이상이어야 합니다: 스테이지 " + stage.FromStage);
             if (stage.EliteEvery > 0 && stage.EliteTypes.Count == 0)
                 throw new FormatException("엘리트 주기가 있으면 순회 타입이 1개 이상 필요합니다: 스테이지 " + stage.FromStage);
+            string location = "스테이지 " + stage.FromStage;
             foreach (EliteSpawnDefinition elite in stage.EliteTypes)
-            {
-                enemies.Get(elite.EnemyId); // 없는 적 ID면 여기서 오류가 난다.
-                if (elite.EnemyId.StartsWith("boss.")) throw new FormatException("보스는 엘리트 대상이 아닙니다: " + elite.EnemyId + " (스테이지 " + stage.FromStage + ")");
-                if (!IsFinite(elite.RawHpMultiplier) || !IsFinite(elite.RawRewardMultiplier) || !IsFinite(elite.RawSpeedMultiplier) || !IsFinite(elite.RawRadiusMultiplier)
-                    || elite.RawHpMultiplier < 0 || elite.RawRewardMultiplier < 0 || elite.RawSpeedMultiplier < 0 || elite.RawRadiusMultiplier < 0)
-                    throw new FormatException("엘리트 배율은 0 이상의 유한값이어야 합니다: " + elite.EnemyId + " (스테이지 " + stage.FromStage + ")");
-                if (double.IsNaN(elite.RawDropChancePercent) || elite.RawDropChancePercent < 0 || elite.RawDropChancePercent > 100)
-                    throw new FormatException("엘리트 드롭 확률은 0 이상 100 이하여야 합니다: " + elite.EnemyId + " (스테이지 " + stage.FromStage + ")");
-                if (!string.IsNullOrEmpty(elite.DropTable) && !drops.Has(elite.DropTable))
-                    throw new FormatException("등록되지 않은 엘리트 드롭 테이블입니다: " + elite.DropTable + " (" + elite.EnemyId + ", 스테이지 " + stage.FromStage + ")");
-            }
+                ValidateEliteDefinition(elite, enemies, drops, location);
+        }
+
+        /// <summary>엘리트 정의 하나의 대상 적, 보스 종족 제외, 배율, 드롭 확률 범위와 드롭 테이블 참조를 확인한다. location은 오류 메시지의 위치 표기다.</summary>
+        private static void ValidateEliteDefinition(EliteSpawnDefinition elite, EnemyCatalog enemies, DropCatalog drops, string location)
+        {
+            enemies.Get(elite.EnemyId); // 없는 적 ID면 여기서 오류가 난다.
+            if (elite.EnemyId.StartsWith("boss.")) throw new FormatException("보스는 엘리트 대상이 아닙니다: " + elite.EnemyId + " (" + location + ")");
+            if (!IsFinite(elite.RawHpMultiplier) || !IsFinite(elite.RawRewardMultiplier) || !IsFinite(elite.RawSpeedMultiplier) || !IsFinite(elite.RawRadiusMultiplier)
+                || elite.RawHpMultiplier < 0 || elite.RawRewardMultiplier < 0 || elite.RawSpeedMultiplier < 0 || elite.RawRadiusMultiplier < 0)
+                throw new FormatException("엘리트 배율은 0 이상의 유한값이어야 합니다: " + elite.EnemyId + " (" + location + ")");
+            if (double.IsNaN(elite.RawDropChancePercent) || elite.RawDropChancePercent < 0 || elite.RawDropChancePercent > 100)
+                throw new FormatException("엘리트 드롭 확률은 0 이상 100 이하여야 합니다: " + elite.EnemyId + " (" + location + ")");
+            if (!string.IsNullOrEmpty(elite.DropTable) && !drops.Has(elite.DropTable))
+                throw new FormatException("등록되지 않은 엘리트 드롭 테이블입니다: " + elite.DropTable + " (" + elite.EnemyId + ", " + location + ")");
         }
 
         /// <summary>값이 NaN이나 무한대가 아닌지 반환한다.</summary>

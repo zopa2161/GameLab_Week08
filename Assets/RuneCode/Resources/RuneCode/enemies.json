@@ -80,7 +80,7 @@
       "_projectileRadius": 0,
       "_projectileLifetime": 0,
       "_id": "enemy.aegis",
-      "_movement": "chase",
+      "_movement": "turnChase",
       "_attack": "contact",
       "_traits": [
         "aegisShield"
@@ -89,7 +89,8 @@
       "_dropTable": "",
       "_reward": 4,
       "_damage": 12,
-      "_burstInterval": 0.12
+      "_burstInterval": 0.12,
+      "_turnSeconds": 3.0
     },
     {
       "_dashSeconds": 0,
@@ -177,6 +178,7 @@
       "_projectileRadius": 0,
       "_projectileLifetime": 0,
       "_id": "enemy.splitter_mid",
+      "_isHidden": true,
       "_movement": "chase",
       "_attack": "contact",
       "_sides": 12,
@@ -202,6 +204,7 @@
       "_projectileRadius": 0,
       "_projectileLifetime": 0,
       "_id": "enemy.splitter_small",
+      "_isHidden": true,
       "_movement": "chase",
       "_attack": "contact",
       "_sides": 12,
@@ -295,10 +298,18 @@
       "_sides": 8,
       "_traits": [
         "carrier"
-      ]
+      ],
+      "_carrierTargets": [
+        "enemy.interceptor"
+      ],
+      "_carrierInterval": 4,
+      "_carrierCount": 2,
+      "_carrierDistance": 120,
+      "_carrierMaxAlive": 6
     },
     {
       "_id": "enemy.interceptor",
+      "_isHidden": true,
       "_hp": 18,
       "_speed": 180,
       "_radius": 11,

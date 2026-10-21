@@ -1537,12 +1537,16 @@
       "_value": "슬롯"
     },
     {
-      "_key": "save.stage",
-      "_value": "진입 단계"
+      "_key": "save.progressRound",
+      "_value": "스테이지 {0} · 라운드 {1} 완료"
     },
     {
-      "_key": "save.highestStage",
-      "_value": "최고 클리어"
+      "_key": "save.progressHp",
+      "_value": "체력 {0}/{1}"
+    },
+    {
+      "_key": "save.progressNone",
+      "_value": "새 진행"
     },
     {
       "_key": "save.slotEmpty",

@@ -2,7 +2,8 @@ using UnityEngine;
 
 namespace RuneCode
 {
-    /// <summary>적 탄환(마름모와 잔상)과 보스 위험 장판(채움, 외곽 링, 사선 표시)을 표시한다. 장판은 예고 중에 더 흐리게 그린다.</summary>
+    /// <summary>적 탄환(마름모와 잔상)과 보스 위험 장판(채움, 외곽 링, 사선 표시)을 표시한다.
+    /// 예고 중에는 노란색으로 채우고 링이 장판 경계로 수축하며, 활성화되면 빨간색으로 바꾼다.</summary>
     public sealed class HostileProjectileView : MonoBehaviour
     {
         private const float TRAIL_LENGTH = 14f;
@@ -10,9 +11,11 @@ namespace RuneCode
         private const float HAZARD_ACTIVE_ALPHA = 0.30f;
         private const float HAZARD_MARK_SCALE = 0.3f;
         private const float HAZARD_LINE_WIDTH = 2f;
+        private const float HAZARD_RING_START_SCALE = 1.6f;
 
         private static readonly Color Tint = new Color(1f, 0.33f, 0.42f);
         private static readonly Color TrailColor = new Color(1f, 0.25f, 0.3f, 0.25f);
+        private static readonly Color HazardWarningColor = new Color(1f, 0.8f, 0.25f);
 
         [Header("탄환")]
         [SerializeField] private SpriteRenderer _bullet;
@@ -36,10 +39,14 @@ namespace RuneCode
             MissionWorldSpace.SetVisible(_hazardMark, isHazard);
             if (isHazard)
             {
-                Color fill = Tint; fill.a = projectile.IsWarning ? HAZARD_WARNING_ALPHA : HAZARD_ACTIVE_ALPHA;
+                bool isWarning = projectile.IsWarning;
+                Color hazardColor = isWarning ? HazardWarningColor : Tint;
+                Color fill = hazardColor; fill.a = isWarning ? HAZARD_WARNING_ALPHA : HAZARD_ACTIVE_ALPHA;
+                // 예고 중에는 링이 바깥에서 장판 경계로 수축해 피해 시작 시점을 알린다.
+                float ringScale = isWarning ? Mathf.Lerp(HAZARD_RING_START_SCALE, 1f, (float)projectile.WarningProgress) : 1f;
                 MissionWorldSpace.Place(_hazardFill, Vector2.zero, radius * 2, fill);
-                MissionWorldSpace.Place(_hazardRing, Vector2.zero, radius * 2, Tint);
-                MissionWorldSpace.PlaceLine(_hazardMark, -Vector2.one * radius * HAZARD_MARK_SCALE, Vector2.one * radius * HAZARD_MARK_SCALE, HAZARD_LINE_WIDTH, Tint);
+                MissionWorldSpace.Place(_hazardRing, Vector2.zero, radius * 2 * ringScale, hazardColor);
+                MissionWorldSpace.PlaceLine(_hazardMark, -Vector2.one * radius * HAZARD_MARK_SCALE, Vector2.one * radius * HAZARD_MARK_SCALE, HAZARD_LINE_WIDTH, hazardColor);
                 return;
             }
             MissionWorldSpace.Place(_bullet, Vector2.zero, radius * 2, Tint);

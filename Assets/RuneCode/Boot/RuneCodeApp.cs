@@ -34,7 +34,6 @@ namespace RuneCode
         void Awake()
         {
             GameData.Load();
-            GameData.SetCarrier(CarrierSpawnSettings.LoadDefinition());
             if (SimulationCli.TryRunCommandLine()) { enabled = false; return; }
             Application.targetFrameRate = GameData.Balance.Sim.TickRate;
             PlayerSave save = SaveStore.Load();

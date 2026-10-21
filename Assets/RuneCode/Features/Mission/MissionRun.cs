@@ -66,6 +66,7 @@ namespace RuneCode
         private List<string> _clearModifierChoices;
         private List<string> _clearModifierGrades;
         private bool _isClearModifierChosen;
+        private readonly bool _isResumedRoundBreak;
         private Stopwatch _roundBreakClock;
         private readonly Stopwatch _activeMissionClock = Stopwatch.StartNew();
 
@@ -92,6 +93,9 @@ namespace RuneCode
 
         public bool IsWaitingForNextRound => _simulation.IsWaitingForNextRound;
 
+        /// <summary>저장된 라운드 진행을 이어받아 라운드 대기 상태로 시작했는지 반환한다.</summary>
+        public bool IsResumedRoundBreak => _isResumedRoundBreak;
+
         /// <summary>정산 후 표시할 결과 문구를 반환한다.</summary>
         public string LastResult => _lastResult;
 
@@ -110,7 +114,10 @@ namespace RuneCode
         /// <summary>보스 클리어 Modifier 선택이 이미 확정됐는지 반환한다.</summary>
         public bool IsClearModifierChosen => _isClearModifierChosen;
 
-        /// <summary>세션 능력치로 연속 미션 1스테이지를 만들고 출격 그래프 스냅샷·전투 ID와 시작 텔레메트리를 기록한다.</summary>
+        /// <summary>
+        /// 세션 능력치로 연속 미션을 만들고 출격 그래프 스냅샷·전투 ID와 시작 텔레메트리를 기록한다.
+        /// 저장된 라운드 진행이 있으면 그 스테이지·라운드의 라운드 대기 상태로 이어 시작하며 저장된 보상 후보를 복원한다.
+        /// </summary>
         public MissionRun(RuneCodeSession session, CompiledSpell spell, string spellName)
         {
             _session = session;
@@ -119,10 +126,26 @@ namespace RuneCode
             // 미션마다 시드를 바꿔 스폰·드롭·보상 순서가 매번 달라지게 한다. 재현용으로 시작 텔레메트리에 남긴다.
             int seed = Environment.TickCount;
             _seed = seed;
+            PlayerSave save = session.Save;
+            _isResumedRoundBreak = save.HasProgressionRound;
+            double resumeHp = 0;
+            if (_isResumedRoundBreak)
+            {
+                // 저장 이후 강화로 늘어난 최대 체력 증가분만큼 이어 받은 체력을 올리고 세션 최대치로 제한한다.
+                resumeHp = Math.Min(save.ProgressionHp + Math.Max(0, session.MaxHp - save.ProgressionMaxHp), session.MaxHp);
+                if (save.PendingRoundChoiceIds.Count > 0)
+                {
+                    _clearModifierChoices = new List<string>(save.PendingRoundChoiceIds);
+                    _clearModifierGrades = new List<string>(save.PendingRoundChoiceGrades);
+                }
+                else _isClearModifierChosen = true;
+                _roundBreakClock = Stopwatch.StartNew();
+            }
             _simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, true, session.MaxHp, session.MaxEnergy, 1, session.EnergyRegen,
                 session.DamageMultiplier, session.MoveSpeedMultiplier, session.ScrapGainMultiplier,
-                carrier: GameData.Carrier, scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
-                killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio, isProgressionMission: true));
+                scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
+                killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio, isProgressionMission: true,
+                progressionStage: save.ProgressionStage, progressionRound: save.ProgressionRound, progressionHp: resumeHp));
             _simulation.SetLoadout(new[] { spell });
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
             _coreNodeId = FindCoreNodeId(session.Spells.Graph);
@@ -140,6 +163,7 @@ namespace RuneCode
             {
                 ["stage"] = _simulation.StageNumber,
                 ["seed"] = seed,
+                ["resumed"] = _isResumedRoundBreak,
                 ["inventory"] = session.GetInventoryLogSnapshot(),
             });
             LocalTelemetry.Record(0, "mission.start", _simulation.StageNumber + ":" + spell.Signature + ":seed=" + seed);
@@ -225,34 +249,61 @@ namespace RuneCode
                 });
         }
 
-        /// <summary>선택 완료 후 다음 라운드 또는 스테이지를 시작하고 라운드 종료부터 버튼 클릭까지 일시정지를 제외한 경과 초를 기록한다. 시작 성공 여부를 반환한다.</summary>
+        /// <summary>선택 완료 후 다음 라운드 또는 스테이지를 시작하고 라운드 종료부터 버튼 클릭까지 일시정지를 제외한 경과 초를 기록한다. 후보가 없는 이어하기는 선택 없이 시작할 수 있다. 시작 성공 여부를 반환한다.</summary>
         public bool TryStartNextRound()
         {
             if (_settled || _isPaused || !_simulation.IsWaitingForNextRound
-                || !HasClearModifierChoices || !_isClearModifierChosen) return false;
+                || (HasClearModifierChoices && !_isClearModifierChosen)) return false;
+            ResetRoundInput();
+            int completedStage = _simulation.StageNumber;
+            int completedRound = _simulation.RoundNumber;
+            if (!_simulation.TryStartNextRound()) return false;
+            EndRoundBreak(completedStage, completedRound, "next_round_clicked");
+            return true;
+        }
+
+        /// <summary>
+        /// 디버그 실행의 라운드 대기 중에만 지정 스테이지의 보스 웨이브로 바로 진입한다. 고르지 않은 라운드 보상 후보는 버린다.
+        /// 보스 처치 후에는 일반 진행과 같이 라운드 보상과 대기 상태로 이어진다. 진입 성공 여부를 반환한다.
+        /// </summary>
+        public bool DebugStartBoss(int stage)
+        {
+            if (!_session.IsDebugEnabled || _settled || _isPaused || !_simulation.IsWaitingForNextRound) return false;
+            ResetRoundInput();
+            int completedStage = _simulation.StageNumber;
+            int completedRound = _simulation.RoundNumber;
+            if (!_simulation.DebugStartBossWave(stage)) return false;
+            EndRoundBreak(completedStage, completedRound, "debug_boss_clicked");
+            return true;
+        }
+
+        /// <summary>새 전투 구간 시작 전에 고정 스텝 누적값과 대기 중인 대시·시전 입력을 비우고 빔 입력을 취소한다.</summary>
+        private void ResetRoundInput()
+        {
             _accumulator = 0;
             _hasPendingDash = false;
             _hasPendingCastPress = false;
             _hasPendingCastRelease = false;
             _wasCasting = false;
             _simulation.CancelBeamInput();
-            int completedStage = _simulation.StageNumber;
-            int completedRound = _simulation.RoundNumber;
-            if (!_simulation.TryStartNextRound()) return false;
+        }
+
+        /// <summary>끝낸 스테이지·라운드와 종료 사유로 라운드 대기 종료를 기록하고 대기 시계와 보상 후보 상태를 비운다.</summary>
+        private void EndRoundBreak(int completedStage, int completedRound, string reason)
+        {
             _roundBreakClock.Stop();
             LocalTelemetry.RecordUsabilityEvent("round_break_end", "round_break", new Dictionary<string, object>
             {
                 ["stage"] = completedStage, ["round"] = completedRound,
                 ["seconds"] = _roundBreakClock.Elapsed.TotalSeconds,
                 ["active_seconds"] = _activeMissionClock.Elapsed.TotalSeconds,
-                ["reason"] = "next_round_clicked",
+                ["reason"] = reason,
                 ["next_stage"] = _simulation.StageNumber, ["next_round"] = _simulation.RoundNumber,
             });
             _roundBreakClock = null;
             _clearModifierChoices = null;
             _clearModifierGrades = null;
             _isClearModifierChosen = false;
-            return true;
         }
 
         /// <summary>
@@ -313,6 +364,7 @@ namespace RuneCode
             CollectPickedItems();
             if (_simulation.IsWaitingForNextRound && !HasClearModifierChoices)
             {
+                SetRoundModifierChoices();
                 CommitRoundRewards();
                 _roundBreakClock = Stopwatch.StartNew();
                 LocalTelemetry.RecordUsabilityEvent("round_break_start", "round_break", new Dictionary<string, object>
@@ -320,12 +372,11 @@ namespace RuneCode
                     ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber,
                     ["active_seconds"] = _activeMissionClock.Elapsed.TotalSeconds,
                 });
-                SetRoundModifierChoices();
             }
             if (_simulation.Completed || _simulation.IsFailed) FinishMission();
         }
 
-        /// <summary>라운드 종료 시 기존 클리어 보상 설정과 시뮬레이션 난수로 후보와 등급을 한 번 추첨한다.</summary>
+        /// <summary>라운드 종료 시 해당 라운드의 보상 설정과 시뮬레이션 난수로 후보와 등급을 한 번 추첨한다.</summary>
         private void SetRoundModifierChoices()
         {
             if (!_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
@@ -354,11 +405,13 @@ namespace RuneCode
             }
         }
 
-        /// <summary>이번 라운드에 모은 조각(아직 지급하지 않은 수집량)과 소지 아이템을 세이브에 한 번에 지급하고 저장한 뒤 대기 목록을 비운다.</summary>
+        /// <summary>이번 라운드에 모은 조각(아직 지급하지 않은 수집량)과 소지 아이템, 끝낸 라운드 위치·체력·보상 후보를 세이브에 한 번에 지급·기록하고 대기 목록을 비운다.</summary>
         private void CommitRoundRewards()
         {
             int fragments = _simulation.EarnedFragments;
-            _session.CommitRoundRewards(fragments - _grantedFragments, _pendingRoundDrops);
+            _session.CommitRoundRewards(fragments - _grantedFragments, _pendingRoundDrops,
+                _simulation.StageNumber, _simulation.RoundNumber, _simulation.Player.Hp, _simulation.Player.MaxHp,
+                _clearModifierChoices, _clearModifierGrades);
             _grantedFragments = fragments;
             _pendingRoundDrops.Clear();
         }
@@ -492,7 +545,7 @@ namespace RuneCode
             });
         }
 
-        /// <summary>라운드 또는 최종 클리어 후보 순번에 해당하는 Modifier를 한 번 지급한다. 선택 가능 상태가 아니거나 이미 선택했으면 false를 반환한다.</summary>
+        /// <summary>라운드 또는 최종 클리어 후보 순번의 행동·Modifier 룬을 해당 등급으로 한 번 지급한다. 선택 불가 상태나 중복 선택이면 false를 반환한다.</summary>
         public bool ChooseClearModifier(int index)
         {
             if ((!_settled && !_simulation.IsWaitingForNextRound) || _clearModifierChoices == null
@@ -502,8 +555,8 @@ namespace RuneCode
             {
                 if (!_session.ClaimProgressionChoice(index)) return false;
             }
-            else if (!_session.IsTestMode) _session.GrantModifier(_clearModifierChoices[index], grade, 1,
-                _settled ? "clear_choice" : "round_clear_choice");
+            else if (!_settled) _session.GrantRoundChoice(_clearModifierChoices[index], grade);
+            else if (!_session.IsTestMode) _session.GrantRune(_clearModifierChoices[index], grade, 1, "clear_choice");
             AddModifierReward(_clearModifierChoices[index], grade, 1);
             _isClearModifierChosen = true;
             LocalTelemetry.RecordUsabilityEvent("clear_reward_selected", _settled ? "result" : "round_break", new Dictionary<string, object>

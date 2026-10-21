@@ -50,7 +50,7 @@ namespace RuneCode
             if (!_previewEnemyIds.Add(enemyId)) return;
             EnemyDefinition enemy = GameData.Enemies.Get(enemyId);
             if (enemy.HasTrait(EnemyDefinition.TRAIT_CARRIER))
-                foreach (string childId in GameData.Carrier.EnemyIds) AddPreviewEnemy(childId);
+                foreach (string childId in enemy.CarrierTargets) AddPreviewEnemy(childId);
         }
 
         /// <summary>해금 범위 안에서 선택 스테이지를 이동하고 표시를 갱신한다.</summary>

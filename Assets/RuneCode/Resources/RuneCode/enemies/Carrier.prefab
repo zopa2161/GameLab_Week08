@@ -59,31 +59,5 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 5171843231609555381, guid: f13f34a0530753e48b64435633b8552b, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 2317652430072173063}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: f13f34a0530753e48b64435633b8552b, type: 3}
---- !u!1 &8340646135193104390 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 5171843231609555381, guid: f13f34a0530753e48b64435633b8552b, type: 3}
-  m_PrefabInstance: {fileID: 3781327674659830195}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &2317652430072173063
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8340646135193104390}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cc2270a1065ec7f4eb1ec776063fa68e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RuneCode.CarrierSpawnSettings
-  _targets:
-  - {fileID: 5212113945402312240, guid: 6623eac53352ce94abfe8df91d145fb8, type: 3}
-  _interval: 4
-  _count: 2
-  _distance: 120
-  _maxAlive: 6

@@ -149,7 +149,7 @@ namespace RuneCode
         public RuneSimulation(SimulationSetup setup)
         {
             _world = new SimulationWorld(setup.Balance, setup.Enemies, setup.Sector, setup.Bosses, setup.Formations, setup.Drops,
-                new ModifierGradeDropSource(setup.ModifierGrades), setup.Stages, setup.Carrier, setup.IsMission, setup.MaxHp, setup.MaxEnergy, setup.StageNumber, setup.EnergyRegen,
+                new ModifierGradeDropSource(setup.ModifierGrades), setup.Stages, setup.IsMission, setup.MaxHp, setup.MaxEnergy, setup.StageNumber, setup.EnergyRegen,
                 setup.DamageMultiplier, setup.MoveSpeedMultiplier, new SimRandom(setup.Seed), new AdaptationNet(setup.Balance), setup.IsProgressionMission);
             _feedback = new SimulationFeedback(_world);
             _runtime = new SpellRuntimeContext(_world, _feedback);
@@ -235,6 +235,25 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>
+        /// 디버그 기능에서 라운드 소강상태의 연속 미션을 지정 스테이지의 보스 웨이브(마지막 라운드·마지막 웨이브)로 바로 전환한다.
+        /// 플레이어 체력을 최대로 채우며 소강상태가 아니거나 스테이지 범위를 벗어나면 false를 반환한다.
+        /// </summary>
+        public bool DebugStartBossWave(int stage)
+        {
+            if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak
+                || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT) return false;
+            _loot.ClearClearFeedback();
+            _world.StageNumber = stage;
+            _world.RoundNumber = StageCatalog.PROGRESSION_ROUND_COUNT;
+            _world.WaveNumber = StageCatalog.PROGRESSION_WAVE_COUNT;
+            _world.StageDefinition = _world.Stages.Get(stage);
+            _world.Player.SetHp(_world.Player.MaxHp);
+            _world.Stage = MissionStage.Combat;
+            StartProgressionWave();
+            return true;
+        }
+
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         public bool TryCast(CompiledSpell spell, SimVector aimDirection, int slot = 0) { _world.Player.Aim(aimDirection); return TryCast(spell, slot); }
 
@@ -303,10 +322,12 @@ namespace RuneCode
             return SpawnEnemy(id, _world.Map.NearestFree(_world.Player.Position + _world.Player.AimDirection * 260, 24), false, 0, elite);
         }
 
-        /// <summary>디버그 엘리트에 현재 스테이지에서 해당 종족이 쓰는 드롭 테이블을 연결하고, 없으면 첫 설정 테이블을 반환한다.</summary>
+        /// <summary>디버그 엘리트에 현재 스테이지에서 해당 종족이 쓰는 드롭 테이블을 연결하고, 없으면 첫 설정 테이블을 반환한다. 연속 미션은 현재 연속 스테이지의 엘리트 타입을 쓴다.</summary>
         private string GetDebugEliteDropTable(string enemyId)
         {
-            IReadOnlyList<EliteSpawnDefinition> elites = _world.Stages.Get(_world.StageNumber).EliteTypes;
+            IReadOnlyList<EliteSpawnDefinition> elites = _world.IsProgressionMission
+                ? _world.Stages.GetProgressionStage(_world.StageNumber).EliteTypes
+                : _world.Stages.Get(_world.StageNumber).EliteTypes;
             foreach (EliteSpawnDefinition elite in elites)
                 if (elite.EnemyId == enemyId && !string.IsNullOrEmpty(elite.DropTable)) return elite.DropTable;
             foreach (EliteSpawnDefinition elite in elites)
@@ -455,7 +476,8 @@ namespace RuneCode
         /// 스테이지 편성으로 외곽 벽만 있는 맵, 맵 중앙의 플레이어, 스폰 반경, 처치 집계와 스폰 진행을 준비하고 0틱 예약을 바로 스폰한다.
         /// 연속 미션을 진행 스테이지·라운드와 함께 이어하면 마지막 웨이브를 끝낸 라운드 대기 상태로 두고, 아니면 1스테이지 1라운드 1웨이브로 시작한다.
         /// 스폰 반경 = 기본 발사 사거리 + 가장 큰 적 반경 + 여유이며 막 스폰된 적에게 기본 발사체가 닿지 않게 한다.
-        /// 적 분리 격자를 맵 크기와 적 상한, 가장 큰 적 반경의 2배 칸 크기로 준비한다. 가장 큰 적 반경에는 이 스테이지 엘리트 타입의 반경 배율을 반영한다.
+        /// 적 분리 격자를 맵 크기와 적 상한, 가장 큰 적 반경의 2배 칸 크기로 준비한다. 가장 큰 적 반경에는 이 스테이지 엘리트 타입의 반경 배율을 반영하고,
+        /// 연속 미션은 진행할 모든 연속 스테이지 엘리트 타입의 반경 배율도 반영한다.
         /// 기본 발사 수치는 runes에서 조회한다.
         /// </summary>
         private void BeginTimedBattle(RuneCatalog runes, int progressionStage, int progressionRound, double progressionHp)
@@ -486,6 +508,10 @@ namespace RuneCode
             double largestRadius = 0;
             foreach (EnemyDefinition enemy in _world.EnemyCatalog.Enemies) largestRadius = Math.Max(largestRadius, enemy.Radius);
             foreach (EliteSpawnDefinition elite in _world.StageDefinition.EliteTypes) largestRadius = Math.Max(largestRadius, _world.EnemyCatalog.Get(elite.EnemyId).Radius * elite.RadiusMultiplier);
+            if (_world.IsProgressionMission)
+                foreach (ProgressionStageDefinition progression in _world.Stages.ProgressionStages)
+                    foreach (EliteSpawnDefinition elite in progression.EliteTypes)
+                        largestRadius = Math.Max(largestRadius, _world.EnemyCatalog.Get(elite.EnemyId).Radius * elite.RadiusMultiplier);
             _enemy.ResizeSeparation(_world.Map.Width, _world.Map.Height, EnemyLimit, largestRadius * 2);
             _spawn.SpawnRadius = (double)bolt.Speed * bolt.Lifetime + largestRadius + _world.Stages.Spawn.RingMargin;
             _rules.ResetForBattle();

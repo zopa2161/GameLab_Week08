@@ -104,7 +104,7 @@ namespace RuneCode
             _isDebugEnabled = isDebugEnabled;
             _statusMessage = initialStatus;
             bool restoredRuneUnlocks = !isDebugEnabled && RestorePurchasedRuneUnlocks(_save);
-            if (isDebugEnabled) UnlockDebugRunes();
+            if (isDebugEnabled) PrepareDebugSave();
             var storage = new SessionSpellStorage(() => _save, PersistSpellStorage);
             var policy = new SessionSpellPolicy(this);
             _spells = new SpellEditSession(storage, policy);
@@ -156,7 +156,7 @@ namespace RuneCode
                 if (!SaveStore.WriteToSlot(SaveStore.ActiveSlot, _save)) SetStatusText(SaveStore.LastWarning);
                 else _isSaveDirty = false;
             }
-            if (isDebug) UnlockDebugRunes();
+            if (isDebug) PrepareDebugSave();
             else PersistRestoredRuneUnlocks(restoredRuneUnlocks);
             _spells.Reload();
             if (!isDebug && !Application.isEditor) BeginNormalPlayLog();
@@ -599,7 +599,7 @@ namespace RuneCode
         private void RenewSave()
         {
             _save = _isTestMode ? CreateTestSave() : PlayerSave.CreateNew();
-            if (_isDebugEnabled) UnlockDebugRunes();
+            if (_isDebugEnabled) PrepareDebugSave();
             else if (!_isTestMode) _normalSave = _save;
             _isRunSuspended = false;
             _spells.Reload();
@@ -720,11 +720,11 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>라운드 보상 후보 Modifier를 소지량에 즉시 반영하고 대기 후보를 비운 뒤 한 번에 저장하고 다시 컴파일한다. 테스트 모드는 지급하지 않는다.</summary>
+        /// <summary>라운드 보상 후보 행동·Modifier 룬을 소지량에 즉시 반영하고 대기 후보를 비운 뒤 한 번에 저장하고 다시 컴파일한다. 테스트 모드는 지급하지 않는다.</summary>
         public void GrantRoundChoice(string runeId, string grade)
         {
-            if (_isTestMode || !GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER
-                || !GameData.ModifierGrades.IsGradeAvailable(runeId, grade)) return;
+            if (_isTestMode || !RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return;
+            RuneDefinition rune = GameData.Runes.Get(runeId);
             int before = _save.GetStock(runeId, grade);
             _save.AddStock(runeId, grade, 1);
             _save.ClearPendingRoundChoice();
@@ -907,6 +907,13 @@ namespace RuneCode
             }
             _isSaveDirty = true;
             return false;
+        }
+
+        /// <summary>새 디버그 진행에 룬을 전부 지급하고 1스테이지 1라운드를 끝낸 라운드 대기 기록을 최대 체력으로 남긴다. 미션은 이 기록으로 대기 상태에서 시작한다.</summary>
+        private void PrepareDebugSave()
+        {
+            UnlockDebugRunes();
+            _save.RecordProgressionRound(1, 1, MaxHp, MaxHp, null, null);
         }
 
         /// <summary>
