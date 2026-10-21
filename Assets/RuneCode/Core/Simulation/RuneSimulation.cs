@@ -161,7 +161,8 @@ namespace RuneCode
             _spawn = new SpawnSystem(_world, _feedback);
             _bench = new BenchScenario(_world, _spawn);
             _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, _statuses, _executor, this);
-            _loot = new LootSystem(_world, _stats, _statuses, _rules, _spawn, _enemy, setup.ScrapGainMultiplier, setup.ScrapPickupRangeMultiplier, setup.ScrapHealRatio, setup.KillEnergyBonus);
+            _loot = new LootSystem(_world, _stats, _statuses, _rules, _spawn, _enemy, setup.Runes, setup.ModifierGrades,
+                setup.ScrapGainMultiplier, setup.ScrapPickupRangeMultiplier, setup.ScrapHealRatio, setup.KillEnergyBonus);
             _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, setup.Runes, _runtime);
             _entities = new SpellEntitySystem(_world, _combat, _runtime);
             _runtime.Connect(_combat, _entities);

@@ -704,8 +704,8 @@ namespace RuneCode
             if (_isTestMode || index < 0 || index >= _save.PendingProgressionChoiceIds.Count) return false;
             string runeId = _save.PendingProgressionChoiceIds[index];
             string grade = _save.PendingProgressionChoiceGrades[index];
-            if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER
-                || !GameData.ModifierGrades.IsGradeAvailable(runeId, grade)) return false;
+            if (!RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return false;
+            RuneDefinition rune = GameData.Runes.Get(runeId);
             int before = _save.GetStock(runeId, grade);
             _save.AddStock(runeId, grade, 1);
             _save.ClearPendingProgressionChoice();

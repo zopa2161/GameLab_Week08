@@ -114,7 +114,7 @@ namespace RuneCode
             FormationCatalog formations = FormationCatalog.FromJson(ReadResource("formations"));
             BossCatalog bosses = BossCatalog.FromJson(ReadResource("bosses"), enemies, formations);
             DropCatalog drops = DropCatalog.FromJson(ReadResource("drops"));
-            StageCatalog stages = StageCatalog.FromJson(ReadResource("stages"), enemies, formations, drops);
+            StageCatalog stages = StageCatalog.FromJson(ReadResource("stages"), enemies, formations, drops, modifierGrades, runes);
             _enemies = enemies;
             _sector = sector;
             _formations = formations;

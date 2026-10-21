@@ -453,8 +453,8 @@ namespace RuneCode
             for (int index = 0; index < PendingProgressionChoiceIds.Count; index++)
             {
                 string runeId = PendingProgressionChoiceIds[index];
-                if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER
-                    || !GameData.ModifierGrades.IsGradeAvailable(runeId, PendingProgressionChoiceGrades[index]))
+                if (!RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades,
+                    runeId, PendingProgressionChoiceGrades[index]))
                 {
                     error = "save.invalidValues";
                     return false;

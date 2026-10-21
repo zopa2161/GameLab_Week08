@@ -409,7 +409,10 @@ namespace RuneCode
                     RuneDefinition rune = GameData.Runes.Get(_run.ClearModifierChoices[i]);
                     string grade = _run.ClearModifierGrades[i];
                     names.Add(ModifierGradeText.Colorize(rune.Name, grade));
-                    descriptions.Add(ModifierGradeText.Colorize(string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false)), grade));
+                    string description = rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
+                        ? RuneDescriptionBuilder.GetDescription(rune)
+                        : string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false));
+                    descriptions.Add(ModifierGradeText.Colorize(description, grade));
                 }
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions, _run.ClearModifierGrades);
             }

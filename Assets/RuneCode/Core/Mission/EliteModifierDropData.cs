@@ -1,12 +1,17 @@
+using System;
 using System.Collections.Generic;
+
+using UnityEngine;
 
 namespace RuneCode
 {
     /// <summary>엘리트 Modifier 등급 확률표의 한 항목이다. Percent의 합은 100이다.</summary>
-    public readonly struct EliteModifierGradeChance
+    [Serializable]
+    public struct EliteModifierGradeChance
     {
-        private readonly string _grade;
-        private readonly int _percent;
+        [Header("등급 확률")]
+        [SerializeField] private string _grade;
+        [SerializeField] private int _percent;
         public string Grade => _grade;
         public int Percent => _percent;
 
