@@ -206,6 +206,7 @@ namespace RuneCode
         public bool TryStartNextRound()
         {
             if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak) return false;
+            _loot.ClearClearFeedback();
             if (_world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT)
             {
                 _world.StageNumber++;
@@ -417,10 +418,10 @@ namespace RuneCode
             if (_world.IsBossStage) _world.Enemies.Clear();
             _statuses.ClearAll();
             _world.Player.CancelDash(Time);
+            _loot.CollectRemainingDrops();
             if (_world.StageNumber == StageCatalog.PROGRESSION_STAGE_COUNT && _world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT)
             {
                 _world.Stage = MissionStage.Cleared;
-                _loot.CollectRemainingDrops();
             }
             else _world.Stage = MissionStage.RoundBreak;
             CancelCombat();

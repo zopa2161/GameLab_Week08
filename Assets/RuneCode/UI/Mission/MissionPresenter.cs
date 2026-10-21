@@ -140,7 +140,9 @@ namespace RuneCode
             PlayScrapPickupSounds();
             UpdateDamageFeedback(playerDamageBefore);
             if (_run.IsWaitingForNextRound && _run.HasClearModifierChoices && !_hasPresentedChoices && !_ui.IsPopupOpen)
-                ShowRoundChoices();
+            {
+                if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowRoundChoices();
+            }
             RenderHud();
         }
 
