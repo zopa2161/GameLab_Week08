@@ -97,7 +97,7 @@
             { "_waves": [
                 { "_formation": { "_id": "scatter" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.hunter", "_count": 2 }] },
                 { "_formation": { "_id": "line" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 10 }, { "_enemyId": "enemy.aegis", "_count": 2 }] },
-                { "_formation": { "_id": "halfSurround" }, "_units": [{ "_enemyId": "enemy.scout", "_count": 12 }, { "_enemyId": "enemy.hunter", "_count": 1 }, { "_enemyId": "boss.governor", "_count": 1 }] }
+                { "_formation": { "_id": "halfSurround" }, "_units": [{ "_enemyId": "boss.hydra", "_count": 1 }] }
             ] }
         ] },
         { "_stage": 2, "_rounds": [

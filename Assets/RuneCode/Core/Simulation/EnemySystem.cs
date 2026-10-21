@@ -19,6 +19,7 @@ namespace RuneCode
         private readonly List<PendingEnemyShot> _pendingEnemyShots = new List<PendingEnemyShot>();
         private readonly EnemySeparation _separation = new EnemySeparation();
         private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
+        private readonly Action<double> _hurtPlayer;
 
         /// <summary>예약 사격 목록이다. 상태 해시와 전투 취소가 같은 인스턴스를 쓴다.</summary>
         internal List<PendingEnemyShot> PendingEnemyShots => _pendingEnemyShots;
@@ -37,6 +38,7 @@ namespace RuneCode
             _executor = executor;
             _simulation = simulation;
             _isSeparationFixed = IsSeparationFixed;
+            _hurtPlayer = HurtPlayer;
         }
 
         /// <summary>미션 적 분리 격자를 맵 크기, 적 상한과 칸 크기로 다시 만든다.</summary>
@@ -75,6 +77,12 @@ namespace RuneCode
                 enemy.Observe(_world.Time);
                 bool hasDisplacement = AdvanceEnemyDisplacement(enemy);
                 if (enemy.IsDummy) continue;
+                if (enemy.Hydra != null)
+                {
+                    enemy.Hydra.Advance(enemy, _world, _simulation, _hurtPlayer);
+                    HurtByContact(enemy);
+                    continue;
+                }
                 if (_statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze))
                 {
                     if (enemy.Definition.Attack == EnemyDefinition.ATTACK_SNIPER)
@@ -332,7 +340,8 @@ namespace RuneCode
             foreach (SimulationEnemy target in _world.Enemies)
             {
                 if (!target.IsAlive || target.IsPatching || SimVector.Distance(source.Position, target.Position) > radius + target.Radius) continue;
-                double actual = target.Hurt(damage, _world.Time);
+                double incoming = target.Hydra == null ? damage : target.Hydra.LimitDamage(damage, false, _world.Time, target.MaxHp);
+                double actual = target.Hurt(incoming, _world.Time);
                 if (actual > 0)
                 {
                     _stats.EnemyDamageEventCount++;

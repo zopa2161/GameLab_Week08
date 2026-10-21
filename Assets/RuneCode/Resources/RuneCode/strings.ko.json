@@ -845,6 +845,10 @@
       "_value": "거버너"
     },
     {
+      "_key": "boss.hydra",
+      "_value": "히드라"
+    },
+    {
       "_key": "ui.introCode",
       "_value": "2076 / 고대 마법 · 현대의 메모리"
     },

@@ -65,6 +65,7 @@ namespace RuneCode
         [SerializeField] private SpriteRenderer _hpFill;
         [SerializeField] private SpriteRenderer _circleShield;
         [SerializeField] private SpriteRenderer _sniperLine;
+        [SerializeField] private HydraBossView _hydraView;
 
         /// <summary>적 상태와 시뮬레이션의 시간·상태 이상·적응 정보로 맵 중앙(origin) 기준 월드 표시와 엘리트 외곽선의 맥동을 갱신한다.</summary>
         public void Apply(SimulationEnemy enemy, RuneSimulation sim, SimVector origin)
@@ -105,7 +106,7 @@ namespace RuneCode
             ApplyIcon(_chillIcon, sim.GetChillStacks(enemy) > 0 || sim.HasEnemyStatus(enemy, EnemyStatusType.Freeze), new Vector2(0, radius + ICON_GAP), "ice");
             ApplyIcon(_empIcon, sim.HasEnemyStatus(enemy, EnemyStatusType.Emp), new Vector2(radius, radius + ICON_GAP), "arc");
             double threshold = GameData.Balance.Adaptation.ResistanceThreshold;
-            bool isResistant = sim.Adaptation.Enabled && (sim.Adaptation.GetValue(enemy.LastDamageElement) >= threshold || sim.Adaptation.GetValue(enemy.LastDamageForm) >= threshold);
+            bool isResistant = enemy.Hydra == null && sim.Adaptation.Enabled && (sim.Adaptation.GetValue(enemy.LastDamageElement) >= threshold || sim.Adaptation.GetValue(enemy.LastDamageForm) >= threshold);
             MissionWorldSpace.SetVisible(_resistRing, isResistant);
             if (isResistant) MissionWorldSpace.Place(_resistRing, new Vector2(radius + ICON_GAP, radius), ICON_RADIUS * 2, ResistColor);
 
@@ -116,6 +117,7 @@ namespace RuneCode
             MissionWorldSpace.SetVisible(_hpFill, ratio > 0);
             if (ratio > 0) MissionWorldSpace.PlaceLine(_hpFill, new Vector2(-width * 0.5f, barY), new Vector2(-width * 0.5f + width * ratio, barY), HP_BAR_HEIGHT, tint);
             ApplyAdditionalIndicators(enemy, sim);
+            if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, _body);
         }
 
         /// <summary>원형 보호막과 저격 경로를 시뮬레이션의 반경·저장 조준선으로 갱신한다.</summary>
