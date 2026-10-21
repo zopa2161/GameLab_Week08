@@ -105,6 +105,8 @@ namespace RuneCode
         public int RoundNumber => _world.RoundNumber;
         public int WaveNumber => _world.WaveNumber;
         public bool IsWaitingForNextRound => _world.Stage == MissionStage.RoundBreak;
+        /// <summary>연속 미션 전투 중 현재 웨이브의 살아 있는 적과 미배출·예고·분열 예약 수를 반환하며 대기·종료 상태에서는 0이다.</summary>
+        public int RemainingWaveEnemyCount => IsProgressionMission && Stage == MissionStage.Combat ? _spawn.RemainingWaveEnemyCount : 0;
         public bool IsBossStage => _world.IsBossStage;
         public double TimeLimit => _world.TimeLimit;
         public double RemainingTime => Math.Max(0, TimeLimit - Time);

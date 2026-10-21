@@ -99,6 +99,9 @@ namespace RuneCode
 
         internal bool IsFinished => _stream == null && _isWaveDone[0];
 
+        /// <summary>단일 유한 웨이브에서 아직 배출하지 않은 편성 수를 반환한다. 기존 스트림 모드에는 적용하지 않는다.</summary>
+        internal int RemainingWaveSpawns => _stream == null ? _waves[0].UnitCount - _waveUnitIndices[0] : 0;
+
         /// <summary>현재 틱까지 도달한 다음 스폰이 있으면 꺼내지 않고 반환한다.</summary>
         public bool TryPeek(int tick, out SpawnOrder order) => TryFindNext(tick, out order, out _);
 

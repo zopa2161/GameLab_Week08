@@ -357,7 +357,12 @@ namespace RuneCode
         [SerializeField] private StreamDefinition _stream;
         public int Stage => _stage;
         public IReadOnlyList<ProgressionRoundDefinition> Rounds => _rounds ?? Array.Empty<ProgressionRoundDefinition>();
-        internal bool HasStream => _stream != null;
+        // Unity가 누락된 직렬화 클래스를 빈 객체로 생성해도 실제 설정이 있을 때만 스트림으로 판단한다.
+        internal bool HasStream => _stream != null
+            && ((_stream.Candidates != null && _stream.Candidates.Count > 0)
+                || _stream.BaseInterval != 0 || _stream.MinInterval != 0
+                || _stream.StageScale != 0 || _stream.IntraRamp != 0 || _stream.RampSeconds != 0
+                || !string.IsNullOrEmpty(_stream.Formation) || _stream.RawGroupSize != 0);
     }
 
     [Serializable]
