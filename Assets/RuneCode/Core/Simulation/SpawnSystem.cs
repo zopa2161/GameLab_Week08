@@ -32,6 +32,19 @@ namespace RuneCode
         /// <summary>현재 미션의 스폰 진행기다. 전투 시작 시 설정한다.</summary>
         internal SpawnDirector Director { get => _director; set => _director = value; }
 
+        internal bool IsWaveSpawnFinished => _director != null && _director.IsFinished && _pendingSpawns.Count == 0 && _pendingSplits.Count == 0;
+
+        /// <summary>현재 유한 웨이브의 미배출 편성·스폰 예고·분열 예약과 살아 있는 적 수를 합산한다.</summary>
+        internal int RemainingWaveEnemyCount => _director.RemainingWaveSpawns + _pendingSpawns.Count + _pendingSplits.Count + _world.Enemies.Count;
+
+        /// <summary>현재 편성의 웨이브만 시작하고 첫 틱 스폰과 예고 표시를 준비한다.</summary>
+        internal void StartWave(WaveDefinition wave)
+        {
+            _director = new SpawnDirector(wave, _world.Formations, RuneSimulation.TICK_RATE, _world.Tick);
+            AdvanceSpawns();
+            RefreshSpawnWarnings();
+        }
+
         /// <summary>플레이어 중심 스폰 링 반경이다. 전투 시작 시 설정한다.</summary>
         internal double SpawnRadius { get => _spawnRadius; set => _spawnRadius = value; }
 
@@ -298,7 +311,7 @@ namespace RuneCode
         /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부와 캐리어 소유자 ID로 적을 생성하고 공격 일정을 설정한다. 엘리트는 체력·보상·이동 속도·반경 배율을 적용하며 캐리어 자식의 보상은 0으로 설정한다.</summary>
         internal SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0)
         {
-            if (_world.Completed || _world.IsFailed || _world.Enemies.Count >= _world.EnemyLimit) return null;
+            if (_world.IsMission && _world.Stage != MissionStage.Combat || _world.Enemies.Count >= _world.EnemyLimit) return null;
             EnemyDefinition definition = _world.EnemyCatalog.Get(id);
             if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER) && _world.Carrier == null)
                 throw new InvalidOperationException("캐리어 Prefab 생성 설정을 시뮬레이션에 전달해야 합니다.");

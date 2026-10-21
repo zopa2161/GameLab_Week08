@@ -85,6 +85,8 @@ namespace RuneCode
         /// <summary>결과 정산이 끝나 전투가 종료되었는지 반환한다.</summary>
         public bool IsFinished => _settled;
 
+        public bool IsWaitingForNextRound => _simulation.IsWaitingForNextRound;
+
         /// <summary>정산 후 표시할 결과 문구를 반환한다.</summary>
         public string LastResult => _lastResult;
 
@@ -103,7 +105,7 @@ namespace RuneCode
         /// <summary>보스 클리어 Modifier 선택이 이미 확정됐는지 반환한다.</summary>
         public bool IsClearModifierChosen => _isClearModifierChosen;
 
-        /// <summary>세션의 능력치와 선택 스테이지로 전투를 만들고 출격 그래프 스냅샷·전투 ID와 시작 텔레메트리를 기록한다.</summary>
+        /// <summary>세션 능력치로 연속 미션 1스테이지를 만들고 출격 그래프 스냅샷·전투 ID와 시작 텔레메트리를 기록한다.</summary>
         public MissionRun(RuneCodeSession session, CompiledSpell spell, string spellName)
         {
             _session = session;
@@ -112,10 +114,10 @@ namespace RuneCode
             // 미션마다 시드를 바꿔 스폰·드롭·보상 순서가 매번 달라지게 한다. 재현용으로 시작 텔레메트리에 남긴다.
             int seed = Environment.TickCount;
             _seed = seed;
-            _simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, true, session.MaxHp, session.MaxEnergy, session.SelectedStage, session.EnergyRegen,
+            _simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, true, session.MaxHp, session.MaxEnergy, 1, session.EnergyRegen,
                 session.DamageMultiplier, session.MoveSpeedMultiplier, session.ScrapGainMultiplier,
                 carrier: GameData.Carrier, scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
-                killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio));
+                killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio, isProgressionMission: true));
             _simulation.SetLoadout(new[] { spell });
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
             _coreNodeId = null;
@@ -130,18 +132,18 @@ namespace RuneCode
                 ["reason"] = "mission_start",
                 ["signature"] = spell.Signature,
                 ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(session.Spells.Graph),
-                ["stage"] = session.SelectedStage,
+                ["stage"] = _simulation.StageNumber,
                 ["ram_used"] = spell.RamUsed,
                 ["is_compile_valid"] = true,
             });
-            _testCombatId = LocalTelemetry.BeginUsabilityCombat(session.SelectedStage, _spellBuildId, seed);
+            _testCombatId = LocalTelemetry.BeginUsabilityCombat(_simulation.StageNumber, _spellBuildId, seed);
             LocalTelemetry.RecordUsabilityEvent("stage_enter", "combat", new Dictionary<string, object>
             {
-                ["stage"] = session.SelectedStage,
+                ["stage"] = _simulation.StageNumber,
                 ["seed"] = seed,
                 ["inventory"] = session.GetInventoryLogSnapshot(),
             });
-            LocalTelemetry.Record(0, "mission.start", session.SelectedStage + ":" + spell.Signature + ":seed=" + seed);
+            LocalTelemetry.Record(0, "mission.start", _simulation.StageNumber + ":" + spell.Signature + ":seed=" + seed);
         }
 
         /// <summary>미션의 고정 시뮬레이션 갱신을 일시정지하거나 재개한다.</summary>
@@ -149,6 +151,19 @@ namespace RuneCode
         {
             _isPaused = !_isPaused;
             _simulation.CancelBeamInput();
+        }
+
+        /// <summary>소강상태에서 입력 누적을 비우고 같은 시뮬레이션의 다음 라운드 또는 스테이지를 시작하며 성공 여부를 반환한다.</summary>
+        public bool TryStartNextRound()
+        {
+            if (_settled || _isPaused || !_simulation.IsWaitingForNextRound) return false;
+            _accumulator = 0;
+            _hasPendingDash = false;
+            _hasPendingCastPress = false;
+            _hasPendingCastRelease = false;
+            _wasCasting = false;
+            _simulation.CancelBeamInput();
+            return _simulation.TryStartNextRound();
         }
 
         /// <summary>
@@ -159,10 +174,11 @@ namespace RuneCode
             bool castPressed = false, bool castReleased = false)
         {
             if (_settled) return;
-            if (_isPaused)
+            if (_isPaused || _simulation.IsWaitingForNextRound)
             {
                 _accumulator = 0; _hasPendingDash = false;
                 _hasPendingCastPress = false; _hasPendingCastRelease = false;
+                _wasCasting = false;
                 _simulation.CancelBeamInput();
                 return;
             }
@@ -298,17 +314,24 @@ namespace RuneCode
             _settled = true;
             var cleared = _simulation.Completed;
             // 보스 선택 보상은 첫 클리어에만 주므로 정산으로 최고 기록이 바뀌기 전에 판정한다.
-            bool isFirstClear = _session.HighestClearedStage < _simulation.StageNumber;
+            bool isFirstClear = _simulation.IsProgressionMission ? !_session.HasClearedProgression
+                : _session.HighestClearedStage < _simulation.StageNumber;
             var fragments = _simulation.SettlementFragments;
             ModifierRewardDefinition clearRuneReward = null;
+            List<string> progressionChoiceIds = null;
+            List<string> progressionChoiceGrades = null;
             if (cleared && !_session.IsTestMode)
             {
                 DropRoll roll = _simulation.DrawClearRuneReward();
                 clearRuneReward = new ModifierRewardDefinition(roll.RuneId, roll.Grade, roll.Count);
+                if (_simulation.IsProgressionMission && isFirstClear)
+                    _simulation.TryDrawClearModifierChoices(out _, out progressionChoiceIds, out progressionChoiceGrades);
             }
             // 실패한 런은 정산과 조각·모디 보상을 건너뛴다.
             var modifierRewards = cleared
-                ? _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts, clearRuneReward)
+                ? _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts, clearRuneReward,
+                    isProgressionMission: _simulation.IsProgressionMission,
+                    progressionChoiceIds: progressionChoiceIds, progressionChoiceGrades: progressionChoiceGrades)
                 : Array.Empty<ModifierRewardDefinition>();
             if (cleared && !_session.IsTestMode) AddFragmentReward(fragments);
             foreach (ModifierRewardDefinition reward in modifierRewards)
@@ -383,15 +406,24 @@ namespace RuneCode
             _clearModifierChoices = null;
             _clearModifierGrades = null;
             _isClearModifierChosen = false;
-            if (_session.IsTestMode || !cleared || !isFirstClear) return;
-            if (!_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
-            _clearModifierChoices = candidates;
-            _clearModifierGrades = grades;
+            if (_session.IsTestMode || !cleared) return;
+            if (_simulation.IsProgressionMission)
+            {
+                if (_session.PendingProgressionChoiceIds.Count == 0) return;
+                _clearModifierChoices = new List<string>(_session.PendingProgressionChoiceIds);
+                _clearModifierGrades = new List<string>(_session.PendingProgressionChoiceGrades);
+            }
+            else
+            {
+                if (!isFirstClear || !_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
+                _clearModifierChoices = candidates;
+                _clearModifierGrades = grades;
+            }
             var choices = new List<Dictionary<string, object>>();
-            for (int index = 0; index < candidates.Count; index++)
+            for (int index = 0; index < _clearModifierChoices.Count; index++)
                 choices.Add(new Dictionary<string, object>
                 {
-                    ["rune_id"] = candidates[index], ["grade"] = grades[index], ["count"] = 1,
+                    ["rune_id"] = _clearModifierChoices[index], ["grade"] = _clearModifierGrades[index], ["count"] = 1,
                 });
             LocalTelemetry.RecordUsabilityEvent("clear_reward_offered", "result", new Dictionary<string, object>
             {
@@ -406,7 +438,11 @@ namespace RuneCode
         {
             if (_clearModifierChoices == null || _isClearModifierChosen || index < 0 || index >= _clearModifierChoices.Count) return false;
             string grade = _clearModifierGrades[index];
-            _session.GrantModifier(_clearModifierChoices[index], grade, 1, "clear_choice");
+            if (_simulation.IsProgressionMission)
+            {
+                if (!_session.ClaimProgressionChoice(index)) return false;
+            }
+            else _session.GrantModifier(_clearModifierChoices[index], grade, 1, "clear_choice");
             AddModifierReward(_clearModifierChoices[index], grade, 1);
             _isClearModifierChosen = true;
             LocalTelemetry.RecordUsabilityEvent("clear_reward_selected", "result", new Dictionary<string, object>

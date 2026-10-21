@@ -21,6 +21,9 @@ namespace RuneCode
         [SerializeField] private int _slotCount = 1;
         [SerializeField] private int _highestClearedStage;
         [SerializeField] private int _selectedStage = 1;
+        [SerializeField] private bool _hasClearedProgression;
+        [SerializeField] private string[] _pendingProgressionChoiceIds;
+        [SerializeField] private string[] _pendingProgressionChoiceGrades;
         [SerializeField] private string _activeSpellId;
         [SerializeField] private bool _sectorCleared;
         [SerializeField] private List<string> _unlockedRunes = new List<string>();
@@ -42,6 +45,9 @@ namespace RuneCode
         public int Currency => _currency;
         public int SlotCount => _slotCount;
         public int HighestClearedStage => _highestClearedStage;
+        public bool HasClearedProgression => _hasClearedProgression;
+        public IReadOnlyList<string> PendingProgressionChoiceIds => _pendingProgressionChoiceIds ?? Array.Empty<string>();
+        public IReadOnlyList<string> PendingProgressionChoiceGrades => _pendingProgressionChoiceGrades ?? Array.Empty<string>();
         public int SelectedStage => _selectedStage;
         public string ActiveSpellId => _activeSpellId;
         public bool SectorCleared => _sectorCleared;
@@ -423,6 +429,22 @@ namespace RuneCode
                 error = "save.invalidValues";
                 return false;
             }
+            if (PendingProgressionChoiceIds.Count != PendingProgressionChoiceGrades.Count
+                || PendingProgressionChoiceIds.Count > 0 && !_hasClearedProgression)
+            {
+                error = "save.invalidValues";
+                return false;
+            }
+            for (int index = 0; index < PendingProgressionChoiceIds.Count; index++)
+            {
+                string runeId = PendingProgressionChoiceIds[index];
+                if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER
+                    || !GameData.ModifierGrades.IsGradeAvailable(runeId, PendingProgressionChoiceGrades[index]))
+                {
+                    error = "save.invalidValues";
+                    return false;
+                }
+            }
             if (_graphs == null || _graphs.Count == 0 || _graphs.Count > economy.MaxLibrary ||
                 _loadout == null || _loadout.Count != 3 || _unlockedRunes == null || _killCounts == null || _upgradeNodeProgress == null)
             {
@@ -528,6 +550,25 @@ namespace RuneCode
             if (stage < 1 || stage > _highestClearedStage + 1 || stage >= 1000000) return;
             _highestClearedStage = Math.Max(_highestClearedStage, stage);
             _selectedStage = _highestClearedStage + 1;
+        }
+
+        /// <summary>연속 미션의 최종 클리어만 별도로 기록하고 기존 선택 스테이지·해금 기록은 유지한다.</summary>
+        public void RecordProgressionClear() => _hasClearedProgression = true;
+
+        /// <summary>첫 연속 미션 완주에서 선택하지 않은 보상 후보 ID와 등급을 저장한다.</summary>
+        public void SetPendingProgressionChoice(IReadOnlyList<string> ids, IReadOnlyList<string> grades)
+        {
+            _pendingProgressionChoiceIds = new string[ids.Count];
+            _pendingProgressionChoiceGrades = new string[grades.Count];
+            for (int index = 0; index < ids.Count; index++) _pendingProgressionChoiceIds[index] = ids[index];
+            for (int index = 0; index < grades.Count; index++) _pendingProgressionChoiceGrades[index] = grades[index];
+        }
+
+        /// <summary>선택 보상을 지급한 뒤 대기 중인 후보와 등급을 비운다.</summary>
+        public void ClearPendingProgressionChoice()
+        {
+            _pendingProgressionChoiceIds = null;
+            _pendingProgressionChoiceGrades = null;
         }
 
         /// <summary>ID와 일치하는 보관함 마법을 반환하며 없으면 null을 반환한다.</summary>

@@ -75,6 +75,9 @@ namespace RuneCode
         public int SelectedStage => _isTestMode ? TEST_STAGE : _save.SelectedStage;
         public StageDefinition SelectedStageDefinition => _stages.Get(SelectedStage);
         public int HighestClearedStage => _save.HighestClearedStage;
+        public bool HasClearedProgression => _save.HasClearedProgression;
+        public IReadOnlyList<string> PendingProgressionChoiceIds => _save.PendingProgressionChoiceIds;
+        public IReadOnlyList<string> PendingProgressionChoiceGrades => _save.PendingProgressionChoiceGrades;
 
         /// <summary>도움말에서 열람할 수 있는 항목 수다. 자동 개방 조건이 없으므로 항상 전체를 연다.</summary>
         public int UnlockedHelpCount => int.MaxValue;
@@ -615,44 +618,77 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 일반 모드에서 전투 보상과 처치 기록을 세이브에 반영한다. 테스트 모드에서는 시작 조건 유지를 위해 보상을 반영하지 않는다.
+        /// 일반 모드에서 전투 보상과 처치 기록을 세이브에 반영하고, 연속 미션은 기존 스테이지 선택 기록 대신 별도 완주 기록을 남긴다. 테스트 모드에서는 반영하지 않는다.
         /// 클리어 때 지급한 룬 보상 목록을 반환한다.
         /// </summary>
         public IReadOnlyList<ModifierRewardDefinition> SettleMission(int stageNumber, int fragments, bool isCleared, IEnumerable<KeyValuePair<string, int>> killCounts,
-            ModifierRewardDefinition clearRuneReward = null)
+            ModifierRewardDefinition clearRuneReward = null, bool isProgressionMission = false,
+            IReadOnlyList<string> progressionChoiceIds = null, IReadOnlyList<string> progressionChoiceGrades = null)
         {
             if (_isTestMode) return Array.Empty<ModifierRewardDefinition>();
             var modifierRewards = new List<ModifierRewardDefinition>();
-            if (isCleared)
+            if (isCleared && (!isProgressionMission || !_save.HasClearedProgression))
             {
                 foreach (ModifierRewardDefinition reward in _stages.Get(stageNumber).ModifierRewards)
                 {
-                    GrantRune(reward.RuneId, reward.Grade, reward.Count, "stage_clear");
+                    GrantRune(reward.RuneId, reward.Grade, reward.Count, "stage_clear", persist: !isProgressionMission);
                     modifierRewards.Add(reward);
                 }
             }
             if (isCleared && clearRuneReward != null)
             {
-                GrantRune(clearRuneReward.RuneId, clearRuneReward.Grade, clearRuneReward.Count, "stage_clear");
+                GrantRune(clearRuneReward.RuneId, clearRuneReward.Grade, clearRuneReward.Count, "stage_clear", persist: !isProgressionMission);
                 modifierRewards.Add(clearRuneReward);
             }
-            if (isCleared) _save.RecordStageClear(stageNumber);
-            _save.Settle(fragments, isCleared);
+            if (isCleared)
+            {
+                if (isProgressionMission)
+                {
+                    if (!_save.HasClearedProgression && progressionChoiceIds != null && progressionChoiceGrades != null
+                        && progressionChoiceIds.Count > 0)
+                        _save.SetPendingProgressionChoice(progressionChoiceIds, progressionChoiceGrades);
+                    _save.RecordProgressionClear();
+                }
+                else _save.RecordStageClear(stageNumber);
+            }
+            _save.Settle(fragments, isCleared && !isProgressionMission);
             foreach (var pair in killCounts) _save.RecordKills(pair.Key, pair.Value);
             PersistProgress();
             if (modifierRewards.Count > 0) _spells.Recompile();
             return modifierRewards;
         }
 
-        /// <summary>일반 모드에서 주운·선택·보상받은 룬 소지 아이템을 즉시 반영한다. 테스트 모드는 시작 소지량을 유지한다.</summary>
-        public void GrantRune(string runeId, string grade, int count, string reason = "unspecified")
+        /// <summary>저장된 연속 미션 보상 후보 index를 하나 지급하고 후보 삭제와 소지량 변경을 한 번에 저장한다.</summary>
+        public bool ClaimProgressionChoice(int index)
+        {
+            if (_isTestMode || index < 0 || index >= _save.PendingProgressionChoiceIds.Count) return false;
+            string runeId = _save.PendingProgressionChoiceIds[index];
+            string grade = _save.PendingProgressionChoiceGrades[index];
+            if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER
+                || !GameData.ModifierGrades.IsGradeAvailable(runeId, grade)) return false;
+            int before = _save.GetStock(runeId, grade);
+            _save.AddStock(runeId, grade, 1);
+            _save.ClearPendingProgressionChoice();
+            PersistProgress();
+            _spells.Recompile();
+            LocalTelemetry.RecordUsabilityEvent("module_acquired", "inventory", new Dictionary<string, object>
+            {
+                ["rune_id"] = runeId, ["category"] = rune.Category,
+                ["grade"] = grade, ["count"] = 1, ["stock_before"] = before, ["stock_after"] = _save.GetStock(runeId, grade),
+                ["reason"] = "clear_choice",
+            });
+            return true;
+        }
+
+        /// <summary>일반 모드에서 룬 소지량을 늘리고 persist가 참이면 즉시 저장한다. 테스트 모드는 시작 소지량을 유지한다.</summary>
+        public void GrantRune(string runeId, string grade, int count, string reason = "unspecified", bool persist = true)
         {
             if (_isTestMode || count <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)
                 || (rune.Category != SpellGrammar.CATEGORY_MODIFIER && rune.Category != SpellGrammar.CATEGORY_ELEMENT
                     && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)) return;
             int before = _save.GetStock(runeId, grade);
             _save.AddStock(runeId, grade, count);
-            PersistProgress();
+            if (persist) PersistProgress();
             int after = _save.GetStock(runeId, grade);
             if (after > before)
                 LocalTelemetry.RecordUsabilityEvent("module_acquired", "inventory", new Dictionary<string, object>

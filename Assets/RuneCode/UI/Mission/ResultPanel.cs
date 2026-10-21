@@ -69,6 +69,8 @@ namespace RuneCode
         private int _focusedRewardIndex = -1;
         private bool _isRevealing;
         private bool _isWaitingForRelease;
+        private bool _isCompletionOnly;
+        private bool _hasNextStage;
 
         public bool CanContinue => !_isRevealing && !_isWaitingForRelease && Time.frameCount > _revealCompletedFrame;
 
@@ -90,9 +92,9 @@ namespace RuneCode
             if (_isBound) return;
             _rewardCanvas = _rewardScroll.GetComponentInParent<Canvas>().rootCanvas;
             _rewardScroll.onValueChanged.AddListener(HandleRewardScroll);
-            _nextStageButton.onClick.AddListener(() => { if (CanContinue) NextStageClicked?.Invoke(); });
-            _improveButton.onClick.AddListener(() => { if (CanContinue) ImproveClicked?.Invoke(); });
-            _retryButton.onClick.AddListener(() => { if (CanContinue) RetryClicked?.Invoke(); });
+            _nextStageButton.onClick.AddListener(() => { if (CanContinue && _hasNextStage && !_isCompletionOnly) NextStageClicked?.Invoke(); });
+            _improveButton.onClick.AddListener(() => { if (CanContinue && !_isCompletionOnly) ImproveClicked?.Invoke(); });
+            _retryButton.onClick.AddListener(() => { if (CanContinue && !_isCompletionOnly) RetryClicked?.Invoke(); });
             for (int i = 0; i < _clearChoiceButtons.Length; i++)
             {
                 int index = i;
@@ -101,14 +103,19 @@ namespace RuneCode
             _isBound = true;
         }
 
-        /// <summary>결과 문구와 스테이지·진행 문구를 채우고 승리 결과일 때만 승리 전용 버튼을 표시한다.</summary>
-        public void SetContent(string summary, string stage, string progress, bool isVictory)
+        /// <summary>결과 문구를 채우고 연속 미션의 기존 다음 스테이지 버튼을 숨긴다. 최종 승리는 이동 버튼 없이 완료 상태만 표시한다.</summary>
+        public void SetContent(string summary, string stage, string progress, bool isVictory, bool isProgressionMission = false)
         {
             _summaryLabel.richText = true;
             _summaryLabel.text = summary;
             _stageLabel.text = stage;
             _progressLabel.text = progress;
-            _winOnlyButtonRoot.SetActive(isVictory);
+            _isCompletionOnly = isProgressionMission && isVictory;
+            _hasNextStage = isVictory && !isProgressionMission;
+            _winOnlyButtonRoot.SetActive(_hasNextStage);
+            _improveButton.gameObject.SetActive(!_isCompletionOnly);
+            _retryButton.gameObject.SetActive(!_isCompletionOnly);
+            SetNavigationEnabled(CanContinue && !_clearChoicePopup.activeSelf);
         }
 
         /// <summary>정렬된 보상 목록을 만들고 animate이면 순차 공개를 준비하며, 아니면 연출 없이 모두 표시한다.</summary>
@@ -290,9 +297,9 @@ namespace RuneCode
         /// <summary>정산 화면 이동 버튼을 보상 공개 및 보스 선택 상태에 맞게 활성화한다.</summary>
         private void SetNavigationEnabled(bool isEnabled)
         {
-            _improveButton.interactable = isEnabled;
-            _nextStageButton.interactable = isEnabled;
-            _retryButton.interactable = isEnabled;
+            _improveButton.interactable = isEnabled && !_isCompletionOnly;
+            _nextStageButton.interactable = isEnabled && _hasNextStage && !_isCompletionOnly;
+            _retryButton.interactable = isEnabled && !_isCompletionOnly;
         }
 
         /// <summary>화면을 숨길 때 진행 중인 공개 상태와 툴팁을 정리한다.</summary>
@@ -391,7 +398,7 @@ namespace RuneCode
                 _clearChoiceButtons[i].interactable = true;
             }
             SetNavigationEnabled(!_isRevealing && !_isWaitingForRelease);
-            if (EventSystem.current != null && gameObject.activeInHierarchy)
+            if (EventSystem.current != null && gameObject.activeInHierarchy && !_isCompletionOnly)
                 EventSystem.current.SetSelectedGameObject(_improveButton.gameObject);
         }
 

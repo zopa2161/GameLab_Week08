@@ -12,6 +12,8 @@ namespace RuneCode
         /// <summary>미션 전투이면 true, 시험 도크이면 false다.</summary>
         public bool IsMission { get; private set; }
 
+        public bool IsProgressionMission { get; private set; }
+
         /// <summary>플레이어 최대 체력이다. 0이면 밸런스 기본값을 쓴다.</summary>
         public double MaxHp { get; private set; }
 
@@ -81,12 +83,13 @@ namespace RuneCode
         /// </summary>
         public static SimulationSetup FromGameData(int seed = 1, bool isMission = false, double maxHp = 0, double maxEnergy = 0, int stageNumber = 1, double energyRegen = 0,
             double damageMultiplier = 1, double moveSpeedMultiplier = 1, double scrapGainMultiplier = 1, CarrierDefinition carrier = null,
-            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0)
+            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0, bool isProgressionMission = false)
         {
             GameData.Load();
+            if (isProgressionMission && !isMission) throw new System.ArgumentException("연속 스테이지는 미션에서만 사용할 수 있습니다.", nameof(isProgressionMission));
             return new SimulationSetup
             {
-                Seed = seed, IsMission = isMission, MaxHp = maxHp, MaxEnergy = maxEnergy, StageNumber = stageNumber, EnergyRegen = energyRegen,
+                Seed = seed, IsMission = isMission, IsProgressionMission = isProgressionMission, MaxHp = maxHp, MaxEnergy = maxEnergy, StageNumber = stageNumber, EnergyRegen = energyRegen,
                 DamageMultiplier = damageMultiplier, MoveSpeedMultiplier = moveSpeedMultiplier, ScrapGainMultiplier = scrapGainMultiplier, Carrier = carrier,
                 ScrapPickupRangeMultiplier = scrapPickupRangeMultiplier, KillEnergyBonus = killEnergyBonus, ScrapHealRatio = scrapHealRatio,
                 Balance = GameData.Balance, Enemies = GameData.Enemies, Sector = GameData.Sector, Bosses = GameData.Bosses, Formations = GameData.Formations,

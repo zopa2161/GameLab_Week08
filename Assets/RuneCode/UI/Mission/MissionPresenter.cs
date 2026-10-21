@@ -60,6 +60,7 @@ namespace RuneCode
             _hud.Bind(session.IsDebugEnabled);
             _hud.PauseClicked += TogglePause;
             _hud.DebugClicked += OpenDebug;
+            _hud.NextRoundClicked += StartNextRound;
             _result.Bind();
             _result.ImproveClicked += ReturnToWorkshop;
             _result.NextStageClicked += SelectNextStageAndReturnToWorkshop;
@@ -88,6 +89,7 @@ namespace RuneCode
                 soundManager.SetMusicState(0);
             }
             _run = null;
+            _hud.SetNextRound(false, false);
         }
 
         /// <summary>
@@ -100,6 +102,7 @@ namespace RuneCode
             if (_run == null) return;
             if (_run.IsFinished)
             {
+                RenderHud();
                 SoundManager.Instance.StopShotBeam();
                 PlayEnemyHitSounds();
                 PlayShotSounds();
@@ -209,6 +212,13 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>팝업·일시정지·종료 중 클릭을 거부하고 대기 중인 같은 미션을 한 번 진행한 뒤 HUD를 즉시 갱신한다.</summary>
+        private void StartNextRound()
+        {
+            if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (_run.TryStartNextRound()) RenderHud();
+        }
+
         /// <summary>일시정지 상태를 바꾸고 일시정지 팝업을 열거나 닫는다. 결과 표시 중에는 무시한다.</summary>
         private void TogglePause()
         {
@@ -298,8 +308,9 @@ namespace RuneCode
         private void RetryStage()
         {
             if (_run == null || !_run.IsFinished) return;
+            if (_run.Simulation.IsProgressionMission && _run.Simulation.Completed) return;
             if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
-            _session.SelectStage(_run.Simulation.StageNumber);
+            if (!_run.Simulation.IsProgressionMission) _session.SelectStage(_run.Simulation.StageNumber);
             StartRun();
         }
 
@@ -307,6 +318,7 @@ namespace RuneCode
         private void ReturnToWorkshop()
         {
             if (_run == null || !_run.IsFinished) return;
+            if (_run.Simulation.IsProgressionMission && _run.Simulation.Completed) return;
             if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
             _session.RequestScreen(AppScreen.Workshop);
         }
@@ -314,7 +326,7 @@ namespace RuneCode
         /// <summary>승리 결과에서 다음 스테이지를 선택하고 노드 강화 작업실로 돌아간다. 클리어나 보상 선택이 끝나지 않았으면 무시한다.</summary>
         private void SelectNextStageAndReturnToWorkshop()
         {
-            if (_run == null || !_run.IsFinished || !_run.Simulation.Completed) return;
+            if (_run == null || !_run.IsFinished || !_run.Simulation.Completed || _run.Simulation.IsProgressionMission) return;
             if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
             int nextStage = _run.Simulation.StageNumber + 1;
             _session.SelectStage(nextStage);
@@ -377,10 +389,11 @@ namespace RuneCode
             RuneSimulation sim = _run.Simulation;
             int elapsedSeconds = (int)sim.Time;
             string playTime = "플레이 타임 " + (elapsedSeconds / 60).ToString("00") + ":" + (elapsedSeconds % 60).ToString("00");
-            _result.SetContent(sim.Completed ? "스테이지 승리" : sim.IsFailed ? "스테이지 패배" : "스테이지 중단",
-                GameData.L("ui.stage") + " " + sim.StageNumber,
+            _result.SetContent(sim.Completed ? (sim.IsProgressionMission ? "미션 완료" : "스테이지 승리")
+                    : sim.IsFailed ? "스테이지 패배" : "스테이지 중단",
+                GetStageText(sim),
                 playTime,
-                sim.Completed);
+                sim.Completed, sim.IsProgressionMission);
             SetResultRewards(animateRewards);
         }
 
@@ -470,13 +483,20 @@ namespace RuneCode
             _lastFragments = _run.Simulation.EarnedFragments;
             _toastUntil = 0f;
             _hud.SetToast("");
-            _hud.SetStage(GameData.L("ui.stage") + " " + _run.Simulation.StageNumber);
             RenderHud();
             return true;
         }
 
         /// <summary>포인터가 버튼 등 UI 입력 대상 위에 있는지 반환한다.</summary>
         private static bool IsPointerOverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+
+        /// <summary>연속 미션은 현재 스테이지·라운드·웨이브와 각 총수를, 기존 전투는 스테이지 번호만 반환한다.</summary>
+        private static string GetStageText(RuneSimulation sim)
+            => sim.IsProgressionMission
+                ? "스테이지 " + sim.StageNumber + "/" + StageCatalog.PROGRESSION_STAGE_COUNT
+                    + " · 라운드 " + sim.RoundNumber + "/" + StageCatalog.PROGRESSION_ROUND_COUNT
+                    + " · 웨이브 " + sim.WaveNumber + "/" + StageCatalog.PROGRESSION_WAVE_COUNT
+                : GameData.L("ui.stage") + " " + sim.StageNumber;
 
         /// <summary>
         /// 이번 프레임에 플레이어가 입은 피해(체력 피해 + 보호막 흡수)로 피격음을 재생하고 비네트를 점등하며,
@@ -501,15 +521,25 @@ namespace RuneCode
         private void RenderHud()
         {
             RuneSimulation sim = _run.Simulation;
+            _hud.SetStage(GetStageText(sim));
+            _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished, !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
             _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount + "  ·  " + GameData.L("ui.fragments") + " " + sim.EarnedFragments);
-            string objective = GameData.L(sim.IsBossStage ? "ui.bossObjective" : "ui.surviveObjective")
-                + " · " + sim.RemainingTime.ToString("0.0") + "s";
-            // 일반 스테이지는 시간이 다 되면 클리어이므로 경고 색은 보스 스테이지에만 쓴다.
-            _hud.SetTimer(objective,
-                sim.IsBossStage && sim.RemainingTime <= TIMER_WARNING_SECONDS);
+            if (sim.IsProgressionMission)
+            {
+                string objective = _run.IsFinished ? (sim.Completed ? "미션 완료" : sim.IsFailed ? "전투 패배" : "전투 중단")
+                    : sim.IsWaitingForNextRound ? "다음 라운드 대기"
+                    : (sim.IsBossStage ? "보스를 처치하세요 · " : "") + "남은 적 " + sim.RemainingWaveEnemyCount;
+                _hud.SetTimer(objective, false);
+            }
+            else
+            {
+                string objective = GameData.L(sim.IsBossStage ? "ui.bossObjective" : "ui.surviveObjective")
+                    + " · " + sim.RemainingTime.ToString("0.0") + "s";
+                _hud.SetTimer(objective, sim.IsBossStage && sim.RemainingTime <= TIMER_WARNING_SECONDS);
+            }
             string executionState = sim.HasActiveBeam(0) ? GameData.L("ui.beamActive") : sim.Player.IsSpellRunning(0)
                 ? GameData.L("ui.executing") + " " + sim.Player.ExecutionRemaining(0).ToString("0.0") + "s " + GameData.L("ui.remaining")
                 : GameData.L("ui.cooldown") + " " + sim.Player.Cooldowns[0].ToString("0.0") + "s";
