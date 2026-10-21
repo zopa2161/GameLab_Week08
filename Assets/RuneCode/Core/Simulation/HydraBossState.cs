@@ -107,6 +107,9 @@ namespace RuneCode
         private double _angle;
         private int _repeat;
         private SimVector _poisonTarget;
+        private SimVector _jumpOrigin;
+        private SimVector _jumpTarget;
+        private bool _hasJumpStarted;
         private double _damageBudget;
         private double _lastDamageAt;
 
@@ -121,7 +124,12 @@ namespace RuneCode
         public bool IsNeckActive => _attack == HydraAttack.Stretch && _elapsed >= _settings.StretchWarning
             || _attack == HydraAttack.Spin && _elapsed >= _settings.SpinWarning && _elapsed < _settings.SpinWarning + _settings.SpinSeconds;
         public bool IsPoisonWarning => _attack == HydraAttack.Poison && _elapsed % PoisonCycle < _settings.PoisonTrack + _settings.PoisonLock;
-        public bool IsStompWarning => _attack == HydraAttack.Stomp && _elapsed % _settings.StompInterval < _settings.StompApproachSeconds;
+        public bool IsStompWarning => _attack == HydraAttack.Stomp && StompLocalTime < _settings.StompWindup + _settings.StompApproachSeconds;
+        public bool IsAirborne => _attack == HydraAttack.Stomp && _hasJumpStarted
+            && StompLocalTime >= _settings.StompWindup && StompLocalTime < _settings.StompWindup + _settings.StompApproachSeconds;
+        public double JumpProgress => IsAirborne ? Math.Max(0, Math.Min(1, (StompLocalTime - _settings.StompWindup) / _settings.StompApproachSeconds)) : 0;
+        public SimVector JumpTarget => _jumpTarget;
+        public double StompLocalTime => _elapsed % _settings.StompInterval;
         private double PoisonCycle => _settings.PoisonTrack + _settings.PoisonLock + _settings.PoisonFlight + _settings.PoisonGap;
 
         /// <summary>공유 설정과 생성 시각·최대 체력으로 개별 공격 대기와 1구간 피해 예산을 초기화한다.</summary>
@@ -145,7 +153,7 @@ namespace RuneCode
             return fullDamage + Math.Max(0, damage - fullDamage) * _settings.ExcessDamageMultiplier;
         }
 
-        /// <summary>잔류물과 현재 공격을 한 틱 진행하며 쿨타임·구르기 이동과 목·파동·독 피해를 처리한다.</summary>
+        /// <summary>잔류물과 현재 공격을 한 틱 진행하며 쿨타임 추적·도약 이동과 목·파동·독 피해를 처리한다.</summary>
         internal void Advance(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double> hurt)
         {
             for (int index = _poisons.Count - 1; index >= 0; index--)
@@ -166,7 +174,7 @@ namespace RuneCode
                     if (_elapsed >= _settings.StretchWarning + _settings.StretchSeconds + _settings.StretchHold + _settings.RetractSeconds) FinishAttack(world.Time);
                     break;
                 case HydraAttack.Poison: AdvancePoison(enemy, world); break;
-                case HydraAttack.Stomp: AdvanceStomp(enemy, world); break;
+                case HydraAttack.Stomp: AdvanceStomp(enemy, world, simulation); break;
                 case HydraAttack.Spin:
                     if (IsNeckActive) HitNecks(enemy, world, hurt);
                     if (_elapsed >= _settings.SpinWarning + _settings.SpinSeconds + _settings.RetractSeconds) FinishAttack(world.Time);
@@ -184,6 +192,7 @@ namespace RuneCode
             _startedAt = world.Time;
             _elapsed = 0;
             _repeat = 0;
+            _hasJumpStarted = false;
             _poisonTarget = world.Player.Position;
             SimVector offset = world.Player.Position - enemy.Position;
             _angle = Math.Atan2(offset.Y, offset.X);
@@ -216,13 +225,37 @@ namespace RuneCode
             if (_elapsed >= REPEAT_COUNT * PoisonCycle) FinishAttack(world.Time);
         }
 
-        /// <summary>각 회차의 접근 구간에만 추적 이동하고 착지 순간 고정 중심 파동을 생성한다.</summary>
-        private void AdvanceStomp(SimulationEnemy enemy, SimulationWorld world)
+        /// <summary>회차마다 준비 중 착지점을 예고하고 이륙 때 고정한 지점으로 도약한 뒤 착지 파동을 생성한다.</summary>
+        private void AdvanceStomp(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation)
         {
-            double local = _elapsed % _settings.StompInterval;
-            if (local < _settings.StompApproachSeconds) MoveTowardsPlayer(enemy, world, _settings.StompSpeed);
-            if (_repeat < REPEAT_COUNT && _elapsed + RuneSimulation.COLLISION_EPSILON >= _repeat * _settings.StompInterval + _settings.StompApproachSeconds)
-            { _waves.Add(new HydraWave(enemy.Position, world.Time)); _repeat++; }
+            double local = _elapsed - _repeat * _settings.StompInterval;
+            if (_repeat < REPEAT_COUNT && local >= 0)
+            {
+                if (!_hasJumpStarted)
+                {
+                    _jumpOrigin = enemy.Position;
+                    SimVector offset = world.Player.Position - _jumpOrigin;
+                    double distance = Math.Min(offset.Length, _settings.StompSpeed * _settings.StompApproachSeconds);
+                    SimVector displacement = offset.Normalized() * distance;
+                    double fraction = simulation.FirstWallFraction(_jumpOrigin, _jumpOrigin + displacement, enemy.Radius);
+                    if (!double.IsPositiveInfinity(fraction)) displacement = displacement * Math.Max(0, fraction - RuneSimulation.COLLISION_EPSILON);
+                    _jumpTarget = world.Map.Move(_jumpOrigin, displacement, enemy.Radius);
+                    if (local >= _settings.StompWindup) _hasJumpStarted = true;
+                }
+                if (_hasJumpStarted)
+                {
+                    double progress = Math.Max(0, Math.Min(1, (local - _settings.StompWindup) / _settings.StompApproachSeconds));
+                    SimVector offset = _jumpTarget - _jumpOrigin;
+                    SimVector desired = _jumpOrigin + offset * progress;
+                    enemy.Move(world.Map.Move(enemy.Position, desired - enemy.Position, enemy.Radius), offset.Normalized());
+                    if (local + RuneSimulation.COLLISION_EPSILON >= _settings.StompWindup + _settings.StompApproachSeconds)
+                    {
+                        _waves.Add(new HydraWave(enemy.Position, world.Time));
+                        _repeat++;
+                        _hasJumpStarted = false;
+                    }
+                }
+            }
             if (_elapsed >= REPEAT_COUNT * _settings.StompInterval) FinishAttack(world.Time);
         }
 
@@ -280,12 +313,13 @@ namespace RuneCode
         }
 
         /// <summary>전투 취소 시 공격과 잔류물 목록을 비워 재표시 때 이전 판정을 남기지 않는다.</summary>
-        internal void Cancel() { _attack = HydraAttack.Idle; _elapsed = 0; _poisons.Clear(); _waves.Clear(); }
+        internal void Cancel() { _attack = HydraAttack.Idle; _elapsed = 0; _hasJumpStarted = false; _poisons.Clear(); _waves.Clear(); }
 
         /// <summary>추첨 결과·공격 시각·목 길이·피해 예산·잔류물 상태를 결정성 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
         {
             state.Append(FormattableString.Invariant($"|hydra:{_attack}:{_lastAttack}:{_startedAt:R}:{_elapsed:R}:{_cooldownUntil:R}:{_angle:R}:{_repeat}:{_poisonTarget.X:R}:{_poisonTarget.Y:R}:{_damageBudget:R}:{_lastDamageAt:R}"));
+            state.Append(FormattableString.Invariant($"|jump:{_jumpOrigin.X:R}:{_jumpOrigin.Y:R}:{_jumpTarget.X:R}:{_jumpTarget.Y:R}:{_hasJumpStarted}"));
             foreach (double length in _stretchLengths) SimHash.AppendNumber(state, length);
             foreach (HydraPoison poison in _poisons) poison.WriteState(state);
             foreach (HydraWave wave in _waves) wave.WriteState(state);

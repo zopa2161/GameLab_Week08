@@ -111,3 +111,5 @@ MonoBehaviour:
   _tint: {r: 0.08, g: 0.78, b: 0.72, a: 1}
   _warningTint: {r: 1, g: 0.72, b: 0.18, a: 1}
   _poisonTint: {r: 0.5, g: 0.95, b: 0.2, a: 1}
+  _jumpHeight: 110
+  _landingSquashSeconds: 0.18

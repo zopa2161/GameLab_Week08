@@ -117,7 +117,7 @@ namespace RuneCode
             MissionWorldSpace.SetVisible(_hpFill, ratio > 0);
             if (ratio > 0) MissionWorldSpace.PlaceLine(_hpFill, new Vector2(-width * 0.5f, barY), new Vector2(-width * 0.5f + width * ratio, barY), HP_BAR_HEIGHT, tint);
             ApplyAdditionalIndicators(enemy, sim);
-            if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, _body);
+            if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, _body, _rotator);
         }
 
         /// <summary>원형 보호막과 저격 경로를 시뮬레이션의 반경·저장 조준선으로 갱신한다.</summary>

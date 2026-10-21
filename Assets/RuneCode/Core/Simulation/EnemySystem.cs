@@ -80,7 +80,7 @@ namespace RuneCode
                 if (enemy.Hydra != null)
                 {
                     enemy.Hydra.Advance(enemy, _world, _simulation, _hurtPlayer);
-                    HurtByContact(enemy);
+                    if (!enemy.Hydra.IsAirborne) HurtByContact(enemy);
                     continue;
                 }
                 if (_statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze))

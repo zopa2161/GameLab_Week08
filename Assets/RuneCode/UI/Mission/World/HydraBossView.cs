@@ -21,6 +21,10 @@ namespace RuneCode
         [SerializeField] private Color _warningTint = new Color(1f, 0.72f, 0.18f);
         [SerializeField] private Color _poisonTint = new Color(0.5f, 0.95f, 0.2f);
 
+        [Header("도약 연출")]
+        [SerializeField] private float _jumpHeight = 110f;
+        [SerializeField] private float _landingSquashSeconds = 0.18f;
+
         private readonly SpriteRenderer[] _heads = new SpriteRenderer[HydraBossState.HEAD_COUNT];
         private readonly SpriteRenderer[] _necks = new SpriteRenderer[HydraBossState.HEAD_COUNT];
         private readonly SpriteRenderer[] _neckWarnings = new SpriteRenderer[HydraBossState.HEAD_COUNT];
@@ -32,22 +36,28 @@ namespace RuneCode
         private SpriteRenderer _targetFill;
         private SpriteRenderer _targetRing;
         private SpriteRenderer _rangeRing;
+        private SpriteRenderer _shadow;
         private bool _isInitialized;
 
-        /// <summary>몸체 렌더러의 재질·정렬을 재사용하고 현재 목 기하·원형 예고·잔류물과 구르기 동작을 표시한다.</summary>
-        public void Apply(SimulationEnemy enemy, SpriteRenderer body)
+        /// <summary>몸체 렌더러의 재질·정렬을 재사용해 목·예고·잔류물을 표시하고 몸체 루트에 도약 높이를 적용한다.</summary>
+        public void Apply(SimulationEnemy enemy, SpriteRenderer body, Transform bodyRoot)
         {
             if (!_isInitialized) Initialize(body);
             HydraBossState state = enemy.Hydra;
             HydraDefinition settings = state.Settings;
+            float jumpArc = Mathf.Sin((float)state.JumpProgress * Mathf.PI);
+            Vector2 lift = Vector2.up * (jumpArc * _jumpHeight);
+            bodyRoot.localPosition = (Vector3)(lift / MissionWorldSpace.PIXELS_PER_UNIT);
+            MissionWorldSpace.SetVisible(_shadow, state.Attack == HydraAttack.Stomp);
+            MissionWorldSpace.Place(_shadow, Vector2.zero, (float)enemy.Radius * 2 * (1f - 0.25f * jumpArc), new Color(0, 0, 0, 0.25f));
             bool isSpin = state.Attack == HydraAttack.Spin;
             for (int index = 0; index < _heads.Length; index++)
             {
                 Vector2 end = LocalPoint(state.GetNeckEnd(enemy, index), enemy.Position);
                 bool isAttackNeck = state.Attack == HydraAttack.Stretch || isSpin && index < HydraBossState.SPIN_HEAD_COUNT;
-                MissionWorldSpace.PlaceLine(_necks[index], Vector2.zero, end,
+                MissionWorldSpace.PlaceLine(_necks[index], lift, end + lift,
                     isAttackNeck ? (float)settings.NeckWidth : REST_NECK_WIDTH, enemy.IsFlashing ? Color.white : _tint);
-                MissionWorldSpace.Place(_heads[index], end, HEAD_RADIUS * 2, enemy.IsFlashing ? Color.white : _tint);
+                MissionWorldSpace.Place(_heads[index], end + lift, HEAD_RADIUS * 2, enemy.IsFlashing ? Color.white : _tint);
                 bool isWarning = state.IsNeckWarning && isAttackNeck;
                 MissionWorldSpace.SetVisible(_neckWarnings[index], isWarning);
                 if (isWarning)
@@ -56,23 +66,32 @@ namespace RuneCode
             }
             bool hasRange = isSpin && state.IsNeckWarning || state.IsStompWarning;
             MissionWorldSpace.SetVisible(_rangeRing, hasRange);
-            if (hasRange) MissionWorldSpace.Place(_rangeRing, Vector2.zero,
+            if (hasRange) MissionWorldSpace.Place(_rangeRing, isSpin ? Vector2.zero : LocalPoint(state.JumpTarget, enemy.Position),
                 (float)(isSpin ? settings.SpinLength : settings.WaveRadius) * 2, WithAlpha(_warningTint, 0.65f));
-            bool hasTarget = state.IsPoisonWarning;
+            bool hasTarget = state.IsPoisonWarning || state.IsStompWarning;
             MissionWorldSpace.SetVisible(_targetFill, hasTarget);
             MissionWorldSpace.SetVisible(_targetRing, hasTarget);
             if (hasTarget)
             {
-                Vector2 point = LocalPoint(state.PoisonTarget, enemy.Position);
-                MissionWorldSpace.Place(_targetFill, point, (float)settings.PoisonRadius * 2, WithAlpha(_warningTint, 0.15f));
-                MissionWorldSpace.Place(_targetRing, point, (float)settings.PoisonRadius * 2, _warningTint);
+                Vector2 point = LocalPoint(state.IsStompWarning ? state.JumpTarget : state.PoisonTarget, enemy.Position);
+                float radius = (float)(state.IsStompWarning ? enemy.Radius : settings.PoisonRadius);
+                MissionWorldSpace.Place(_targetFill, point, radius * 2, WithAlpha(_warningTint, 0.15f));
+                MissionWorldSpace.Place(_targetRing, point, radius * 2, _warningTint);
             }
             RenderPoisons(enemy, body);
             RenderWaves(enemy, body);
             if (state.Attack == HydraAttack.Stomp)
             {
-                float progress = (float)(state.Elapsed % settings.StompInterval / settings.StompApproachSeconds);
-                float squash = progress < 1 ? 1f - 0.18f * Mathf.Sin(progress * Mathf.PI) : 1f;
+                double local = state.StompLocalTime;
+                float squash = 1f;
+                if (local < settings.StompWindup)
+                    squash = 1f - 0.2f * (float)(local / settings.StompWindup);
+                else if (state.IsAirborne) squash = 1f + 0.12f * jumpArc;
+                else
+                {
+                    float landingAge = (float)(local - settings.StompWindup - settings.StompApproachSeconds);
+                    squash = 1f - 0.3f * (1f - Mathf.Clamp01(landingAge / _landingSquashSeconds));
+                }
                 body.transform.localScale = new Vector3(body.transform.localScale.x / squash, body.transform.localScale.y * squash, 1);
             }
         }
@@ -89,6 +108,7 @@ namespace RuneCode
             _targetFill = CreateRenderer("PoisonTargetFill", _circle, body, -4);
             _targetRing = CreateRenderer("PoisonTargetRing", _ring, body, -2);
             _rangeRing = CreateRenderer("AttackRange", _ring, body, -2);
+            _shadow = CreateRenderer("JumpShadow", _circle, body, -5);
             _isInitialized = true;
         }
 

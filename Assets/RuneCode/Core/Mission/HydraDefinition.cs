@@ -56,8 +56,9 @@ namespace RuneCode
         public double PoisonTickDamage => _poisonTickDamage;
         public double PoisonTickInterval => _poisonTickInterval;
 
-        [Header("땅 구르기")]
+        [Header("도약 내려찍기")]
         [SerializeField] private double _stompInterval;
+        [SerializeField] private double _stompWindup;
         [SerializeField] private double _stompApproachSeconds;
         [SerializeField] private double _stompSpeed;
         [SerializeField] private double _waveRadius;
@@ -65,6 +66,7 @@ namespace RuneCode
         [SerializeField] private double _waveWidth;
         [SerializeField] private double _waveDamage;
         public double StompInterval => _stompInterval;
+        public double StompWindup => _stompWindup;
         public double StompApproachSeconds => _stompApproachSeconds;
         public double StompSpeed => _stompSpeed;
         public double WaveRadius => _waveRadius;
@@ -80,19 +82,19 @@ namespace RuneCode
         public double SpinLength => _spinLength;
         public double SpinSeconds => _spinSeconds;
 
-        /// <summary>모든 시간·범위·피해가 유한한 양수인지, 배율과 구르기 주기가 허용 범위인지 검증한다.</summary>
+        /// <summary>모든 시간·범위·피해가 유한한 양수인지, 배율과 도약 준비·비행 시간이 주기 안에 들어가는지 검증한다.</summary>
         internal void Validate()
         {
             double[] values = { _initialDelay, _attackCooldown, _burnMultiplier, _dpsHealthRatio, _dpsWindow,
                 _excessDamageMultiplier, _neckWidth, _neckDamage, _stretchWarning, _stretchSeconds, _stretchHold,
                 _retractSeconds, _poisonTrack, _poisonLock, _poisonFlight, _poisonGap, _poisonRadius, _poisonDamage,
-                _poisonLifetime, _poisonTickDamage, _poisonTickInterval, _stompInterval, _stompApproachSeconds,
+                _poisonLifetime, _poisonTickDamage, _poisonTickInterval, _stompInterval, _stompWindup, _stompApproachSeconds,
                 _stompSpeed, _waveRadius, _waveSeconds, _waveWidth, _waveDamage, _spinWarning, _spinLength, _spinSeconds };
             foreach (double value in values)
                 if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0)
                     throw new FormatException("Hydra 설정은 유한한 양수여야 합니다.");
-            if (_excessDamageMultiplier > 1 || _stompApproachSeconds >= _stompInterval)
-                throw new FormatException("Hydra 피해 배율 또는 구르기 주기가 잘못되었습니다.");
+            if (_excessDamageMultiplier > 1 || _stompWindup + _stompApproachSeconds >= _stompInterval)
+                throw new FormatException("Hydra 피해 배율 또는 도약 주기가 잘못되었습니다.");
         }
     }
 }
