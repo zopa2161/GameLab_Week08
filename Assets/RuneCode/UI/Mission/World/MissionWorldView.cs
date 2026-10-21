@@ -112,13 +112,13 @@ namespace RuneCode
             _isHitStopEnabled = isHitStopEnabled;
         }
 
-        /// <summary>시뮬레이션을 진행하지 않고 종료 연출 시간을 늘리며 승리·사망·시간 초과별 완료 여부를 반환한다.</summary>
+        /// <summary>시뮬레이션을 진행하지 않고 라운드 회수·승리·사망·시간 초과 연출 시간을 늘리며 완료 여부를 반환한다.</summary>
         public bool AdvanceEnding(RuneSimulation sim, float deltaTime)
         {
-            if (!sim.Completed && !sim.IsFailed) return true;
+            if (!sim.Completed && !sim.IsFailed && !sim.IsWaitingForNextRound) return true;
             if (_observedSimulation != sim) BeginSimulation(sim);
             _endingElapsed += Mathf.Max(0, deltaTime);
-            float duration = sim.Completed ? _victoryEndingSeconds
+            float duration = sim.Completed || sim.IsWaitingForNextRound ? _victoryEndingSeconds
                 : _defeatEndingSeconds + (sim.IsTimedOut ? _timeoutClockSeconds : 0);
             return _endingElapsed >= duration;
         }
@@ -137,8 +137,15 @@ namespace RuneCode
             _beamFlashPresentation.Update(sim, Time.unscaledTime);
             if (_hasRenderedEnding)
             {
-                RenderEnding(sim);
-                return;
+                if (sim.Completed || sim.IsFailed || sim.IsWaitingForNextRound)
+                {
+                    RenderEnding(sim);
+                    return;
+                }
+                _endingElapsed = 0;
+                _hasRenderedEnding = false;
+                foreach (OrbView view in _orbViews) view.transform.localScale = Vector3.one;
+                foreach (ItemDropView view in _itemDropViews) view.transform.localScale = Vector3.one;
             }
             UpdateRangePreview(sim);
             DetectImpact(sim);
@@ -203,7 +210,7 @@ namespace RuneCode
                 GetView(_arcLinkViews, _arcLinkPrefab, count++).Apply(link, sim.Tick - link.Tick, origin);
             }
             HideFrom(_arcLinkViews, count);
-            if (sim.Completed || sim.IsFailed)
+            if (sim.Completed || sim.IsFailed || sim.IsWaitingForNextRound)
             {
                 _hasRenderedEnding = true;
                 RenderEnding(sim);
@@ -233,7 +240,7 @@ namespace RuneCode
             HideFrom(_damageNumberViews, 0);
             HideFrom(_healPulseViews, 0);
             HideFrom(_arcLinkViews, 0);
-            if (sim.Completed)
+            if (sim.Completed || sim.IsWaitingForNextRound)
             {
                 float progress = Mathf.Clamp01(_endingElapsed / _victoryEndingSeconds);
                 double blend = progress * progress;
