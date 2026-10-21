@@ -130,14 +130,14 @@ namespace RuneCode
                 GraphNode node = modifierNodes == null ? null : modifierNodes[index];
                 RuneStats stats = modifier.Stats;
                 string grade = SpellGrammar.GetModifierGrade(modifier, node, modifierGrades);
-                damage *= GradeNumber(modifierGrades, modifier.Id, grade, "effectMultiplier", stats.DamageMultiplier);
-                radius *= GradeNumber(modifierGrades, modifier.Id, grade, "radiusMultiplier", stats.RadiusMultiplier);
-                speed *= GradeNumber(modifierGrades, modifier.Id, grade, "speedMultiplier", stats.SpeedMultiplier);
-                duration *= GradeNumber(modifierGrades, modifier.Id, grade, "durationMultiplier", stats.DurationMultiplier);
-                int pierceCount = modifierGrades != null && modifierGrades.GetEffectType(modifier.Id) == "pierceCount"
+                damage *= GradeNumber(modifierGrades, modifier.Id, grade, ModifierGradeTable.EFFECT_MULTIPLIER_EFFECT, stats.DamageMultiplier);
+                radius *= GradeNumber(modifierGrades, modifier.Id, grade, ModifierGradeTable.RADIUS_MULTIPLIER_EFFECT, stats.RadiusMultiplier);
+                speed *= GradeNumber(modifierGrades, modifier.Id, grade, ModifierGradeTable.SPEED_MULTIPLIER_EFFECT, stats.SpeedMultiplier);
+                duration *= GradeNumber(modifierGrades, modifier.Id, grade, ModifierGradeTable.DURATION_MULTIPLIER_EFFECT, stats.DurationMultiplier);
+                int pierceCount = modifierGrades != null && modifierGrades.GetEffectType(modifier.Id) == ModifierGradeTable.PIERCE_COUNT_EFFECT
                     ? modifierGrades.GetPierceCount(modifier.Id, grade, stats.Pierce) : stats.Pierce;
                 pierce = AddPierce(pierce, pierceCount);
-                if (modifierGrades != null && modifierGrades.GetEffectType(modifier.Id) == "homingTier")
+                if (modifierGrades != null && modifierGrades.GetEffectType(modifier.Id) == ModifierGradeTable.HOMING_TIER_EFFECT)
                 {
                     string tier = modifierGrades.GetGradeValue(modifier.Id, grade) as string;
                     HomingTierDefinition homing = modifier.FindHomingTier(tier);
@@ -155,7 +155,7 @@ namespace RuneCode
                 }
                 spreadAngle = Math.Max(spreadAngle, stats.SpreadAngle);
                 knockbackDistance = Math.Max(knockbackDistance,
-                    GradeNumber(modifierGrades, modifier.Id, grade, "knockbackDistance", stats.KnockbackDistance));
+                    GradeNumber(modifierGrades, modifier.Id, grade, ModifierGradeTable.KNOCKBACK_DISTANCE_EFFECT, stats.KnockbackDistance));
                 knockbackSeconds = Math.Max(knockbackSeconds, stats.KnockbackSeconds);
             }
             return new SpellModifierValues(damage, radius, speed, duration, range, pierce, homingTurn, homingRange,
@@ -313,20 +313,20 @@ namespace RuneCode
                 RuneStats stats = mod.Stats;
                 string grade = SpellGrammar.GetModifierGrade(mod, modifierNode, modifierGrades);
                 if (mod.Id == OrbitModifierRules.RUNE_ID) orbitRadius = stats.OrbitRadius;
-                orbitRadiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "orbitPath", 1f);
-                damageMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "effectMultiplier", stats.DamageMultiplier);
-                radiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "radiusMultiplier", stats.RadiusMultiplier);
-                speedMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "speedMultiplier", stats.SpeedMultiplier);
-                durationMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "durationMultiplier", stats.DurationMultiplier);
+                orbitRadiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.ORBIT_PATH_EFFECT, 1f);
+                damageMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.EFFECT_MULTIPLIER_EFFECT, stats.DamageMultiplier);
+                radiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.RADIUS_MULTIPLIER_EFFECT, stats.RadiusMultiplier);
+                speedMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.SPEED_MULTIPLIER_EFFECT, stats.SpeedMultiplier);
+                durationMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.DURATION_MULTIPLIER_EFFECT, stats.DurationMultiplier);
                 // 관통·유도 수치는 장착 가능 여부(_modifierTargets, 모드 규칙 CanAttachTo)가 허용한 행동에만 들어온다.
-                int pierceCount = modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == "pierceCount"
+                int pierceCount = modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == ModifierGradeTable.PIERCE_COUNT_EFFECT
                     ? modifierGrades.GetPierceCount(mod.Id, grade, stats.Pierce) : stats.Pierce;
                 _pierce = SpellModifierValues.AddPierce(_pierce, pierceCount);
                 if (stats.PierceLoss > 0f) _pierceLoss = stats.PierceLoss;
                 if (modifierGrades != null && modifierGrades.TryGetPierceDamageMultiplier(mod.Id, grade, out float pierceMultiplier))
                     _pierceLoss = 1f - pierceMultiplier;
                 // 유도는 발사체의 방향 전환, 잔류의 대상 추적 이동, 빔 경로 휨, 공전 위 직선 추적에 쓴다.
-                if (modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == "homingTier")
+                if (modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == ModifierGradeTable.HOMING_TIER_EFFECT)
                 {
                     string tier = modifierGrades.GetGradeValue(mod.Id, grade) as string;
                     HomingTierDefinition homing = mod.FindHomingTier(tier);
@@ -344,7 +344,7 @@ namespace RuneCode
                 }
                 _learningMultiplier *= stats.LearningMultiplier;
                 _knockbackDistance = Math.Max(_knockbackDistance,
-                    SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "knockbackDistance", stats.KnockbackDistance));
+                    SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.KNOCKBACK_DISTANCE_EFFECT, stats.KnockbackDistance));
                 _knockbackSeconds = Math.Max(_knockbackSeconds, stats.KnockbackSeconds);
                 // 지팡이 앞 행동(발사·빔)은 등급표의 발사 전용 퍼짐 각도가 있으면 그 값을 쓴다.
                 if (usesLaunchGradeValues && modifierGrades != null
@@ -632,7 +632,7 @@ namespace RuneCode
                 ids.Add(mod.Id);
                 if (mod.Id == BeamEmpowerModifierRules.RUNE_ID)
                 {
-                    _beamEmpowerMultiplier = SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, "beamEmpowerMultiplier", 2f);
+                    _beamEmpowerMultiplier = SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.BEAM_EMPOWER_MULTIPLIER_EFFECT, 2f);
                     _beamEmpowerManaMultiplier = modifierGrades?.GetBeamEmpowerManaMultiplier(mod.Id, grade) ?? 2f;
                     _beamEmpowerSizeMultiplier = modifierGrades?.GetBeamEmpowerSizeMultiplier(mod.Id, grade) ?? 3f;
                 }

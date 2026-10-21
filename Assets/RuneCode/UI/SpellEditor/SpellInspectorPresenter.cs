@@ -29,102 +29,6 @@ namespace RuneCode
             _graph = graph;
         }
 
-        /// <summary>룬의 동작 설명과 지정 등급의 현재 효과 값을 반환한다.\n</summary>
-        private static string RuneEffectText(RuneDefinition rune, string grade)
-        {
-            string effect;
-            switch (rune.Id)
-            {
-                case "element.fire": case "elem.fire":
-                    CombatBalance combat = GameData.Balance.Combat;
-                    effect = "적에게 화상을 부여해 " + combat.BurnSeconds.ToString("0.#") + "초 동안 "
-                        + combat.BurnInterval.ToString("0.#") + "초마다 공격 피해의 " + (combat.BurnDamageRatio * 100f).ToString("0.#") + "% 피해를 줍니다.\n";
-                    break;
-                case "element.ice": case "elem.ice": effect = "적을 둔화시키고 냉기가 누적되면 빙결시킵니다.\n"; break;
-                case "element.lightning": case "elem.arc": effect = "전격 피해와 EMP 효과를 부여합니다.\n"; break;
-                case "mod.amplify": effect = "피해·회복 등 효과의 위력을 높입니다.\n"; break;
-                case "mod.saving": effect = GameData.L("ui.savingHint"); break;
-                case "mod.multi": effect = "생성 개수를 늘립니다.\n 발사는 전용 개수와 퍼짐을 사용합니다.\n"; break;
-                case "mod.pierce": effect = "적을 관통해 뒤쪽 대상도 타격합니다.\n"; break;
-                case "mod.homing": effect = "탐색 범위 안의 적을 향해 방향을 조정합니다.\n"; break;
-                case "mod.orbit": effect = "생성된 개체가 시전자 주위 궤도를 돕니다.\n"; break;
-                case "mod.sequence": effect = "약간의 간격을 두고 같은 행동을 반복 실행합니다.\n"; break;
-                case "mod.expand": effect = "효과 면적을 늘립니다.\n 일반 형상의 길이는 면적 배율의 제곱근만큼 커집니다.\n"; break;
-                case "mod.speed": effect = "이동 속도를 높입니다.\n"; break;
-                case "mod.duration": effect = "효과의 지속시간을 늘립니다.\n"; break;
-                case "behavior.launch": effect = "마법을 발사합니다.\n"; break;
-                case "behavior.persist": effect = "일정 시간 유지되는 장판을 생성합니다.\n"; break;
-                case "behavior.beam": effect = GameData.L("ui.beamHint"); break;
-                case "behavior.burst": effect = GameData.L("ui.burstHint"); break;
-                case "behavior.slash" : effect = GameData.L("ui.slashHint"); break;
-                default: effect = string.Empty; break;
-            }
-            object value = GameData.ModifierGrades.GetGradeValue(rune.Id, grade);
-            if (value != null)
-            {
-                if (GameData.ModifierGrades.GetEffectType(rune.Id) == "homingTier")
-                {
-                    HomingTierDefinition homing = rune.FindHomingTier(value as string);
-                    if (homing != null) effect += " 회전 " + homing.HomingTurn.ToString("0.#") + "° · 탐색 범위 " + homing.HomingRange.ToString("0.#") + " · 공전 대상 " + homing.OrbitTargetCount + "개";
-                }
-                else
-                {
-                    string label;
-                    switch (GameData.ModifierGrades.GetEffectType(rune.Id))
-                    {
-                        case "effectMultiplier": label = " 효과 배율 ×"; break;
-                        case ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT: label = " 전력 소비 배율 ×"; break;
-                        case "beamEmpowerMultiplier":
-                            effect += " 채널링을 오래할수록 피해·마나·빔 폭 증가 · 2초부터 강화 · 5초 최대 피해 ×" + value
-                                + " · 마나 ×" + GameData.ModifierGrades.GetBeamEmpowerManaMultiplier(rune.Id, grade).ToString("0.##")
-                                + " · 빔 폭 ×" + GameData.ModifierGrades.GetBeamEmpowerSizeMultiplier(rune.Id, grade).ToString("0.##");
-                            label = null;
-                            break;
-                        case "multipleCount": label = " 생성 개수 "; break;
-                        case "waveCount": label = " 실행 회차 "; break;
-                        case "pierceCount": label = " 관통 횟수 "; break;
-                        case "radiusMultiplier": label = " 면적 배율 ×"; break;
-                        case "durationMultiplier": label = " 지속시간 배율 ×"; break;
-                        case "speedMultiplier": label = " 속도 배율 ×"; break;
-                        case "orbitPath": label = " 궤도 반경 배율 ×"; break;
-                        case "knockbackDistance":
-                            effect += " 실제 직접 피해 " + rune.Stats.KnockbackReferenceDamage.ToString("0.##")
-                                + "당 " + value + "픽셀 밀어냅니다.\n (" + rune.Stats.KnockbackSeconds.ToString("0.##") + "초에 걸쳐 이동)";
-                            label = null;
-                            break;
-                        default: label = " 등급 효과: "; break;
-                    }
-                    if (label != null) effect += label + value;
-                    if (rune.Id == "mod.multi" && GameData.ModifierGrades.TryGetCountValue(rune.Id, grade, true, out int launchCount))
-                        effect += " · 발사 " + launchCount + "개";
-                }
-            }
-            string targets = ModifierTargetText(rune.Id);
-            if (targets != null) effect = effect.TrimEnd('\n') + "\n\n" + targets;
-            return ModifierGradeText.FormatName(rune.Name, grade) + " · " + effect;
-        }
-
-        /// <summary>모드 룬 ID별로 장착할 수 있는 행동 안내 문구를 반환하고 모드 룬이 아니면 null을 반환한다.\n</summary>
-        private static string ModifierTargetText(string runeId)
-        {
-            switch (runeId)
-            {
-                case "mod.knockback": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 빔 · 참격";
-                case "mod.saving": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 빔 · 참격";
-                case "mod.amplify": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 빔 · 참격";
-                case "mod.multi": return "장착 가능 행동: 발사 · 잔류 · 빔 · 참격";
-                case "mod.beamEmpower": return "장착 가능 행동: 빔";
-                case "mod.pierce": return "장착 가능 행동: 발사";
-                case "mod.sequence": return "장착 가능 행동: 발사 · 폭발 · 참격";
-                case "mod.homing": return "장착 가능 행동: 발사 · 잔류 · 빔";
-                case "mod.orbit": return "장착 가능 행동: 발사 · 잔류 · 빔";
-                case "mod.expand": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 빔 · 참격";
-                case "mod.speed": return "장착 가능 행동: 발사 · 폭발 · 잔류 · 참격";
-                case "mod.duration": return "장착 가능 행동: 발사 · 폭발 · 잔류";
-                default: return null;
-            }
-        }
-
         /// <summary>호버한 룬과 등급의 설명을 표시하고 null이면 기존 선택 내용을 복구한다.\n</summary>
         public void PreviewRune(RuneDefinition rune, string grade)
         {
@@ -166,7 +70,7 @@ namespace RuneCode
             if (_hoveredRune != null)
             {
                 _view.AddTitle(ModifierGradeText.FormatName(_hoveredRune.Name, _hoveredGrade));
-                _view.AddNote(RuneEffectText(_hoveredRune, _hoveredGrade), 60f, 10f);
+                _view.AddNote(RuneDescriptionBuilder.GetHoverText(_hoveredRune, _hoveredGrade), 60f, 10f);
                 return;
             }
             if (_hoveredNode != null) _hoveredNode = _editor.Graph.FindNode(_hoveredNode.Id);
@@ -210,7 +114,7 @@ namespace RuneCode
                 ShowElementInfo(node);
                 if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR) ShowBehaviorStats(node, rune);
                 else ShowCompiledStats(node, rune);
-                if (rune.Id == "behavior.persist") _view.AddNote(RuneEffectText(rune, null), 60f, 10f);
+                if (rune.Id == "behavior.persist") _view.AddNote(RuneDescriptionBuilder.GetHoverText(rune, null), 60f, 10f);
             }
             if (rune.Category != SpellGrammar.CATEGORY_CORE) _view.AddButton(GameData.L("ui.delete"), "InspectorDeleteButton", () => _editor.RemoveNode(node.Id));
         }
@@ -253,16 +157,14 @@ namespace RuneCode
         /// <summary>형태 노드별 역할을 한 줄 설명으로 표시한다.\n</summary>
         private void ShowShapeHint(RuneDefinition rune)
         {
-            string key = "ui." + rune.Id + "Hint";
-            string hint = GameData.L(key);
-            if (hint != key) _view.AddNote(hint, 24, 4);
+            if (GameData.TryL("ui." + rune.Id + "Hint", out string hint)) _view.AddNote(hint, 24, 4);
         }
 
         /// <summary>선택 행동에 대응하는 내부 형태의 기본값과 Modifier 적용 후 컴파일값을 표시한다.\n</summary>
         private void ShowBehaviorStats(GraphNode node, RuneDefinition rune)
         {
-            string formId = GetBehaviorFormId(rune.Id);
-            if (formId == null || !GameData.Runes.TryGet(formId, out RuneDefinition form)) return;
+            if (!SpellBehaviorRuleRegistry.TryGetByRuneId(rune.Id, out SpellBehaviorRules rules)
+                || !GameData.Runes.TryGet(rules.StatsRuneId, out RuneDefinition form)) return;
 
             CompiledSpell spell = _editor.CompileResult.Spell;
             List<SpellAction> actions = spell == null ? new List<SpellAction>() : FindActionsForNode(spell.Root, node.Id);
@@ -275,19 +177,6 @@ namespace RuneCode
             {
                 AddBehaviorStatNote(form, action, rune, node);
                 AddBehaviorGeometryNote(spell, action);
-            }
-        }
-
-        /// <summary>행동 ID를 해당 행동이 사용하는 내부 효과 형태의 룬 ID로 바꾸고 지원하지 않으면 null을 반환한다.\n</summary>
-        private static string GetBehaviorFormId(string behaviorId)
-        {
-            if (SpellBehaviorRuleRegistry.TryGetByRuneId(behaviorId, out SpellBehaviorRules rules)) return rules.StatsRuneId;
-            switch (behaviorId)
-            {
-                case "behavior.launch": return "form.bolt";
-                case "behavior.burst": return "form.burst";
-                case "behavior.persist": return "form.zone";
-                default: return null;
             }
         }
 
@@ -341,10 +230,8 @@ namespace RuneCode
         private void ShowModifierHint(RuneDefinition rune, string grade)
         {
             string modifierName = rune.Id.Substring("mod.".Length);
-            string key = "ui.mod." + modifierName + "Hint";
-            string hint = GameData.L(key);
-            if (hint != key) _view.AddNote(ModifierGradeText.Colorize(hint, grade), 52, 6);
-            string targets = ModifierTargetText(rune.Id);
+            if (GameData.TryL("ui.mod." + modifierName + "Hint", out string hint)) _view.AddNote(ModifierGradeText.Colorize(hint, grade), 52, 6);
+            string targets = RuneDescriptionBuilder.GetModifierTargets(rune);
             if (targets != null) _view.AddNote("\n" + targets, 42, 4);
         }
 
@@ -544,9 +431,7 @@ namespace RuneCode
         private static string ResourceName(string resource)
         {
             if (resource == "mana") return GameData.L("ui.energy");
-            string key = "resource." + resource;
-            string value = GameData.L(key);
-            return value == key ? resource : value;
+            return GameData.TryL("resource." + resource, out string value) ? value : resource;
         }
 
         /// <summary>Modifier 등급 선택 버튼과 현재 등급의 고정 수치 안내를 표시한다.\n</summary>
@@ -557,7 +442,7 @@ namespace RuneCode
             string label = GameData.L("ui.modifierGrade") + " " + grade + " · " + GameData.L("ui.modifierStock")
                 + " " + Math.Max(0, owned - used) + "/" + owned;
             _view.AddButton(ModifierGradeText.Colorize(label, grade), "InspectorButton", () => SelectNextModifierGrade(node.Id, rune));
-            _view.AddNote(ModifierGradeText.Colorize(GameData.L("ui.gradeStats") + " " + FormatModifierStats(rune, grade), grade), 70, 6);
+            _view.AddNote(ModifierGradeText.Colorize(GameData.L("ui.gradeStats") + " " + string.Join(" · ", RuneDescriptionBuilder.GetGradeLines(rune, grade, true)), grade), 70, 6);
         }
 
         /// <summary>소지량이 있는 다음 등급을 찾아 선택 노드에 저장한다.\n</summary>
@@ -580,84 +465,6 @@ namespace RuneCode
                 Refresh();
                 return;
             }
-        }
-
-        /// <summary>등급 고정값과 Modifier의 보조 고정 수치를 안내 문자열로 반환한다.\n</summary>
-        private static string FormatModifierStats(RuneDefinition rune, string grade)
-        {
-            var values = new List<string>();
-            ModifierGradeTable grades = GameData.ModifierGrades;
-            string effectType = grades.GetEffectType(rune.Id);
-            object gradeValue = grades.GetGradeValue(rune.Id, grade);
-            switch (effectType)
-            {
-                case "effectMultiplier": AddMultiplier(values, "ui.gradeDamage", gradeValue); break;
-                case ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT:
-                    AddMultiplier(values, "ui.gradeEnergyConsumption", gradeValue);
-                    break;
-                case "beamEmpowerMultiplier":
-                    values.Add("채널링을 오래할수록 피해·마나·빔 폭 증가");
-                    values.Add("2초부터 강화 · 5초에 최대 충전");
-                    values.Add("최대 피해 ×" + gradeValue);
-                    values.Add("최대 마나 ×" + grades.GetBeamEmpowerManaMultiplier(rune.Id, grade).ToString("0.##"));
-                    values.Add("최대 빔 폭 ×" + grades.GetBeamEmpowerSizeMultiplier(rune.Id, grade).ToString("0.##"));
-                    break;
-                case "multipleCount": values.Add(GameData.L("ui.gradeCount") + " " + gradeValue); break;
-                case "waveCount": values.Add(GameData.L("ui.gradeWaveCount") + " " + gradeValue); break;
-                case "pierceCount": values.Add(GameData.L("ui.gradePierce") + " " + gradeValue); break;
-                case "radiusMultiplier": AddMultiplier(values, "ui.gradeRadius", gradeValue); break;
-                case "durationMultiplier": AddMultiplier(values, "ui.gradeDuration", gradeValue); break;
-                case "speedMultiplier": AddMultiplier(values, "ui.gradeSpeed", gradeValue); break;
-                case "homingTier":
-                    string tier = gradeValue as string;
-                    HomingTierDefinition homing = rune.FindHomingTier(tier);
-                    values.Add(tier);
-                    if (homing != null)
-                    {
-                        values.Add(GameData.L("ui.gradeHomingTurn") + " " + homing.HomingTurn.ToString("0.#") + "°");
-                        values.Add(GameData.L("ui.gradeHomingRange") + " " + homing.HomingRange.ToString("0.#"));
-                        values.Add(GameData.L("ui.gradeOrbitTargetCount") + " " + homing.OrbitTargetCount);
-                    }
-                    break;
-                case "knockbackDistance":
-                    values.Add("실제 직접 피해 " + rune.Stats.KnockbackReferenceDamage.ToString("0.##") + "당 " + gradeValue + "픽셀 밀어내기");
-                    values.Add("밀어내기 시간 " + rune.Stats.KnockbackSeconds.ToString("0.##") + "s");
-                    break;
-                case "orbitPath":
-                    values.Add(GameData.L("ui.runeOrbitRadius") + " ×" + gradeValue);
-                    values.Add(GameData.L("ui.gradeAngularSpeed") + " " + rune.Stats.AngularSpeed.ToString("0.#") + "°/s");
-                    values.Add(GameData.L("ui.gradeEntrySpeed") + " " + rune.Stats.EntrySpeed.ToString("0.#") + "px/s");
-                    break;
-            }
-            RuneStats stats = rune.Stats;
-            if (effectType != ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT)
-                values.Add(GameData.L("ui.costMultiplier") + " ×" + grades.GetEnergyMultiplier(rune.Id, grade).ToString("0.##"));
-            if (rune.Id == "mod.multi")
-            {
-                if (grades.TryGetCountValue(rune.Id, grade, true, out int launchCount)
-                    && grades.TryGetLaunchGradeValues(rune.Id, out _))
-                    values.Add(GameData.L("ui.gradeLaunchCount") + " " + launchCount);
-                if (stats.DamageMultiplier != 1f) values.Add(GameData.L("ui.gradeDamage") + " ×" + stats.DamageMultiplier.ToString("0.##"));
-                if (stats.SpreadAngle > 0f) values.Add(GameData.L("ui.gradeSpread") + " " + stats.SpreadAngle.ToString("0.#") + "°");
-                if (grades.TryGetLaunchSpreadAngle(rune.Id, grade, out float launchSpread))
-                    values.Add(GameData.L("ui.gradeLaunchSpread") + " " + launchSpread.ToString("0.#") + "°");
-            }
-            if (rune.Id == "mod.sequence")
-            {
-                if (stats.DamageMultiplier != 1f) values.Add(GameData.L("ui.gradeDamage") + " ×" + stats.DamageMultiplier.ToString("0.##"));
-                if (stats.WaveInterval > 0f) values.Add(GameData.L("ui.gradeWaveInterval") + " " + stats.WaveInterval.ToString("0.##") + "s");
-            }
-            if (rune.Id == "mod.expand" && stats.DamageMultiplier != 1f)
-                values.Add(GameData.L("ui.gradeDamage") + " ×" + stats.DamageMultiplier.ToString("0.##"));
-            if (grades.TryGetPierceDamageMultiplier(rune.Id, grade, out float pierceMultiplier))
-                values.Add("관통 적중당 피해 ×" + pierceMultiplier.ToString("0.##") + " · 최소 피해 1");
-            return string.Join(" · ", values);
-        }
-
-        /// <summary>숫자 등급 값에 번역된 효과 라벨과 배율 기호를 붙인다.\n</summary>
-        private static void AddMultiplier(List<string> values, string labelKey, object value)
-        {
-            values.Add(GameData.L(labelKey) + " ×" + Convert.ToSingle(value).ToString("0.##"));
         }
 
         /// <summary>파라미터 종류(숫자·프리셋 대상·문자·선택지)에 맞는 행을 표시하고 입력을 편집 세션 저장으로 연결한다.\n</summary>

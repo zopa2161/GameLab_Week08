@@ -8,6 +8,17 @@ namespace RuneCode
     public sealed class ModifierGradeTable
     {
         public const string ENERGY_COST_MULTIPLIER_EFFECT = "energyCostMultiplier";
+        public const string EFFECT_MULTIPLIER_EFFECT = "effectMultiplier";
+        public const string MULTIPLE_COUNT_EFFECT = "multipleCount";
+        public const string PIERCE_COUNT_EFFECT = "pierceCount";
+        public const string HOMING_TIER_EFFECT = "homingTier";
+        public const string RADIUS_MULTIPLIER_EFFECT = "radiusMultiplier";
+        public const string DURATION_MULTIPLIER_EFFECT = "durationMultiplier";
+        public const string SPEED_MULTIPLIER_EFFECT = "speedMultiplier";
+        public const string ORBIT_PATH_EFFECT = "orbitPath";
+        public const string KNOCKBACK_DISTANCE_EFFECT = "knockbackDistance";
+        public const string WAVE_COUNT_EFFECT = "waveCount";
+        public const string BEAM_EMPOWER_MULTIPLIER_EFFECT = "beamEmpowerMultiplier";
 
         private const string TABLE_FILE = "elite_modifier_drops.json";
         private const string LAUNCH_COUNT_KEY = "_launchGradeValues";
@@ -193,7 +204,7 @@ namespace RuneCode
         public bool TryGetWaveCount(string modifierId, string grade, out int value)
         {
             value = 0;
-            if (GetEffectType(modifierId) != "waveCount") return false;
+            if (GetEffectType(modifierId) != WAVE_COUNT_EFFECT) return false;
             return TryGetIntegerValue(modifierId, grade, out value);
         }
 
@@ -317,7 +328,7 @@ namespace RuneCode
                 Dictionary<string, object> spreadAngles = ReadLaunchGradeValues(row, modifierId, effectType, gradeOrder, values, log, LAUNCH_SPREAD_KEY);
                 if (spreadAngles != null) ValidateSpreadAngles(modifierId, spreadAngles, log);
                 Dictionary<string, object> pierceMultipliers = null;
-                if (effectType == "pierceCount")
+                if (effectType == PIERCE_COUNT_EFFECT)
                 {
                     pierceMultipliers = ReadGradeValues(row, modifierId, gradeOrder, log, PIERCE_DAMAGE_MULTIPLIER_KEY);
                     foreach (KeyValuePair<string, object> pair in pierceMultipliers)
@@ -326,7 +337,7 @@ namespace RuneCode
                 }
                 Dictionary<string, float> beamManaMultipliers = null;
                 Dictionary<string, float> beamSizeMultipliers = null;
-                if (effectType == "beamEmpowerMultiplier")
+                if (effectType == BEAM_EMPOWER_MULTIPLIER_EFFECT)
                 {
                     beamManaMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log, BEAM_MANA_MULT_BY_GRADE_KEY);
                     beamSizeMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log, BEAM_SIZE_MULT_BY_GRADE_KEY);
@@ -400,7 +411,7 @@ namespace RuneCode
             string effectType, IReadOnlyList<string> gradeOrder, Dictionary<string, object> gradeValues, TableErrorLog log, string key)
         {
             if (Get(row, key) == null) return null;
-            if (effectType != "multipleCount")
+            if (effectType != MULTIPLE_COUNT_EFFECT)
             {
                 log.Add(modifierId, key, "multipleCount 효과에만 사용할 수 있습니다.");
                 return null;
@@ -438,10 +449,10 @@ namespace RuneCode
         private static void ValidateGradeValueTypes(string modifierId, string effectType, Dictionary<string, object> values,
             RuneDefinition rune, TableErrorLog log, string key = "_gradeValues")
         {
-            bool isKnownEffect = effectType == "effectMultiplier" || effectType == "multipleCount" || effectType == "pierceCount"
-                || effectType == "radiusMultiplier" || effectType == "durationMultiplier" || effectType == "speedMultiplier"
-                || effectType == "homingTier" || effectType == "orbitPath" || effectType == "knockbackDistance"
-                || effectType == "waveCount" || effectType == ENERGY_COST_MULTIPLIER_EFFECT || effectType == "beamEmpowerMultiplier";
+            bool isKnownEffect = effectType == EFFECT_MULTIPLIER_EFFECT || effectType == MULTIPLE_COUNT_EFFECT || effectType == PIERCE_COUNT_EFFECT
+                || effectType == RADIUS_MULTIPLIER_EFFECT || effectType == DURATION_MULTIPLIER_EFFECT || effectType == SPEED_MULTIPLIER_EFFECT
+                || effectType == HOMING_TIER_EFFECT || effectType == ORBIT_PATH_EFFECT || effectType == KNOCKBACK_DISTANCE_EFFECT
+                || effectType == WAVE_COUNT_EFFECT || effectType == ENERGY_COST_MULTIPLIER_EFFECT || effectType == BEAM_EMPOWER_MULTIPLIER_EFFECT;
             if (!isKnownEffect) log.Add(modifierId, "_effectType", "지원하지 않는 효과 종류입니다: " + effectType);
             foreach (KeyValuePair<string, object> pair in values)
             {
@@ -452,18 +463,18 @@ namespace RuneCode
                     if (!(pair.Value is double multiplier) || multiplier <= 0d || multiplier >= 1d)
                         log.Add(modifierId, field, "0보다 크고 1보다 작은 전력 소비 배율이어야 합니다.");
                 }
-                else if (effectType == "effectMultiplier" || effectType == "radiusMultiplier" || effectType == "durationMultiplier"
-                    || effectType == "speedMultiplier" || effectType == "orbitPath" || effectType == "knockbackDistance" || effectType == "beamEmpowerMultiplier")
+                else if (effectType == EFFECT_MULTIPLIER_EFFECT || effectType == RADIUS_MULTIPLIER_EFFECT || effectType == DURATION_MULTIPLIER_EFFECT
+                    || effectType == SPEED_MULTIPLIER_EFFECT || effectType == ORBIT_PATH_EFFECT || effectType == KNOCKBACK_DISTANCE_EFFECT || effectType == BEAM_EMPOWER_MULTIPLIER_EFFECT)
                 {
                     if (!(pair.Value is double number) || number <= 0d || number > float.MaxValue)
                         log.Add(modifierId, field, "float 범위의 양수 숫자여야 합니다.");
                 }
-                else if (effectType == "multipleCount" || effectType == "waveCount")
+                else if (effectType == MULTIPLE_COUNT_EFFECT || effectType == WAVE_COUNT_EFFECT)
                 {
                     if (!(pair.Value is double number) || number < 1d || number > int.MaxValue || number != Math.Truncate(number))
                         log.Add(modifierId, field, "양의 정수여야 합니다.");
                 }
-                else if (effectType == "pierceCount")
+                else if (effectType == PIERCE_COUNT_EFFECT)
                 {
                     if (pair.Value is string text)
                     {
@@ -472,7 +483,7 @@ namespace RuneCode
                     else if (!(pair.Value is double number) || number < 0d || number > int.MaxValue || number != Math.Truncate(number))
                         log.Add(modifierId, field, "비음수 정수 또는 ALL이어야 합니다.");
                 }
-                else if (effectType == "homingTier")
+                else if (effectType == HOMING_TIER_EFFECT)
                 {
                     if (!(pair.Value is string tier) || rune == null || rune.FindHomingTier(tier) == null)
                         log.Add(modifierId, field, "runes.json _homingTiers에 정의된 유도 단계 문자열이어야 합니다.");

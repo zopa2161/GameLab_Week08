@@ -58,9 +58,7 @@ namespace RuneCode
         private static string ResourceName(string resource)
         {
             if (resource == "mana") return GameData.L("ui.energy");
-            string key = "resource." + resource;
-            string value = GameData.L(key);
-            return value == key ? resource : value;
+            return GameData.TryL("resource." + resource, out string value) ? value : resource;
         }
     }
 }

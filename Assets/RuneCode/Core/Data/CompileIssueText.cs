@@ -40,9 +40,7 @@ namespace RuneCode
         /// <summary>자원 ID를 현지화 이름으로 바꾸고 번역이 없으면 ID를 반환한다.</summary>
         private static string ResourceName(string resource)
         {
-            string key = "resource." + resource;
-            string localized = GameData.L(key);
-            return localized == key ? resource : localized;
+            return GameData.TryL("resource." + resource, out string localized) ? localized : resource;
         }
     }
 }

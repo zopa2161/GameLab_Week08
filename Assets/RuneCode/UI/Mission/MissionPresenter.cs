@@ -369,7 +369,7 @@ namespace RuneCode
                     RuneDefinition rune = GameData.Runes.Get(_run.ClearModifierChoices[i]);
                     string grade = _run.ClearModifierGrades[i];
                     names.Add(ModifierGradeText.Colorize(rune.Name, grade));
-                    descriptions.Add(ModifierGradeText.Colorize(FormatClearModifierDescription(rune, grade), grade));
+                    descriptions.Add(ModifierGradeText.Colorize(string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false)), grade));
                 }
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions, _run.ClearModifierGrades);
             }
@@ -391,63 +391,6 @@ namespace RuneCode
                 return;
             }
             _ui.OpenPopup<OnboardingPopup>().Configure(notice.Title, notice.Pages);
-        }
-
-        /// <summary>Modifier와 등급의 현재 효과를 보상 카드에 표시할 줄 단위 문구로 반환한다.</summary>
-        private static string FormatClearModifierDescription(RuneDefinition rune, string grade)
-        {
-            var values = new List<string>();
-            ModifierGradeTable grades = GameData.ModifierGrades;
-            object gradeValue = grades.GetGradeValue(rune.Id, grade);
-            switch (grades.GetEffectType(rune.Id))
-            {
-                case ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT:
-                    values.Add(GameData.L("ui.gradeEnergyConsumption") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
-                    break;
-                case "beamEmpowerMultiplier":
-                    values.Add("2초부터 강화 · 5초에 최대 충전");
-                    values.Add("최대 피해 ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
-                    values.Add("최대 마나 ×" + grades.GetBeamEmpowerManaMultiplier(rune.Id, grade).ToString("0.##"));
-                    values.Add("최대 빔 폭 ×" + grades.GetBeamEmpowerSizeMultiplier(rune.Id, grade).ToString("0.##"));
-                    break;
-                case "effectMultiplier":
-                    values.Add(GameData.L("ui.gradeDamage") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
-                    break;
-                case "multipleCount":
-                    values.Add(GameData.L("ui.gradeCount") + " " + gradeValue);
-                    break;
-                case "waveCount":
-                    values.Add(GameData.L("ui.gradeWaveCount") + " " + gradeValue);
-                    break;
-                case "pierceCount":
-                    values.Add(GameData.L("ui.gradePierce") + " " + gradeValue);
-                    break;
-                case "radiusMultiplier":
-                    values.Add(GameData.L("ui.gradeRadius") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
-                    break;
-                case "durationMultiplier":
-                    values.Add(GameData.L("ui.gradeDuration") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
-                    break;
-                case "speedMultiplier":
-                    values.Add(GameData.L("ui.gradeSpeed") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
-                    break;
-                case "orbitPath":
-                    values.Add(GameData.L("ui.gradeOrbitPath") + " ×" + Convert.ToSingle(gradeValue).ToString("0.##"));
-                    break;
-                case "knockbackDistance":
-                    values.Add(GameData.L("ui.gradeKnockback") + " " + Convert.ToSingle(gradeValue).ToString("0.##") + "px");
-                    break;  
-                case "homingTier":
-                    values.Add("적을 추적합니다.");
-                    break;
-            }
-            return string.Join("\n", values);
-        }
-
-        /// <summary>행동·속성 룬 보상 카드에 표시할 한 줄 설명을 strings 테이블의 ui.behavior.*·ui.element.* 키에서 반환한다.</summary>
-        private static string FormatRuneDescription(RuneDefinition rune)
-        {
-            return GameData.L("ui." + rune.Category + "." + rune.Id.Substring(rune.Category.Length + 1));
         }
 
         /// <summary>결과 View에 정산 문구와 스테이지·진행 정보를 채운다.</summary>
@@ -482,12 +425,12 @@ namespace RuneCode
                     || rune.Category == SpellGrammar.CATEGORY_ELEMENT)
                 {
                     description = ModifierGradeText.Colorize(
-                        gradeLabel + FormatRuneDescription(rune), reward.Grade);
+                        gradeLabel + RuneDescriptionBuilder.GetDescription(rune), reward.Grade);
                 }
                 else
                 {
                     description = ModifierGradeText.Colorize(
-                        gradeLabel + FormatClearModifierDescription(rune, reward.Grade),
+                        gradeLabel + string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, reward.Grade, false)),
                         reward.Grade);
                 }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 using UnityEngine;
 
@@ -33,6 +34,7 @@ namespace RuneCode
         private static BalanceData _balance;
         private static IReadOnlyList<SpellGraph> _spells;
         private static Dictionary<string, string> _strings;
+        private static readonly HashSet<string> _reportedMissingKeys = new HashSet<string>();
         public static bool IsLoaded => _runes != null;
         public static RuneCatalog Runes => _runes;
         public static ModifierGradeTable ModifierGrades => _modifierGrades;
@@ -190,11 +192,36 @@ namespace RuneCode
             return null;
         }
 
-        /// <summary>현지화 키의 한국어 문구를 반환하고 누락된 키는 그대로 표시한다.</summary>
+        /// <summary>현지화 키의 한국어 문구를 반환하고 누락된 키는 그대로 표시한다. 에디터·개발 빌드에서는 누락 키마다 경고를 한 번 남긴다.</summary>
         public static string L(string key)
         {
             if (_strings != null && _strings.TryGetValue(key, out string value)) return value;
+            ReportMissingKey(key);
             return key;
+        }
+
+        /// <summary>키가 있으면 문구를 value에 넣고 true를 반환한다. 선택 문구의 존재 확인용이라 누락 경고를 남기지 않는다.</summary>
+        public static bool TryL(string key, out string value)
+        {
+            value = null;
+            return _strings != null && _strings.TryGetValue(key, out value);
+        }
+
+        /// <summary>키의 문구에서 {이름} 자리를 values의 이름별 값으로 바꿔 반환한다. 값은 고정 문화권 문자열로 넣으므로 숫자 형식은 호출부가 정한다.</summary>
+        public static string Format(string key, params (string name, object value)[] values)
+        {
+            string text = L(key);
+            foreach ((string name, object value) in values)
+                text = text.Replace("{" + name + "}", Convert.ToString(value, CultureInfo.InvariantCulture));
+            return text;
+        }
+
+        /// <summary>문자열 테이블을 읽은 뒤 처음 만난 누락 키를 경고로 남긴다. 에디터·개발 빌드에서만 컴파일된다.</summary>
+        [System.Diagnostics.Conditional("UNITY_EDITOR"), System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        private static void ReportMissingKey(string key)
+        {
+            if (_strings == null || !_reportedMissingKeys.Add(key)) return;
+            Debug.LogWarning("현지화 키가 없습니다: " + key);
         }
 
         /// <summary>RuneCode Resources 경로의 필수 텍스트 자산을 읽는다.</summary>

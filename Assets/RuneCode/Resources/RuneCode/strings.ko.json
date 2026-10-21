@@ -1,11 +1,8 @@
 {
   "_entries": [
-    {"_key": "ui.savingHint", "_value": "장착한 행동의 기본 비용에 다른 모드와 함께 전력 소비 배율을 곱합니다. 이후 더해지는 속성·형태 비용과 후속 행동의 비용은 줄이지 않습니다. 빔은 연장 결제에도 적용됩니다."},
-    {"_key": "ui.gradeEnergyConsumption", "_value": "전력 소비"},
+    {"_key": "ui.mod.savingHint", "_value": "장착한 행동의 기본 비용에 다른 모드와 함께 전력 소비 배율을 곱합니다. 이후 더해지는 속성·형태 비용과 후속 행동의 비용은 줄이지 않습니다. 빔은 연장 결제에도 적용됩니다."},
     {"_key": "tag.slash", "_value": "참격"},
     {"_key": "form.slash", "_value": "참격"},
-    {"_key": "ui.behavior.slash", "_value": "시전 중심에서 긴 칼날을 오른쪽에서 왼쪽으로 휘둘러 적마다 한 번 타격합니다."},
-    {"_key": "ui.slashHint", "_value": "마법 칼날을 휘두릅니다."},
     {"_key": "ui.slashLength", "_value": "칼날 길이"},
     {"_key": "ui.slashWidth", "_value": "칼날 두께"},
     {"_key": "ui.slashAngle", "_value": "회전각"},
@@ -22,20 +19,12 @@
     {"_key": "save.occupiedSlot", "_value": "이미 데이터가 있는 슬롯입니다. 저장 관리에서 세이브 데이터를 관리해 주세요."},
     {"_key": "save.noContinueSlots", "_value": "이어 할 저장 데이터가 없습니다."},
     {"_key": "save.damagedSlot", "_value": "읽을 수 없는 저장 데이터입니다. 저장 관리에서 세이브 데이터를 관리해 주세요."},
-    {"_key": "ui.burstHint", "_value": "생성 위치에서 원형 폭발을 일으킵니다."},
     {"_key": "ui.burstAngle", "_value": "파동 전체 각도"},
     {"_key": "ui.burstThickness", "_value": "파동 두께"},
     {
       "_key": "ui.mod.knockbackHint",
-      "_value": "이번 타격에서 실제로 준 직접 피해에 비례해 적을 밀어냅니다. 작은 지속 피해는 짧게 밀어냅니다. 발사는 진행 방향, 폭발·레거시 폭발·잔류는 중심에서 바깥 방향, 빔은 맞은 구간의 진행 방향을 사용합니다. 보스·빙결·돌진 중인 적에게는 적용되지 않습니다."
+      "_value": "이번 타격에서 실제로 준 직접 피해에 비례해 적을 밀어냅니다. 작은 지속 피해는 짧게 밀어냅니다. 발사는 진행 방향, 폭발·잔류는 중심에서 바깥 방향, 빔은 맞은 구간의 진행 방향을 사용합니다. 보스·빙결·돌진 중인 적에게는 적용되지 않습니다."
     },
-    { "_key": "ui.behavior.launch", "_value": "마법을 발사합니다." },
-    { "_key": "ui.behavior.burst", "_value": "생성 위치에서 원형 폭발을 일으킵니다." },
-    { "_key": "ui.behavior.persist", "_value": "효과를 남겨 일정 시간 유지합니다." },
-    { "_key": "ui.behavior.beam", "_value": "버튼을 누르는 동안 빔을 유지합니다." },
-    { "_key": "ui.element.fire", "_value": "적에게 화상 피해를 입힙니다." },
-    { "_key": "ui.element.ice", "_value": "적을 둔화시키고 냉기가 누적되면 빙결시킵니다." },
-    { "_key": "ui.element.lightning", "_value": "전격 피해와 EMP 효과를 부여합니다." },
     { "_key": "tag.beam", "_value": "빔" },
     { "_key": "form.beam", "_value": "빔" },
     { "_key": "ui.beamInitialCost", "_value": "초기 소모 마나" },
@@ -1161,47 +1150,43 @@
     },
     {
       "_key": "ui.mod.expandHint",
-      "_value": "등급 값은 공격 면적 배율입니다. 일반 형상의 반경·폭·길이는 배율의 제곱근만큼 커집니다. 폭발은 파동 속도와 두께에 함께 적용되며, 길이가 고정된 빔은 폭만 면적 배율만큼 커집니다. 공전 궤도 반경은 유지됩니다"
-    },
-    {
-      "_key": "ui.mod.rangeHint",
-      "_value": "볼트의 비행 거리, 버스트·존의 생성 거리를 조절합니다"
+      "_value": "등급 값은 공격 면적 배율입니다. 일반 형상의 반경·폭·길이는 배율의 제곱근만큼 커집니다. 폭발은 파동 속도와 두께에 함께 적용되며, 길이가 고정된 빔은 폭만 면적 배율만큼 커집니다. 공전 궤도 반경은 유지됩니다."
     },
     {
       "_key": "ui.mod.speedHint",
-      "_value": "볼트의 이동 속도와 공전 회전 속도, 잔류의 예고 속도와 유도 이동 속도를 조절합니다. 볼트의 비행 거리는 유지됩니다. 발사·잔류에 연결할 수 있습니다"
+      "_value": "볼트의 이동 속도와 공전 회전 속도, 잔류의 예고 속도와 유도 이동 속도를 조절합니다. 볼트의 비행 거리는 유지됩니다."
     },
     {
       "_key": "ui.mod.amplifyHint",
-      "_value": "등급에 따라 행동의 피해 배율이 높아집니다. 발사·폭발·잔류·적용에 연결할 수 있습니다"
+      "_value": "등급에 따라 행동의 피해 배율이 높아집니다."
     },
     {
       "_key": "ui.mod.multiHint",
-      "_value": "등급별 발사 수를 늘리고 피해량과 발사 각도를 조정합니다. 발사·폭발·잔류에 연결할 수 있습니다"
+      "_value": "등급별 생성 개수를 늘리고 피해량과 발사 각도를 조정합니다."
     },
     {
       "_key": "ui.mod.beamEmpowerHint",
-      "_value": "빔 전용. 채널링을 오래할수록 피해·마나 유지 비용·빔 폭이 증가합니다. 연속 채널링 2초부터 서서히 강화되며, 총 5초에 최대가 됩니다. S등급 최대 피해 4배·마나 4배·빔 폭 6배. 채널 종료 시 초기화되며 충전할수록 발광이 강해집니다."
+      "_value": "채널링을 오래할수록 피해·마나 유지 비용·빔 폭이 증가합니다. 채널 종료 시 초기화되며 충전할수록 발광이 강해집니다."
     },
     {
       "_key": "ui.mod.pierceHint",
-      "_value": "등급에 따라 관통 횟수를 늘리고 관통할 때마다 피해를 줄입니다. 발사에만 연결할 수 있습니다"
+      "_value": "등급에 따라 관통 횟수를 늘리고 관통할 때마다 피해를 줄입니다."
     },
     {
       "_key": "ui.mod.homingHint",
-      "_value": "등급별 유도 단계가 회전각과 추적 거리를 결정합니다. 발사·잔류에 연결할 수 있습니다"
+      "_value": "등급별 유도 단계가 회전각과 추적 거리를 결정합니다."
     },
     {
       "_key": "ui.mod.orbitHint",
-      "_value": "등급이 낮을수록 시전자 중심에서 궤도가 멀어집니다. 발사체·잔류 필드는 궤도를 돌며 유도가 있으면 적을 추적합니다. 빔은 시전자를 따라가는 원형이고 유도 시 적 주변 구간이 변형됩니다. 발사·잔류·빔에 연결할 수 있습니다"
+      "_value": "등급이 낮을수록 시전자 중심에서 궤도가 멀어집니다. 발사체·잔류 필드는 궤도를 돌며 유도가 있으면 적을 추적합니다. 빔은 시전자를 따라가는 원형이고 유도 시 적 주변 구간이 변형됩니다."
     },
     {
       "_key": "ui.mod.sequenceHint",
-      "_value": "약간의 간격을 두고 같은 마법을 반복 실행합니다. 등급이 높을수록 실행 횟수가 늘어나며 모든 회차의 피해가 줄어듭니다. 루트 시전은 회차마다 현재 위치·조준을 다시 씁니다. 발사·폭발에 연결할 수 있습니다"
+      "_value": "약간의 간격을 두고 같은 마법을 반복 실행합니다. 등급이 높을수록 실행 횟수가 늘어나며 모든 회차의 피해가 줄어듭니다. 루트 시전은 회차마다 현재 위치·조준을 다시 씁니다."
     },
     {
       "_key": "ui.mod.durationHint",
-      "_value": "등급별 배율이 행동 효과의 지속시간을 늘립니다. 발사·잔류·적용에 연결할 수 있습니다"
+      "_value": "등급별 배율이 행동 효과의 지속시간을 늘립니다."
     },
     {
       "_key": "ui.fixedShape",
@@ -1512,76 +1497,12 @@
       "_value": "수치"
     },
     {
-      "_key": "ui.gradeDamage",
-      "_value": "피해"
-    },
-    {
-      "_key": "ui.gradeRadius",
-      "_value": "면적"
-    },
-    {
-      "_key": "ui.gradeSpeed",
-      "_value": "속도"
-    },
-    {
-      "_key": "ui.gradeDuration",
-      "_value": "지속시간"
-    },
-    {
-      "_key": "ui.gradeCount",
-      "_value": "발사 수"
-    },
-    {
-      "_key": "ui.gradeLaunchCount",
-      "_value": "발사 행동 수"
-    },
-    {
-      "_key": "ui.gradeLaunchSpread",
-      "_value": "발사 행동 퍼짐"
-    },
-    {
-      "_key": "ui.gradePierce",
-      "_value": "관통"
-    },
-    {
       "_key": "ui.gradePierceLoss",
       "_value": "관통 피해 감소"
     },
     {
-      "_key": "ui.gradeWaveCount",
-      "_value": "연속 횟수"
-    },
-    {
-      "_key": "ui.gradeWaveInterval",
-      "_value": "연속 간격"
-    },
-    {
-      "_key": "ui.gradeHomingTurn",
-      "_value": "유도 회전"
-    },
-    {
-      "_key": "ui.gradeHomingRange",
-      "_value": "유도 거리"
-    },
-    {
       "_key": "ui.gradeOrbitTargetCount",
       "_value": "공전 대상"
-    },
-    {
-      "_key": "ui.gradeKnockback",
-      "_value": "밀어내기 거리"
-    },
-    {
-      "_key": "ui.gradeOrbitPath",
-      "_value": "궤도 반경 배율"
-    },
-    {
-      "_key": "ui.gradeAngularSpeed",
-      "_value": "회전 속도"
-    },
-    {
-      "_key": "ui.gradeEntrySpeed",
-      "_value": "진입 속도"
     },
     {
       "_key": "ui.gradeSpread",
@@ -1686,6 +1607,51 @@
     {
       "_key": "save.loaded",
       "_value": "저장된 진행을 불러왔습니다."
-    }
+    },
+    {"_key": "rune.behavior.launch.desc", "_value": "마법을 발사합니다."},
+    {"_key": "rune.behavior.burst.desc", "_value": "생성 위치에서 원형 폭발을 일으킵니다."},
+    {"_key": "rune.behavior.persist.desc", "_value": "일정 시간 유지되는 장판을 생성합니다."},
+    {"_key": "rune.behavior.beam.desc", "_value": "버튼을 누르는 동안 길게 뻗는 빔을 유지합니다."},
+    {"_key": "rune.behavior.slash.desc", "_value": "마법 칼날을 휘둘러 적마다 한 번 타격합니다."},
+    {"_key": "rune.element.neutral.desc", "_value": "속성 효과 없이 기본 피해만 줍니다."},
+    {"_key": "rune.element.fire.desc", "_value": "적에게 화상을 부여해 {burnSeconds}초 동안 {burnInterval}초마다 공격 피해의 {burnPercent}% 피해를 줍니다."},
+    {"_key": "rune.element.ice.desc", "_value": "적을 둔화시키고 냉기가 누적되면 빙결시킵니다."},
+    {"_key": "rune.element.lightning.desc", "_value": "전격 피해와 EMP 효과를 부여합니다."},
+    {"_key": "rune.mod.knockback.desc", "_value": "실제로 준 직접 피해에 비례해 적을 밀어냅니다."},
+    {"_key": "rune.mod.saving.desc", "_value": "장착한 행동의 기본 전력 소비를 줄입니다."},
+    {"_key": "rune.mod.amplify.desc", "_value": "행동의 피해를 높입니다."},
+    {"_key": "rune.mod.multi.desc", "_value": "생성 개수를 늘립니다. 발사는 전용 개수와 퍼짐을 사용합니다."},
+    {"_key": "rune.mod.beamEmpower.desc", "_value": "빔을 오래 유지할수록 피해·마나 소비·빔 폭이 커집니다."},
+    {"_key": "rune.mod.pierce.desc", "_value": "적을 관통해 뒤쪽 대상도 타격합니다."},
+    {"_key": "rune.mod.sequence.desc", "_value": "약간의 간격을 두고 같은 행동을 반복 실행합니다."},
+    {"_key": "rune.mod.homing.desc", "_value": "탐색 범위 안의 적을 향해 방향을 조정합니다."},
+    {"_key": "rune.mod.orbit.desc", "_value": "생성된 개체가 시전자 주위 궤도를 돕니다."},
+    {"_key": "rune.mod.expand.desc", "_value": "효과 면적을 늘립니다. 일반 형상의 길이는 면적 배율의 제곱근만큼 커집니다."},
+    {"_key": "rune.mod.speed.desc", "_value": "이동 속도를 높입니다."},
+    {"_key": "rune.mod.duration.desc", "_value": "효과의 지속시간을 늘립니다."},
+    {"_key": "rune.effect.effectMultiplier", "_value": "피해 ×{value}"},
+    {"_key": "rune.effect.energyCostMultiplier", "_value": "전력 소비 ×{value}"},
+    {"_key": "rune.effect.multipleCount", "_value": "생성 개수 {value}"},
+    {"_key": "rune.effect.launchCount", "_value": "발사 행동 수 {value}"},
+    {"_key": "rune.effect.waveCount", "_value": "연속 횟수 {value}"},
+    {"_key": "rune.effect.pierceCount", "_value": "관통 횟수 {value}"},
+    {"_key": "rune.effect.radiusMultiplier", "_value": "면적 ×{value}"},
+    {"_key": "rune.effect.durationMultiplier", "_value": "지속시간 ×{value}"},
+    {"_key": "rune.effect.speedMultiplier", "_value": "속도 ×{value}"},
+    {"_key": "rune.effect.orbitPath", "_value": "궤도 반경 ×{value}"},
+    {"_key": "rune.effect.knockbackDistance", "_value": "직접 피해 {damage}당 {value}px 밀어내기"},
+    {"_key": "rune.effect.homingTier", "_value": "유도 {tier}\n회전 {turn}°\n탐색 범위 {range}\n공전 대상 {targets}개"},
+    {"_key": "rune.effect.homingNone", "_value": "유도 없음"},
+    {"_key": "rune.effect.beamEmpowerMultiplier", "_value": "{start}초부터 강화 · {max}초에 최대 충전\n최대 피해 ×{value}\n최대 마나 ×{mana}\n최대 빔 폭 ×{width}"},
+    {"_key": "rune.detail.costMultiplier", "_value": "비용 배율 ×{value}"},
+    {"_key": "rune.detail.knockbackSeconds", "_value": "밀어내기 시간 {value}s"},
+    {"_key": "rune.detail.angularSpeed", "_value": "회전 속도 {value}°/s"},
+    {"_key": "rune.detail.entrySpeed", "_value": "진입 속도 {value}px/s"},
+    {"_key": "rune.detail.damage", "_value": "피해 ×{value}"},
+    {"_key": "rune.detail.spread", "_value": "확산 각도 {value}°"},
+    {"_key": "rune.detail.launchSpread", "_value": "발사 행동 퍼짐 {value}°"},
+    {"_key": "rune.detail.waveInterval", "_value": "연속 간격 {value}s"},
+    {"_key": "rune.detail.pierceDamage", "_value": "관통 적중당 피해 ×{value} · 최소 피해 1"},
+    {"_key": "rune.modifierTargets", "_value": "장착 가능 행동: {targets}"}
   ]
 }

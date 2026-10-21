@@ -92,8 +92,7 @@ namespace RuneCode
         /// <summary>현지화 값을 찾고 번역이 없으면 지정 원문을 반환한다.</summary>
         private static string LocalizedValue(string key, string fallback)
         {
-            string value = GameData.L(key);
-            return value == key ? fallback : value;
+            return GameData.TryL(key, out string value) ? value : fallback;
         }
     }
 }
