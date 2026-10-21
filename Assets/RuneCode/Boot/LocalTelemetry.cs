@@ -54,7 +54,8 @@ namespace RuneCode
             IncrementUsabilityEventCount(eventName, eventData);
             if (eventName == "test_start" || eventName == "test_end" || eventName == "stage_enter"
                 || eventName == "combat_start" || eventName == "combat_end" || eventName == "spell_complete"
-                || eventName == "clear_reward_selected")
+                || eventName == "clear_reward_selected" || eventName == "round_break_end"
+                || eventName == "pause_start" || eventName == "pause_end")
                 _usabilityLogWriter.Flush();
         }
 

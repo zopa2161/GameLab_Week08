@@ -139,7 +139,19 @@ namespace RuneCode
             PlayBigScrapSpawnSounds();
             PlayScrapPickupSounds();
             UpdateDamageFeedback(playerDamageBefore);
+            if (_run.IsWaitingForNextRound && _run.HasClearModifierChoices && !_hasPresentedChoices && !_ui.IsPopupOpen)
+                ShowRoundChoices();
             RenderHud();
+        }
+
+        /// <summary>결과 본문을 숨긴 기존 패널에서 어두운 배경과 보상 후보 카드만 표시해 하나를 선택하게 한다.</summary>
+        private void ShowRoundChoices()
+        {
+            _result.SetContent(string.Empty, string.Empty, string.Empty, true, true, isChoiceOnly: true);
+            _result.SetRewards(Array.Empty<ResultRewardContent>());
+            _result.Show();
+            ShowPendingChoices();
+            SoundManager.Instance.PlayRoundClear();
         }
 
         /// <summary>지난 확인 이후 적이 실제 피해를 받은 횟수만큼 피격음을 재생하고 소비한 횟수를 갱신한다.</summary>
@@ -216,13 +228,18 @@ namespace RuneCode
         private void StartNextRound()
         {
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
-            if (_run.TryStartNextRound()) RenderHud();
+            if (_run.TryStartNextRound())
+            {
+                _hasPresentedChoices = false;
+                RenderHud();
+            }
         }
 
         /// <summary>일시정지 상태를 바꾸고 일시정지 팝업을 열거나 닫는다. 결과 표시 중에는 무시한다.</summary>
         private void TogglePause()
         {
             if (_run == null || _run.IsFinished) return;
+            if (_run.IsWaitingForNextRound && !_run.IsClearModifierChosen) return;
             if (_run.IsPaused)
             {
                 _ui.CloseAllPopups();
@@ -455,6 +472,13 @@ namespace RuneCode
         private void ChooseClearModifier(int index)
         {
             if (_run == null || _ui.IsPopupOpen || !_run.ChooseClearModifier(index)) return;
+            if (_run.IsWaitingForNextRound)
+            {
+                _result.HideClearModifierChoices();
+                _result.Hide();
+                RenderHud();
+                return;
+            }
             SetResultSummary();
             _result.HideClearModifierChoices();
             _result.FocusReward(_run.ClearModifierChoices[index], _run.ClearModifierGrades[index]);
@@ -524,7 +548,8 @@ namespace RuneCode
             int? remainingEnemyCount = sim.IsProgressionMission && !_run.IsFinished && !sim.IsWaitingForNextRound
                 ? sim.RemainingWaveEnemyCount : (int?)null;
             _hud.SetStage(GetStageText(sim), remainingEnemyCount);
-            _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished, !_run.IsPaused && !_ui.IsPopupOpen);
+            _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished && _run.IsClearModifierChosen,
+                !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);

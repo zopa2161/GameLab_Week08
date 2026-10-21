@@ -250,10 +250,11 @@ namespace RuneCode
             return RuneRewardRoller.DrawRune(_world.Drops.Get(_world.Drops.NormalEnemyDrop.DropTable), _world.StageNumber, _world.EliteDrops, _world.Random.Next);
         }
 
-        /// <summary>처치 위치에 놓을 룬의 분류·종류·등급을 추첨해 드롭 개체 1개를 생성한다.</summary>
+        /// <summary>테이블로 처치 드롭을 추첨하고 모드 룬이면 생성을 생략한다. 다른 분류의 룬만 처치 위치에 드롭한다.</summary>
         private void RollDropTable(DropTableDefinition table, SimVector position)
         {
             DropRoll roll = RuneRewardRoller.DrawRune(table, _world.StageNumber, _world.EliteDrops, _world.Random.Next);
+            if (GameData.Runes.Get(roll.RuneId).Category == SpellGrammar.CATEGORY_MODIFIER) return;
             _itemDrops.Add(new SimulationItemDrop(roll.RuneId, roll.Grade, roll.Count, _world.Tick, position));
         }
 
