@@ -55,6 +55,8 @@ namespace RuneCode
                 _toast.gameObject.SetActive(false);
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null || !keyboard.escapeKey.wasPressedThisFrame || UiFactory.IsTyping()) return;
+            if (_currentScreen is MissionScreen && !_popupStack.Exists(popup => popup is PausePopup)
+                && _currentScreen.HandleEscape()) return;
             if (_popupStack.Count > 0) _popupStack[_popupStack.Count - 1].HandleEscape();
             else if (_currentScreen != null) _currentScreen.HandleEscape();
         }
