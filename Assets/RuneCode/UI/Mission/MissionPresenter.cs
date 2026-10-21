@@ -149,7 +149,19 @@ namespace RuneCode
             PlayBigScrapSpawnSounds();
             PlayScrapPickupSounds();
             UpdateDamageFeedback(playerDamageBefore);
+            if (_run.IsWaitingForNextRound && _run.HasClearModifierChoices && !_hasPresentedChoices && !_ui.IsPopupOpen)
+                ShowRoundChoices();
             RenderHud();
+        }
+
+        /// <summary>결과 본문을 숨긴 기존 패널에서 어두운 배경과 보상 후보 카드만 표시해 하나를 선택하게 한다.</summary>
+        private void ShowRoundChoices()
+        {
+            _result.SetContent(string.Empty, string.Empty, string.Empty, true, true, isChoiceOnly: true);
+            _result.SetRewards(Array.Empty<ResultRewardContent>());
+            _result.Show();
+            ShowPendingChoices();
+            SoundManager.Instance.PlayRoundClear();
         }
 
         /// <summary>지난 확인 이후 적이 실제 피해를 받은 횟수만큼 피격음을 재생하고 소비한 횟수를 갱신한다.</summary>
@@ -226,10 +238,17 @@ namespace RuneCode
         private void StartNextRound()
         {
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
-            if (_run.TryStartNextRound()) RenderHud();
+            if (_run.TryStartNextRound())
+            {
+                _hasPresentedChoices = false;
+                RenderHud();
+            }
         }
 
-        /// <summary>라운드 대기 중이고 일시정지·팝업·문자 입력이 없으면 런을 보관하고 작업실로 전환한다.</summary>
+        /// <summary>
+        /// 라운드 대기 중이고 일시정지·팝업·문자 입력이 없으면 런을 보관하고 작업실로 전환한다.
+        /// 라운드 보상 카드를 고르기 전에도 열 수 있으며 카드는 돌아왔을 때 그대로 남는다.
+        /// </summary>
         private void OpenWorkshop()
         {
             if (!CanOpenWorkshop || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
@@ -240,6 +259,7 @@ namespace RuneCode
         private void TogglePause()
         {
             if (_run == null || _run.IsFinished) return;
+            if (_run.IsWaitingForNextRound && !_run.IsClearModifierChosen) return;
             if (_run.IsPaused)
             {
                 _ui.CloseAllPopups();
@@ -472,6 +492,13 @@ namespace RuneCode
         private void ChooseClearModifier(int index)
         {
             if (_run == null || _ui.IsPopupOpen || !_run.ChooseClearModifier(index)) return;
+            if (_run.IsWaitingForNextRound)
+            {
+                _result.HideClearModifierChoices();
+                _result.Hide();
+                RenderHud();
+                return;
+            }
             SetResultSummary();
             _result.HideClearModifierChoices();
             _result.FocusReward(_run.ClearModifierChoices[index], _run.ClearModifierGrades[index]);
@@ -506,13 +533,15 @@ namespace RuneCode
 
         /// <summary>
         /// 작업실에서 저장한 마법을 다시 검증해 보관 중인 런의 시전 마법을 교체하고 보관 표시를 해제한 뒤 HUD를 갱신한다.
-        /// 라운드 대기 상태는 유지하며, 준비나 교체에 실패하면 false를 반환한다.
+        /// 라운드 대기 상태와 고르지 않은 보상 카드는 유지하며, 준비나 교체에 실패하면 false를 반환한다.
         /// </summary>
         private bool ResumeRun()
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             if (!_run.TryReplaceSpell(spell, _session.Spells.SpellName)) return false;
             _session.ResumeSuspendedRun();
+            // 결과 패널은 화면과 함께 꺼졌다 켜질 뿐 상태가 남으므로, 같은 후보를 다시 그려 선택 포커스만 되살린다.
+            if (_hasPresentedChoices && _run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowPendingChoices();
             RenderHud();
             return true;
         }
@@ -551,8 +580,11 @@ namespace RuneCode
         private void RenderHud()
         {
             RuneSimulation sim = _run.Simulation;
-            _hud.SetStage(GetStageText(sim));
-            _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished, !_run.IsPaused && !_ui.IsPopupOpen);
+            int? remainingEnemyCount = sim.IsProgressionMission && !_run.IsFinished && !sim.IsWaitingForNextRound
+                ? sim.RemainingWaveEnemyCount : (int?)null;
+            _hud.SetStage(GetStageText(sim), remainingEnemyCount);
+            _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished && _run.IsClearModifierChosen,
+                !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetWorkshop(CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],

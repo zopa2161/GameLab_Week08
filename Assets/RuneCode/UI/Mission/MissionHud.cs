@@ -102,8 +102,17 @@ namespace RuneCode
             return button;
         }
 
-        /// <summary>스테이지 번호 문구를 표시한다.</summary>
-        public void SetStage(string text) => _stageLabel.text = text;
+        /// <summary>스테이지 문구를 표시하고 남은 적 수가 있으면 기존 타이머 텍스트 색상으로 덧붙인다.</summary>
+        public void SetStage(string text, int? remainingEnemyCount = null)
+        {
+            if (!remainingEnemyCount.HasValue)
+            {
+                _stageLabel.text = text;
+                return;
+            }
+            string enemyColor = ColorUtility.ToHtmlStringRGBA(_timerLabel.color);
+            _stageLabel.text = text + " · <color=#" + enemyColor + ">남은 적 " + remainingEnemyCount.Value + "</color>";
+        }
 
         /// <summary>체력·전력 막대와 현재·최대 수치를 표시하고 energyRegen을 초당 전력 회복량으로 안내한다.</summary>
         public void SetBars(double hp, double maxHp, double energy, double maxEnergy, double energyRegen)
