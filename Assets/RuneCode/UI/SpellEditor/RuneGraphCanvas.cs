@@ -220,9 +220,33 @@ namespace RuneCode
             _state.PanStart = _viewport.Pan;
             if (LocalTelemetry.IsUsabilityTestActive)
             {
+                GraphNode clickedNode = _layout.FindNodeAt(_state.Pointer);
+                string targetKind = clickedNode == null ? "background" : "node";
+                string slotKey = null;
+                if (_layout.FindPort(_state.Pointer, out GraphNode clickedPortNode, out _))
+                {
+                    clickedNode = clickedPortNode;
+                    targetKind = "port";
+                }
+                else if (_layout.FindSlot(_state.Pointer, out GraphNode clickedSlotNode, out slotKey))
+                {
+                    clickedNode = clickedSlotNode;
+                    targetKind = "slot";
+                }
+                else if (clickedNode == null && _layout.FindEdgeAt(_state.Pointer) != null)
+                {
+                    targetKind = "edge";
+                }
                 LocalTelemetry.RecordUsabilityEvent("editor_click", "editor", new Dictionary<string, object>
                 {
                     ["input_id"] = Guid.NewGuid().ToString("N"),
+                    ["target"] = "RuneGraphCanvas",
+                    ["target_kind"] = targetKind,
+                    ["node_id"] = clickedNode?.Id,
+                    ["rune_id"] = clickedNode?.RuneId,
+                    ["node_category"] = clickedNode == null ? null : GameData.Runes.Get(clickedNode.RuneId).Category,
+                    ["slot_key"] = slotKey,
+                    ["slot_value"] = slotKey == null ? null : clickedNode.GetText(slotKey),
                     ["button"] = eventData.button.ToString(),
                     ["screen_position"] = new[] { eventData.position.x, eventData.position.y },
                     ["canvas_position"] = new[] { _state.Pointer.x, _state.Pointer.y },
