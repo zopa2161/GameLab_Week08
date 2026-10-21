@@ -691,6 +691,20 @@ namespace RuneCode
             return modifierRewards;
         }
 
+        /// <summary>
+        /// 라운드 동안 모아 둔 조각과 소지 아이템 드롭을 세이브에 한 번에 지급하고, persist이면 저장 정책에 맞춰 한 번 기록한다.
+        /// 아이템이 늘면 소지량 검사를 위해 다시 컴파일한다. 테스트 모드에서는 지급하지 않는다.
+        /// </summary>
+        public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, bool persist = true)
+        {
+            if (_isTestMode) return;
+            _save.Settle(fragments, false);
+            foreach (SimulationItemDrop drop in drops)
+                GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup", persist: false);
+            if (drops.Count > 0) _spells.Recompile();
+            if (persist) PersistProgress();
+        }
+
         /// <summary>저장된 연속 미션 보상 후보 index를 하나 지급하고 후보 삭제와 소지량 변경을 한 번에 저장한다.</summary>
         public bool ClaimProgressionChoice(int index)
         {

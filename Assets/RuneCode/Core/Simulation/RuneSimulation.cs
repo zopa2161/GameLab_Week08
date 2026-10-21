@@ -176,6 +176,20 @@ namespace RuneCode
         public void SetUnlockedElements(IReadOnlyList<string> elements) => _executor.SetUnlockedElements(elements);
 
         /// <summary>
+        /// 라운드 대기 중에만 강화 능력치(최대 체력·전력, 재생, 피해·이동 속도, 스크랩 획득·줍기·회복, 처치 전력)를 월드·플레이어·전리품에 반영한다.
+        /// 최대 체력·전력이 늘면 현재 값도 증가분만큼 오른다. 적용하면 true를 반환한다.
+        /// </summary>
+        public bool TryApplyUpgradeStats(double maxHp, double maxEnergy, double energyRegen, double damageMultiplier, double moveSpeedMultiplier,
+            double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
+        {
+            if (!IsWaitingForNextRound) return false;
+            _world.SetPlayerStats(maxHp, maxEnergy, energyRegen, damageMultiplier, moveSpeedMultiplier);
+            _world.Player.SetMaxStats(_world.MaxHp, _world.MaxEnergy);
+            _loot.SetUpgradeStats(scrapGainMultiplier, scrapPickupRangeMultiplier, scrapHealRatio, killEnergyBonus);
+            return true;
+        }
+
+        /// <summary>
         /// 슬롯 쿨다운을 시작하고 루트 실행을 등록한다. 직접 공격 빔은 구간 비용을 선결제하며 연장은 현재 슬롯 입력으로 판단한다.
         /// </summary>
         public bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false) => _executor.TryCast(spell, slot, allowBeamHold);

@@ -121,15 +121,7 @@ namespace RuneCode
                 PlayScrapPickupSounds();
                 // 전투가 끝나면 저체력 지속 비네트는 목표를 0으로 두고 남은 점등만 자연스럽게 사라지게 한다.
                 _screen.ShowLowHealth(0f);
-                if (!_isResultShown)
-                {
-                    if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowResult();
-                }
-                else if (_run.Simulation.Completed)
-                {
-                    _result.AdvanceRewards(unscaledDeltaTime);
-                    if (_result.CanContinue && !_hasPresentedChoices) ShowPendingChoices();
-                }
+                if (!_isResultShown && _screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowResult();
                 return;
             }
             bool isTyping = UiFactory.IsTyping();
@@ -375,31 +367,24 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 월드 종료 연출 후 클리어면 결과 View를 표시해 보상 순차 공개를 시작하고, 실패면 런 종료 팝업을 연다.
-        /// 런 종료 팝업의 타이틀 복귀 버튼은 세션의 ReturnToTitle로 이어지며 팝업이 닫힐 때 구독을 푼다.
+        /// 월드 종료 연출 후 클리어·실패 모두 런 결과 팝업을 열고 제목과 효과음만 결과에 맞춘다.
+        /// 팝업의 타이틀 복귀 버튼은 세션의 ReturnToTitle로 이어지며 팝업이 닫힐 때 구독을 푼다.
         /// </summary>
         private void ShowResult()
         {
             _isResultShown = true;
             _ui.CloseAllPopups();
             RuneSimulation sim = _run.Simulation;
-            if (!sim.Completed)
-            {
-                SoundManager.Instance.PlayRoundDefeat();
-                int elapsedSeconds = (int)sim.Time;
-                RunResultPopup popup = _ui.OpenPopup<RunResultPopup>();
-                popup.Configure("런 종료",
-                    GameData.L("ui.stage") + " " + sim.StageNumber,
-                    "플레이 타임 " + (elapsedSeconds / 60).ToString("00") + ":" + (elapsedSeconds % 60).ToString("00"),
-                    GameData.L("ui.kills") + " " + sim.KillCount);
-                popup.TitleClicked += _session.ReturnToTitle;
-                popup.Closed += () => popup.TitleClicked -= _session.ReturnToTitle;
-                return;
-            }
-            _result.HideClearModifierChoices();
-            SetResultSummary(true);
-            _result.Show();
-            SoundManager.Instance.PlayRoundClear();
+            if (sim.Completed) SoundManager.Instance.PlayRoundClear();
+            else SoundManager.Instance.PlayRoundDefeat();
+            int elapsedSeconds = (int)sim.Time;
+            RunResultPopup popup = _ui.OpenPopup<RunResultPopup>();
+            popup.Configure(sim.Completed ? "런 클리어" : "런 종료",
+                GameData.L("ui.stage") + " " + sim.StageNumber,
+                "플레이 타임 " + (elapsedSeconds / 60).ToString("00") + ":" + (elapsedSeconds % 60).ToString("00"),
+                GameData.L("ui.kills") + " " + sim.KillCount);
+            popup.TitleClicked += _session.ReturnToTitle;
+            popup.Closed += () => popup.TitleClicked -= _session.ReturnToTitle;
         }
 
         /// <summary>일반 보상 공개가 끝난 다음 프레임에 보스 선택 카드를 한 번만 펼친다. 보스 선택 보상이 있으면 후보 카드를 표시하고 없으면 숨긴다.</summary>
@@ -534,13 +519,14 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 작업실에서 저장한 마법을 다시 검증해 보관 중인 런의 시전 마법을 교체하고 보관 표시를 해제한 뒤 HUD를 갱신한다.
+        /// 작업실에서 저장한 마법을 다시 검증해 보관 중인 런의 시전 마법을 교체하고 강화 능력치를 반영한 뒤 보관 표시를 해제하고 HUD를 갱신한다.
         /// 라운드 대기 상태와 고르지 않은 보상 카드는 유지하며, 준비나 교체에 실패하면 false를 반환한다.
         /// </summary>
         private bool ResumeRun()
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             if (!_run.TryReplaceSpell(spell, _session.Spells.SpellName)) return false;
+            _run.TryApplyUpgradeStats();
             _session.ResumeSuspendedRun();
             // 결과 패널은 화면과 함께 꺼졌다 켜질 뿐 상태가 남으므로, 같은 후보를 다시 그려 선택 포커스만 되살린다.
             if (_hasPresentedChoices && _run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowPendingChoices();

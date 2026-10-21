@@ -60,6 +60,8 @@ namespace RuneCode
         private bool _settled;
         private string _lastResult;
         private readonly List<SimulationItemDrop> _pickedModifiers = new List<SimulationItemDrop>();
+        private readonly List<SimulationItemDrop> _pendingRoundDrops = new List<SimulationItemDrop>();
+        private int _grantedFragments;
         private readonly List<MissionReward> _rewards = new List<MissionReward>();
         private List<string> _clearModifierChoices;
         private List<string> _clearModifierGrades;
@@ -163,6 +165,30 @@ namespace RuneCode
                 ["round"] = _simulation.RoundNumber,
                 ["ram_used"] = spell.RamUsed,
                 ["is_compile_valid"] = true,
+            });
+            return true;
+        }
+
+        /// <summary>
+        /// 라운드 대기 중 세션의 현재 강화 능력치를 시뮬레이션에 반영하고 해금 속성을 다시 설정한 뒤 적용 전후 최대 체력·전력을 기록한다.
+        /// 정산이 끝났거나 라운드 대기가 아니면 false를 반환한다.
+        /// </summary>
+        public bool TryApplyUpgradeStats()
+        {
+            if (_settled) return false;
+            double maxHpBefore = _simulation.Player.MaxHp;
+            double maxEnergyBefore = _simulation.Player.MaxEnergy;
+            if (!_simulation.TryApplyUpgradeStats(_session.MaxHp, _session.MaxEnergy, _session.EnergyRegen,
+                _session.DamageMultiplier, _session.MoveSpeedMultiplier, _session.ScrapGainMultiplier,
+                _session.ScrapPickupRangeMultiplier, _session.ScrapHealRatio, _session.KillEnergyBonus)) return false;
+            _simulation.SetUnlockedElements(_session.GetUnlockedElements());
+            LocalTelemetry.RecordUsabilityEvent("upgrade_stats_applied", "round_break", new Dictionary<string, object>
+            {
+                ["combat_id"] = _testCombatId,
+                ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber,
+                ["max_hp_before"] = maxHpBefore, ["max_hp_after"] = _simulation.Player.MaxHp,
+                ["max_energy_before"] = maxEnergyBefore, ["max_energy_after"] = _simulation.Player.MaxEnergy,
+                ["skill_tree"] = _session.GetSkillTreeLogSnapshot(),
             });
             return true;
         }
@@ -284,9 +310,10 @@ namespace RuneCode
                 _accumulator -= FIXED_STEP;
             }
             CaptureNodeTelemetry();
-            GrantPickedItems();
+            CollectPickedItems();
             if (_simulation.IsWaitingForNextRound && !HasClearModifierChoices)
             {
+                CommitRoundRewards();
                 _roundBreakClock = Stopwatch.StartNew();
                 LocalTelemetry.RecordUsabilityEvent("round_break_start", "round_break", new Dictionary<string, object>
                 {
@@ -308,8 +335,8 @@ namespace RuneCode
             RecordModifierChoices();
         }
 
-        /// <summary>새 소지 아이템 드롭을 기록하고 일반 모드에서만 지급·결과 목록에 반영한다.</summary>
-        private void GrantPickedItems()
+        /// <summary>새 소지 아이템 드롭을 기록하고 일반 모드에서만 라운드 지급 대기 목록과 결과 목록에 담는다. 세이브 지급은 라운드가 끝날 때 한다.</summary>
+        private void CollectPickedItems()
         {
             foreach (SimulationItemDrop drop in _simulation.TakeNewPickedItems())
             {
@@ -321,10 +348,19 @@ namespace RuneCode
                     ["inventory_grant_enabled"] = !_session.IsTestMode,
                 });
                 if (_session.IsTestMode) continue;
-                _session.GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup");
+                _pendingRoundDrops.Add(drop);
                 _pickedModifiers.Add(drop);
                 AddModifierReward(drop.RuneId, drop.Grade, drop.Count);
             }
+        }
+
+        /// <summary>이번 라운드에 모은 조각(아직 지급하지 않은 수집량)과 소지 아이템을 세이브에 한 번에 지급하고 저장한 뒤 대기 목록을 비운다.</summary>
+        private void CommitRoundRewards()
+        {
+            int fragments = _simulation.EarnedFragments;
+            _session.CommitRoundRewards(fragments - _grantedFragments, _pendingRoundDrops);
+            _grantedFragments = fragments;
+            _pendingRoundDrops.Clear();
         }
 
         /// <summary>같은 룬과 등급의 이번 미션 획득 수량을 합산한다.</summary>
@@ -358,12 +394,6 @@ namespace RuneCode
             return rewards;
         }
 
-        /// <summary>이번 미션 정산으로 획득한 조각을 보상 표시 목록에 기록한다.</summary>
-        private void AddFragmentReward(int count)
-        {
-            if (count > 0) _rewards.Add(new MissionReward(false, null, null, count));
-        }
-
         /// <summary>이번 전투에서 주운 Modifier를 룬 ID와 등급별로 합산해 결과 문구에 더한다.</summary>
         private void AppendPickedModifiers()
         {
@@ -388,8 +418,8 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 전투를 한 번만 정산하고 성공 시 반복 클리어에도 보장 룬 1개를 추첨해 결과·획득 기록에 넣는다. 보스 선택 보상은 별도로 유지한다.
-        /// 실패한 런은 정산과 보상 없이 끝나며 텔레메트리를 남긴 뒤 세션의 EndRun으로 저장을 전부 새로 만든다.
+        /// 전투를 한 번만 종료 처리한다. 클리어와 사망 모두 런 종료이므로 정산·보상 지급 없이 텔레메트리를 남긴 뒤
+        /// 세션의 EndRun으로 저장을 전부 새로 만든다. 라운드 대기 목록에 남은 획득물도 지급하지 않는다.
         /// </summary>
         public void FinishMission()
         {
@@ -397,53 +427,13 @@ namespace RuneCode
             _activeMissionClock.Stop();
             _settled = true;
             var cleared = _simulation.Completed;
-            // 보스 선택 보상은 첫 클리어에만 주므로 정산으로 최고 기록이 바뀌기 전에 판정한다.
-            bool isFirstClear = _simulation.IsProgressionMission ? !_session.HasClearedProgression
-                : _session.HighestClearedStage < _simulation.StageNumber;
             var fragments = _simulation.SettlementFragments;
-            ModifierRewardDefinition clearRuneReward = null;
-            List<string> progressionChoiceIds = null;
-            List<string> progressionChoiceGrades = null;
-            if (cleared && !_session.IsTestMode)
-            {
-                DropRoll roll = _simulation.DrawClearRuneReward();
-                clearRuneReward = new ModifierRewardDefinition(roll.RuneId, roll.Grade, roll.Count);
-                if (_simulation.IsProgressionMission && isFirstClear)
-                    _simulation.TryDrawClearModifierChoices(out _, out progressionChoiceIds, out progressionChoiceGrades);
-            }
-            // 실패한 런은 정산과 조각·모디 보상을 건너뛴다.
-            var modifierRewards = cleared
-                ? _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts, clearRuneReward,
-                    isProgressionMission: _simulation.IsProgressionMission,
-                    progressionChoiceIds: progressionChoiceIds, progressionChoiceGrades: progressionChoiceGrades)
-                : Array.Empty<ModifierRewardDefinition>();
-            if (cleared && !_session.IsTestMode) AddFragmentReward(fragments);
-            foreach (ModifierRewardDefinition reward in modifierRewards)
-            {
-                // 속성 보상은 등급이 없으므로 그대로 두고, 모디 보상만 등급이 비면 최저 등급으로 채운다.
-                string grade = reward.Grade;
-                if (string.IsNullOrEmpty(grade) && GameData.Runes.TryGet(reward.RuneId, out RuneDefinition rune)
-                    && rune.Category == SpellGrammar.CATEGORY_MODIFIER)
-                    grade = GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId);
-                AddModifierReward(reward.RuneId, grade, reward.Count);
-            }
+            _pendingRoundDrops.Clear();
             var result = cleared ? "clear" : _simulation.IsTimedOut ? "timeout" : "death";
             var resultKey = cleared ? (_simulation.IsBossStage ? "result.bossDefeated" : "result.survived")
                 : _simulation.IsTimedOut ? "result.timeout" : "result.dead";
             _lastResult = GameData.L(resultKey);
-            if (cleared && !_session.IsTestMode) _lastResult += "\n" + GameData.L("result.fragments") + " " + fragments;
-            if (cleared) _lastResult += "  ·  " + GameData.L("result.clearReward") + " " + _simulation.ClearReward;
-            foreach (var reward in modifierRewards)
-            {
-                string grade = reward.Grade;
-                if (string.IsNullOrEmpty(grade) && GameData.Runes.TryGet(reward.RuneId, out RuneDefinition rune)
-                    && rune.Category == SpellGrammar.CATEGORY_MODIFIER)
-                    grade = GameData.ModifierGrades.GetLowestAvailableGrade(reward.RuneId);
-                _lastResult += "\n" + GameData.L("result.modifierReward") + " "
-                    + ModifierGradeText.FormatName(GameData.Runes.Get(reward.RuneId).Name, grade) + " +" + reward.Count;
-            }
             AppendPickedModifiers();
-            SetClearModifierChoices(cleared, isFirstClear);
             _isPaused = false;
             LocalTelemetry.Record(_simulation.Tick, "mission.result", result + ":" + fragments);
             LocalTelemetry.EndUsabilityCombat(new Dictionary<string, object>
@@ -482,34 +472,7 @@ namespace RuneCode
                     ["is_first_completion"] = isFirstCompletion,
                 });
             }
-            else _session.EndRun();
-        }
-
-        /// <summary>클리어 후보와 등급을 결과에 담는다. 연속 미션은 저장된 첫 완주 후보를 우선하고 재완주에도 선택 보상을 추첨한다.</summary>
-        private void SetClearModifierChoices(bool cleared, bool isFirstClear)
-        {
-            _clearModifierChoices = null;
-            _clearModifierGrades = null;
-            _isClearModifierChosen = false;
-            if (_session.IsTestMode || !cleared) return;
-            if (_simulation.IsProgressionMission)
-            {
-                if (_session.PendingProgressionChoiceIds.Count == 0)
-                {
-                    SetRoundModifierChoices();
-                    return;
-                }
-                _clearModifierChoices = new List<string>(_session.PendingProgressionChoiceIds);
-                _clearModifierGrades = new List<string>(_session.PendingProgressionChoiceGrades);
-            }
-            else
-            {
-                if (!isFirstClear || !_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
-                _clearModifierChoices = candidates;
-                _clearModifierGrades = grades;
-            }
-            RecordModifierChoices();
-            _lastResult += "\n" + GameData.L("result.clearModifierChoice");
+            _session.EndRun();
         }
 
         /// <summary>현재 후보 순번·룬·등급·수량과 스테이지·라운드를 기존 보상 제시 이벤트에 기록하며 별도 선택 시간은 측정하지 않는다.</summary>
