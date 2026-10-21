@@ -227,6 +227,29 @@ flowchart LR
 
 현재 1~20스테이지가 정의돼 있고 5·10·15·20이 보스다. **21스테이지 이후는 11~20 정의를 순환 재사용**하며 체력 배율이 추가로 붙는다(`StageCatalog.ResolveDataStage`, `ENDLESS_*` 상수). 메뉴 `Rune Code/Stage Table Editor`(`Editor/StageTableEditorWindow`)로 이 파일을 폼 형태로 편집할 수 있다.
 
+연속 미션은 `_progressionStages[] → _rounds[]`의 각 라운드에 `_waves`와 `_reward`를 둔다.
+`_reward`는 해당 라운드 종료 시 제시할 행동·Modifier 룬 3개 중 1개 선택 보상이다.
+
+```json
+"_reward": {
+  "_candidates": ["behavior.launch", "behavior.burst", "mod.expand", "mod.homing"],
+  "_gradeChances": [
+    { "_grade": "A", "_percent": 90 },
+    { "_grade": "S", "_percent": 10 }
+  ]
+}
+```
+
+각 슬롯의 등급을 확률대로 뽑고, 후보 목록 중 그 등급을 지원하는 행동·Modifier를 균등하게 추첨한다. 같은 룬은 중복하지 않는다.
+확률은 정수 퍼센트이며 합계가 100이어야 한다. 후보 ID와 등급은 중복할 수 없고,
+확률이 0보다 큰 각 등급마다 유효한 후보가 최소 3개 필요하다.
+Modifier의 등급별 효과 값은 기존 `tables/elite_modifier_drops.json`을 참조한다.
+행동은 `tables/runes.json`의 `_behaviorGrades`에 정의된 등급을 지원하며, 비활성 행동은 후보로 사용할 수 없다.
+행동 ID는 `behavior.launch`, `behavior.burst`, `behavior.persist`, `behavior.beam`, `behavior.slash`이다.
+선택한 행동은 추첨된 등급으로 소지량에 1개 추가된다.
+라운드 보상에는 더 이상 해당 파일의 5스테이지 클리어 보상 확률을 사용하지 않는다.
+Stage Table Editor의 진행 편성 탭에서도 선택한 라운드의 보상을 편집하고 같은 규칙으로 검증할 수 있다.
+
 ### 2.6 그 밖의 전투 데이터
 
 | 파일 | 타입 | 내용 |

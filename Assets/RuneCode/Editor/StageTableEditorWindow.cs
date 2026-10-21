@@ -486,6 +486,7 @@ namespace RuneCode.Editor
 
             GUILayout.Label("스테이지 " + stageNumber + " · 라운드 " + (_selectedProgressionRoundIndex + 1), EditorStyles.boldLabel);
             DrawProgressionDefinitionSummary(stageNumber);
+            EditorGUILayout.PropertyField(round.FindPropertyRelative("_reward"), new GUIContent("라운드 선택 보상"), true);
 
             SerializedProperty waves = round.FindPropertyRelative("_waves");
             if (waves == null || waves.arraySize != StageCatalog.PROGRESSION_WAVE_COUNT)
@@ -969,7 +970,9 @@ namespace RuneCode.Editor
             EnemyCatalog enemies = EnemyCatalog.FromJson(LoadResourceText(ENEMIES_RESOURCE));
             DropCatalog drops = DropCatalog.FromJson(LoadResourceText(DROPS_RESOURCE));
             FormationCatalog formations = FormationCatalog.FromJson(LoadResourceText(FORMATIONS_RESOURCE));
-            StageCatalog.FromJson(json, enemies, formations, drops);
+            RuneCatalog runes = RuneCatalog.FromTable(JsonUtility.FromJson<RuneTableData>(LoadResourceText(RUNES_RESOURCE)));
+            ModifierGradeTable grades = ModifierGradeTable.FromJson(LoadResourceText(GRADES_RESOURCE), runes);
+            StageCatalog.FromJson(json, enemies, formations, drops, grades, runes);
         }
 
         /// <summary>저장 없이 현재 편집 상태를 런타임 검증으로 확인하고 결과를 상태줄에 표시한다.</summary>
