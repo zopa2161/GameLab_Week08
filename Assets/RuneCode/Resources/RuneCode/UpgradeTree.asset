@@ -24,6 +24,7 @@ MonoBehaviour:
     _runeId: 
     _initialLevel: 1
     _prerequisites: []
+    _exclusiveGroupId: 
     _levels:
     - _cost: 20
       _amount: 2
@@ -47,6 +48,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.mainboard
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 40
       _amount: 10
@@ -70,6 +72,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.maxHp.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 60
       _amount: 0.01
@@ -93,6 +96,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.moveSpeed.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 10
@@ -114,8 +118,11 @@ MonoBehaviour:
     _runeId: 
     _initialLevel: 0
     _prerequisites:
-    - _nodeId: upgrade.moveSpeed.0
+    - _nodeId: upgrade.moveSpeed.1
       _requiredLevel: 1
+    - _nodeId: upgrade.maxHp.1
+      _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 1
@@ -139,6 +146,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.moveSpeed.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 0.01
@@ -162,6 +170,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.mainboard
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 40
       _amount: 2
@@ -185,6 +194,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.mainboard.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 60
       _amount: 10
@@ -208,6 +218,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.maxEnergy.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 3
@@ -231,6 +242,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.maxEnergy.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 2
@@ -254,6 +266,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.maxEnergy.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 10
@@ -277,6 +290,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.mainboard
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 40
       _amount: 1
@@ -300,6 +314,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.ram.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 60
       _amount: 0.1
@@ -323,6 +338,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.gpu.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 1
@@ -346,6 +362,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.gpu.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 10
@@ -369,6 +386,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.gpu.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 0.1
@@ -392,6 +410,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.mainboard
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 40
       _amount: 0.1
@@ -415,6 +434,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.scrapGain.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 60
       _amount: 0.1
@@ -438,6 +458,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.scrapPickupRange.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 2
@@ -461,6 +482,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.scrapPickupRange.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 0.1
@@ -484,6 +506,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.scrapPickupRange.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 90
       _amount: 10
@@ -507,6 +530,7 @@ MonoBehaviour:
     _prerequisites:
     - _nodeId: upgrade.scrapGain.0
       _requiredLevel: 1
+    _exclusiveGroupId: 
     _levels:
     - _cost: 60
       _amount: 0.01
@@ -518,3 +542,35 @@ MonoBehaviour:
       _amount: 0.01
     - _cost: 160
       _amount: 0.01
+  - _id: upgrade.new
+    _requiredStage: 1
+    _titleKey: ui.tree.mainboard
+    _descriptionKey: ui.tree.mainboard
+    _icon: {fileID: 0}
+    _layoutCell: {x: 9, y: 3}
+    _effectType: 0
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.mainboard.1
+      _requiredLevel: 1
+    _exclusiveGroupId: Test1
+    _levels:
+    - _cost: 0
+      _amount: 0
+  - _id: upgrade.new2
+    _requiredStage: 1
+    _titleKey: ui.tree.mainboard
+    _descriptionKey: ui.tree.mainboard
+    _icon: {fileID: 0}
+    _layoutCell: {x: 9, y: 5}
+    _effectType: 0
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.mainboard.1
+      _requiredLevel: 1
+    _exclusiveGroupId: Test1
+    _levels:
+    - _cost: 0
+      _amount: 0
