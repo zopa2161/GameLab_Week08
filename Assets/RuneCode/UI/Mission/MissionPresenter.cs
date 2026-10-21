@@ -29,6 +29,7 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private MissionRun _run;
+        private PausePopup _pausePopup;
         private double _lastPlayerDamage;
         private bool _isResultShown;
         private bool _hasPresentedChoices;
@@ -102,6 +103,7 @@ namespace RuneCode
             if (_run == null) return;
             if (_run.IsFinished)
             {
+                if (_pausePopup != null && _pausePopup.IsVisible) return;
                 RenderHud();
                 SoundManager.Instance.StopShotBeam();
                 PlayEnemyHitSounds();
@@ -218,10 +220,10 @@ namespace RuneCode
             for (int index = 0; index < count; index++) SoundManager.Instance.PlaySpawnBigScrap();
         }
 
-        /// <summary>Esc 입력으로 일시정지를 연다. 미션이 끝났으면 처리하지 않는다. 열린 팝업의 Esc는 UIManager가 먼저 처리한다.</summary>
+        /// <summary>미션 화면의 Esc 입력으로 라운드 대기·결과 표시 중에도 일시정지 팝업을 연다.</summary>
         public bool HandleEscape()
         {
-            if (_run == null || _run.IsFinished) return false;
+            if (_run == null) return false;
             TogglePause();
             return true;
         }
@@ -237,24 +239,24 @@ namespace RuneCode
             }
         }
 
-        /// <summary>일시정지 상태를 바꾸고 일시정지 팝업을 열거나 닫는다. 결과 표시 중에는 무시한다.</summary>
+        /// <summary>미션을 일시정지하고 기존 팝업 위에 일시정지 팝업을 연다. 종료된 미션은 정지 상태를 바꾸지 않는다.</summary>
         private void TogglePause()
         {
-            if (_run == null || _run.IsFinished) return;
-            if (_run.IsWaitingForNextRound && !_run.IsClearModifierChosen) return;
+            if (_run == null) return;
             if (_run.IsPaused)
             {
-                _ui.CloseAllPopups();
+                _ui.GetView<PausePopup>(UiLayer.Popup).Close();
                 return;
             }
-            _ui.CloseAllPopups();
             _run.TogglePause();
             PausePopup popup = _ui.OpenPopup<PausePopup>();
+            _pausePopup = popup;
             popup.Bind();
             popup.SetFeedback(_session.ScreenShake, _session.HitStop);
             popup.ShakeClicked += ToggleScreenShake;
             popup.HitStopClicked += ToggleHitStop;
             popup.SoundSettingsClicked += OpenSoundSettings;
+            popup.TitleClicked += ReturnToTitle;
             popup.Closed += () => OnPauseClosed(popup);
         }
 
@@ -264,6 +266,7 @@ namespace RuneCode
             popup.ShakeClicked -= ToggleScreenShake;
             popup.HitStopClicked -= ToggleHitStop;
             popup.SoundSettingsClicked -= OpenSoundSettings;
+            popup.TitleClicked -= ReturnToTitle;
             if (_run != null && _run.IsPaused) _run.TogglePause();
         }
 
@@ -285,6 +288,12 @@ namespace RuneCode
         private void OpenSoundSettings()
         {
             _ui.OpenPopup<SoundSettingsPopup>();
+        }
+
+        /// <summary>세션의 저장·로그 종료 정책을 적용해 타이틀로 돌아가고 화면 종료 흐름으로 미션을 정리한다.</summary>
+        private void ReturnToTitle()
+        {
+            _session.ReturnToTitle();
         }
 
         /// <summary>디버그 팝업을 열고 디버그 조작을 미션·세션에 연결한다. 디버그 실행이 아니면 무시한다.</summary>
