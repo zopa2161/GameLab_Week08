@@ -223,10 +223,10 @@
         "_drawMethod": "uniformWithoutReplacement",
         "_candidateRule": "slot grade rolled by _slotGradeChancesPercent, _gradeValues.<grade> is not null, no duplicate modifier",
         "_slotGradeChancesPercent": {
-          "C": 0,
-          "B": 0,
-          "A": 90,
-          "S": 10
+          "C": 50,
+          "B": 30,
+          "A": 15,
+          "S": 5
         }
       }
     },

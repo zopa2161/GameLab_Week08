@@ -341,11 +341,69 @@ namespace RuneCode
     }
 
     [Serializable]
+    public sealed class RoundRewardDefinition
+    {
+        public const int CHOICE_COUNT = 3;
+
+        [Header("라운드 선택 보상")]
+        [SerializeField] private string[] _candidates;
+        [SerializeField] private EliteModifierGradeChance[] _gradeChances;
+        public IReadOnlyList<string> Candidates => _candidates ?? Array.Empty<string>();
+        public IReadOnlyList<EliteModifierGradeChance> GradeChances => _gradeChances ?? Array.Empty<EliteModifierGradeChance>();
+
+        /// <summary>라운드의 등급 확률을 사용하는 3개 중 1개 선택 보상 설정을 반환한다.</summary>
+        public EliteModifierClearChoice ToChoice()
+            => new EliteModifierClearChoice(null, CHOICE_COUNT, 1, GradeChances);
+
+        /// <summary>등급표로 후보 ID·등급·확률 합과 각 유효 등급의 중복 없는 3개 후보 확보 여부를 검증한다.</summary>
+        public void Validate(ModifierGradeTable modifierGrades, RuneCatalog runes, int stage, int round)
+        {
+            string location = "스테이지 " + stage + ", 라운드 " + round;
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string id in Candidates)
+            {
+                if (string.IsNullOrEmpty(id) || !ids.Add(id) || !runes.TryGet(id, out RuneDefinition rune) || rune.IsDisabled
+                    || (rune.Category != SpellGrammar.CATEGORY_MODIFIER && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR))
+                    throw new FormatException("라운드 보상 후보 ID 누락·중복 또는 미등록: " + id + " (" + location + ")");
+            }
+            var knownGrades = new HashSet<string>(modifierGrades.GradeOrder, StringComparer.Ordinal);
+            knownGrades.UnionWith(runes.BehaviorGradeOrder);
+            var grades = new HashSet<string>(StringComparer.Ordinal);
+            int total = 0;
+            foreach (EliteModifierGradeChance chance in GradeChances)
+            {
+                if (string.IsNullOrEmpty(chance.Grade) || !knownGrades.Contains(chance.Grade) || !grades.Add(chance.Grade)
+                    || chance.Percent < 0 || chance.Percent > 100)
+                    throw new FormatException("라운드 보상 등급·확률 오류: " + location);
+                total += chance.Percent;
+                if (chance.Percent == 0) continue;
+                int available = 0;
+                foreach (string id in Candidates)
+                    if (IsCandidateGradeAvailable(runes, modifierGrades, id, chance.Grade)) available++;
+                if (available < CHOICE_COUNT)
+                    throw new FormatException("라운드 보상은 확률이 있는 각 등급의 후보가 3개 이상이어야 합니다: " + chance.Grade + " (" + location + ")");
+            }
+            if (total != 100) throw new FormatException("라운드 보상 등급 확률의 합은 100이어야 합니다: " + location);
+        }
+
+        /// <summary>후보 룬과 등급을 카탈로그로 확인해 활성 행동의 슬롯 등급 또는 Modifier 효과 등급이 지원되는지 반환한다.</summary>
+        public static bool IsCandidateGradeAvailable(RuneCatalog runes, ModifierGradeTable modifierGrades, string runeId, string grade)
+        {
+            if (!runes.TryGet(runeId, out RuneDefinition rune) || rune.IsDisabled) return false;
+            if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
+                return runes.TryGetBehaviorSlots(grade, out _, out _);
+            return rune.Category == SpellGrammar.CATEGORY_MODIFIER && modifierGrades.IsGradeAvailable(runeId, grade);
+        }
+    }
+
+    [Serializable]
     public sealed class ProgressionRoundDefinition
     {
         [Header("라운드 편성")]
         [SerializeField] private WaveDefinition[] _waves;
+        [SerializeField] private RoundRewardDefinition _reward;
         public IReadOnlyList<WaveDefinition> Waves => _waves ?? Array.Empty<WaveDefinition>();
+        public RoundRewardDefinition Reward => _reward;
     }
 
     [Serializable]
@@ -488,8 +546,9 @@ namespace RuneCode
             return fallback;
         }
 
-        /// <summary>JSON 스테이지 설정을 읽어 기존 편성과 연속 미션의 3×6×3 유한 편성, 적·진형 참조를 검증한다.</summary>
-        public static StageCatalog FromJson(string json, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops)
+        /// <summary>JSON 스테이지 설정을 읽어 기존 편성과 연속 미션의 3×6×3 편성, 적·진형 참조 및 등급표에 따른 라운드 보상을 검증한다.</summary>
+        public static StageCatalog FromJson(string json, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops,
+            ModifierGradeTable modifierGrades, RuneCatalog runes)
         {
             var catalog = JsonUtility.FromJson<StageCatalog>(json);
             if (catalog == null || catalog._map == null || catalog._growth == null || catalog._spawn == null
@@ -503,13 +562,14 @@ namespace RuneCode
                 ValidateStage(stage, enemies, formations, drops, singleStages);
                 ValidateFormationSlots(stage, formations, catalog._spawn.RingSlots);
             }
-            ValidateProgression(catalog, enemies, formations);
+            ValidateProgression(catalog, enemies, formations, modifierGrades, runes);
             catalog.Get(1); // 1스테이지를 담는 항목이 반드시 있어야 한다.
             return catalog;
         }
 
         /// <summary>연속 미션의 순서·수량, 유한 웨이브와 마지막 보스만 허용하며 모든 적·진형 참조를 검증한다.</summary>
-        private static void ValidateProgression(StageCatalog catalog, EnemyCatalog enemies, FormationCatalog formations)
+        private static void ValidateProgression(StageCatalog catalog, EnemyCatalog enemies, FormationCatalog formations,
+            ModifierGradeTable modifierGrades, RuneCatalog runes)
         {
             if (catalog._progressionStages == null || catalog._progressionStages.Length != PROGRESSION_STAGE_COUNT)
                 throw new FormatException("연속 미션은 스테이지가 정확히 3개여야 합니다.");
@@ -523,6 +583,8 @@ namespace RuneCode
                     ProgressionRoundDefinition round = stage.Rounds[roundIndex];
                     if (round == null || round.Waves.Count != PROGRESSION_WAVE_COUNT)
                         throw new FormatException("연속 미션 라운드의 웨이브 수 오류: " + stage.Stage + "/" + (roundIndex + 1));
+                    if (round.Reward == null) throw new FormatException("라운드 보상이 없습니다: " + stage.Stage + "/" + (roundIndex + 1));
+                    round.Reward.Validate(modifierGrades, runes, stage.Stage, roundIndex + 1);
                     for (int waveIndex = 0; waveIndex < PROGRESSION_WAVE_COUNT; waveIndex++)
                     {
                         WaveDefinition wave = round.Waves[waveIndex];
