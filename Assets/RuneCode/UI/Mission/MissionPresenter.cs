@@ -150,14 +150,14 @@ namespace RuneCode
             RenderHud();
         }
 
-        /// <summary>결과 본문을 숨긴 기존 패널에서 어두운 배경과 보상 후보 카드만 표시해 하나를 선택하게 한다.</summary>
-        private void ShowRoundChoices()
+        /// <summary>결과 본문을 숨긴 기존 패널에서 어두운 배경과 보상 후보 카드만 표시해 하나를 선택하게 한다. 이어하기 복원이면 라운드 클리어 효과음을 재생하지 않는다.</summary>
+        private void ShowRoundChoices(bool isResumed = false)
         {
             _result.SetContent(string.Empty, string.Empty, string.Empty, true, true, isChoiceOnly: true);
             _result.SetRewards(Array.Empty<ResultRewardContent>());
             _result.Show();
             ShowPendingChoices();
-            SoundManager.Instance.PlayRoundClear();
+            if (!isResumed) SoundManager.Instance.PlayRoundClear();
         }
 
         /// <summary>지난 확인 이후 적이 실제 피해를 받은 횟수만큼 피격음을 재생하고 소비한 횟수를 갱신한다.</summary>
@@ -500,7 +500,7 @@ namespace RuneCode
             _result.FocusReward(_run.ClearModifierChoices[index], _run.ClearModifierGrades[index]);
         }
 
-        /// <summary>세션에서 시전 마법을 준비받아 새 미션을 만들고 HUD·결과 View를 시작 상태로 되돌린다. 실패하면 false를 반환한다.</summary>
+        /// <summary>세션에서 시전 마법을 준비받아 새 미션을 만들고 HUD·결과 View를 시작 상태로 되돌린다. 이어하기로 고르지 않은 라운드 후보가 남으면 종료 연출 없이 카드 선택창을 즉시 연다. 실패하면 false를 반환한다.</summary>
         private bool StartRun()
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
@@ -524,6 +524,8 @@ namespace RuneCode
             _toastUntil = 0f;
             _hud.SetToast("");
             RenderHud();
+            if (_run.IsResumedRoundBreak && _run.HasClearModifierChoices && !_run.IsClearModifierChosen)
+                ShowRoundChoices(isResumed: true);
             return true;
         }
 

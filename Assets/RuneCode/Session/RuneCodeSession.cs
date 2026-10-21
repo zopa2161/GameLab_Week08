@@ -363,15 +363,6 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>자동 저장 설정을 변경하고 켤 때 현재 진행을 즉시 기록한다.</summary>
-        public bool SetAutoSaveEnabled(bool isEnabled)
-        {
-            SaveStore.SetAutoSaveEnabled(isEnabled);
-            if (!isEnabled || IsMemorySession) return true;
-            _spells.Save();
-            return !_isSaveDirty;
-        }
-
         /// <summary>문자열 키를 번역해 상태 문구로 저장한다.</summary>
         public void SetStatus(string key)
         {
@@ -595,7 +586,7 @@ namespace RuneCode
             PersistProgress();
         }
 
-        /// <summary>런 종료로 진행을 전부 새로 만들고 편집 세션을 다시 연다. 일반 세션은 자동 저장 설정과 무관하게 즉시 활성 슬롯에 기록한다.</summary>
+        /// <summary>런 종료로 진행을 전부 새로 만들고 편집 세션을 다시 연다. 일반 세션은 즉시 활성 슬롯에 기록한다.</summary>
         public void EndRun()
         {
             RenewSave();
@@ -692,16 +683,18 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 라운드 동안 모아 둔 조각과 소지 아이템 드롭을 세이브에 한 번에 지급하고, persist이면 저장 정책에 맞춰 한 번 기록한다.
-        /// 아이템이 늘면 소지량 검사를 위해 다시 컴파일한다. 테스트 모드에서는 지급하지 않는다.
+        /// 라운드 동안 모아 둔 조각과 소지 아이템 드롭을 세이브에 한 번에 지급하고, 끝낸 라운드 위치와 그 시점 체력, 라운드 보상 후보를 기록한다.
+        /// persist이면 저장 정책에 맞춰 한 번 기록한다. 아이템이 늘면 소지량 검사를 위해 다시 컴파일한다. 테스트 모드에서는 지급하지 않는다.
         /// </summary>
-        public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, bool persist = true)
+        public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, int stageNumber, int roundNumber,
+            double hp, double maxHp, IReadOnlyList<string> roundChoiceIds, IReadOnlyList<string> roundChoiceGrades, bool persist = true)
         {
             if (_isTestMode) return;
             _save.Settle(fragments, false);
             foreach (SimulationItemDrop drop in drops)
                 GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup", persist: false);
             if (drops.Count > 0) _spells.Recompile();
+            _save.RecordProgressionRound(stageNumber, roundNumber, hp, maxHp, roundChoiceIds, roundChoiceGrades);
             if (persist) PersistProgress();
         }
 
@@ -725,6 +718,24 @@ namespace RuneCode
                 ["reason"] = "clear_choice",
             });
             return true;
+        }
+
+        /// <summary>라운드 보상 후보 Modifier를 소지량에 즉시 반영하고 대기 후보를 비운 뒤 한 번에 저장하고 다시 컴파일한다. 테스트 모드는 지급하지 않는다.</summary>
+        public void GrantRoundChoice(string runeId, string grade)
+        {
+            if (_isTestMode || !GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER
+                || !GameData.ModifierGrades.IsGradeAvailable(runeId, grade)) return;
+            int before = _save.GetStock(runeId, grade);
+            _save.AddStock(runeId, grade, 1);
+            _save.ClearPendingRoundChoice();
+            PersistProgress();
+            _spells.Recompile();
+            LocalTelemetry.RecordUsabilityEvent("module_acquired", "inventory", new Dictionary<string, object>
+            {
+                ["rune_id"] = runeId, ["category"] = rune.Category,
+                ["grade"] = grade, ["count"] = 1, ["stock_before"] = before, ["stock_after"] = _save.GetStock(runeId, grade),
+                ["reason"] = "round_clear_choice",
+            });
         }
 
         /// <summary>일반 모드에서 룬 소지량을 늘리고 persist가 참이면 즉시 저장한다. 테스트 모드는 시작 소지량을 유지한다.</summary>
@@ -843,21 +854,20 @@ namespace RuneCode
             _spells.Save();
         }
 
-        /// <summary>마법 보관함 변경을 일반 세션의 저장·자동 저장 정책에 맞춰 반영한다.</summary>
+        /// <summary>마법 보관함 변경을 일반 세션의 현재 슬롯 저장에 반영한다.</summary>
         private bool PersistSpellStorage(PlayerSave save)
         {
             if (IsMemorySession) return true;
             _isSaveDirty = true;
-            if (!SaveStore.AutoSaveEnabled) return true;
             return WriteCurrentSave(save);
         }
 
-        /// <summary>진행 변경을 미저장으로 표시하고 자동 저장이 켜졌을 때 현재 슬롯에 기록한다.</summary>
+        /// <summary>진행 변경을 현재 슬롯에 즉시 기록하고 실패하면 상태 문구로 알린다.</summary>
         private void PersistProgress()
         {
             if (IsMemorySession) return;
             _isSaveDirty = true;
-            if (SaveStore.AutoSaveEnabled && !WriteCurrentSave(_save)) SetStatusText(SaveStore.LastWarning);
+            if (!WriteCurrentSave(_save)) SetStatusText(SaveStore.LastWarning);
         }
 
         /// <summary>구매 레벨이 남은 룬 해금 노드의 룬을 저장 데이터에 복구하고 변경 여부를 반환한다.</summary>
@@ -879,12 +889,12 @@ namespace RuneCode
             return save.UnlockedRunes.Contains(node.RuneId);
         }
 
-        /// <summary>복구한 룬 해금을 미저장으로 표시하고 자동 저장 설정에 맞춰 현재 슬롯에 반영한다.</summary>
+        /// <summary>복구한 룬 해금을 현재 슬롯에 반영하고 실패하면 상태 문구로 알린다.</summary>
         private void PersistRestoredRuneUnlocks(bool hasRestoredRune)
         {
             if (!hasRestoredRune || IsMemorySession) return;
             _isSaveDirty = true;
-            if (SaveStore.AutoSaveEnabled && !WriteCurrentSave(_save)) SetStatusText(SaveStore.LastWarning);
+            if (!WriteCurrentSave(_save)) SetStatusText(SaveStore.LastWarning);
         }
 
         /// <summary>일반 진행을 활성 슬롯에 기록하고 성공하면 미저장 상태를 해제한다.</summary>

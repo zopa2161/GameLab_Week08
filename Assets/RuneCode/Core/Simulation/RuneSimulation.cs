@@ -165,7 +165,7 @@ namespace RuneCode
             _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, setup.Runes, _runtime);
             _entities = new SpellEntitySystem(_world, _combat, _runtime);
             _runtime.Connect(_combat, _entities);
-            if (setup.IsMission) BeginTimedBattle(setup.Runes);
+            if (setup.IsMission) BeginTimedBattle(setup.Runes, setup.ProgressionStage, setup.ProgressionRound, setup.ProgressionHp);
             else ResetBench("dummy_single");
         }
 
@@ -452,22 +452,34 @@ namespace RuneCode
 
         /// <summary>
         /// 스테이지 편성으로 외곽 벽만 있는 맵, 맵 중앙의 플레이어, 스폰 반경, 처치 집계와 스폰 진행을 준비하고 0틱 예약을 바로 스폰한다.
+        /// 연속 미션을 진행 스테이지·라운드와 함께 이어하면 마지막 웨이브를 끝낸 라운드 대기 상태로 두고, 아니면 1스테이지 1라운드 1웨이브로 시작한다.
         /// 스폰 반경 = 기본 발사 사거리 + 가장 큰 적 반경 + 여유이며 막 스폰된 적에게 기본 발사체가 닿지 않게 한다.
         /// 적 분리 격자를 맵 크기와 적 상한, 가장 큰 적 반경의 2배 칸 크기로 준비한다. 가장 큰 적 반경에는 이 스테이지 엘리트 타입의 반경 배율을 반영한다.
         /// 기본 발사 수치는 runes에서 조회한다.
         /// </summary>
-        private void BeginTimedBattle(RuneCatalog runes)
+        private void BeginTimedBattle(RuneCatalog runes, int progressionStage, int progressionRound, double progressionHp)
         {
             _world.Stage = MissionStage.Combat;
+            bool isResumingRoundBreak = _world.IsProgressionMission && progressionStage > 0;
             if (_world.IsProgressionMission)
             {
-                _world.StageNumber = 1;
-                _world.RoundNumber = 1;
-                _world.WaveNumber = 1;
+                if (isResumingRoundBreak)
+                {
+                    _world.StageNumber = progressionStage;
+                    _world.RoundNumber = progressionRound;
+                    _world.WaveNumber = StageCatalog.PROGRESSION_WAVE_COUNT;
+                }
+                else
+                {
+                    _world.StageNumber = 1;
+                    _world.RoundNumber = 1;
+                    _world.WaveNumber = 1;
+                }
             }
             _world.StageDefinition = _world.Stages.Get(_world.StageNumber);
             _world.Map = MissionMap.CreateOpen(_world.Stages.Map.Columns, _world.Stages.Map.Rows, _world.Sector.TileSize);
             _world.Player = new SimulationPlayer(_world.MaxHp, _world.MaxEnergy, MapCenter);
+            if (progressionHp > 0) _world.Player.SetHp(progressionHp);
             Adaptation.SetEnabled(false);
             RuneStats bolt = runes.Get(BOLT_RUNE_ID).Stats;
             double largestRadius = 0;
@@ -476,7 +488,11 @@ namespace RuneCode
             _enemy.ResizeSeparation(_world.Map.Width, _world.Map.Height, EnemyLimit, largestRadius * 2);
             _spawn.SpawnRadius = (double)bolt.Speed * bolt.Lifetime + largestRadius + _world.Stages.Spawn.RingMargin;
             _rules.ResetForBattle();
-            if (_world.IsProgressionMission) StartProgressionWave();
+            if (_world.IsProgressionMission)
+            {
+                if (isResumingRoundBreak) _world.Stage = MissionStage.RoundBreak;
+                else StartProgressionWave();
+            }
             else
             {
                 _spawn.Director = new SpawnDirector(_world.StageDefinition, _world.StageNumber, _world.Formations, TICK_RATE);

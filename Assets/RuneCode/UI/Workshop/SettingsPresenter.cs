@@ -32,7 +32,6 @@ namespace RuneCode
             _view.DebugGrantClicked += DebugGrant;
             _view.DebugUnlockClicked += DebugUnlock;
             _view.DebugTreeResetClicked += ResetDebugTree;
-            _view.AutoSaveClicked += ToggleAutoSave;
             _view.ManualSaveClicked += SaveManually;
             _view.ManualLoadClicked += OpenSaveSlots;
             _view.QuitClicked += QuitGame;
@@ -44,8 +43,7 @@ namespace RuneCode
         {
             _view.SetSessionMode(_session.IsDebugEnabled, !_session.IsMemorySession, GetResetTitleKey(), _isTitle);
             _view.SetFeedback(_session.ScreenShake, _session.HitStop);
-            _view.SetSaveOptions(SaveStore.AutoSaveEnabled, _session.IsSaveDirty,
-                !_session.IsMemorySession, !_session.IsMemorySession);
+            _view.SetSaveOptions(_session.IsSaveDirty, !_session.IsMemorySession, !_session.IsMemorySession);
         }
 
         /// <summary>설정의 진입 위치를 갱신하고 타이틀에서 사용할 수 있는 항목만 표시한다.</summary>
@@ -114,16 +112,6 @@ namespace RuneCode
         {
             _session.ResetDebugTree();
             _onProgressionChanged();
-        }
-
-        /// <summary>자동 저장 설정을 바꾸고 저장 실패 시 경고를 알린다.</summary>
-        private void ToggleAutoSave()
-        {
-            bool enabled = !SaveStore.AutoSaveEnabled;
-            if (_isTitle) SaveStore.SetAutoSaveEnabled(enabled);
-            else if (!_session.SetAutoSaveEnabled(enabled))
-                _ui.Alert(GameData.L("save.autoSave"), GameData.L("save.unavailable"));
-            Refresh();
         }
 
         /// <summary>현재 진행과 편집 중인 마법을 수동 저장하고 결과를 알린다.</summary>

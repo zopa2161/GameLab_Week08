@@ -47,6 +47,15 @@ namespace RuneCode
         /// <summary>스크랩 획득 시 체력 회복 비율이다.</summary>
         public double ScrapHealRatio { get; private set; }
 
+        /// <summary>이어할 연속 미션 스테이지 번호다. 0이면 새 연속 미션이다.</summary>
+        public int ProgressionStage { get; private set; }
+
+        /// <summary>이어할 연속 미션 라운드 번호다. 0이면 새 연속 미션이다.</summary>
+        public int ProgressionRound { get; private set; }
+
+        /// <summary>이어하기 시작 체력이다. 0 이하이면 최대 체력으로 시작한다.</summary>
+        public double ProgressionHp { get; private set; }
+
         /// <summary>전투 규칙 수치다.</summary>
         public BalanceData Balance { get; private set; }
 
@@ -83,15 +92,19 @@ namespace RuneCode
         /// </summary>
         public static SimulationSetup FromGameData(int seed = 1, bool isMission = false, double maxHp = 0, double maxEnergy = 0, int stageNumber = 1, double energyRegen = 0,
             double damageMultiplier = 1, double moveSpeedMultiplier = 1, double scrapGainMultiplier = 1, CarrierDefinition carrier = null,
-            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0, bool isProgressionMission = false)
+            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0, bool isProgressionMission = false,
+            int progressionStage = 0, int progressionRound = 0, double progressionHp = 0)
         {
             GameData.Load();
             if (isProgressionMission && !isMission) throw new System.ArgumentException("연속 스테이지는 미션에서만 사용할 수 있습니다.", nameof(isProgressionMission));
+            if (!isProgressionMission && (progressionStage != 0 || progressionRound != 0 || progressionHp != 0))
+                throw new System.ArgumentException("연속 진행 시작 값은 연속 스테이지에서만 사용할 수 있습니다.", nameof(progressionStage));
             return new SimulationSetup
             {
                 Seed = seed, IsMission = isMission, IsProgressionMission = isProgressionMission, MaxHp = maxHp, MaxEnergy = maxEnergy, StageNumber = stageNumber, EnergyRegen = energyRegen,
                 DamageMultiplier = damageMultiplier, MoveSpeedMultiplier = moveSpeedMultiplier, ScrapGainMultiplier = scrapGainMultiplier, Carrier = carrier,
                 ScrapPickupRangeMultiplier = scrapPickupRangeMultiplier, KillEnergyBonus = killEnergyBonus, ScrapHealRatio = scrapHealRatio,
+                ProgressionStage = progressionStage, ProgressionRound = progressionRound, ProgressionHp = progressionHp,
                 Balance = GameData.Balance, Enemies = GameData.Enemies, Sector = GameData.Sector, Bosses = GameData.Bosses, Formations = GameData.Formations,
                 Drops = GameData.Drops, ModifierGrades = GameData.ModifierGrades, Stages = GameData.Stages, Runes = GameData.Runes
             };

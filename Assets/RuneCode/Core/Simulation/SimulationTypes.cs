@@ -133,6 +133,13 @@ namespace RuneCode
         /// <summary>최대 체력과 에너지 및 시작 위치로 플레이어의 전투 상태를 초기화한다.</summary>
         internal SimulationPlayer(double hp, double energy, SimVector position) { _maxHp = hp; _hp = hp; _maxEnergy = energy; _energy = energy; _position = position; }
 
+        /// <summary>이어하기 시작 체력을 0 초과 최대 체력 이하로 제한해 설정한다.</summary>
+        internal void SetHp(double hp)
+        {
+            if (hp <= 0) return;
+            _hp = Math.Min(_maxHp, hp);
+        }
+
         /// <summary>최대 체력·최대 전력을 바꾼다. 최대치가 늘면 현재 값에도 증가분을 더하고, 줄면 현재 값을 새 최대치로만 제한한다.</summary>
         internal void SetMaxStats(double maxHp, double maxEnergy)
         {

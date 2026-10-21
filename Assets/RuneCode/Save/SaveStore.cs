@@ -17,7 +17,6 @@ namespace RuneCode
         private const string LEGACY_SAVE_V2_FILE = "runecode.save.v2.json";
         private const string LEGACY_SAVE_V1_FILE = "runecode.save.v1.json";
         private const string ACTIVE_SLOT_KEY = "runecode.save.active-slot";
-        private const string AUTO_SAVE_KEY = "runecode.save.auto-save";
         private const string SCREEN_SHAKE_KEY = "runecode.settings.screen-shake";
         private const string HIT_STOP_KEY = "runecode.settings.hit-stop";
         private const string MASTER_VOLUME_KEY = "runecode.settings.master-volume";
@@ -32,7 +31,6 @@ namespace RuneCode
 
         public static string LastWarning => _lastWarning;
         public static int ActiveSlot => Mathf.Clamp(PlayerPrefs.GetInt(ACTIVE_SLOT_KEY, DEFAULT_SLOT), 1, SLOT_COUNT);
-        public static bool AutoSaveEnabled => PlayerPrefs.GetInt(AUTO_SAVE_KEY, 1) != 0;
         public static bool ScreenShake => PlayerPrefs.GetInt(SCREEN_SHAKE_KEY, 1) != 0;
         public static bool HitStop => PlayerPrefs.GetInt(HIT_STOP_KEY, 1) != 0;
         public static float MasterVolume => Mathf.Clamp01(PlayerPrefs.GetFloat(MASTER_VOLUME_KEY, 1f));
@@ -45,13 +43,6 @@ namespace RuneCode
         {
             if (!IsValidSlot(slot)) return;
             PlayerPrefs.SetInt(ACTIVE_SLOT_KEY, slot);
-            PlayerPrefs.Save();
-        }
-
-        /// <summary>자동 저장 설정을 사용자 환경설정에 기록한다.</summary>
-        public static void SetAutoSaveEnabled(bool isEnabled)
-        {
-            PlayerPrefs.SetInt(AUTO_SAVE_KEY, isEnabled ? 1 : 0);
             PlayerPrefs.Save();
         }
 

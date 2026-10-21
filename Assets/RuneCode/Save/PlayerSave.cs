@@ -35,6 +35,14 @@ namespace RuneCode
         [SerializeField] private List<ModifierStock> _elementStock = new List<ModifierStock>();
         [SerializeField] private List<ModifierStock> _behaviorStock = new List<ModifierStock>();
 
+        [Header("연속 미션 진행")]
+        [SerializeField] private int _progressionStage;
+        [SerializeField] private int _progressionRound;
+        [SerializeField] private double _progressionHp;
+        [SerializeField] private double _progressionMaxHp;
+        [SerializeField] private string[] _pendingRoundChoiceIds;
+        [SerializeField] private string[] _pendingRoundChoiceGrades;
+
         [Header("피드백 설정")]
         [SerializeField] private bool _screenShake = true;
         [SerializeField] private bool _hitStop = true;
@@ -48,6 +56,13 @@ namespace RuneCode
         public bool HasClearedProgression => _hasClearedProgression;
         public IReadOnlyList<string> PendingProgressionChoiceIds => _pendingProgressionChoiceIds ?? Array.Empty<string>();
         public IReadOnlyList<string> PendingProgressionChoiceGrades => _pendingProgressionChoiceGrades ?? Array.Empty<string>();
+        public int ProgressionStage => _progressionStage;
+        public int ProgressionRound => _progressionRound;
+        public bool HasProgressionRound => _progressionStage > 0 && _progressionRound > 0;
+        public double ProgressionHp => _progressionHp;
+        public double ProgressionMaxHp => _progressionMaxHp;
+        public IReadOnlyList<string> PendingRoundChoiceIds => _pendingRoundChoiceIds ?? Array.Empty<string>();
+        public IReadOnlyList<string> PendingRoundChoiceGrades => _pendingRoundChoiceGrades ?? Array.Empty<string>();
         public int SelectedStage => _selectedStage;
         public string ActiveSpellId => _activeSpellId;
         public bool SectorCleared => _sectorCleared;
@@ -445,6 +460,37 @@ namespace RuneCode
                     return false;
                 }
             }
+            if ((_progressionStage != 0 || _progressionRound != 0)
+                && (_progressionStage < 1 || _progressionStage > StageCatalog.PROGRESSION_STAGE_COUNT
+                    || _progressionRound < 1 || _progressionRound > StageCatalog.PROGRESSION_ROUND_COUNT))
+            {
+                error = "save.invalidValues";
+                return false;
+            }
+            if (HasProgressionRound && (_progressionMaxHp <= 0 || _progressionHp <= 0 || _progressionHp > _progressionMaxHp))
+            {
+                error = "save.invalidValues";
+                return false;
+            }
+            if (_pendingRoundChoiceIds != null || _pendingRoundChoiceGrades != null)
+            {
+                if (_pendingRoundChoiceIds == null || _pendingRoundChoiceGrades == null
+                    || _pendingRoundChoiceIds.Length != _pendingRoundChoiceGrades.Length || !HasProgressionRound)
+                {
+                    error = "save.invalidValues";
+                    return false;
+                }
+                for (int index = 0; index < _pendingRoundChoiceIds.Length; index++)
+                {
+                    string runeId = _pendingRoundChoiceIds[index];
+                    if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_MODIFIER
+                        || !GameData.ModifierGrades.IsGradeAvailable(runeId, _pendingRoundChoiceGrades[index]))
+                    {
+                        error = "save.invalidValues";
+                        return false;
+                    }
+                }
+            }
             if (_graphs == null || _graphs.Count == 0 || _graphs.Count > economy.MaxLibrary ||
                 _loadout == null || _loadout.Count != 3 || _unlockedRunes == null || _killCounts == null || _upgradeNodeProgress == null)
             {
@@ -569,6 +615,32 @@ namespace RuneCode
         {
             _pendingProgressionChoiceIds = null;
             _pendingProgressionChoiceGrades = null;
+        }
+
+        /// <summary>마지막으로 끝낸 연속 미션 라운드 위치와 그 시점 체력, 라운드 보상 후보를 저장한다. 후보가 없거나 개수가 맞지 않으면 후보 기록을 비운다.</summary>
+        public void RecordProgressionRound(int stage, int round, double hp, double maxHp, IReadOnlyList<string> choiceIds, IReadOnlyList<string> choiceGrades)
+        {
+            _progressionStage = stage;
+            _progressionRound = round;
+            _progressionHp = hp;
+            _progressionMaxHp = maxHp;
+            if (choiceIds == null || choiceGrades == null || choiceIds.Count == 0 || choiceIds.Count != choiceGrades.Count)
+            {
+                _pendingRoundChoiceIds = null;
+                _pendingRoundChoiceGrades = null;
+                return;
+            }
+            _pendingRoundChoiceIds = new string[choiceIds.Count];
+            _pendingRoundChoiceGrades = new string[choiceGrades.Count];
+            for (int index = 0; index < choiceIds.Count; index++) _pendingRoundChoiceIds[index] = choiceIds[index];
+            for (int index = 0; index < choiceGrades.Count; index++) _pendingRoundChoiceGrades[index] = choiceGrades[index];
+        }
+
+        /// <summary>라운드 보상 후보를 지급한 뒤 대기 후보를 비운다. 라운드 위치와 체력 기록은 유지한다.</summary>
+        public void ClearPendingRoundChoice()
+        {
+            _pendingRoundChoiceIds = null;
+            _pendingRoundChoiceGrades = null;
         }
 
         /// <summary>ID와 일치하는 보관함 마법을 반환하며 없으면 null을 반환한다.</summary>

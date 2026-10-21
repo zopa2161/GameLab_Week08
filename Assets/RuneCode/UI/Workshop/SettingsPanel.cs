@@ -28,7 +28,6 @@ namespace RuneCode
         [SerializeField] private Button _debugUnlockButton;
         [SerializeField] private Button _debugResetTreeButton;
 
-        private Button _autoSaveButton;
         private Button _manualSaveButton;
         private Button _manualLoadButton;
         private Button _returnToTitleButton;
@@ -53,9 +52,6 @@ namespace RuneCode
 
         /// <summary>디버그 강화 트리 초기화를 눌렀을 때 알린다.</summary>
         public event Action DebugTreeResetClicked;
-
-        /// <summary>자동 저장 전환을 눌렀을 때 알린다.</summary>
-        public event Action AutoSaveClicked;
 
         /// <summary>수동 저장을 눌렀을 때 알린다.</summary>
         public event Action ManualSaveClicked;
@@ -90,14 +86,13 @@ namespace RuneCode
         public void SetSessionMode(bool isDebugVisible, bool isSaveVisible, string resetLabelKey, bool isTitle = false)
         {
             bool isDebugGroupVisible = !isTitle && isDebugVisible;
-            bool isSaveRowVisible = isTitle || isSaveVisible;
+            bool isSaveRowVisible = !isTitle && isSaveVisible;
             _resetSaveButton.GetComponentInChildren<TextMeshProUGUI>(true).text = GameData.L(resetLabelKey);
             _debugGroup.SetActive(isDebugGroupVisible);
             _resetSaveButton.gameObject.SetActive(!isTitle);
             _returnToTitleButton.gameObject.SetActive(!isTitle);
-            _autoSaveButton.gameObject.SetActive(isSaveRowVisible);
-            _manualSaveButton.gameObject.SetActive(!isTitle && isSaveVisible);
-            _manualLoadButton.gameObject.SetActive(!isTitle && isSaveVisible);
+            _manualSaveButton.gameObject.SetActive(isSaveRowVisible);
+            _manualLoadButton.gameObject.SetActive(isSaveRowVisible);
             LayoutLowerControls(isDebugGroupVisible, isSaveRowVisible);
         }
 
@@ -108,25 +103,22 @@ namespace RuneCode
             _hitStopLabel.text = GameData.L("ui.hitstop") + "  " + GameData.L(isHitStop ? "ui.on" : "ui.off");
         }
 
-        /// <summary>자동 저장 상태와 미저장 여부를 표시하고 저장·불러오기 가능 상태를 갱신한다.</summary>
-        public void SetSaveOptions(bool isAutoSaveEnabled, bool isDirty, bool canSave, bool canLoad)
+        /// <summary>미저장 여부를 표시하고 저장·불러오기 가능 상태를 갱신한다.</summary>
+        public void SetSaveOptions(bool isDirty, bool canSave, bool canLoad)
         {
-            SetButtonLabel(_autoSaveButton, GameData.L("save.autoSave") + "  " + GameData.L(isAutoSaveEnabled ? "ui.on" : "ui.off"));
             SetButtonLabel(_manualSaveButton, GameData.L(isDirty ? "save.savePending" : "save.save"));
             SetButtonLabel(_manualLoadButton, GameData.L("save.load"));
             _manualSaveButton.interactable = canSave;
             _manualLoadButton.interactable = canLoad;
         }
 
-        /// <summary>기존 설정 버튼을 복제해 자동 저장·수동 저장·불러오기 버튼을 한 줄에 만들고 이벤트를 연결한다.</summary>
+        /// <summary>기존 설정 버튼을 복제해 수동 저장·불러오기 버튼을 한 줄에 만들고 이벤트를 연결한다.</summary>
         private void CreateSaveButtons()
         {
-            if (_autoSaveButton != null) return;
+            if (_manualSaveButton != null) return;
             Transform parent = _screenShakeButton.transform.parent;
-            _autoSaveButton = CreateSaveButton(parent, "AutoSaveButton", 0);
-            _manualSaveButton = CreateSaveButton(parent, "ManualSaveButton", 151);
-            _manualLoadButton = CreateSaveButton(parent, "ManualLoadButton", 302);
-            _autoSaveButton.onClick.AddListener(() => AutoSaveClicked?.Invoke());
+            _manualSaveButton = CreateSaveButton(parent, "ManualSaveButton", 0);
+            _manualLoadButton = CreateSaveButton(parent, "ManualLoadButton", 151);
             _manualSaveButton.onClick.AddListener(() => ManualSaveClicked?.Invoke());
             _manualLoadButton.onClick.AddListener(() => ManualLoadClicked?.Invoke());
         }
@@ -188,7 +180,6 @@ namespace RuneCode
             SetTop(debugRect, nextTop);
             if (isDebugVisible) nextTop += debugRect.sizeDelta.y + CONTROL_GROUP_GAP;
 
-            SetTop((RectTransform)_autoSaveButton.transform, nextTop);
             SetTop((RectTransform)_manualSaveButton.transform, nextTop);
             SetTop((RectTransform)_manualLoadButton.transform, nextTop);
             if (isSaveVisible) nextTop += CONTROL_ROW_STEP;
