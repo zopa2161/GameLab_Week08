@@ -312,7 +312,7 @@ namespace RuneCode
         {
             if (_run == null || !_run.IsFinished) return;
             if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
-            _session.SelectStage(_run.Simulation.StageNumber);
+            if (!_run.Simulation.IsProgressionMission) _session.SelectStage(_run.Simulation.StageNumber);
             StartRun();
         }
 
@@ -327,7 +327,7 @@ namespace RuneCode
         /// <summary>승리 결과에서 다음 스테이지를 선택하고 노드 강화 작업실로 돌아간다. 클리어나 보상 선택이 끝나지 않았으면 무시한다.</summary>
         private void SelectNextStageAndReturnToWorkshop()
         {
-            if (_run == null || !_run.IsFinished || !_run.Simulation.Completed) return;
+            if (_run == null || !_run.IsFinished || !_run.Simulation.Completed || _run.Simulation.IsProgressionMission) return;
             if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
             int nextStage = _run.Simulation.StageNumber + 1;
             _session.SelectStage(nextStage);

@@ -7,6 +7,7 @@ namespace RuneCode
     internal sealed class LootSystem
     {
         private const double MIN_KILL_ENERGY = 1;
+        private const int PROGRESSION_CLEAR_CHOICE_STAGE = 5;
         private readonly SimulationWorld _world;
         private readonly SimulationStats _stats;
         private readonly EnemyStatusSystem _statuses;
@@ -83,7 +84,7 @@ namespace RuneCode
         /// </summary>
         internal bool TryDrawClearModifierChoices(out EliteModifierClearChoice choice, out List<string> candidates, out List<string> grades)
         {
-            choice = _world.EliteDrops.GetClearChoice(_world.StageNumber);
+            choice = _world.EliteDrops.GetClearChoice(_world.IsProgressionMission ? PROGRESSION_CLEAR_CHOICE_STAGE : _world.StageNumber);
             candidates = new List<string>();
             grades = new List<string>();
             if (choice == null || choice.ChoiceCount <= 0) return false;
