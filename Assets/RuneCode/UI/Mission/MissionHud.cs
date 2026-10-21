@@ -15,7 +15,6 @@ namespace RuneCode
     {
         private const float BAR_WIDTH = 238f;
         private const float BAR_HEIGHT = 9f;
-        private const float WORKSHOP_BUTTON_GAP = 12f;
 
 
         [Header("막대")]
@@ -41,9 +40,9 @@ namespace RuneCode
         [SerializeField] private Button _pauseButton;
         [SerializeField] private Button _debugButton;
         [SerializeField] private Button _nextRoundButton;
+        [SerializeField] private Button _workshopButton;
 
         private bool _isBound;
-        private Button _workshopButton;
 
         /// <summary>일시정지 버튼을 눌렀을 때 알린다.</summary>
         public event Action PauseClicked;
@@ -65,7 +64,6 @@ namespace RuneCode
                 _pauseButton.onClick.AddListener(() => PauseClicked?.Invoke());
                 _debugButton.onClick.AddListener(() => DebugClicked?.Invoke());
                 _nextRoundButton.onClick.AddListener(() => NextRoundClicked?.Invoke());
-                _workshopButton = CreateWorkshopButton();
                 _workshopButton.onClick.AddListener(() => WorkshopClicked?.Invoke());
                 _isBound = true;
             }
@@ -86,20 +84,6 @@ namespace RuneCode
         {
             _workshopButton.interactable = isVisible && isInteractable;
             _workshopButton.gameObject.SetActive(isVisible);
-        }
-
-        /// <summary>다음 라운드 버튼을 복제해 바로 아래에 작업실 버튼을 만들고 문구를 바꾼다.</summary>
-        private Button CreateWorkshopButton()
-        {
-            Button button = Instantiate(_nextRoundButton, _nextRoundButton.transform.parent, false);
-            button.name = "WorkshopButton";
-            button.onClick.RemoveAllListeners();
-            UiFactory.BindClickSound(button);
-            button.GetComponentInChildren<TextMeshProUGUI>(true).text = GameData.L("ui.openWorkshop");
-            RectTransform source = (RectTransform)_nextRoundButton.transform;
-            ((RectTransform)button.transform).anchoredPosition = source.anchoredPosition
-                - new Vector2(0f, source.sizeDelta.y + WORKSHOP_BUTTON_GAP);
-            return button;
         }
 
         /// <summary>스테이지 문구를 표시하고 남은 적 수가 있으면 기존 타이머 텍스트 색상으로 덧붙인다.</summary>
@@ -145,7 +129,7 @@ namespace RuneCode
             _dashCooldown.SetCooldown(dashRemaining, dashDuration);
         }
 
-        /// <summary>조각 획득 토스트 문구를 표시한다. 빈 문자열이면 숨긴 것과 같다.</summary>
+        /// <summary>아이템 이름·등급 또는 크레딧 획득 토스트를 표시한다. 빈 문자열이면 숨긴 것과 같다.</summary>
         public void SetToast(string text) => _fragmentToast.text = text;
     }
 }
