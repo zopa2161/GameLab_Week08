@@ -38,8 +38,14 @@ namespace RuneCode
         /// <summary>미션 모드 여부다. 시험 도크와 미션의 규칙 분기에 쓴다.</summary>
         internal bool IsMission { get; }
 
+        internal bool IsProgressionMission { get; }
+
         /// <summary>현재 미션 스테이지 번호다. 1 미만 값은 1로 보정한다.</summary>
-        internal int StageNumber { get; }
+        internal int StageNumber { get; set; }
+
+        internal int RoundNumber { get; set; }
+
+        internal int WaveNumber { get; set; }
 
         /// <summary>플레이어 최대 체력이다. maxHp가 0이면 밸런스 기본값을 쓴다.</summary>
         internal double MaxHp { get; }
@@ -108,10 +114,12 @@ namespace RuneCode
         internal bool IsFailed => Stage == MissionStage.Dead || Stage == MissionStage.TimedOut;
 
         /// <summary>현재 스테이지가 보스 스테이지인지 나타낸다.</summary>
-        internal bool IsBossStage => StageDefinition != null && StageDefinition.IsBoss;
+        internal bool IsBossStage => IsProgressionMission
+            ? RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT && WaveNumber == StageCatalog.PROGRESSION_WAVE_COUNT
+            : StageDefinition != null && StageDefinition.IsBoss;
 
         /// <summary>현재 스테이지 제한시간(초)이다. 스테이지 정의가 없으면 0이다.</summary>
-        internal double TimeLimit => StageDefinition?.TimeLimit ?? 0;
+        internal double TimeLimit => IsProgressionMission ? 0 : StageDefinition?.TimeLimit ?? 0;
 
         /// <summary>동시에 살아 있을 수 있는 적 수 상한이다.</summary>
         internal int EnemyLimit => Balance.Limits.MaxEnemies;
@@ -122,7 +130,7 @@ namespace RuneCode
         internal SimulationWorld(BalanceData balance, EnemyCatalog enemyCatalog, SectorDefinition sector, BossCatalog bosses,
             FormationCatalog formations, DropCatalog drops, IEliteModifierDropSource eliteDrops, StageCatalog stages,
             CarrierDefinition carrier, bool isMission, double maxHp, double maxEnergy, int stageNumber, double energyRegen,
-            double damageMultiplier, double moveSpeedMultiplier, SimRandom random, AdaptationNet adaptation)
+            double damageMultiplier, double moveSpeedMultiplier, SimRandom random, AdaptationNet adaptation, bool isProgressionMission = false)
         {
             Balance = balance;
             EnemyCatalog = enemyCatalog;
@@ -134,6 +142,7 @@ namespace RuneCode
             Stages = stages;
             Carrier = carrier;
             IsMission = isMission;
+            IsProgressionMission = isProgressionMission;
             MaxHp = maxHp > 0 ? maxHp : Balance.Player.Hp;
             MaxEnergy = maxEnergy > 0 ? maxEnergy : Balance.Player.Energy;
             StageNumber = Math.Max(1, stageNumber);

@@ -8,8 +8,8 @@ using UnityEngine.UI;
 namespace RuneCode
 {
     /// <summary>
-    /// 미션 화면의 HUD View다. 체력·에너지 막대, 스테이지, 처치·조각, 남은 적 수(보스 스테이지는 남은 시간 포함), 마법 줄과 조각 토스트를 표시하고
-    /// 일시정지·디버그 버튼 클릭을 알린다. 표시 값 계산은 MissionPresenter가 한다.
+    /// 미션 화면의 HUD View다. 체력·에너지 막대, 전투 단계, 처치·조각, 전투 목표, 마법 줄과 조각 토스트를 표시하고
+    /// 라운드 시작·일시정지·디버그 버튼 클릭을 알린다. 표시 값 계산은 MissionPresenter가 한다.
     /// </summary>
     public sealed class MissionHud : MonoBehaviour
     {
@@ -39,6 +39,7 @@ namespace RuneCode
         [Header("버튼")]
         [SerializeField] private Button _pauseButton;
         [SerializeField] private Button _debugButton;
+        [SerializeField] private Button _nextRoundButton;
 
         private bool _isBound;
 
@@ -48,6 +49,9 @@ namespace RuneCode
         /// <summary>디버그 버튼을 눌렀을 때 알린다.</summary>
         public event Action DebugClicked;
 
+        /// <summary>소강상태의 다음 라운드 시작 버튼을 눌렀을 때 알린다.</summary>
+        public event Action NextRoundClicked;
+
         /// <summary>버튼 클릭을 이벤트로 처음 한 번만 연결하고 디버그 버튼 표시 여부를 정한다.</summary>
         public void Bind(bool isDebugVisible)
         {
@@ -55,9 +59,18 @@ namespace RuneCode
             {
                 _pauseButton.onClick.AddListener(() => PauseClicked?.Invoke());
                 _debugButton.onClick.AddListener(() => DebugClicked?.Invoke());
+                _nextRoundButton.onClick.AddListener(() => NextRoundClicked?.Invoke());
                 _isBound = true;
             }
             _debugButton.gameObject.SetActive(isDebugVisible);
+            SetNextRound(false, false);
+        }
+
+        /// <summary>라운드 대기 여부에 따라 시작 버튼을 표시하고 팝업·일시정지 중에는 입력을 잠근다.</summary>
+        public void SetNextRound(bool isVisible, bool isInteractable)
+        {
+            _nextRoundButton.interactable = isVisible && isInteractable;
+            _nextRoundButton.gameObject.SetActive(isVisible);
         }
 
         /// <summary>스테이지 번호 문구를 표시한다.</summary>
@@ -76,7 +89,7 @@ namespace RuneCode
         /// <summary>처치·조각 문구를 표시한다.</summary>
         public void SetStats(string text) => _statsLabel.text = text;
 
-        /// <summary>남은 적 수(보스 스테이지는 남은 시간 포함) 문구를 표시하고 제한시간이 임박하면 경고 표시로 바꾼다.</summary>
+        /// <summary>전투 목표 또는 대기·완료 문구를 표시하고 isWarning이면 경고 표시로 바꾼다.</summary>
         public void SetTimer(string text, bool isWarning)
         {
             _timerLabel.text = text;

@@ -341,6 +341,31 @@ namespace RuneCode
     }
 
     [Serializable]
+    public sealed class ProgressionRoundDefinition
+    {
+        [Header("라운드 편성")]
+        [SerializeField] private WaveDefinition[] _waves;
+        public IReadOnlyList<WaveDefinition> Waves => _waves ?? Array.Empty<WaveDefinition>();
+    }
+
+    [Serializable]
+    public sealed class ProgressionStageDefinition
+    {
+        [Header("연속 스테이지")]
+        [SerializeField] private int _stage;
+        [SerializeField] private ProgressionRoundDefinition[] _rounds;
+        [SerializeField] private StreamDefinition _stream;
+        public int Stage => _stage;
+        public IReadOnlyList<ProgressionRoundDefinition> Rounds => _rounds ?? Array.Empty<ProgressionRoundDefinition>();
+        // Unity가 누락된 직렬화 클래스를 빈 객체로 생성해도 실제 설정이 있을 때만 스트림으로 판단한다.
+        internal bool HasStream => _stream != null
+            && ((_stream.Candidates != null && _stream.Candidates.Count > 0)
+                || _stream.BaseInterval != 0 || _stream.MinInterval != 0
+                || _stream.StageScale != 0 || _stream.IntraRamp != 0 || _stream.RampSeconds != 0
+                || !string.IsNullOrEmpty(_stream.Formation) || _stream.RawGroupSize != 0);
+    }
+
+    [Serializable]
     public sealed class FormationCatalog
     {
         [Header("진형 목록")]
@@ -385,6 +410,9 @@ namespace RuneCode
     [Serializable]
     public sealed class StageCatalog
     {
+        public const int PROGRESSION_STAGE_COUNT = 3;
+        public const int PROGRESSION_ROUND_COUNT = 6;
+        public const int PROGRESSION_WAVE_COUNT = 6;
         internal const int STAGE_CYCLE_START = 21;
         internal const int STAGE_CYCLE_FIRST_STAGE = 11;
         internal const int STAGE_CYCLE_LAST_STAGE = 20;
@@ -400,12 +428,21 @@ namespace RuneCode
         [SerializeField] private double _stationaryAdvanceSpeed;
         [SerializeField] private EnemyReward[] _rewards;
         [SerializeField] private StageDefinition[] _stages;
+        [SerializeField] private ProgressionStageDefinition[] _progressionStages;
         public StageMapSettings Map => _map;
         public StageGrowth Growth => _growth;
         public StageSpawnSettings Spawn => _spawn;
         public double StationaryAdvanceSpeed => _stationaryAdvanceSpeed;
         public IReadOnlyList<EnemyReward> Rewards => _rewards;
         public IReadOnlyList<StageDefinition> Stages => _stages;
+        public IReadOnlyList<ProgressionStageDefinition> ProgressionStages => _progressionStages;
+
+        /// <summary>연속 미션의 1부터 시작하는 stage 번호에 대응하는 편성을 반환한다.</summary>
+        public ProgressionStageDefinition GetProgressionStage(int stage)
+        {
+            if (stage < 1 || stage > _progressionStages.Length) throw new ArgumentOutOfRangeException(nameof(stage));
+            return _progressionStages[stage - 1];
+        }
 
         /// <summary>
         /// 스테이지 번호의 정의를 반환한다. 단일 항목을 먼저 찾고 없으면 첫 범위 항목을 사용하며 둘 다 없으면 데이터 오류를 발생시킨다.
@@ -451,7 +488,7 @@ namespace RuneCode
             return fallback;
         }
 
-        /// <summary>JSON 스테이지 설정을 읽어 맵, 성장, 스폰, 보상, 스테이지 범위, 스트림, 웨이브, 진형 슬롯 수, 엘리트 주기와 드롭 테이블 참조를 검증한다.</summary>
+        /// <summary>JSON 스테이지 설정을 읽어 기존 편성과 연속 미션의 3×6×6 유한 편성, 적·진형 참조를 검증한다.</summary>
         public static StageCatalog FromJson(string json, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops)
         {
             var catalog = JsonUtility.FromJson<StageCatalog>(json);
@@ -466,8 +503,42 @@ namespace RuneCode
                 ValidateStage(stage, enemies, formations, drops, singleStages);
                 ValidateFormationSlots(stage, formations, catalog._spawn.RingSlots);
             }
+            ValidateProgression(catalog, enemies, formations);
             catalog.Get(1); // 1스테이지를 담는 항목이 반드시 있어야 한다.
             return catalog;
+        }
+
+        /// <summary>연속 미션의 순서·수량, 유한 웨이브와 마지막 보스만 허용하며 모든 적·진형 참조를 검증한다.</summary>
+        private static void ValidateProgression(StageCatalog catalog, EnemyCatalog enemies, FormationCatalog formations)
+        {
+            if (catalog._progressionStages == null || catalog._progressionStages.Length != PROGRESSION_STAGE_COUNT)
+                throw new FormatException("연속 미션은 스테이지가 정확히 3개여야 합니다.");
+            for (int stageIndex = 0; stageIndex < PROGRESSION_STAGE_COUNT; stageIndex++)
+            {
+                ProgressionStageDefinition stage = catalog._progressionStages[stageIndex];
+                if (stage == null || stage.Stage != stageIndex + 1 || stage.HasStream || stage.Rounds.Count != PROGRESSION_ROUND_COUNT)
+                    throw new FormatException("연속 미션 스테이지 번호·라운드 수 또는 스트림 오류: " + (stageIndex + 1));
+                for (int roundIndex = 0; roundIndex < PROGRESSION_ROUND_COUNT; roundIndex++)
+                {
+                    ProgressionRoundDefinition round = stage.Rounds[roundIndex];
+                    if (round == null || round.Waves.Count != PROGRESSION_WAVE_COUNT)
+                        throw new FormatException("연속 미션 라운드의 웨이브 수 오류: " + stage.Stage + "/" + (roundIndex + 1));
+                    for (int waveIndex = 0; waveIndex < PROGRESSION_WAVE_COUNT; waveIndex++)
+                    {
+                        WaveDefinition wave = round.Waves[waveIndex];
+                        if (wave == null || wave.At != 0 || wave.RepeatInterval != 0)
+                            throw new FormatException("연속 미션 웨이브에 시각·반복을 설정할 수 없습니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
+                        ValidateWave(wave, stage.Stage, enemies, formations);
+                        CheckFormationSlots(wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings()), catalog._spawn.RingSlots, stage.Stage);
+                        bool isBossWave = roundIndex == PROGRESSION_ROUND_COUNT - 1 && waveIndex == PROGRESSION_WAVE_COUNT - 1;
+                        int bossCount = 0;
+                        foreach (WaveUnit unit in wave.Units)
+                            if (unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal)) bossCount += unit.Count;
+                        if (bossCount != (isBossWave ? 1 : 0))
+                            throw new FormatException("보스는 각 스테이지의 마지막 웨이브에 1기만 있어야 합니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
+                    }
+                }
+            }
         }
 
         /// <summary>루트의 맵 칸수, 성장 배율, 스폰 설정(맵형 스폰 예고·거리·유예 포함), 정지 전진 속도 범위와 유한값을 확인한다.</summary>
@@ -550,29 +621,36 @@ namespace RuneCode
         {
             foreach (WaveDefinition wave in stage.Waves)
             {
-                if (!IsFinite(wave.At) || wave.At < 0) throw new FormatException("웨이브 시각은 0 이상의 유한값이어야 합니다: 스테이지 " + stage.FromStage);
-                FormationOverride formation = wave.Formation;
-                if (formation == null || !formations.Has(formation.Id)) throw new FormatException("웨이브 진형 참조 오류입니다: 스테이지 " + stage.FromStage);
-                if (!string.IsNullOrEmpty(formation.Angle) && formation.Angle != "random" && formation.Angle != "ahead" && formation.Angle != "fixed")
-                    throw new FormatException("웨이브 진형 각도는 random, ahead 또는 fixed여야 합니다: 스테이지 " + stage.FromStage);
-                if (!IsFinite(formation.Spacing) || formation.Spacing < 0 || !IsFinite(formation.Interval) || formation.Interval < 0 || formation.Slots < 0)
-                    throw new FormatException("웨이브 진형 값 오류입니다: 스테이지 " + stage.FromStage);
-                if (wave.Units == null || wave.Units.Count == 0) throw new FormatException("웨이브에 유닛이 없습니다: 스테이지 " + stage.FromStage);
-                bool hasBossUnit = false;
-                foreach (WaveUnit unit in wave.Units)
-                {
-                    enemies.Get(unit.EnemyId); // 없는 적 ID면 여기서 오류가 난다.
-                    hasBossUnit |= unit.EnemyId.StartsWith("boss.");
-                    if (unit.Count < 1) throw new FormatException("웨이브 유닛 수는 1 이상이어야 합니다: " + unit.EnemyId + " (스테이지 " + stage.FromStage + ")");
-                }
-                if (!IsFinite(wave.RepeatInterval) || wave.RepeatInterval < 0)
-                    throw new FormatException("웨이브 반복 간격은 0 이상의 유한값이어야 합니다: 스테이지 " + stage.FromStage);
-                if (!wave.IsRepeating) continue;
-                if (hasBossUnit) throw new FormatException("보스가 들어 있는 웨이브는 반복할 수 없습니다: 스테이지 " + stage.FromStage);
-                double interval = wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings()).Interval;
-                if (wave.RepeatInterval <= (wave.UnitCount - 1) * interval)
-                    throw new FormatException("반복 간격은 한 회차의 유닛 배출 시간보다 길어야 합니다: 스테이지 " + stage.FromStage);
+                ValidateWave(wave, stage.FromStage, enemies, formations);
             }
+        }
+
+        /// <summary>기존/연속 미션 웨이브의 유닛·진형·스폰 시각·반복 값과 참조를 검증한다.</summary>
+        private static void ValidateWave(WaveDefinition wave, int stageNumber, EnemyCatalog enemies, FormationCatalog formations)
+        {
+            if (!IsFinite(wave.At) || wave.At < 0) throw new FormatException("웨이브 시각은 0 이상의 유한값이어야 합니다: 스테이지 " + stageNumber);
+            FormationOverride formation = wave.Formation;
+            if (formation == null || !formations.Has(formation.Id)) throw new FormatException("웨이브 진형 참조 오류입니다: 스테이지 " + stageNumber);
+            if (!string.IsNullOrEmpty(formation.Angle) && formation.Angle != "random" && formation.Angle != "ahead" && formation.Angle != "fixed")
+                throw new FormatException("웨이브 진형 각도는 random, ahead 또는 fixed여야 합니다: 스테이지 " + stageNumber);
+            if (!IsFinite(formation.Spacing) || formation.Spacing < 0 || !IsFinite(formation.Interval) || formation.Interval < 0 || formation.Slots < 0)
+                throw new FormatException("웨이브 진형 값 오류입니다: 스테이지 " + stageNumber);
+            if (wave.Units == null || wave.Units.Count == 0) throw new FormatException("웨이브에 유닛이 없습니다: 스테이지 " + stageNumber);
+            bool hasBossUnit = false;
+            foreach (WaveUnit unit in wave.Units)
+            {
+                if (unit == null || string.IsNullOrEmpty(unit.EnemyId)) throw new FormatException("웨이브 적 ID가 비었습니다: 스테이지 " + stageNumber);
+                enemies.Get(unit.EnemyId);
+                hasBossUnit |= unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal);
+                if (unit.Count < 1) throw new FormatException("웨이브 유닛 수는 1 이상이어야 합니다: " + unit.EnemyId + " (스테이지 " + stageNumber + ")");
+            }
+            if (!IsFinite(wave.RepeatInterval) || wave.RepeatInterval < 0)
+                throw new FormatException("웨이브 반복 간격은 0 이상의 유한값이어야 합니다: 스테이지 " + stageNumber);
+            if (!wave.IsRepeating) return;
+            if (hasBossUnit) throw new FormatException("보스가 들어 있는 웨이브는 반복할 수 없습니다: 스테이지 " + stageNumber);
+            double interval = wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings()).Interval;
+            if (wave.RepeatInterval <= (wave.UnitCount - 1) * interval)
+                throw new FormatException("반복 간격은 한 회차의 유닛 배출 시간보다 길어야 합니다: 스테이지 " + stageNumber);
         }
 
         /// <summary>스트림과 웨이브가 실제로 쓰는 슬롯 수(진형·재정의 값, 0이면 루트 링 슬롯 수)가 진형 모양에 맞는지 확인한다.</summary>

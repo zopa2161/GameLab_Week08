@@ -81,6 +81,27 @@ namespace RuneCode
             }
         }
 
+        /// <summary>현재 웨이브의 유닛만 시작 틱부터 한 번 배출하는 스폰 진행기를 만든다.</summary>
+        public SpawnDirector(WaveDefinition wave, FormationCatalog formations, int tickRate, int startTick)
+        {
+            _tickRate = tickRate;
+            _waves = new[] { wave };
+            _settings = new FormationSettings[2];
+            _settings[1] = wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings());
+            _waveStartTicks = new[] { startTick };
+            _waveUnitIndices = new int[1];
+            _isWaveDone = new bool[1];
+            _isStarted = new bool[2];
+            _startAngles = new double[2];
+            _anchors = new int[2];
+            _anchorPoints = new SimVector[2];
+        }
+
+        internal bool IsFinished => _stream == null && _isWaveDone[0];
+
+        /// <summary>단일 유한 웨이브에서 아직 배출하지 않은 편성 수를 반환한다. 기존 스트림 모드에는 적용하지 않는다.</summary>
+        internal int RemainingWaveSpawns => _stream == null ? _waves[0].UnitCount - _waveUnitIndices[0] : 0;
+
         /// <summary>현재 틱까지 도달한 다음 스폰이 있으면 꺼내지 않고 반환한다.</summary>
         public bool TryPeek(int tick, out SpawnOrder order) => TryFindNext(tick, out order, out _);
 
@@ -153,7 +174,7 @@ namespace RuneCode
         private bool TryFindNext(int tick, out SpawnOrder order, out int waveIndex)
         {
             waveIndex = -1;
-            bool hasStream = _nextStreamTick <= tick;
+            bool hasStream = _stream != null && _nextStreamTick <= tick;
             int bestTick = hasStream ? _nextStreamTick : int.MaxValue;
             for (int wave = 0; wave < _waves.Length; wave++)
             {
