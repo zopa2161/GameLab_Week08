@@ -412,7 +412,7 @@ namespace RuneCode
     {
         public const int PROGRESSION_STAGE_COUNT = 3;
         public const int PROGRESSION_ROUND_COUNT = 6;
-        public const int PROGRESSION_WAVE_COUNT = 6;
+        public const int PROGRESSION_WAVE_COUNT = 3;
         internal const int STAGE_CYCLE_START = 21;
         internal const int STAGE_CYCLE_FIRST_STAGE = 11;
         internal const int STAGE_CYCLE_LAST_STAGE = 20;
@@ -488,7 +488,7 @@ namespace RuneCode
             return fallback;
         }
 
-        /// <summary>JSON 스테이지 설정을 읽어 기존 편성과 연속 미션의 3×6×6 유한 편성, 적·진형 참조를 검증한다.</summary>
+        /// <summary>JSON 스테이지 설정을 읽어 기존 편성과 연속 미션의 3×6×3 유한 편성, 적·진형 참조를 검증한다.</summary>
         public static StageCatalog FromJson(string json, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops)
         {
             var catalog = JsonUtility.FromJson<StageCatalog>(json);

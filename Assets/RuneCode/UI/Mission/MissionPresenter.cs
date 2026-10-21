@@ -521,7 +521,9 @@ namespace RuneCode
         private void RenderHud()
         {
             RuneSimulation sim = _run.Simulation;
-            _hud.SetStage(GetStageText(sim));
+            int? remainingEnemyCount = sim.IsProgressionMission && !_run.IsFinished && !sim.IsWaitingForNextRound
+                ? sim.RemainingWaveEnemyCount : (int?)null;
+            _hud.SetStage(GetStageText(sim), remainingEnemyCount);
             _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished, !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
