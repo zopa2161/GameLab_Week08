@@ -60,8 +60,8 @@ namespace RuneCode
             Refresh();
         }
 
-        /// <summary>마법을 저장·검증해 준비가 되면 미션 화면 전환을 요청한다.</summary>
-        private void Launch()
+        /// <summary>마법을 저장·검증해 준비가 되면 미션 화면 전환을 요청한다. 보관 중인 런이 있으면 미션 화면이 그 런을 이어 간다.</summary>
+        public void Launch()
         {
             LocalTelemetry.RecordUsabilityEvent("simulation_request", "workshop", new Dictionary<string, object>
             {

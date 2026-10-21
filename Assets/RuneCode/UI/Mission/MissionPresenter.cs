@@ -49,6 +49,9 @@ namespace RuneCode
         /// <summary>현재 진행 중인 미션의 시뮬레이션이다. 경기장 그래픽이 읽으며 미션이 없으면 null이다.</summary>
         public RuneSimulation Simulation => _run?.Simulation;
 
+        /// <summary>진행 중인 런이 라운드 대기(RoundBreak) 상태라 작업실을 열 수 있는지 반환한다. 일시정지·팝업 입력 잠금은 따로 확인한다.</summary>
+        private bool CanOpenWorkshop => _run != null && !_run.IsFinished && _run.IsWaitingForNextRound;
+
         /// <summary>세션·UI 관리자와 미션 화면의 View들을 받아 View 이벤트를 연결한다.</summary>
         public MissionPresenter(RuneCodeSession session, UIManager ui, MissionScreen screen, MissionHud hud, ResultPanel result)
         {
@@ -61,6 +64,7 @@ namespace RuneCode
             _hud.PauseClicked += TogglePause;
             _hud.DebugClicked += OpenDebug;
             _hud.NextRoundClicked += StartNextRound;
+            _hud.WorkshopClicked += OpenWorkshop;
             _result.Bind();
             _result.ImproveClicked += ReturnToWorkshop;
             _result.NextStageClicked += SelectNextStageAndReturnToWorkshop;
@@ -68,10 +72,14 @@ namespace RuneCode
             _result.ClearModifierChoiceClicked += ChooseClearModifier;
         }
 
-        /// <summary>미션 화면에 들어올 때 새 미션을 시작하고 전투 음악으로 전환한다. 준비에 실패하면 작업실 전환을 요청한다.</summary>
+        /// <summary>
+        /// 미션 화면에 들어올 때 보관 중인 런이 있으면 다시 준비한 마법으로 이어 가고, 없으면 새 미션을 시작한 뒤 전투 음악으로 전환한다.
+        /// 준비에 실패하면 작업실 전환을 요청하며 보관 중인 런은 그대로 남는다.
+        /// </summary>
         public void Begin()
         {
-            if (!StartRun())
+            bool isStarted = _session.IsRunSuspended && _run != null ? ResumeRun() : StartRun();
+            if (!isStarted)
             {
                 _session.RequestScreen(AppScreen.Workshop);
                 return;
@@ -79,7 +87,7 @@ namespace RuneCode
             SoundManager.Instance.SetMusicState(1);
         }
 
-        /// <summary>미션 화면을 떠날 때 빔 음원을 정지하고 기본 음악으로 복원한 뒤 진행 중인 미션을 놓는다.</summary>
+        /// <summary>미션 화면을 떠날 때 빔 음원을 정지하고 기본 음악으로 복원한다. 작업실을 열어 런을 보관 중이면 미션을 유지하고, 아니면 놓는다.</summary>
         public void End()
         {
             SoundManager soundManager = SoundManager.Instance;
@@ -88,8 +96,10 @@ namespace RuneCode
                 soundManager.StopShotBeam();
                 soundManager.SetMusicState(0);
             }
-            _run = null;
             _hud.SetNextRound(false, false);
+            _hud.SetWorkshop(false, false);
+            if (_session.IsRunSuspended) return;
+            _run = null;
         }
 
         /// <summary>
@@ -217,6 +227,13 @@ namespace RuneCode
         {
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             if (_run.TryStartNextRound()) RenderHud();
+        }
+
+        /// <summary>라운드 대기 중이고 일시정지·팝업·문자 입력이 없으면 런을 보관하고 작업실로 전환한다.</summary>
+        private void OpenWorkshop()
+        {
+            if (!CanOpenWorkshop || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            _session.SuspendRunForWorkshop();
         }
 
         /// <summary>일시정지 상태를 바꾸고 일시정지 팝업을 열거나 닫는다. 결과 표시 중에는 무시한다.</summary>
@@ -487,6 +504,19 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>
+        /// 작업실에서 저장한 마법을 다시 검증해 보관 중인 런의 시전 마법을 교체하고 보관 표시를 해제한 뒤 HUD를 갱신한다.
+        /// 라운드 대기 상태는 유지하며, 준비나 교체에 실패하면 false를 반환한다.
+        /// </summary>
+        private bool ResumeRun()
+        {
+            if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
+            if (!_run.TryReplaceSpell(spell, _session.Spells.SpellName)) return false;
+            _session.ResumeSuspendedRun();
+            RenderHud();
+            return true;
+        }
+
         /// <summary>포인터가 버튼 등 UI 입력 대상 위에 있는지 반환한다.</summary>
         private static bool IsPointerOverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
@@ -523,6 +553,7 @@ namespace RuneCode
             RuneSimulation sim = _run.Simulation;
             _hud.SetStage(GetStageText(sim));
             _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished, !_run.IsPaused && !_ui.IsPopupOpen);
+            _hud.SetWorkshop(CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);

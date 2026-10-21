@@ -38,13 +38,13 @@ namespace RuneCode
         private const double FIXED_STEP = 1.0 / RuneSimulation.TICK_RATE;
 
         private readonly RuneCodeSession _session;
-        private readonly CompiledSpell _spell;
-        private readonly string _spellName;
         private readonly RuneSimulation _simulation;
         private readonly int _seed;
-        private readonly string _spellBuildId;
         private readonly string _testCombatId;
-        private readonly string _coreNodeId;
+        private CompiledSpell _spell;
+        private string _spellName;
+        private string _spellBuildId;
+        private string _coreNodeId;
 
         private double _accumulator;
         private int _telemetryCount;
@@ -120,13 +120,7 @@ namespace RuneCode
                 killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio, isProgressionMission: true));
             _simulation.SetLoadout(new[] { spell });
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
-            _coreNodeId = null;
-            foreach (GraphNode node in session.Spells.Graph.Nodes)
-            {
-                if (node.RuneId != SpellGrammar.CORE_RUNE) continue;
-                _coreNodeId = node.Id;
-                break;
-            }
+            _coreNodeId = FindCoreNodeId(session.Spells.Graph);
             _spellBuildId = LocalTelemetry.SaveUsabilityBuild(null, session.Spells.Graph, new Dictionary<string, object>
             {
                 ["reason"] = "mission_start",
@@ -144,6 +138,38 @@ namespace RuneCode
                 ["inventory"] = session.GetInventoryLogSnapshot(),
             });
             LocalTelemetry.Record(0, "mission.start", _simulation.StageNumber + ":" + spell.Signature + ":seed=" + seed);
+        }
+
+        /// <summary>
+        /// 라운드 대기 중 작업실에서 다시 준비한 마법으로 시전 마법·이름·핵심 노드를 교체하고 새 빌드 스냅샷을 기록한다.
+        /// 라운드 대기가 아니거나 정산이 끝났으면 바꾸지 않고 false를 반환한다.
+        /// </summary>
+        public bool TryReplaceSpell(CompiledSpell spell, string spellName)
+        {
+            if (_settled || !_simulation.IsWaitingForNextRound) return false;
+            _spell = spell;
+            _spellName = spellName;
+            _simulation.SetLoadout(new[] { spell });
+            _coreNodeId = FindCoreNodeId(_session.Spells.Graph);
+            _spellBuildId = LocalTelemetry.SaveUsabilityBuild(null, _session.Spells.Graph, new Dictionary<string, object>
+            {
+                ["reason"] = "round_break_edit",
+                ["signature"] = spell.Signature,
+                ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(_session.Spells.Graph),
+                ["stage"] = _simulation.StageNumber,
+                ["round"] = _simulation.RoundNumber,
+                ["ram_used"] = spell.RamUsed,
+                ["is_compile_valid"] = true,
+            });
+            return true;
+        }
+
+        /// <summary>그래프에서 시작 트리거(core.cast) 노드의 ID를 찾아 반환하고 없으면 null을 반환한다.</summary>
+        private static string FindCoreNodeId(SpellGraph graph)
+        {
+            foreach (GraphNode node in graph.Nodes)
+                if (node.RuneId == SpellGrammar.CORE_RUNE) return node.Id;
+            return null;
         }
 
         /// <summary>미션의 고정 시뮬레이션 갱신을 일시정지하거나 재개한다.</summary>

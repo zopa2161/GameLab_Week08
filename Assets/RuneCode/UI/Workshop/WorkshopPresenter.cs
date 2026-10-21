@@ -127,11 +127,15 @@ namespace RuneCode
 
         void ISpellEditorHost.FireTest() => _dockRun.FireDock();
 
-        /// <summary>탭을 바꾸고 진입한 탭의 내용과 헤더를 갱신한다. 에디터 탭을 떠나면 편집 패널을 닫고 도크를 멈춘다.</summary>
+        /// <summary>
+        /// 탭을 바꾸고 진입한 탭의 내용과 헤더를 갱신한다. 에디터 탭을 떠나면 편집 패널을 닫고 도크를 멈춘다.
+        /// 보관 중인 런이 있으면 진입 버튼을 전투 복귀로 표시한다.
+        /// </summary>
         private void SetTab(string tab)
         {
             _selectedTab = tab;
             _view.ShowTab(tab);
+            _view.SetDeployResume(_session.IsRunSuspended);
             if (tab == WorkshopScreen.TAB_EDITOR) _view.SpellEditor.Show();
             else
             {
@@ -143,9 +147,17 @@ namespace RuneCode
             RefreshHeader();
         }
 
-        /// <summary>직전에 보던 룬 설계 또는 강화 트리 탭을 기억하고 스테이지 선택 화면을 연다.</summary>
+        /// <summary>
+        /// 직전에 보던 룬 설계 또는 강화 트리 탭을 기억하고 스테이지 선택 화면을 연다.
+        /// 보관 중인 런이 있으면 스테이지 선택 없이 바로 전투 복귀를 요청한다.
+        /// </summary>
         private void OpenDeploy()
         {
+            if (_session.IsRunSuspended)
+            {
+                _deploy.Launch();
+                return;
+            }
             if (_selectedTab == WorkshopScreen.TAB_DEPLOY) return;
             _returnTab = _selectedTab;
             SetTab(WorkshopScreen.TAB_DEPLOY);
