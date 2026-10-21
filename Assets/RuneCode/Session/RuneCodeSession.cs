@@ -19,9 +19,6 @@ namespace RuneCode
         private const int TEST_STOCK_COUNT = 2;
         private const string PLAY_LOG_PARTICIPANT_KEY = "RuneCode.PlayLogParticipantId";
 
-        // 온보딩 1·2는 작업실 행동으로 열리고, n스테이지 첫 클리어는 n+2 챕터를 연다.
-        private const int STAGE_ONBOARDING_OFFSET = 2;
-
         // 이 레벨 상한을 가진 노드는 반복 성장용 endgame 노드로 보고 테스트 프로필에서 구매하지 않는다.
         private const int TEST_ENDGAME_NODE_LEVEL = 99;
 
@@ -37,8 +34,6 @@ namespace RuneCode
         private long _statusRevision;
         private bool _isSaveDirty;
         private bool _hasStartedGame;
-        private int _pendingOnboardingChapter;
-        private readonly List<string> _pendingOnboardingEvents = new List<string>();
 
         private string _dockScenario = "dummy_single";
         private int _dockDummyCount = 1;
@@ -84,15 +79,8 @@ namespace RuneCode
         public StageDefinition SelectedStageDefinition => _stages.Get(SelectedStage);
         public int HighestClearedStage => _save.HighestClearedStage;
 
-        /// <summary>디버그·테스트가 아닌 일반 진행이라 온보딩 개방·자동 안내를 적용하는지 반환한다.</summary>
-        public bool IsOnboardingActive => !_isDebugEnabled && !_isTestMode;
-
-        /// <summary>도움말에서 열람할 수 있는 항목 수다. 온보딩 제외 모드이거나 마지막 단계를 개방했으면 전체를 연다.</summary>
-        public int UnlockedHelpCount => !IsOnboardingActive || _save.OnboardingStep >= PlayerSave.ONBOARDING_LAST_STEP
-            ? int.MaxValue : _save.OnboardingStep;
-
-        /// <summary>1스테이지를 아직 깨지 않은 일반 진행이라 첫 클리어 결과에서 작업실 복귀로 유도해야 하는지 반환한다.</summary>
-        public bool IsOnboardingResultGuided => IsOnboardingActive && _save.HighestClearedStage == 0;
+        /// <summary>도움말에서 열람할 수 있는 항목 수다. 자동 개방 조건이 없으므로 항상 전체를 연다.</summary>
+        public int UnlockedHelpCount => int.MaxValue;
 
         /// <summary>화면 전환 요청을 받는 콜백이다. RuneCodeApp만 등록한다.</summary>
         public event Action<AppScreen> ScreenRequested;
@@ -141,7 +129,6 @@ namespace RuneCode
             _hasStartedGame = true;
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("mode_changed", _spells.Graph);
             bool isFirstGameStart = !isDebug && !SaveStore.HasSlot(SaveStore.ActiveSlot);
-            ClearPendingOnboarding();
             _isDebugEnabled = isDebug;
             _isTestMode = false;
             _save = isDebug ? PlayerSave.CreateNew() : _normalSave;
@@ -157,7 +144,6 @@ namespace RuneCode
                 UnlockDebugUpgrades();
             }
             else PersistRestoredRuneUnlocks(restoredRuneUnlocks);
-            if (_save.OnboardingStep == 0) TryUnlockOnboarding(1);
             _spells.Reload();
             if (!isDebug && !Application.isEditor) BeginNormalPlayLog();
             RequestScreen(AppScreen.Workshop);
@@ -220,7 +206,6 @@ namespace RuneCode
         {
             if (string.IsNullOrWhiteSpace(participantId)) return false;
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("restarted", _spells.Graph);
-            ClearPendingOnboarding();
             _isDebugEnabled = false;
             _isTestMode = true;
             _save = CreateTestSave();
@@ -283,73 +268,10 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>
-        /// 일반 진행에서 chapter가 다음 온보딩 단계일 때만 개방해 저장하고 자동 안내 대기 챕터로 둔다. 개방했으면 true를 반환한다.
-        /// </summary>
-        public bool TryUnlockOnboarding(int chapter)
-        {
-            if (!IsOnboardingActive || chapter != _save.OnboardingStep + 1 || chapter > PlayerSave.ONBOARDING_LAST_STEP) return false;
-            _save.UnlockOnboarding(chapter);
-            _pendingOnboardingChapter = chapter;
-            PersistProgress();
-            return true;
-        }
-
-        /// <summary>
-        /// 일반 진행에서 id 이벤트 안내를 아직 띄우지 않았으면 본 것으로 저장하고 자동 안내 대기 목록에 넣는다. 넣었으면 true를 반환한다.
-        /// 챕터 개방 단계와는 무관하다.
-        /// </summary>
-        public bool TryTriggerOnboardingEvent(string id)
-        {
-            if (!IsOnboardingActive || _save.HasSeenOnboardingEvent(id)) return false;
-            _save.MarkOnboardingEvent(id);
-            _pendingOnboardingEvents.Add(id);
-            PersistProgress();
-            return true;
-        }
-
-        /// <summary>
-        /// 일반 진행에서 id 이벤트 안내를 아직 띄우지 않았으면 본 것으로 저장하고 true를 반환한다.
-        /// 작업실 자동 안내 대기 목록에는 넣지 않으므로 호출한 쪽이 바로 띄운다.
-        /// </summary>
-        public bool TryMarkOnboardingEvent(string id)
-        {
-            if (!IsOnboardingActive || _save.HasSeenOnboardingEvent(id)) return false;
-            _save.MarkOnboardingEvent(id);
-            PersistProgress();
-            return true;
-        }
-
-        /// <summary>대기 중인 이벤트 안내를 먼저 들어온 순서로 하나 꺼낸다. 없으면 false를 반환한다.</summary>
-        public bool TryConsumePendingOnboardingEvent(out string id)
-        {
-            id = null;
-            if (_pendingOnboardingEvents.Count == 0) return false;
-            id = _pendingOnboardingEvents[0];
-            _pendingOnboardingEvents.RemoveAt(0);
-            return true;
-        }
-
-        /// <summary>대기 중인 챕터·이벤트 자동 안내를 모두 버린다. 진행을 바꾸거나 모드를 전환할 때 호출한다.</summary>
-        private void ClearPendingOnboarding()
-        {
-            _pendingOnboardingChapter = 0;
-            _pendingOnboardingEvents.Clear();
-        }
-
-        /// <summary>자동으로 보여줄 온보딩 챕터를 반환하고 비운다. 없으면 0을 반환한다.</summary>
-        public int ConsumePendingOnboarding()
-        {
-            int chapter = _pendingOnboardingChapter;
-            _pendingOnboardingChapter = 0;
-            return chapter;
-        }
-
         /// <summary>타이틀에서 선택한 저장 슬롯을 읽어 일반 진행으로 설정하고 성공 여부를 반환한다.</summary>
         public bool SelectSaveSlot(int slot)
         {
             if (!SaveStore.TryLoadSlot(slot, out PlayerSave loaded)) return false;
-            ClearPendingOnboarding();
             SaveStore.SetActiveSlot(slot);
             _normalSave = loaded;
             if (!IsMemorySession)
@@ -367,7 +289,6 @@ namespace RuneCode
         public bool CreateSaveSlot(int slot)
         {
             if (!SaveStore.CreateSlot(slot, out PlayerSave created)) return false;
-            ClearPendingOnboarding();
             _normalSave = created;
             if (!IsMemorySession)
             {
@@ -631,6 +552,22 @@ namespace RuneCode
         /// <summary>진행을 초기화하고 새 시작 마법으로 편집 세션을 다시 연다. 테스트 모드는 테스트 프로필로 다시 만든다.</summary>
         public void ResetSave()
         {
+            RenewSave();
+            PersistProgress();
+        }
+
+        /// <summary>런 종료로 진행을 전부 새로 만들고 편집 세션을 다시 연다. 일반 세션은 자동 저장 설정과 무관하게 즉시 활성 슬롯에 기록한다.</summary>
+        public void EndRun()
+        {
+            RenewSave();
+            if (IsMemorySession) return;
+            _isSaveDirty = true;
+            if (!WriteCurrentSave(_save)) SetStatusText(SaveStore.LastWarning);
+        }
+
+        /// <summary>현재 모드에 맞는 새 진행으로 바꾸고 편집 세션을 다시 연다. 일반 진행은 _normalSave도 함께 바꾸고 디버그면 룬·강화를 전부 해금한다.</summary>
+        private void RenewSave()
+        {
             _save = _isTestMode ? CreateTestSave() : PlayerSave.CreateNew();
             if (_isDebugEnabled)
             {
@@ -638,10 +575,7 @@ namespace RuneCode
                 UnlockDebugUpgrades();
             }
             else if (!_isTestMode) _normalSave = _save;
-            if (IsOnboardingActive) _save.UnlockOnboarding(1);
-            ClearPendingOnboarding();
             _spells.Reload();
-            PersistProgress();
         }
 
         /// <summary>디버그 진행의 스탯 구매 기록을 0으로 되돌린다. SO 시작 레벨·룬·일반 저장은 유지한다.</summary>
@@ -703,7 +637,6 @@ namespace RuneCode
                 modifierRewards.Add(clearRuneReward);
             }
             if (isCleared) _save.RecordStageClear(stageNumber);
-            if (isCleared) TryUnlockOnboarding(stageNumber + STAGE_ONBOARDING_OFFSET);
             _save.Settle(fragments, isCleared);
             foreach (var pair in killCounts) _save.RecordKills(pair.Key, pair.Value);
             PersistProgress();

@@ -565,10 +565,6 @@
       "_value": "작전 실패"
     },
     {
-      "_key": "result.retreat",
-      "_value": "미션에서 철수했습니다"
-    },
-    {
       "_key": "result.fragments",
       "_value": "정산 스크랩"
     },
@@ -857,10 +853,6 @@
       "_value": "그래프의 노드 또는 연결 수가 허용 상한을 초과합니다"
     },
     {
-      "_key": "ui.retreat",
-      "_value": "전투 중단 · 획득 스크랩 70% 회수"
-    },
-    {
       "_key": "ui.unequip",
       "_value": "장착 해제"
     },
@@ -1115,10 +1107,6 @@
     {
       "_key": "result.bossDefeated",
       "_value": "보스 처치 · 스테이지 클리어"
-    },
-    {
-      "_key": "onboarding.resultGuide",
-      "_value": "작업실로 돌아가 다음 안내를 확인하세요"
     },
     {
       "_key": "result.timeout",

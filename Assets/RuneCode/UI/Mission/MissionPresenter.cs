@@ -9,7 +9,7 @@ using UnityEngine.InputSystem;
 namespace RuneCode
 {
     /// <summary>
-    /// 미션 화면의 Presenter다. 세션에서 시전 마법을 받아 MissionRun(모델)을 만들고 진행·일시정지·후퇴·재도전·결과를 다루며,
+    /// 미션 화면의 Presenter다. 세션에서 시전 마법을 받아 MissionRun(모델)을 만들고 진행·일시정지·재도전·결과를 다루며,
     /// 매 프레임 시뮬레이션 값을 HUD View에 표시한다. 일시정지·디버그 팝업은 UIManager로 연다.
     /// </summary>
     public sealed class MissionPresenter
@@ -21,8 +21,6 @@ namespace RuneCode
         private const float LOW_HEALTH_FRACTION = 0.3f;
         private const float LOW_HEALTH_MAX_LEVEL = 0.4f;
         private const double PLAYER_DAMAGE_EPSILON = 0.000001;
-        private const int ONBOARDING_ENTER_STAGE = 5;
-        private const int GAME_CLEAR_STAGE = 20;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -34,7 +32,6 @@ namespace RuneCode
         private double _lastPlayerDamage;
         private bool _isResultShown;
         private bool _hasPresentedChoices;
-        private bool _isOnboardingReturnOnly;
         private int _lastFragments;
         private int _lastEnemyDamageEventCount;
         private int _lastShotLaunchEventCount;
@@ -115,7 +112,7 @@ namespace RuneCode
                 {
                     if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowResult();
                 }
-                else
+                else if (_run.Simulation.Completed)
                 {
                     _result.AdvanceRewards(unscaledDeltaTime);
                     if (_result.CanContinue && !_hasPresentedChoices) ShowPendingChoices();
@@ -229,7 +226,6 @@ namespace RuneCode
             popup.ShakeClicked += ToggleScreenShake;
             popup.HitStopClicked += ToggleHitStop;
             popup.SoundSettingsClicked += OpenSoundSettings;
-            popup.RetreatClicked += AbandonMission;
             popup.Closed += () => OnPauseClosed(popup);
         }
 
@@ -239,7 +235,6 @@ namespace RuneCode
             popup.ShakeClicked -= ToggleScreenShake;
             popup.HitStopClicked -= ToggleHitStop;
             popup.SoundSettingsClicked -= OpenSoundSettings;
-            popup.RetreatClicked -= AbandonMission;
             if (_run != null && _run.IsPaused) _run.TogglePause();
         }
 
@@ -261,14 +256,6 @@ namespace RuneCode
         private void OpenSoundSettings()
         {
             _ui.OpenPopup<SoundSettingsPopup>();
-        }
-
-        /// <summary>현재 전투를 중단해 보존 비율로 정산하고 팝업을 닫는다. 결과는 다음 Tick에서 표시된다.</summary>
-        private void AbandonMission()
-        {
-            if (_run == null || _run.IsFinished) return;
-            _run.AbandonMission();
-            _ui.CloseAllPopups();
         }
 
         /// <summary>디버그 팝업을 열고 디버그 조작을 미션·세션에 연결한다. 디버그 실행이 아니면 무시한다.</summary>
@@ -336,28 +323,36 @@ namespace RuneCode
             _session.RequestScreen(AppScreen.Workshop);
         }
 
-        /// <summary>월드 종료 연출 후 결과 View를 표시하고 보상 순차 공개를 시작한다.</summary>
+        /// <summary>
+        /// 월드 종료 연출 후 클리어면 결과 View를 표시해 보상 순차 공개를 시작하고, 실패면 런 종료 팝업을 연다.
+        /// 런 종료 팝업의 타이틀 복귀 버튼은 세션의 ReturnToTitle로 이어지며 팝업이 닫힐 때 구독을 푼다.
+        /// </summary>
         private void ShowResult()
         {
             _isResultShown = true;
             _ui.CloseAllPopups();
+            RuneSimulation sim = _run.Simulation;
+            if (!sim.Completed)
+            {
+                SoundManager.Instance.PlayRoundDefeat();
+                int elapsedSeconds = (int)sim.Time;
+                RunResultPopup popup = _ui.OpenPopup<RunResultPopup>();
+                popup.Configure("런 종료",
+                    GameData.L("ui.stage") + " " + sim.StageNumber,
+                    "플레이 타임 " + (elapsedSeconds / 60).ToString("00") + ":" + (elapsedSeconds % 60).ToString("00"),
+                    GameData.L("ui.kills") + " " + sim.KillCount);
+                popup.TitleClicked += _session.ReturnToTitle;
+                popup.Closed += () => popup.TitleClicked -= _session.ReturnToTitle;
+                return;
+            }
             _result.HideClearModifierChoices();
             SetResultSummary(true);
-            _result.SetReturnOnly(_isOnboardingReturnOnly && _run.Simulation.Completed, GameData.L("onboarding.resultGuide"));
             _result.Show();
-            if (_run.Simulation.Completed) SoundManager.Instance.PlayRoundClear();
-            else SoundManager.Instance.PlayRoundDefeat();
+            SoundManager.Instance.PlayRoundClear();
         }
 
-        /// <summary>일반 보상 공개가 끝난 다음 프레임에 보스 선택 카드를 한 번만 펼치고, 같은 프레임에 게임 클리어 안내를 그 위에 연다.</summary>
+        /// <summary>일반 보상 공개가 끝난 다음 프레임에 보스 선택 카드를 한 번만 펼친다. 보스 선택 보상이 있으면 후보 카드를 표시하고 없으면 숨긴다.</summary>
         private void ShowPendingChoices()
-        {
-            ShowPendingChoiceCards();
-            ShowGameClearNotice();
-        }
-
-        /// <summary>보스 선택 보상이 있으면 후보 카드를 표시하고 없으면 숨긴다.</summary>
-        private void ShowPendingChoiceCards()
         {
             _hasPresentedChoices = true;
             if (_run.HasClearModifierChoices)
@@ -374,23 +369,6 @@ namespace RuneCode
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions, _run.ClearModifierGrades);
             }
             else _result.HideClearModifierChoices();
-        }
-
-        /// <summary>
-        /// 마지막 정규 스테이지를 처음 클리어했으면 게임 클리어 안내 팝업을 결과 창 위에 연다.
-        /// 팝업의 전체 화면 배경이 닫힐 때까지 뒤의 선택 카드와 결과 버튼 입력을 막는다.
-        /// </summary>
-        private void ShowGameClearNotice()
-        {
-            if (!_run.Simulation.Completed || _run.Simulation.StageNumber != GAME_CLEAR_STAGE
-                || !_session.TryMarkOnboardingEvent(PlayerSave.ONBOARDING_GAME_CLEAR)) return;
-            EncyclopediaEvent notice = GameData.Encyclopedia?.FindEvent(PlayerSave.ONBOARDING_GAME_CLEAR);
-            if (notice == null)
-            {
-                Debug.LogWarning("게임 도움말 JSON에 이벤트 안내가 없습니다: " + PlayerSave.ONBOARDING_GAME_CLEAR);
-                return;
-            }
-            _ui.OpenPopup<OnboardingPopup>().Configure(notice.Title, notice.Pages);
         }
 
         /// <summary>결과 View에 정산 문구와 스테이지·진행 정보를 채운다.</summary>
@@ -474,7 +452,6 @@ namespace RuneCode
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
-            _isOnboardingReturnOnly = _session.IsOnboardingResultGuided;
             _lastEnemyDamageEventCount = 0;
             _lastShotLaunchEventCount = 0;
             _lastShotBurstEventCount = 0;
@@ -495,29 +472,7 @@ namespace RuneCode
             _hud.SetToast("");
             _hud.SetStage(GameData.L("ui.stage") + " " + _run.Simulation.StageNumber);
             RenderHud();
-            ShowStageEnterOnboarding();
             return true;
-        }
-
-        /// <summary>
-        /// 온보딩 스테이지에 처음 들어왔으면 미션을 일시정지하고 이벤트 안내 팝업을 연다. 팝업이 닫히면 일시정지를 푼다.
-        /// 이미 본 안내이거나 도움말 데이터에 해당 이벤트가 없으면 열지 않는다.
-        /// </summary>
-        private void ShowStageEnterOnboarding()
-        {
-            if (_run.Simulation.StageNumber != ONBOARDING_ENTER_STAGE
-                || !_session.TryMarkOnboardingEvent(PlayerSave.ONBOARDING_STAGE_FIVE_ENTER)) return;
-            EncyclopediaEvent onboardingEvent = GameData.Encyclopedia?.FindEvent(PlayerSave.ONBOARDING_STAGE_FIVE_ENTER);
-            if (onboardingEvent == null)
-            {
-                Debug.LogWarning("게임 도움말 JSON에 이벤트 안내가 없습니다: " + PlayerSave.ONBOARDING_STAGE_FIVE_ENTER);
-                return;
-            }
-            MissionRun run = _run;
-            if (!run.IsPaused) run.TogglePause();
-            OnboardingPopup popup = _ui.OpenPopup<OnboardingPopup>();
-            popup.Configure(onboardingEvent.Title, onboardingEvent.Pages);
-            popup.Closed += () => { if (_run == run && run.IsPaused) run.TogglePause(); };
         }
 
         /// <summary>포인터가 버튼 등 UI 입력 대상 위에 있는지 반환한다.</summary>

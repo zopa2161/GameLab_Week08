@@ -288,7 +288,10 @@ namespace RuneCode
             }
         }
 
-        /// <summary>전투를 한 번만 정산하고 성공 시 반복 클리어에도 보장 룬 1개를 추첨해 결과·획득 기록에 넣는다. 보스 선택 보상은 별도로 유지한다.</summary>
+        /// <summary>
+        /// 전투를 한 번만 정산하고 성공 시 반복 클리어에도 보장 룬 1개를 추첨해 결과·획득 기록에 넣는다. 보스 선택 보상은 별도로 유지한다.
+        /// 실패한 런은 정산과 보상 없이 끝나며 텔레메트리를 남긴 뒤 세션의 EndRun으로 저장을 전부 새로 만든다.
+        /// </summary>
         public void FinishMission()
         {
             if (_settled) return;
@@ -303,10 +306,11 @@ namespace RuneCode
                 DropRoll roll = _simulation.DrawClearRuneReward();
                 clearRuneReward = new ModifierRewardDefinition(roll.RuneId, roll.Grade, roll.Count);
             }
-            var modifierRewards = _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts, clearRuneReward);
-            // 사망·시간 초과로 끝난 패배만 첫 패배 안내 대상이다. 중단(후퇴)은 AbandonMission에서 정산한다.
-            if (_simulation.IsFailed) _session.TryTriggerOnboardingEvent(PlayerSave.ONBOARDING_FIRST_DEFEAT);
-            if (!_session.IsTestMode) AddFragmentReward(fragments);
+            // 실패한 런은 정산과 조각·모디 보상을 건너뛴다.
+            var modifierRewards = cleared
+                ? _session.SettleMission(_simulation.StageNumber, fragments, cleared, _simulation.KillCounts, clearRuneReward)
+                : Array.Empty<ModifierRewardDefinition>();
+            if (cleared && !_session.IsTestMode) AddFragmentReward(fragments);
             foreach (ModifierRewardDefinition reward in modifierRewards)
             {
                 // 속성 보상은 등급이 없으므로 그대로 두고, 모디 보상만 등급이 비면 최저 등급으로 채운다.
@@ -320,7 +324,7 @@ namespace RuneCode
             var resultKey = cleared ? (_simulation.IsBossStage ? "result.bossDefeated" : "result.survived")
                 : _simulation.IsTimedOut ? "result.timeout" : "result.dead";
             _lastResult = GameData.L(resultKey);
-            if (!_session.IsTestMode) _lastResult += "\n" + GameData.L("result.fragments") + " " + fragments;
+            if (cleared && !_session.IsTestMode) _lastResult += "\n" + GameData.L("result.fragments") + " " + fragments;
             if (cleared) _lastResult += "  ·  " + GameData.L("result.clearReward") + " " + _simulation.ClearReward;
             foreach (var reward in modifierRewards)
             {
@@ -370,6 +374,7 @@ namespace RuneCode
                     ["is_first_completion"] = isFirstCompletion,
                 });
             }
+            else _session.EndRun();
         }
 
         /// <summary>보스 클리어 Modifier 선택 후보와 후보별 등급을 결정적 난수로 뽑아 결과에 담는다. 스테이지 첫 클리어에만 지급한다.</summary>
@@ -414,43 +419,6 @@ namespace RuneCode
             _lastResult += "\n" + GameData.L("result.modifierReward") + " "
                 + ModifierGradeText.FormatName(GameData.Runes.Get(_clearModifierChoices[index]).Name, grade) + " +1";
             return true;
-        }
-
-        /// <summary>전투를 중단해 현재 조각을 정산하고 결과 문구와 중단 전투 로그를 남긴다.</summary>
-        public void AbandonMission()
-        {
-            if (_settled) return;
-            _settled = true;
-            _simulation.CancelPendingSpellExecutions();
-            var fragments = (int)Math.Round(_simulation.EarnedFragments * GameData.Balance.Economy.DeathRetention, MidpointRounding.AwayFromZero);
-            _session.SettleMission(_simulation.StageNumber, fragments, false, _simulation.KillCounts);
-            if (!_session.IsTestMode) AddFragmentReward(fragments);
-            _lastResult = GameData.L("result.retreat");
-            if (!_session.IsTestMode) _lastResult += "\n" + GameData.L("result.fragments") + " " + fragments;
-            AppendPickedModifiers();
-            _isPaused = false;
-            LocalTelemetry.EndUsabilityCombat(new Dictionary<string, object>
-            {
-                ["stage"] = _simulation.StageNumber,
-                ["spell_build_id"] = _spellBuildId,
-                ["result"] = "retreat",
-                ["skill_tree"] = _session.GetSkillTreeLogSnapshot(),
-                ["inventory"] = _session.GetInventoryLogSnapshot(),
-                ["module_rewards"] = GetModuleRewardsLogSnapshot(),
-                ["duration_ms"] = (long)(_simulation.Time * 1000),
-                ["damage_dealt"] = _simulation.TotalDamage,
-                ["action_stats"] = _simulation.GetActionCombatLogSnapshot(),
-                ["damage_received"] = _simulation.Player.DamageReceived,
-                ["shield_absorbed"] = _simulation.Player.ShieldAbsorbed,
-                ["energy_spent"] = _simulation.EnergySpent,
-                ["cast_requests"] = _castRequestCount,
-                ["cast_successes"] = _castSuccessCount,
-                ["dash_inputs"] = _dashInputCount,
-                ["dashes_started"] = _simulation.Player.DashesStarted,
-                ["kill_count"] = _simulation.KillCount,
-                ["fragments"] = fragments,
-                ["seed"] = _seed,
-            });
         }
 
         /// <summary>디버그 실행에서만 미션 플레이어 무적을 토글한다.</summary>
