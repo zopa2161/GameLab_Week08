@@ -70,6 +70,7 @@ namespace RuneCode
         /// <summary>피해 속성에 맞는 상태 이상을 부여한다. 화염은 전투 공통 보정 전 공격 피해 sourceDamage를 틱 피해 계산에 전달한다.</summary>
         internal void ApplyStatus(SimulationEnemy enemy, string element, string form, bool noise, double sourceDamage, SpellAction sourceAction)
         {
+            if (enemy.Hydra != null && element != "fire") return;
             if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage, sourceAction);
             else if (element == "ice") ApplyChill(enemy);
             else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = _world.Time + _world.Balance.Combat.EmpSeconds;

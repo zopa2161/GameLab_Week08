@@ -293,6 +293,7 @@ namespace RuneCode
         private readonly EnemyDefinition _definition;
         private readonly EnemyMovementType _movementType;
         private readonly BossDefinition _boss;
+        private HydraBossState _hydra;
         private readonly bool _isDummy;
         private readonly bool _isElite;
         private readonly bool _isKillTarget;
@@ -359,6 +360,7 @@ namespace RuneCode
         public string LastDamageForm => _lastDamageForm;
         public EnemyDefinition Definition => _definition;
         public BossDefinition Boss => _boss;
+        public HydraBossState Hydra => _hydra;
         public SimVector AttackOrigin => _attackOrigin;
         public SimVector AimedDirection => _attackDirection;
         public bool IsAiming => _aimUntil > 0;
@@ -394,6 +396,12 @@ namespace RuneCode
 
         /// <summary>예고, 패치 및 피격 표시 판정에 사용할 관측 시각을 갱신한다.</summary>
         internal void Observe(double time) { _observedTime = time; }
+
+        /// <summary>Hydra 정의가 있는 적에 생성 시각과 개별 최대 체력을 반영한 공격·피해 예산 상태를 만든다.</summary>
+        internal void InitializeHydra(double time)
+        {
+            if (_boss != null && _boss.IsHydraPattern) _hydra = new HydraBossState(_boss.Hydra, time, _maxHp);
+        }
 
         /// <summary>적 위치 및 플레이어를 향한 방향을 갱신한다.</summary>
         internal void Move(SimVector position, SimVector facing) { _position = position; if (facing.LengthSquared > 0.000001) _facing = facing.Normalized(); }
@@ -472,6 +480,7 @@ namespace RuneCode
         internal void WriteState(StringBuilder state)
         {
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
+            _hydra?.WriteState(state);
             if (_pendingDisplacementTick >= 0 || _displacementRemaining > 0)
                 state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));
             state.Append(FormattableString.Invariant($"|{_damage:R}|{_damageMultiplier:R}|{_reward}"));

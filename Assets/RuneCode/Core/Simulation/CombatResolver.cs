@@ -143,7 +143,8 @@ namespace RuneCode
             double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null)
         {
             if (!enemy.IsAlive || enemy.IsPatching) return 0;
-            double actual = damage * _world.DamageMultiplier * _world.Adaptation.GetMultiplier(element, form);
+            double actual = damage * _world.DamageMultiplier;
+            if (enemy.Hydra == null) actual *= _world.Adaptation.GetMultiplier(element, form);
             if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_AEGIS_SHIELD) && !_statuses.HasEnemyStatus(enemy, EnemyStatusType.Emp) && form == "bolt" && !isDot && SimVector.Dot(enemy.Facing, direction * -1) >= Math.Cos(_world.Balance.Combat.AegisAngle * 0.5 * RuneSimulation.DEGREES_TO_RADIANS)) actual *= 1 - _world.Balance.Combat.AegisReduction;
             bool relayAlive = false;
             foreach (SimulationEnemy relay in _world.Enemies)
@@ -152,7 +153,9 @@ namespace RuneCode
                 relayAlive = true;
                 break;
             }
-            actual = enemy.Hurt(Math.Max(minimumDamage, actual), _runtime.Time);
+            actual = Math.Max(minimumDamage, actual);
+            if (enemy.Hydra != null) actual = enemy.Hydra.LimitDamage(actual, damageStatus == "burn", _runtime.Time, enemy.MaxHp);
+            actual = enemy.Hurt(actual, _runtime.Time);
             if (applyStatus) _statuses.ApplyStatus(enemy, element, form, noise, damage, sourceAction);
             if (actual > 0)
             {
@@ -161,7 +164,7 @@ namespace RuneCode
                 enemy.SetDamageTags(element, form);
                 _stats.RecordEnemyDamage(actual, _world.Tick);
                 _feedback.AddDamageNumber(enemy.Position, actual, element);
-                _world.Adaptation.Learn(element, form, _runtime.Time, actual, isDot, noise, relayAlive);
+                if (enemy.Hydra == null) _world.Adaptation.Learn(element, form, _runtime.Time, actual, isDot, noise, relayAlive);
             }
             if (enemy.Boss != null && enemy.Boss.IsGovernorPattern && enemy.IsAlive) _enemy.CheckBossPatch(enemy, enemy.Boss);
             return actual;
