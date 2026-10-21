@@ -16,6 +16,7 @@ namespace RuneCode
     {
         private const float TIMER_WARNING_SECONDS = 5f;
         private const float TOAST_DURATION = 0.9f;
+        private const float ITEM_TOAST_DURATION = 2.5f;
         private const float VIGNETTE_BASE_STRENGTH = 0.45f;
         private const float VIGNETTE_DAMAGE_STRENGTH = 2f;
         private const float LOW_HEALTH_FRACTION = 0.3f;
@@ -27,6 +28,8 @@ namespace RuneCode
         private readonly MissionScreen _screen;
         private readonly MissionHud _hud;
         private readonly ResultPanel _result;
+
+        private readonly Queue<string> _itemToasts = new Queue<string>();
 
         private MissionRun _run;
         private PausePopup _pausePopup;
@@ -46,6 +49,9 @@ namespace RuneCode
         private int _lastBigScrapPickupEventCount;
         private int _lastBigScrapSpawnEventCount;
         private float _toastUntil;
+        private int _lastPickedItemCount;
+        private int _pendingToastFragments;
+        private bool _isItemToastVisible;
 
         /// <summary>현재 진행 중인 미션의 시뮬레이션이다. 경기장 그래픽이 읽으며 미션이 없으면 null이다.</summary>
         public RuneSimulation Simulation => _run?.Simulation;
@@ -524,6 +530,10 @@ namespace RuneCode
             _ui.CloseAllPopups();
             _result.Hide();
             _lastFragments = _run.Simulation.EarnedFragments;
+            _lastPickedItemCount = 0;
+            _pendingToastFragments = 0;
+            _isItemToastVisible = false;
+            _itemToasts.Clear();
             _toastUntil = 0f;
             _hud.SetToast("");
             RenderHud();
@@ -610,13 +620,38 @@ namespace RuneCode
                 : GameData.L("ui.cooldown") + " " + sim.Player.Cooldowns[0].ToString("0.0") + "s";
             _hud.SetSpellLine(GameData.L("ui.singleSpell") + "  " + _run.SpellName + "  ·  " + executionState
                 + "  ·  " + SpellCostText.FormatCastAndMax(_run.SpellCastCosts, _run.SpellCosts));
-            if (sim.EarnedFragments > _lastFragments)
+            RenderPickupToast(sim);
+        }
+
+        /// <summary>시뮬레이션의 새 획득 아이템 이름·등급·개수를 차례로 표시하고, 그동안 얻은 크레딧은 합산해 뒤에 표시한다.</summary>
+        private void RenderPickupToast(RuneSimulation sim)
+        {
+            _pendingToastFragments += Math.Max(0, sim.EarnedFragments - _lastFragments);
+            _lastFragments = sim.EarnedFragments;
+            IReadOnlyList<SimulationItemDrop> pickedItems = sim.PickedUpItems;
+            for (; _lastPickedItemCount < pickedItems.Count; _lastPickedItemCount++)
             {
-                _hud.SetToast("+" + (sim.EarnedFragments - _lastFragments) + " " + GameData.L("ui.fragments"));
+                SimulationItemDrop item = pickedItems[_lastPickedItemCount];
+                string name = GameData.Runes.Get(item.RuneId).Name;
+                _itemToasts.Enqueue(ModifierGradeText.FormatName(name, item.Grade) + " +" + item.Count);
+            }
+            float now = Time.unscaledTime;
+            if (_isItemToastVisible && now < _toastUntil) return;
+            if (_itemToasts.Count > 0)
+            {
+                _hud.SetToast(_itemToasts.Dequeue());
+                _isItemToastVisible = true;
+                _toastUntil = now + ITEM_TOAST_DURATION;
+                return;
+            }
+            _isItemToastVisible = false;
+            if (_pendingToastFragments > 0)
+            {
+                _hud.SetToast("+" + _pendingToastFragments + " " + GameData.L("ui.fragments"));
+                _pendingToastFragments = 0;
                 _toastUntil = Time.unscaledTime + TOAST_DURATION;
             }
-            _lastFragments = sim.EarnedFragments;
-            if (Time.unscaledTime >= _toastUntil) _hud.SetToast("");
+            else if (now >= _toastUntil) _hud.SetToast("");
         }
     }
 }

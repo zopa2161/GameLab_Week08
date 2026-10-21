@@ -512,7 +512,11 @@ namespace RuneCode
         {
             _feedback.CancelBeamFlashes();
             _executor.CancelBeamChannels();
-            foreach (SimulationEnemy enemy in _world.Enemies) enemy.CancelDisplacement();
+            foreach (SimulationEnemy enemy in _world.Enemies)
+            {
+                enemy.CancelDisplacement();
+                enemy.Hydra?.Cancel();
+            }
             _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _executor.ClearScheduled(); _enemy.PendingEnemyShots.Clear(); _spawn.PendingSplits.Clear(); _loot.ClearDeadEnemies();
             _spawn.PendingSpawns.Clear(); _feedback.ClearSpawnWarnings();
             if (_world.Player != null) _world.Player.CancelSpellExecutions();

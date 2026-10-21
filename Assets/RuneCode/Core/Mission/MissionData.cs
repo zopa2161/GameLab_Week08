@@ -210,6 +210,7 @@ namespace RuneCode
     public sealed class BossDefinition
     {
         public const string GOVERNOR_PATTERN = "governor";
+        public const string HYDRA_PATTERN = "hydra";
 
         [Header("보스 패턴")]
         [SerializeField] private string _enemyId;
@@ -229,6 +230,8 @@ namespace RuneCode
         [SerializeField] private double _preferredDistance;
         [SerializeField] private BossReinforcement _reinforcement;
         [SerializeField] private string _dropTable;
+        [Header("Hydra")]
+        [SerializeField] private HydraDefinition _hydra;
         public string EnemyId => _enemyId;
         public string Pattern => _pattern;
         public double PhaseTwoThreshold => _phaseTwoThreshold;
@@ -247,10 +250,18 @@ namespace RuneCode
         public BossReinforcement Reinforcement => _reinforcement;
         public string DropTable => _dropTable;
         public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN;
+        public bool IsHydraPattern => _pattern == HYDRA_PATTERN;
+        public HydraDefinition Hydra => _hydra;
 
         /// <summary>패턴 이름, 페이즈 문턱, 공격 주기와 증원의 적·진형 참조를 검증하고 모르는 값이나 증원에 쓸 수 없는 맵형 진형에는 데이터 오류를 발생시킨다.</summary>
         public void Validate(EnemyCatalog enemies, FormationCatalog formations)
         {
+            if (IsHydraPattern)
+            {
+                if (_hydra == null) throw new FormatException("Hydra 설정이 없습니다: " + _enemyId);
+                _hydra.Validate();
+                return;
+            }
             if (_pattern != GOVERNOR_PATTERN) throw new FormatException("알 수 없는 보스 패턴입니다: " + _enemyId + ", " + _pattern);
             if (_phaseTwoThreshold <= _phaseThreeThreshold || _patchSeconds <= 0 || _radialCount < 1 || _radialInterval <= 0) throw new FormatException("보스 패턴 설정 오류입니다: " + _enemyId);
             if (_reinforcement == null || _reinforcement.Count < 1 || _reinforcement.Interval <= 0) throw new FormatException("보스 증원 설정 오류입니다: " + _enemyId);
