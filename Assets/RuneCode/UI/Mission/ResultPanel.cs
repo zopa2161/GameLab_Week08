@@ -57,6 +57,8 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI[] _clearChoiceDescriptionLabels;
 
         private bool _isBound;
+        private GameObject _resultContent;
+        private Image _background;
         private Canvas _rewardCanvas;
         private ResultRewardItemView _hoveredRewardItem;
         private readonly Vector3[] _tooltipCorners = new Vector3[4];
@@ -90,6 +92,10 @@ namespace RuneCode
         public void Bind()
         {
             if (_isBound) return;
+            _background = GetComponent<Image>();
+            Transform content = _summaryLabel.transform;
+            while (content.parent != transform) content = content.parent;
+            _resultContent = content.gameObject;
             _rewardCanvas = _rewardScroll.GetComponentInParent<Canvas>().rootCanvas;
             _rewardScroll.onValueChanged.AddListener(HandleRewardScroll);
             _nextStageButton.onClick.AddListener(() => { if (CanContinue && _hasNextStage && !_isCompletionOnly) NextStageClicked?.Invoke(); });
@@ -103,9 +109,12 @@ namespace RuneCode
             _isBound = true;
         }
 
-        /// <summary>결과 문구를 채우고 연속 미션의 기존 다음 스테이지 버튼을 숨긴다. 최종 승리는 이동 버튼 없이 완료 상태만 표시한다.</summary>
-        public void SetContent(string summary, string stage, string progress, bool isVictory, bool isProgressionMission = false)
+        /// <summary>결과 문구와 승리별 버튼을 설정한다. isChoiceOnly이면 결과 본문과 불투명 배경을 숨겨 선택 팝업의 어두운 배경만 사용한다.</summary>
+        public void SetContent(string summary, string stage, string progress, bool isVictory, bool isProgressionMission = false,
+            bool isChoiceOnly = false)
         {
+            _resultContent.SetActive(!isChoiceOnly);
+            _background.enabled = !isChoiceOnly;
             _summaryLabel.richText = true;
             _summaryLabel.text = summary;
             _stageLabel.text = stage;

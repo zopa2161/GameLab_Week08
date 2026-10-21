@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 using UnityEngine.InputSystem;
 
@@ -63,6 +64,8 @@ namespace RuneCode
         private List<string> _clearModifierChoices;
         private List<string> _clearModifierGrades;
         private bool _isClearModifierChosen;
+        private Stopwatch _roundBreakClock;
+        private readonly Stopwatch _activeMissionClock = Stopwatch.StartNew();
 
         /// <summary>현재 전투 시뮬레이션을 반환한다. 경기장 그래픽과 HUD가 읽는다.</summary>
         public RuneSimulation Simulation => _simulation;
@@ -146,24 +149,58 @@ namespace RuneCode
             LocalTelemetry.Record(0, "mission.start", _simulation.StageNumber + ":" + spell.Signature + ":seed=" + seed);
         }
 
-        /// <summary>미션의 고정 시뮬레이션 갱신을 일시정지하거나 재개한다.</summary>
+        /// <summary>미션을 일시정지하거나 재개하고 시간계에서 정지 구간을 제외한다. 전환 시점과 정지 시간을 제외한 누적 초를 로그에 기록한다.</summary>
         public void TogglePause()
         {
+            if (_settled) return;
             _isPaused = !_isPaused;
+            if (_isPaused)
+            {
+                _activeMissionClock.Stop();
+                _roundBreakClock?.Stop();
+            }
+            else
+            {
+                _activeMissionClock.Start();
+                _roundBreakClock?.Start();
+            }
             _simulation.CancelBeamInput();
+            LocalTelemetry.RecordUsabilityEvent(_isPaused ? "pause_start" : "pause_end",
+                _simulation.IsWaitingForNextRound ? "round_break" : "combat", new Dictionary<string, object>
+                {
+                    ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber,
+                    ["active_seconds"] = _activeMissionClock.Elapsed.TotalSeconds,
+                });
         }
 
-        /// <summary>소강상태에서 입력 누적을 비우고 같은 시뮬레이션의 다음 라운드 또는 스테이지를 시작하며 성공 여부를 반환한다.</summary>
+        /// <summary>선택 완료 후 다음 라운드 또는 스테이지를 시작하고 라운드 종료부터 버튼 클릭까지 일시정지를 제외한 경과 초를 기록한다. 시작 성공 여부를 반환한다.</summary>
         public bool TryStartNextRound()
         {
-            if (_settled || _isPaused || !_simulation.IsWaitingForNextRound) return false;
+            if (_settled || _isPaused || !_simulation.IsWaitingForNextRound
+                || !HasClearModifierChoices || !_isClearModifierChosen) return false;
             _accumulator = 0;
             _hasPendingDash = false;
             _hasPendingCastPress = false;
             _hasPendingCastRelease = false;
             _wasCasting = false;
             _simulation.CancelBeamInput();
-            return _simulation.TryStartNextRound();
+            int completedStage = _simulation.StageNumber;
+            int completedRound = _simulation.RoundNumber;
+            if (!_simulation.TryStartNextRound()) return false;
+            _roundBreakClock.Stop();
+            LocalTelemetry.RecordUsabilityEvent("round_break_end", "round_break", new Dictionary<string, object>
+            {
+                ["stage"] = completedStage, ["round"] = completedRound,
+                ["seconds"] = _roundBreakClock.Elapsed.TotalSeconds,
+                ["active_seconds"] = _activeMissionClock.Elapsed.TotalSeconds,
+                ["reason"] = "next_round_clicked",
+                ["next_stage"] = _simulation.StageNumber, ["next_round"] = _simulation.RoundNumber,
+            });
+            _roundBreakClock = null;
+            _clearModifierChoices = null;
+            _clearModifierGrades = null;
+            _isClearModifierChosen = false;
+            return true;
         }
 
         /// <summary>
@@ -222,7 +259,27 @@ namespace RuneCode
             }
             CaptureNodeTelemetry();
             GrantPickedItems();
+            if (_simulation.IsWaitingForNextRound && !HasClearModifierChoices)
+            {
+                _roundBreakClock = Stopwatch.StartNew();
+                LocalTelemetry.RecordUsabilityEvent("round_break_start", "round_break", new Dictionary<string, object>
+                {
+                    ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber,
+                    ["active_seconds"] = _activeMissionClock.Elapsed.TotalSeconds,
+                });
+                SetRoundModifierChoices();
+            }
             if (_simulation.Completed || _simulation.IsFailed) FinishMission();
+        }
+
+        /// <summary>라운드 종료 시 기존 클리어 보상 설정과 시뮬레이션 난수로 후보와 등급을 한 번 추첨한다.</summary>
+        private void SetRoundModifierChoices()
+        {
+            if (!_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
+            _clearModifierChoices = candidates;
+            _clearModifierGrades = grades;
+            _isClearModifierChosen = false;
+            RecordModifierChoices();
         }
 
         /// <summary>새 소지 아이템 드롭을 기록하고 일반 모드에서만 지급·결과 목록에 반영한다.</summary>
@@ -311,6 +368,7 @@ namespace RuneCode
         public void FinishMission()
         {
             if (_settled) return;
+            _activeMissionClock.Stop();
             _settled = true;
             var cleared = _simulation.Completed;
             // 보스 선택 보상은 첫 클리어에만 주므로 정산으로 최고 기록이 바뀌기 전에 판정한다.
@@ -371,6 +429,7 @@ namespace RuneCode
                 ["inventory"] = _session.GetInventoryLogSnapshot(),
                 ["module_rewards"] = GetModuleRewardsLogSnapshot(),
                 ["duration_ms"] = (long)(_simulation.Time * 1000),
+                ["active_seconds"] = _activeMissionClock.Elapsed.TotalSeconds,
                 ["damage_dealt"] = _simulation.TotalDamage,
                 ["action_stats"] = _simulation.GetActionCombatLogSnapshot(),
                 ["damage_received"] = _simulation.Player.DamageReceived,
@@ -400,7 +459,7 @@ namespace RuneCode
             else _session.EndRun();
         }
 
-        /// <summary>보스 클리어 Modifier 선택 후보와 후보별 등급을 결정적 난수로 뽑아 결과에 담는다. 스테이지 첫 클리어에만 지급한다.</summary>
+        /// <summary>클리어 후보와 등급을 결과에 담는다. 연속 미션은 저장된 첫 완주 후보를 우선하고 재완주에도 선택 보상을 추첨한다.</summary>
         private void SetClearModifierChoices(bool cleared, bool isFirstClear)
         {
             _clearModifierChoices = null;
@@ -409,7 +468,11 @@ namespace RuneCode
             if (_session.IsTestMode || !cleared) return;
             if (_simulation.IsProgressionMission)
             {
-                if (_session.PendingProgressionChoiceIds.Count == 0) return;
+                if (_session.PendingProgressionChoiceIds.Count == 0)
+                {
+                    SetRoundModifierChoices();
+                    return;
+                }
                 _clearModifierChoices = new List<string>(_session.PendingProgressionChoiceIds);
                 _clearModifierGrades = new List<string>(_session.PendingProgressionChoiceGrades);
             }
@@ -419,36 +482,46 @@ namespace RuneCode
                 _clearModifierChoices = candidates;
                 _clearModifierGrades = grades;
             }
+            RecordModifierChoices();
+            _lastResult += "\n" + GameData.L("result.clearModifierChoice");
+        }
+
+        /// <summary>현재 후보 순번·룬·등급·수량과 스테이지·라운드를 기존 보상 제시 이벤트에 기록하며 별도 선택 시간은 측정하지 않는다.</summary>
+        private void RecordModifierChoices()
+        {
             var choices = new List<Dictionary<string, object>>();
             for (int index = 0; index < _clearModifierChoices.Count; index++)
                 choices.Add(new Dictionary<string, object>
                 {
+                    ["choice_index"] = index,
                     ["rune_id"] = _clearModifierChoices[index], ["grade"] = _clearModifierGrades[index], ["count"] = 1,
                 });
-            LocalTelemetry.RecordUsabilityEvent("clear_reward_offered", "result", new Dictionary<string, object>
+            LocalTelemetry.RecordUsabilityEvent("clear_reward_offered", _settled ? "result" : "round_break", new Dictionary<string, object>
             {
                 ["combat_id"] = _testCombatId, ["spell_build_id"] = _spellBuildId,
-                ["stage"] = _simulation.StageNumber, ["choices"] = choices,
+                ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber, ["choices"] = choices,
             });
-            _lastResult += "\n" + GameData.L("result.clearModifierChoice");
         }
 
-        /// <summary>보스 클리어 Modifier 선택 후보 중 하나를 즉시 지급하고 선택을 확정한다. 이미 선택했거나 후보가 없으면 false를 반환한다.</summary>
+        /// <summary>라운드 또는 최종 클리어 후보 순번에 해당하는 Modifier를 한 번 지급한다. 선택 가능 상태가 아니거나 이미 선택했으면 false를 반환한다.</summary>
         public bool ChooseClearModifier(int index)
         {
-            if (_clearModifierChoices == null || _isClearModifierChosen || index < 0 || index >= _clearModifierChoices.Count) return false;
+            if ((!_settled && !_simulation.IsWaitingForNextRound) || _clearModifierChoices == null
+                || _isClearModifierChosen || index < 0 || index >= _clearModifierChoices.Count) return false;
             string grade = _clearModifierGrades[index];
-            if (_simulation.IsProgressionMission)
+            if (_simulation.IsProgressionMission && _settled && _session.PendingProgressionChoiceIds.Count > 0)
             {
                 if (!_session.ClaimProgressionChoice(index)) return false;
             }
-            else _session.GrantModifier(_clearModifierChoices[index], grade, 1, "clear_choice");
+            else if (!_session.IsTestMode) _session.GrantModifier(_clearModifierChoices[index], grade, 1,
+                _settled ? "clear_choice" : "round_clear_choice");
             AddModifierReward(_clearModifierChoices[index], grade, 1);
             _isClearModifierChosen = true;
-            LocalTelemetry.RecordUsabilityEvent("clear_reward_selected", "result", new Dictionary<string, object>
+            LocalTelemetry.RecordUsabilityEvent("clear_reward_selected", _settled ? "result" : "round_break", new Dictionary<string, object>
             {
                 ["combat_id"] = _testCombatId, ["spell_build_id"] = _spellBuildId,
                 ["stage"] = _simulation.StageNumber, ["rune_id"] = _clearModifierChoices[index],
+                ["round"] = _simulation.RoundNumber, ["choice_index"] = index,
                 ["grade"] = grade, ["count"] = 1,
                 ["inventory"] = _session.GetInventoryLogSnapshot(),
             });
