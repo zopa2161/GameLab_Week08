@@ -15,12 +15,7 @@ namespace RuneCode
     /// </summary>
     public sealed class SpellEditorPanel : MonoBehaviour
     {
-        private const float FILTER_BUTTON_ROW_GAP = 5f;
         private static readonly string[] _gradeFilterIds = { "C", "B", "A", "S" };
-        private static readonly HashSet<string> HIDDEN_CATEGORY_IDS = new HashSet<string>
-        {
-            SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD
-        };
 
         public static readonly string[] CATEGORY_IDS = { "all", SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_ELEMENT, SpellGrammar.CATEGORY_BEHAVIOR, SpellGrammar.CATEGORY_MODIFIER, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD };
 
@@ -35,6 +30,7 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _metricsText;
         [SerializeField] private TMP_InputField _searchField;
         [SerializeField] private Button[] _categoryButtons;
+        [SerializeField] private Button[] _gradeButtons;
         [SerializeField] private RectTransform _runeList;
         [SerializeField] private UiRow _runeRowPrefab;
         [SerializeField] private RunePaletteRowBinding[] _categoryRowPrefabs = Array.Empty<RunePaletteRowBinding>();
@@ -59,7 +55,6 @@ namespace RuneCode
         [SerializeField] private GameObject _buttonPrefab;
 
         private SpellEditorPresenter _presenter;
-        private readonly List<Button> _gradeButtons = new List<Button>();
         private readonly Dictionary<UiRow, ViewPool<UiRow>> _paletteRows = new Dictionary<UiRow, ViewPool<UiRow>>();
         private SpellInspectorView _inspector;
         private readonly Dictionary<Button, bool> _synthesisButtonStates = new Dictionary<Button, bool>();
@@ -186,7 +181,7 @@ namespace RuneCode
                     && (id == "all" || id == SpellGrammar.CATEGORY_BEHAVIOR || id == SpellGrammar.CATEGORY_MODIFIER
                         || id == SpellGrammar.CATEGORY_ELEMENT));
             }
-            for (int index = 0; index < _gradeButtons.Count; index++)
+            for (int index = 0; index < _gradeButtons.Length; index++)
                 _gradeButtons[index].interactable = !isActive || (grade == null && !isElementFilter
                     && RuneSynthesisRules.NextGrade(_gradeFilterIds[index]) != null);
         }
@@ -251,7 +246,7 @@ namespace RuneCode
         /// <summary>grade에 해당하는 등급 필터 버튼만 선택 표시한다.</summary>
         public void ShowGrade(string grade)
         {
-            for (int i = 0; i < _gradeButtons.Count; i++)
+            for (int i = 0; i < _gradeButtons.Length; i++)
                 _gradeButtons[i].GetComponent<TabButton>().SetSelected(_gradeFilterIds[i] == grade);
         }
 
@@ -268,37 +263,24 @@ namespace RuneCode
             _copyButton.onClick.AddListener(() => CopyClicked?.Invoke());
             _pasteButton.onClick.AddListener(() => PasteClicked?.Invoke());
             _searchField.onValueChanged.AddListener(query => SearchChanged?.Invoke(query));
-            CreateGradeFilterButtons();
             for (int i = 0; i < _categoryButtons.Length; i++)
             {
                 string category = CATEGORY_IDS[i];
                 _categoryButtons[i].onClick.AddListener(() => CategoryClicked?.Invoke(category));
-                if (HIDDEN_CATEGORY_IDS.Contains(category)) _categoryButtons[i].gameObject.SetActive(false);
             }
+            BindGradeFilterButtons();
         }
 
-        /// <summary>기존 TabButton 프리팹 인스턴스를 복제해 C·B·A·S 등급 필터를 검색창과 목록 사이에 만든다.</summary>
-        private void CreateGradeFilterButtons()
+        /// <summary>프리팹에 배치한 C·B·A·S 등급 필터 버튼에 등급 색 라벨과 클릭 이벤트를 연결한다.</summary>
+        private void BindGradeFilterButtons()
         {
-            RectTransform firstCategoryRect = (RectTransform)_categoryButtons[0].transform;
-            RectTransform behaviorCategoryRect = (RectTransform)_categoryButtons[3].transform;
-            float columnStep = behaviorCategoryRect.anchoredPosition.x - firstCategoryRect.anchoredPosition.x;
-            float rowY = firstCategoryRect.anchoredPosition.y - firstCategoryRect.rect.height - FILTER_BUTTON_ROW_GAP;
-
-            for (int index = 0; index < _gradeFilterIds.Length; index++)
+            for (int index = 0; index < _gradeButtons.Length; index++)
             {
                 string grade = _gradeFilterIds[index];
-                Button button = Instantiate(_categoryButtons[0], firstCategoryRect.parent, false);
-                button.name = "GradeFilter" + grade;
-                UiFactory.BindClickSound(button);
-                RectTransform buttonRect = (RectTransform)button.transform;
-                buttonRect.anchoredPosition = new Vector2(firstCategoryRect.anchoredPosition.x + columnStep * index, rowY);
-                TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>(true);
+                TextMeshProUGUI label = _gradeButtons[index].GetComponentInChildren<TextMeshProUGUI>(true);
                 label.richText = true;
                 label.text = ModifierGradeText.Colorize(grade + GameData.L("ui.modifierGrade"), grade);
-                string selectedGrade = grade;
-                button.onClick.AddListener(() => GradeClicked?.Invoke(selectedGrade));
-                _gradeButtons.Add(button);
+                _gradeButtons[index].onClick.AddListener(() => GradeClicked?.Invoke(grade));
             }
         }
     }
