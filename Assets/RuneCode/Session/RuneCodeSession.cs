@@ -19,9 +19,6 @@ namespace RuneCode
         private const int TEST_STOCK_COUNT = 2;
         private const string PLAY_LOG_PARTICIPANT_KEY = "RuneCode.PlayLogParticipantId";
 
-        // 이 레벨 상한을 가진 노드는 반복 성장용 endgame 노드로 보고 테스트 프로필에서 구매하지 않는다.
-        private const int TEST_ENDGAME_NODE_LEVEL = 99;
-
         private PlayerSave _save;
         private PlayerSave _normalSave;
         private readonly StageCatalog _stages;
@@ -100,11 +97,7 @@ namespace RuneCode
             _isDebugEnabled = isDebugEnabled;
             _statusMessage = initialStatus;
             bool restoredRuneUnlocks = !isDebugEnabled && RestorePurchasedRuneUnlocks(_save);
-            if (isDebugEnabled)
-            {
-                UnlockDebugRunes();
-                UnlockDebugUpgrades();
-            }
+            if (isDebugEnabled) UnlockDebugRunes();
             var storage = new SessionSpellStorage(() => _save, PersistSpellStorage);
             var policy = new SessionSpellPolicy(this);
             _spells = new SpellEditSession(storage, policy);
@@ -138,11 +131,7 @@ namespace RuneCode
                 if (!SaveStore.WriteToSlot(SaveStore.ActiveSlot, _save)) SetStatusText(SaveStore.LastWarning);
                 else _isSaveDirty = false;
             }
-            if (isDebug)
-            {
-                UnlockDebugRunes();
-                UnlockDebugUpgrades();
-            }
+            if (isDebug) UnlockDebugRunes();
             else PersistRestoredRuneUnlocks(restoredRuneUnlocks);
             _spells.Reload();
             if (!isDebug && !Application.isEditor) BeginNormalPlayLog();
@@ -407,7 +396,7 @@ namespace RuneCode
             return _isDebugEnabled && cost >= 0 ? 0 : cost;
         }
 
-        /// <summary>스테이지, 선행 노드, 재화를 확인하고 테스트 모드 구매를 포함해 구매 불가 사유를 반환한다.</summary>
+        /// <summary>스테이지, 선행 노드(하나 이상 만족), 배타 세트, 재화를 확인해 구매 불가 사유를 반환한다.</summary>
         public bool CanPurchaseUpgradeNode(string nodeId, out string reasonKey)
         {
             reasonKey = null;
@@ -415,11 +404,6 @@ namespace RuneCode
             if (node == null || node.MaxLevel == 0)
             {
                 reasonKey = "tree.invalidNode";
-                return false;
-            }
-            if (_isTestMode)
-            {
-                reasonKey = "tree.maxed";
                 return false;
             }
             int currentLevel = GetUpgradeNodeLevel(nodeId);
@@ -438,13 +422,23 @@ namespace RuneCode
                 reasonKey = "tree.stageLocked";
                 return false;
             }
-            if (!_isDebugEnabled)
-                foreach (UpgradeTreePrerequisite prerequisite in node.Prerequisites)
-                    if (GetUpgradeNodeLevel(prerequisite.NodeId) < prerequisite.RequiredLevel)
-                    {
-                        reasonKey = "tree.prerequisiteLocked";
-                        return false;
-                    }
+            bool isPrerequisiteMet = node.Prerequisites.Count == 0;
+            foreach (UpgradeTreePrerequisite prerequisite in node.Prerequisites)
+                if (GetUpgradeNodeLevel(prerequisite.NodeId) >= prerequisite.RequiredLevel)
+                {
+                    isPrerequisiteMet = true;
+                    break;
+                }
+            if (!isPrerequisiteMet)
+            {
+                reasonKey = "tree.prerequisiteLocked";
+                return false;
+            }
+            if (IsExclusiveSiblingPurchased(node))
+            {
+                reasonKey = "tree.exclusiveLocked";
+                return false;
+            }
             int cost = GetUpgradeNodeCost(nodeId);
             if (cost < 0 || (!_isDebugEnabled && _save.Currency < cost))
             {
@@ -452,6 +446,16 @@ namespace RuneCode
                 return false;
             }
             return true;
+        }
+
+        /// <summary>같은 배타 세트에 속한 다른 노드 중 이미 레벨 1 이상을 보유한 노드가 있는지 반환한다.</summary>
+        private bool IsExclusiveSiblingPurchased(UpgradeTreeNodeDefinition node)
+        {
+            if (string.IsNullOrWhiteSpace(node.ExclusiveGroupId)) return false;
+            foreach (UpgradeTreeNodeDefinition other in _upgradeTree.Nodes)
+                if (other != null && other != node && other.ExclusiveGroupId == node.ExclusiveGroupId && GetUpgradeNodeLevel(other.Id) >= 1)
+                    return true;
+            return false;
         }
 
         /// <summary>보유 모듈의 종류·등급·총수량, 해금 목록과 재화를 복사해 로그용 스냅샷을 반환한다.</summary>
@@ -565,15 +569,11 @@ namespace RuneCode
             if (!WriteCurrentSave(_save)) SetStatusText(SaveStore.LastWarning);
         }
 
-        /// <summary>현재 모드에 맞는 새 진행으로 바꾸고 편집 세션을 다시 연다. 일반 진행은 _normalSave도 함께 바꾸고 디버그면 룬·강화를 전부 해금한다.</summary>
+        /// <summary>현재 모드에 맞는 새 진행으로 바꾸고 편집 세션을 다시 연다. 일반 진행은 _normalSave도 함께 바꾸고 디버그면 룬을 전부 해금한다.</summary>
         private void RenewSave()
         {
             _save = _isTestMode ? CreateTestSave() : PlayerSave.CreateNew();
-            if (_isDebugEnabled)
-            {
-                UnlockDebugRunes();
-                UnlockDebugUpgrades();
-            }
+            if (_isDebugEnabled) UnlockDebugRunes();
             else if (!_isTestMode) _normalSave = _save;
             _spells.Reload();
         }
@@ -845,16 +845,8 @@ namespace RuneCode
             }
         }
 
-        /// <summary>새 디버그 진행의 강화 트리 스탯 노드를 테스트 프로필과 달리 예외 없이 모두 최대 레벨로 올린다. 룬 해금 노드는 UnlockDebugRunes가 처리한다.</summary>
-        private void UnlockDebugUpgrades()
-        {
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
-                if (node != null && node.EffectType != UpgradeEffectType.RuneUnlock)
-                    _save.SetUpgradeNodeLevel(node.Id, node.MaxLevel);
-        }
-
         /// <summary>
-        /// 테스트 프로필 세이브를 만든다. 1~10스테이지 클리어, endgame 노드를 제외한 강화 트리 최대 레벨과 룬 해금, 시작 소지량에 더해
+        /// 테스트 프로필 세이브를 만든다. 1~10스테이지 클리어, 시작 소지량에 더해
         /// 활성 모디·행동의 사용 가능한 모든 등급을 최소 2개씩, 무속성을 제외한 전투 속성을 각 2개 지급한다.
         /// 행동 C등급의 시작 소지량은 유지하며 새 룬·등급은 등록된 데이터에서 자동으로 포함한다.
         /// </summary>
@@ -863,7 +855,6 @@ namespace RuneCode
             PlayerSave save = PlayerSave.CreateNew();
             for (int stage = 1; stage <= TEST_CLEARED_STAGE; stage++) save.RecordStageClear(stage);
             save.SelectStage(TEST_STAGE, false);
-            MaxUpgradeNodes(save, _upgradeTree.Nodes);
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
                 if (rune.IsDisabled) continue;
@@ -886,17 +877,6 @@ namespace RuneCode
                 }
             }
             return save;
-        }
-
-        /// <summary>노드 목록의 강화 노드를 최대 레벨로 기록하고 룬 해금 노드의 룬을 해금한다. 반복 성장용 endgame 노드는 0레벨로 둔다.</summary>
-        private static void MaxUpgradeNodes(PlayerSave save, IReadOnlyList<UpgradeTreeNodeDefinition> nodes)
-        {
-            foreach (UpgradeTreeNodeDefinition node in nodes)
-            {
-                if (node == null || node.MaxLevel >= TEST_ENDGAME_NODE_LEVEL) continue;
-                save.SetUpgradeNodeLevel(node.Id, node.MaxLevel);
-                if (node.EffectType == UpgradeEffectType.RuneUnlock) save.Unlock(node.RuneId);
-            }
         }
 
         /// <summary>그래프에서 엣지에 연결된 룬의 RAM만 합산한다.</summary>

@@ -58,6 +58,7 @@ namespace RuneCode
         [SerializeField] private string _runeId;
         [SerializeField, Min(0), Tooltip("구매 기록이 없어도 적용되는 시작 레벨. 룬 해금 노드는 0을 사용한다.")] private int _initialLevel;
         [SerializeField] private List<UpgradeTreePrerequisite> _prerequisites = new List<UpgradeTreePrerequisite>();
+        [SerializeField, Tooltip("같은 값을 가진 노드끼리 하나만 구매할 수 있다. 비우면 배타 세트에 속하지 않는다.")] private string _exclusiveGroupId;
         [SerializeField] private List<UpgradeTreeLevel> _levels = new List<UpgradeTreeLevel>();
 
         public string Id => _id;
@@ -70,6 +71,7 @@ namespace RuneCode
         public string RuneId => _runeId;
         public int InitialLevel => _initialLevel;
         public IReadOnlyList<UpgradeTreePrerequisite> Prerequisites => _prerequisites;
+        public string ExclusiveGroupId => _exclusiveGroupId;
         public IReadOnlyList<UpgradeTreeLevel> Levels => _levels;
         public int MaxLevel => _levels == null ? 0 : _levels.Count;
 
@@ -127,7 +129,7 @@ namespace RuneCode
             return null;
         }
 
-        /// <summary>배치 노드의 데이터와 선행 관계를 검사해 오류를 반환한다.</summary>
+        /// <summary>배치 노드의 데이터, 다중 선행 관계, 순환, 배타 세트를 검사해 오류를 반환한다.</summary>
         public bool Validate(out string error)
         {
             error = null;
@@ -172,13 +174,24 @@ namespace RuneCode
             foreach (UpgradeTreeNodeDefinition node in _nodes)
             {
                 if ((node.Id == MAINBOARD_NODE_ID && node.Prerequisites.Count != 0) ||
-                    (node.Id != MAINBOARD_NODE_ID && node.Prerequisites.Count != 1))
+                    (node.Id != MAINBOARD_NODE_ID && node.Prerequisites.Count < 1))
                 {
-                    error = "메인보드 외의 각 노드는 선행 노드를 하나만 가져야 합니다: " + node.Id;
+                    error = "메인보드 외의 각 노드는 선행 노드를 하나 이상 가져야 합니다: " + node.Id;
                     return false;
                 }
+                HashSet<string> parentIds = new HashSet<string>();
                 foreach (UpgradeTreePrerequisite prerequisite in node.Prerequisites)
                 {
+                    if (prerequisite != null && !parentIds.Add(prerequisite.NodeId))
+                    {
+                        error = "선행 노드가 중복되었습니다: " + node.Id;
+                        return false;
+                    }
+                    if (prerequisite != null && prerequisite.NodeId == node.Id)
+                    {
+                        error = "노드가 자기 자신을 선행 노드로 둘 수 없습니다: " + node.Id;
+                        return false;
+                    }
                     UpgradeTreeNodeDefinition parent = prerequisite == null ? null : FindNode(prerequisite.NodeId);
                     if (parent == null || prerequisite.RequiredLevel != 1 || prerequisite.RequiredLevel > parent.MaxLevel)
                     {
@@ -194,6 +207,54 @@ namespace RuneCode
                 {
                     error = "업그레이드 노드 선행 조건에 순환이 있습니다: " + node.Id;
                     return false;
+            }
+            return ValidateExclusiveGroups(_nodes, out error);
+        }
+
+        /// <summary>배타 세트 노드의 구성(노드 2개 이상, 선행 노드 1개·동일 부모, 시작 레벨 0, 메인보드 제외)을 검사해 오류를 반환한다.</summary>
+        private static bool ValidateExclusiveGroups(IReadOnlyList<UpgradeTreeNodeDefinition> nodes, out string error)
+        {
+            error = null;
+            Dictionary<string, List<UpgradeTreeNodeDefinition>> groups = new Dictionary<string, List<UpgradeTreeNodeDefinition>>();
+            foreach (UpgradeTreeNodeDefinition node in nodes)
+            {
+                if (node == null || string.IsNullOrWhiteSpace(node.ExclusiveGroupId)) continue;
+                if (node.Id == MAINBOARD_NODE_ID)
+                {
+                    error = "메인보드 노드는 배타 세트에 속할 수 없습니다: " + node.Id;
+                    return false;
+                }
+                if (node.InitialLevel != 0)
+                {
+                    error = "배타 세트 노드의 시작 레벨은 0이어야 합니다: " + node.Id;
+                    return false;
+                }
+                if (node.Prerequisites.Count != 1)
+                {
+                    error = "배타 세트 노드는 선행 노드를 하나만 가져야 합니다: " + node.Id;
+                    return false;
+                }
+                if (!groups.TryGetValue(node.ExclusiveGroupId, out List<UpgradeTreeNodeDefinition> groupNodes))
+                {
+                    groupNodes = new List<UpgradeTreeNodeDefinition>();
+                    groups[node.ExclusiveGroupId] = groupNodes;
+                }
+                groupNodes.Add(node);
+            }
+            foreach (KeyValuePair<string, List<UpgradeTreeNodeDefinition>> pair in groups)
+            {
+                if (pair.Value.Count < 2)
+                {
+                    error = "배타 세트에는 노드가 두 개 이상 있어야 합니다: " + pair.Key;
+                    return false;
+                }
+                string parentId = pair.Value[0].Prerequisites[0].NodeId;
+                for (int index = 1; index < pair.Value.Count; index++)
+                    if (pair.Value[index].Prerequisites[0].NodeId != parentId)
+                    {
+                        error = "배타 세트 노드의 선행 노드는 모두 같아야 합니다: " + pair.Key;
+                        return false;
+                    }
             }
             return true;
         }

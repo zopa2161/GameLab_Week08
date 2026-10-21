@@ -1001,6 +1001,10 @@
       "_value": "선행 노드를 먼저 강화하세요"
     },
     {
+      "_key": "tree.exclusiveLocked",
+      "_value": "같은 세트의 다른 노드를 이미 선택했습니다"
+    },
+    {
       "_key": "tree.maxed",
       "_value": "최대 레벨"
     },

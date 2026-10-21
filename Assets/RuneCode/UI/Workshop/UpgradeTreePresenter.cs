@@ -75,7 +75,7 @@ namespace RuneCode
             bool isComplete = level >= node.MaxLevel;
             bool canPurchase = _session.CanPurchaseUpgradeNode(node.Id, out string reasonKey);
             bool isAvailable = isComplete || (reasonKey != "tree.stageLocked" && reasonKey != "tree.prerequisiteLocked"
-                && reasonKey != "tree.invalidNode" && reasonKey != "tree.invalidRune");
+                && reasonKey != "tree.invalidNode" && reasonKey != "tree.invalidRune" && reasonKey != "tree.exclusiveLocked");
             string runeCategory = null;
             if (node.EffectType == UpgradeEffectType.RuneUnlock && GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune))
                 runeCategory = rune.Category;

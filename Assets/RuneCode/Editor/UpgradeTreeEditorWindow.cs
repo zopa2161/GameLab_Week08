@@ -7,7 +7,7 @@ using UnityEditor;
 
 namespace RuneCode.Editor
 {
-    /// <summary>강화 트리 SO의 노드를 격자에서 생성·편집·배치·연결·삭제하는 창이다. 선 연결은 깊이 기반으로 방향을 정한다.</summary>
+    /// <summary>강화 트리 SO의 노드를 격자에서 생성·편집·배치·연결·삭제하는 창이다. 선 연결은 클릭 순서로 방향을 정한다.</summary>
     public sealed class UpgradeTreeEditorWindow : EditorWindow
     {
         private const float CELL_PIXELS = 90;
@@ -147,9 +147,11 @@ namespace RuneCode.Editor
                 EditorGUILayout.HelpBox("게임 데이터 로드 실패: " + _loadError + "\n라벨은 키로 표시되고 룬 검증은 생략됩니다.", MessageType.Warning);
         }
 
-        /// <summary>임시 안내 메시지와 자산 검증 결과를 표시한다.</summary>
+        /// <summary>연결 모드 안내, 임시 안내 메시지와 자산 검증 결과를 표시한다.</summary>
         private void DrawStatus()
         {
+            if (_connectionMode)
+                EditorGUILayout.HelpBox("연결 모드: 첫 클릭 노드가 부모, 두 번째 클릭 노드가 자식이 됩니다.", MessageType.Info);
             if (_transientMessage != null)
                 EditorGUILayout.HelpBox(_transientMessage, MessageType.Info);
             if (_validateError != null)
@@ -227,13 +229,15 @@ namespace RuneCode.Editor
             }
         }
 
-        /// <summary>배치 노드 사각형과 라벨, 드래그 고스트를 그린다.</summary>
+        /// <summary>배치 노드 사각형, 배타 세트 테두리, 라벨, 드래그 고스트를 그린다.</summary>
         private void DrawNodes(Vector2 origin, int minCol, int minRow)
         {
             foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
             {
                 if (node == null) continue;
                 Rect rect = NodeRect(origin, node.LayoutCell, minCol, minRow);
+                if (!string.IsNullOrEmpty(node.ExclusiveGroupId))
+                    EditorGUI.DrawRect(new Rect(rect.x - 6, rect.y - 6, rect.width + 12, rect.height + 12), GetGroupColor(node.ExclusiveGroupId));
                 if (_selectedNodeId == node.Id)
                     EditorGUI.DrawRect(new Rect(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4), SELECTION_RING);
                 if (_edgeStartNodeId == node.Id)
@@ -241,6 +245,8 @@ namespace RuneCode.Editor
                 EditorGUI.DrawRect(rect, GetEffectColor(node.EffectType));
                 string title = string.IsNullOrEmpty(node.TitleKey) ? node.Id : GameData.L(node.TitleKey);
                 string tooltip = node.Id + "\n셀 (" + node.LayoutCell.x + ", " + node.LayoutCell.y + ")";
+                if (!string.IsNullOrEmpty(node.ExclusiveGroupId))
+                    tooltip += "\n배타 세트: " + node.ExclusiveGroupId;
                 GUI.Label(rect, new GUIContent(title, tooltip), _nodeLabelStyle);
             }
             UpgradeTreeNodeDefinition dragNode = _dragNodeId == null ? null : FindPlacedNode(_dragNodeId);
@@ -332,7 +338,7 @@ namespace RuneCode.Editor
             menu.ShowAsContext();
         }
 
-        /// <summary>연결 모드에서 노드 클릭으로 선의 시작점과 끝점을 처리한다.</summary>
+        /// <summary>연결 모드에서 노드 클릭으로 첫 클릭을 부모, 두 번째 클릭을 자식으로 지정한다.</summary>
         private void HandleConnectionClick(UpgradeTreeNodeDefinition hit)
         {
             if (hit == null || _edgeStartNodeId == hit.Id)
@@ -352,30 +358,46 @@ namespace RuneCode.Editor
             TryCreateEdge(startId, hit.Id);
         }
 
-        /// <summary>두 배치 노드를 연결해 얕은 쪽을 부모로 하는 선행 관계를 만든다. 규칙 위반은 메시지로 거절한다.</summary>
-        private void TryCreateEdge(string startId, string endId)
+        /// <summary>첫 클릭 노드를 부모, 두 번째 클릭 노드를 자식으로 하는 선행 관계를 만든다. 메인보드 자식, 같은 선, 순환은 메시지로 거절한다.</summary>
+        private void TryCreateEdge(string parentId, string childId)
         {
-            Dictionary<string, int> depths = ComputeDepths();
-            bool hasStart = depths.TryGetValue(startId, out int startDepth);
-            bool hasEnd = depths.TryGetValue(endId, out int endDepth);
-            if (!hasStart && !hasEnd)
+            if (childId == MAINBOARD_ID)
             {
-                SetTransientMessage("메인보드에서 이어지는 경로가 없는 노드끼리는 연결할 수 없습니다.");
+                SetTransientMessage("메인보드는 다른 노드의 자식이 될 수 없습니다.");
                 return;
             }
-            if (hasStart && hasEnd && startDepth == endDepth)
+            if (HasPrerequisite(FindPlacedNode(childId), parentId))
             {
-                SetTransientMessage("같은 깊이의 노드는 연결할 수 없습니다.");
+                SetTransientMessage("두 노드 사이에 같은 선이 이미 있습니다.");
                 return;
             }
-            string parentId = hasEnd && (!hasStart || endDepth < startDepth) ? endId : startId;
-            string childId = parentId == startId ? endId : startId;
-            if (FindPlacedNode(childId).Prerequisites.Count > 0)
+            if (WouldCreateCycle(parentId, childId))
             {
-                SetTransientMessage("자식 노드가 이미 부모 선을 갖고 있습니다. 새 선을 만들려면 먼저 기존 선을 삭제하세요.");
+                SetTransientMessage("이 연결은 선행 관계에 순환을 만듭니다.");
                 return;
             }
             WriteEdge(parentId, childId);
+        }
+
+        /// <summary>새 부모에서 선행 조건 방향으로 거슬러 올라가 자식에 닿으면 순환이 생기는지 검사한다. 방문 집합으로 이미 본 노드는 다시 확인하지 않는다.</summary>
+        private bool WouldCreateCycle(string parentId, string childId)
+        {
+            HashSet<string> visited = new HashSet<string> { parentId };
+            Queue<string> pending = new Queue<string>();
+            pending.Enqueue(parentId);
+            while (pending.Count > 0)
+            {
+                string currentId = pending.Dequeue();
+                if (currentId == childId) return true;
+                UpgradeTreeNodeDefinition current = FindPlacedNode(currentId);
+                if (current == null) continue;
+                foreach (UpgradeTreePrerequisite prerequisite in current.Prerequisites)
+                {
+                    if (prerequisite == null || !visited.Add(prerequisite.NodeId)) continue;
+                    pending.Enqueue(prerequisite.NodeId);
+                }
+            }
+            return false;
         }
 
         /// <summary>다음 클릭까지 표시되는 안내 메시지를 설정한다.</summary>
@@ -413,6 +435,7 @@ namespace RuneCode.Editor
             node.FindPropertyRelative("_layoutCell").vector2IntValue = cell;
             node.FindPropertyRelative("_effectType").intValue = (int)UpgradeEffectType.EnergyRegen;
             node.FindPropertyRelative("_runeId").stringValue = "";
+            node.FindPropertyRelative("_exclusiveGroupId").stringValue = "";
             node.FindPropertyRelative("_initialLevel").intValue = 0;
             node.FindPropertyRelative("_prerequisites").arraySize = 0;
             SerializedProperty levels = node.FindPropertyRelative("_levels");
@@ -515,6 +538,8 @@ namespace RuneCode.Editor
             using (new EditorGUI.DisabledScope(isRuneUnlock))
                 initialLevel.intValue = EditorGUILayout.IntSlider("시작 레벨", initialLevel.intValue, 0, levels.arraySize);
             if (initialLevel.intValue > levels.arraySize) initialLevel.intValue = levels.arraySize;
+
+            DrawExclusiveGroupField(property, node);
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("셀", "(" + node.LayoutCell.x + ", " + node.LayoutCell.y + ") — 격자에서 드래그");
@@ -653,6 +678,26 @@ namespace RuneCode.Editor
             }
         }
 
+        /// <summary>배타 세트 그룹 ID 입력란과 안내 문구, 같은 그룹의 다른 노드 ID 목록을 표시한다. 입력값의 앞뒤 공백은 잘라 저장한다.</summary>
+        private void DrawExclusiveGroupField(SerializedProperty property, UpgradeTreeNodeDefinition node)
+        {
+            SerializedProperty groupProperty = property.FindPropertyRelative("_exclusiveGroupId");
+            string input = EditorGUILayout.DelayedTextField("배타 세트", groupProperty.stringValue);
+            if (input != groupProperty.stringValue)
+                groupProperty.stringValue = input.Trim();
+            EditorGUILayout.LabelField("같은 값을 가진 노드끼리 하나만 구매할 수 있습니다. 같은 부모 하나를 가져야 합니다.", EditorStyles.wordWrappedMiniLabel);
+            string groupId = groupProperty.stringValue;
+            if (string.IsNullOrEmpty(groupId)) return;
+            List<string> siblingIds = new List<string>();
+            foreach (UpgradeTreeNodeDefinition other in _definition.Nodes)
+            {
+                if (other == null || other == node || other.ExclusiveGroupId != groupId) continue;
+                siblingIds.Add(other.Id);
+            }
+            if (siblingIds.Count > 0)
+                EditorGUILayout.LabelField("같은 세트: " + string.Join(", ", siblingIds), EditorStyles.miniLabel);
+        }
+
         /// <summary>선택한 노드의 부모·자식 연결을 행으로 표시하고, 끊기 버튼을 누르면 해당 선행 관계를 제거한다.</summary>
         private void DrawConnectionRows(UpgradeTreeNodeDefinition node)
         {
@@ -756,50 +801,6 @@ namespace RuneCode.Editor
             foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
                 if (node != null && node != ignore && node.LayoutCell == cell) return true;
             return false;
-        }
-
-        /// <summary>메인보드에서 각 배치 노드까지의 최단 홉 수를 구한다. 도달 불가 노드는 결과에서 제외된다.</summary>
-        private Dictionary<string, int> ComputeDepths()
-        {
-            Dictionary<string, List<string>> adjacency = new Dictionary<string, List<string>>();
-            foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
-            {
-                if (node == null) continue;
-                foreach (UpgradeTreePrerequisite prerequisite in node.Prerequisites)
-                {
-                    if (prerequisite == null) continue;
-                    AddAdjacency(adjacency, prerequisite.NodeId, node.Id);
-                    AddAdjacency(adjacency, node.Id, prerequisite.NodeId);
-                }
-            }
-            Dictionary<string, int> depths = new Dictionary<string, int>();
-            if (FindPlacedNode(MAINBOARD_ID) == null) return depths;
-            Queue<string> queue = new Queue<string>();
-            depths[MAINBOARD_ID] = 0;
-            queue.Enqueue(MAINBOARD_ID);
-            while (queue.Count > 0)
-            {
-                string current = queue.Dequeue();
-                if (!adjacency.TryGetValue(current, out List<string> neighbors)) continue;
-                foreach (string neighbor in neighbors)
-                {
-                    if (depths.ContainsKey(neighbor)) continue;
-                    depths[neighbor] = depths[current] + 1;
-                    queue.Enqueue(neighbor);
-                }
-            }
-            return depths;
-        }
-
-        /// <summary>무방향 인접 목록에 양방향 엣지를 추가한다.</summary>
-        private static void AddAdjacency(Dictionary<string, List<string>> adjacency, string from, string to)
-        {
-            if (!adjacency.TryGetValue(from, out List<string> neighbors))
-            {
-                neighbors = new List<string>();
-                adjacency[from] = neighbors;
-            }
-            neighbors.Add(to);
         }
 
         /// <summary>노드가 지정 부모의 선행 조건을 갖고 있는지 검사한다.</summary>
@@ -934,6 +935,15 @@ namespace RuneCode.Editor
             Vector2 position = origin + new Vector2((cell.x - minCol) * CELL_PIXELS, (cell.y - minRow) * CELL_PIXELS);
             return new Rect(position.x + NODE_INSET, position.y + NODE_INSET,
                 CELL_PIXELS - NODE_INSET * 2, CELL_PIXELS - NODE_INSET * 2);
+        }
+
+        /// <summary>그룹 ID 문자열의 결정적 해시로 배타 세트 테두리색을 반환한다. 같은 그룹은 항상 같은 색이 된다.</summary>
+        private static Color GetGroupColor(string groupId)
+        {
+            int hash = 0;
+            foreach (char character in groupId)
+                hash = hash * 31 + character;
+            return Color.HSVToRGB(((hash & int.MaxValue) % 360) / 360f, 0.85f, 1f);
         }
 
         /// <summary>효과 종류마다 구분되는 노드 배경색을 반환한다.</summary>
