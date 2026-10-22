@@ -14,7 +14,6 @@ const REF_DEFS = {
   drop: { label: "드롭 테이블", get: () => state.refsets.drop },
   rune: { label: "룬", get: () => state.refsets.rune },
   modifier: { label: "Modifier 룬", get: () => state.refsets.modifier },
-  modifierOrElite: { label: "Modifier", get: () => [...state.refsets.modifier, "eliteModifier"] },
   strings: { label: "현지화 키", get: () => state.refsets.strings },
   grade: { label: "등급", get: () => state.refsets.grade },
   spellNode: { label: "노드", get: () => state.refsets.spellNode },
@@ -507,7 +506,7 @@ function renderStagesView(table, main) {
   const headWrap = el("div");
   const headSet = el("fieldset");
   headSet.appendChild(el("legend", { text: "공통 설정" }));
-  for (const field of schema.head.filter(f => f.type !== "list" && f.k !== "_stages"))
+  for (const field of schema.head.filter(f => f.type !== "list"))
     renderField(headSet, field, root, `${table.id}:${field.k}`);
   headWrap.appendChild(headSet);
   const rewardField = schema.head.find(f => f.k === "_rewards");
@@ -516,23 +515,7 @@ function renderStagesView(table, main) {
   renderField(rewardSet, { ...rewardField, label: "보상표" }, root, `${table.id}:보상표`);
   headWrap.appendChild(rewardSet);
   main.appendChild(headWrap);
-
-  main.appendChild(el("h2", { class: "section", text: "스테이지" }));
-  const array = root._stages || [];
-  const toolbar = el("div", { class: "toolbar" });
-  toolbar.appendChild(el("span", { class: "muted", text: `${array.length}개 항목` }));
-  toolbar.appendChild(el("button", { text: "+ 스테이지 추가", onclick: () => addItem(table, array, schema.groups[0].fields) }));
-  main.appendChild(toolbar);
-  renderListHead(main, schema, array, table);
-  const index = state.selection[table.id];
-  if (index != null && array[index]) {
-    const detail = el("div", { class: "detail" });
-    const item = array[index];
-    detail.appendChild(el("h3", { text: `스테이지 ${item._fromStage}${item._toStage ? `~${item._toStage}` : "~∞"}` }));
-    detail.appendChild(itemActions(table, array, index));
-    renderFieldGroups(detail, schema.groups, item, `${table.id}:스테이지#${index + 1}`);
-    main.appendChild(detail);
-  }
+  main.appendChild(el("p", { class: "muted", text: "연속 미션 스테이지·라운드·웨이브 편성은 Unity 메뉴 Rune Code/Stage Table Editor에서 편집합니다." }));
 }
 
 function renderRoomsView(table, main) {
@@ -998,29 +981,29 @@ const VALIDATORS = {
     const errors = [];
     const tables = state.data.drops._dropTables || [];
     idsUnique(errors, "drops", tables, "_id");
+    const runeCategories = new Map((state.data.runes._runes || []).map(r => [r._id, r._category]));
     tables.forEach(tableDef => {
       const p = `drops:${tableDef._id || "?"}`;
-      if (tableDef._rolls < 0) errors.push({ level: "error", path: `${p}:_rolls`, msg: "추첨 횟수는 0 이상이어야 합니다." });
-      if (tableDef._rolls > 0 && !(tableDef._entries || []).length) errors.push({ level: "error", path: `${p}:_entries`, msg: "추첨 횟수가 있으면 항목이 필요합니다." });
-      for (const [field, checkWeight] of [["_guaranteed", false], ["_entries", true]]) {
-        (tableDef[field] || []).forEach((entry, index) => {
-          const path = `${p}:${field}[${index}]`;
-          if (entry._type && !VOCAB.dropType.includes(entry._type)) errors.push({ level: "error", path: `${path}:_type`, msg: `항목 형식 오류: ${entry._type}` });
-          if (checkWeight && (!(entry._weight > 0) || !isFinite(entry._weight))) errors.push({ level: "error", path: `${path}:_weight`, msg: "가중치는 0보다 큰 유한값이어야 합니다." });
-          if (entry._type === "modifier") {
-            if (entry._id !== "eliteModifier") {
-              checkRef(errors, "error", `${path}:_id`, entry._id, "modifier");
-              if (entry._grade && state.data.grades) {
-                const effect = (state.data.grades._modifierGradeEffects || []).find(e => e._modifierId === entry._id);
-                if (effect && effect._gradeValues && entry._grade in effect._gradeValues && effect._gradeValues[entry._grade] === null)
-                  errors.push({ level: "error", path: `${path}:_grade`, msg: `이 Modifier에 없는 등급입니다: ${entry._grade}` });
-              }
-            }
-            if (!(entry._count >= 1)) errors.push({ level: "error", path: `${path}:_count`, msg: "수량은 1 이상이어야 합니다." });
-          }
-          if (entry._type === "fragments" && ((entry._min < 0) || (entry._max < entry._min))) errors.push({ level: "error", path: `${path}:_min`, msg: "0 ≤ 최소 ≤ 최대여야 합니다." });
-        });
-      }
+      const categoryTotal = (tableDef._categoryChances || []).reduce((sum, c) => sum + (c._percent || 0), 0);
+      if (categoryTotal !== 100) errors.push({ level: "error", path: `${p}:_categoryChances`, msg: `분류 확률의 합은 100이어야 합니다. 현재 ${categoryTotal}` });
+      (tableDef._categoryChances || []).forEach(c => {
+        if (!VOCAB.dropType.includes(c._category)) errors.push({ level: "error", path: `${p}:_categoryChances`, msg: `알 수 없는 분류: ${c._category}` });
+      });
+      const gradeTotals = {};
+      (tableDef._gradeChances || []).forEach(g => {
+        if (g._category === "element" || !VOCAB.dropType.includes(g._category)) errors.push({ level: "error", path: `${p}:_gradeChances`, msg: `등급 확률은 행동·강화 분류만 둘 수 있습니다: ${g._category}` });
+        gradeTotals[g._category] = (gradeTotals[g._category] || 0) + (g._percent || 0);
+      });
+      for (const [category, total] of Object.entries(gradeTotals))
+        if (total !== 100) errors.push({ level: "error", path: `${p}:_gradeChances`, msg: `${category} 등급 확률의 합은 100이어야 합니다. 현재 ${total}` });
+      (tableDef._entries || []).forEach((entry, index) => {
+        const path = `${p}:_entries[${index}]`;
+        if (!VOCAB.dropType.includes(entry._type)) errors.push({ level: "error", path: `${path}:_type`, msg: `분류 오류: ${entry._type}` });
+        checkRef(errors, "error", `${path}:_id`, entry._id, "rune");
+        if (runeCategories.has(entry._id) && runeCategories.get(entry._id) !== entry._type)
+          errors.push({ level: "error", path: `${path}:_id`, msg: `룬 분류가 항목 분류와 다릅니다: ${entry._id}` });
+        if (!(entry._weight > 0) || !isFinite(entry._weight)) errors.push({ level: "error", path: `${path}:_weight`, msg: "가중치는 0보다 큰 유한값이어야 합니다." });
+      });
     });
     return errors;
   },
@@ -1049,32 +1032,7 @@ const VALIDATORS = {
   },
   stages(table) {
     const errors = [];
-    const rows = state.data.stages._stages || [];
-    rows.forEach((row, rowIndex) => {
-      const p = `stages:#${rowIndex + 1}`;
-      if (row._kind && !VOCAB.stageKind.includes(row._kind)) errors.push({ level: "error", path: `${p}:_kind`, msg: `종류는 normal/boss: ${row._kind}` });
-      if (row._toStage !== 0 && row._toStage < row._fromStage) errors.push({ level: "error", path: `${p}:_toStage`, msg: "끝 스테이지가 시작 스테이지보다 작습니다." });
-      const stream = row._stream;
-      if (stream) {
-        checkRef(errors, "error", `${p}:_stream._formation`, stream._formation, "formation");
-        for (const candidate of stream._candidates || []) checkRef(errors, "error", `${p}:_stream._candidates`, candidate._enemyId, "enemy");
-      }
-      for (const wave of row._waves || []) {
-        if (wave._formation && wave._formation._id) checkRef(errors, "error", `${p}:_waves._formation`, wave._formation._id, "formation");
-        for (const unit of wave._units || []) checkRef(errors, "error", `${p}:_waves._units`, unit._enemyId, "enemy");
-      }
-      for (const elite of row._eliteTypes || []) {
-        checkRef(errors, "error", `${p}:_eliteTypes`, elite._enemyId, "enemy");
-        if (elite._dropTable) checkRef(errors, "error", `${p}:_eliteTypes._dropTable`, elite._dropTable, "drop");
-      }
-      for (const reward of row._modifierRewards || []) {
-        checkRef(errors, "error", `${p}:_modifierRewards`, reward._runeId, "modifier");
-        const effect = (state.data.grades._modifierGradeEffects || []).find(e => e._modifierId === reward._runeId);
-        if (effect && effect._gradeValues && reward._grade in effect._gradeValues && effect._gradeValues[reward._grade] === null)
-          errors.push({ level: "error", path: `${p}:_modifierRewards`, msg: `이 Modifier에 없는 등급입니다: ${reward._grade}` });
-      }
-      for (const reward of state.data.stages._rewards || []) checkRef(errors, "error", `stages:_rewards`, reward._enemyId, "enemy");
-    });
+    for (const reward of state.data.stages._rewards || []) checkRef(errors, "error", `stages:_rewards`, reward._enemyId, "enemy");
     return errors;
   },
   spell(table) {

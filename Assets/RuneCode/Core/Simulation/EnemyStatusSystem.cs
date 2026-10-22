@@ -156,11 +156,5 @@ namespace RuneCode
         {
             _enemyStatuses.Clear(); _statusIndex.Clear(); _statusTime = 0;
         }
-
-        /// <summary>클리어 정산에 맞춰 상태 이상 목록과 조회 인덱스를 비운다.</summary>
-        internal void ClearOnClear()
-        {
-            _enemyStatuses.Clear(); _statusIndex.Clear();
-        }
     }
 }

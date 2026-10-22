@@ -13,12 +13,12 @@ namespace RuneCode.Editor
     public sealed class StageTableEditorWindow : EditorWindow
     {
         private const string MENU_PATH = "Rune Code/Stage Table Editor";
-        private const string STAGES_RESOURCE = "RuneCode/stages";
+        internal const string STAGES_RESOURCE = "RuneCode/stages";
         private const string ENEMIES_RESOURCE = "RuneCode/enemies";
         private const string FORMATIONS_RESOURCE = "RuneCode/formations";
-        private const string DROPS_RESOURCE = "RuneCode/drops";
-        private const string RUNES_RESOURCE = "RuneCode/tables/runes";
-        private const string GRADES_RESOURCE = "RuneCode/tables/elite_modifier_drops";
+        internal const string DROPS_RESOURCE = "RuneCode/drops";
+        internal const string RUNES_RESOURCE = "RuneCode/tables/runes";
+        internal const string GRADES_RESOURCE = "RuneCode/tables/elite_modifier_drops";
         private const string BOSSES_RESOURCE = "RuneCode/bosses";
         private const float SIDEBAR_WIDTH = 260f;
         private const float SIDEBAR_ROW_HEIGHT = 24f;
@@ -28,12 +28,12 @@ namespace RuneCode.Editor
         private const float ELEMENT_LEFT_INSET = 15f;
         private const float ELEMENT_RIGHT_INSET = 22f;
         private const float CELL_LABEL_WIDTH = 26f;
+        private const int DROP_TABLE_TAB = 1;
 
-        private static readonly string[] TAB_LABELS = { "진행 편성", "스테이지 정의" };
-        private static readonly string[] KIND_VALUES = { "normal", "boss" };
+        private static readonly string[] TAB_LABELS = { "스테이지", "드롭 테이블" };
+
         private static readonly string[] ANGLE_VALUES = { "", "random", "ahead", "fixed" };
         private static readonly string[] ANGLE_LABELS = { "(원본 유지)", "random", "ahead", "fixed" };
-        private static readonly string[] FALLBACK_GRADES = { "C", "B", "A", "S" };
 
         private static readonly Color SELECTION_BACKGROUND = new Color(0.24f, 0.44f, 0.76f, 0.35f);
         private static readonly Color BOSS_TAG_COLOR = new Color(0.95f, 0.72f, 0.15f);
@@ -43,9 +43,6 @@ namespace RuneCode.Editor
 
         private static readonly float ROW_HEIGHT = EditorGUIUtility.singleLineHeight;
         private static readonly float FORMATION_BOX_HEIGHT = ROW_HEIGHT * 5 + BOX_PADDING * 2 + 4;
-        private static readonly float WAVE_COLLAPSED_HEIGHT = ROW_HEIGHT + ROW_GAP;
-        // 펼친 웨이브의 기본 높이. 상단 여백 1 + (시각·간격 행 + 반복 행) + 진형 박스 + 행 간격 + 하단 여백.
-        private static readonly float WAVE_EXPANDED_BASE = ROW_HEIGHT * 2 + FORMATION_BOX_HEIGHT + ROW_GAP * 3 + 5;
 
         private StageCatalogHost _host;
         private BossCatalog _bosses;
@@ -55,24 +52,15 @@ namespace RuneCode.Editor
         private string[] _enemyIds = Array.Empty<string>();
         private string[] _formationIds = Array.Empty<string>();
         private string[] _dropTableIds = Array.Empty<string>();
-        private string[] _runeIds = Array.Empty<string>();
-        private string[] _gradeValues = FALLBACK_GRADES;
         private string[] _dropPopupValues = { "" };
         private string[] _dropPopupLabels = { "(없음)" };
 
         private ReorderableList _rewardsList;
-        private ReorderableList _candidatesList;
-        private ReorderableList _wavesList;
         private ReorderableList _eliteTypesList;
-        private ReorderableList _modifierRewardsList;
-        private readonly List<ReorderableList> _waveUnitLists = new List<ReorderableList>();
         private readonly List<ReorderableList> _progressionUnitLists = new List<ReorderableList>();
-        private readonly HashSet<int> _expandedWaves = new HashSet<int>();
 
-        private EditorTab _activeTab;
         private Vector2 _sidebarScroll;
         private Vector2 _detailScroll;
-        private int _selectedStageIndex;
         private int _selectedProgressionStageIndex;
         private int _selectedProgressionRoundIndex;
 
@@ -86,18 +74,10 @@ namespace RuneCode.Editor
         private bool _foldSpawn = true;
         private bool _foldMisc = true;
         private bool _foldRewards = true;
-        private bool _foldStage = true;
-        private bool _foldStream = false;
-        private bool _foldWaves = false;
         private bool _foldElite = true;
-        private bool _foldModifierRewards = true;
 
-        /// <summary>창에서 편집할 대상을 구분하는 탭이다.</summary>
-        private enum EditorTab
-        {
-            Progression,
-            StageDefinition,
-        }
+        private DropTableEditorTab _dropTableTab;
+        private int _selectedTab;
 
         /// <summary>스테이지 테이블 편집기 창을 연다.</summary>
         [MenuItem(MENU_PATH)]
@@ -108,16 +88,24 @@ namespace RuneCode.Editor
 
         void OnEnable()
         {
-            UpdateTitle();
             Undo.undoRedoPerformed += OnUndoRedoPerformed;
             LoadExternalOptions();
             LoadFromDisk();
+            _dropTableTab = new DropTableEditorTab(OnDropTablesSaved);
+            _dropTableTab.Load();
+            UpdateTitle();
         }
 
         void OnDisable()
         {
             Undo.undoRedoPerformed -= OnUndoRedoPerformed;
             if (_isDirty) Debug.LogWarning("[StageTableEditor] 미저장된 stages.json 변경이 폐기됩니다.");
+            if (_dropTableTab != null)
+            {
+                if (_dropTableTab.IsDirty) Debug.LogWarning("[StageTableEditor] 미저장된 drops.json 변경이 폐기됩니다.");
+                _dropTableTab.Dispose();
+                _dropTableTab = null;
+            }
             if (_host != null)
             {
                 DestroyImmediate(_host);
@@ -127,6 +115,24 @@ namespace RuneCode.Editor
         }
 
         void OnGUI()
+        {
+            _selectedTab = GUILayout.Toolbar(_selectedTab, TAB_LABELS);
+            if (_selectedTab == DROP_TABLE_TAB) DrawDropTableTab();
+            else DrawStageTab();
+            UpdateTitle();
+        }
+
+        /// <summary>드롭 테이블 탭의 툴바, 상태 메시지와 편집 영역을 그린다.</summary>
+        private void DrawDropTableTab()
+        {
+            DrawToolbar();
+            DrawStatusBox(_dropTableTab.StatusMessage, _dropTableTab.StatusIsError);
+            _dropTableTab.Draw();
+            DrawBottomStatus(_dropTableTab.StatusMessage, _dropTableTab.StatusIsError);
+        }
+
+        /// <summary>스테이지 탭의 툴바, 루트 설정, 라운드 목록과 선택 라운드 편집 영역을 그린다. 데이터를 못 불러왔으면 오류와 다시 로드 버튼만 표시한다.</summary>
+        private void DrawStageTab()
         {
             if (_host == null || _serialized == null)
             {
@@ -141,26 +147,28 @@ namespace RuneCode.Editor
             _serialized.Update();
 
             DrawToolbar();
-            if (!string.IsNullOrEmpty(_statusMessage))
-                EditorGUILayout.HelpBox(_statusMessage, _statusIsError ? MessageType.Error : MessageType.Info);
-
-            DrawTabBar();
+            DrawStatusBox(_statusMessage, _statusIsError);
 
             EditorGUILayout.BeginHorizontal();
-            if (_activeTab == EditorTab.Progression) DrawProgressionSidebar();
-            else DrawSidebar();
+            DrawProgressionSidebar();
             EditorGUILayout.BeginVertical();
             _detailScroll = EditorGUILayout.BeginScrollView(_detailScroll);
             DrawRootSections();
             DrawDivider();
-            if (_activeTab == EditorTab.Progression) DrawProgressionDetail();
-            else DrawStageSections();
+            DrawProgressionDetail();
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
             EditorGUILayout.EndHorizontal();
 
-            DrawBottomStatus();
+            DrawBottomStatus(_statusMessage, _statusIsError);
             ApplyChanges();
+        }
+
+        /// <summary>상태 메시지가 있으면 오류·정보 HelpBox로 표시한다.</summary>
+        private static void DrawStatusBox(string message, bool isError)
+        {
+            if (!string.IsNullOrEmpty(message))
+                EditorGUILayout.HelpBox(message, isError ? MessageType.Error : MessageType.Info);
         }
 
         /// <summary>데이터를 못 불러왔을 때 오류와 다시 로드 버튼을 표시한다.</summary>
@@ -170,87 +178,34 @@ namespace RuneCode.Editor
             if (GUILayout.Button("다시 로드")) LoadFromDisk();
         }
 
-        /// <summary>상단 툴바에 다시 로드·검증·저장 버튼과 저장 경로를 그린다.</summary>
+        /// <summary>상단 툴바에 현재 탭 파일의 다시 로드·검증·저장 버튼과 저장 경로를 그린다.</summary>
         private void DrawToolbar()
         {
+            bool isDropTableTab = _selectedTab == DROP_TABLE_TAB;
+            bool isDirty = isDropTableTab ? _dropTableTab.IsDirty : _isDirty;
             EditorGUILayout.BeginHorizontal();
             if (GUILayout.Button("다시 로드", GUILayout.Width(80))
-                && (!_isDirty || EditorUtility.DisplayDialog("다시 로드", "저장하지 않은 변경이 사라집니다. 디스크에서 다시 불러올까요?", "다시 로드", "취소")))
-                LoadFromDisk();
-            if (GUILayout.Button("검증", GUILayout.Width(56))) RunValidation();
-            if (GUILayout.Button("저장", GUILayout.Width(56))) SaveToDisk();
+                && (!isDirty || EditorUtility.DisplayDialog("다시 로드", "저장하지 않은 변경이 사라집니다. 디스크에서 다시 불러올까요?", "다시 로드", "취소")))
+            {
+                if (isDropTableTab) _dropTableTab.Load();
+                else LoadFromDisk();
+            }
+            if (GUILayout.Button("검증", GUILayout.Width(56)))
+            {
+                if (isDropTableTab) _dropTableTab.Validate();
+                else RunValidation();
+            }
+            if (GUILayout.Button("저장", GUILayout.Width(56)))
+            {
+                if (isDropTableTab) _dropTableTab.Save();
+                else SaveToDisk();
+            }
             GUILayout.FlexibleSpace();
-            GUILayout.Label(_savePath, EditorStyles.miniLabel);
+            GUILayout.Label(isDropTableTab ? _dropTableTab.SavePath : _savePath, EditorStyles.miniLabel);
             EditorGUILayout.EndHorizontal();
         }
 
-        /// <summary>상태 메시지 아래에 편집 탭을 그리고 탭이 바뀌면 전환한다.</summary>
-        private void DrawTabBar()
-        {
-            EditorTab next = (EditorTab)GUILayout.Toolbar((int)_activeTab, TAB_LABELS);
-            if (next != _activeTab) SwitchTab(next);
-        }
-
-        /// <summary>
-        /// 편집 탭을 바꾸고 리스트 캐시를 다시 만든 뒤 현재 GUI 이벤트를 끝낸다.
-        /// 같은 이벤트에서 다른 탭의 컨트롤을 그리면 Layout 단계와 컨트롤 구성이 어긋나므로 다음 프레임에 새 탭을 그린다.
-        /// </summary>
-        private void SwitchTab(EditorTab tab)
-        {
-            _activeTab = tab;
-            RebuildStageLists();
-            Repaint();
-            GUIUtility.ExitGUI();
-        }
-
-        /// <summary>좌측 스테이지 목록과 추가·복제·삭제·이동 버튼을 그린다.</summary>
-        private void DrawSidebar()
-        {
-            EditorGUILayout.BeginVertical(GUILayout.Width(SIDEBAR_WIDTH));
-            SerializedProperty stages = StageProperties();
-            _sidebarScroll = EditorGUILayout.BeginScrollView(_sidebarScroll);
-            for (int i = 0; i < stages.arraySize; i++)
-                DrawSidebarRow(stages, i);
-            EditorGUILayout.EndScrollView();
-
-            EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("추가", EditorStyles.miniButton)) AddStage();
-            using (new EditorGUI.DisabledScope(stages.arraySize == 0))
-            {
-                if (GUILayout.Button("복제", EditorStyles.miniButton)) DuplicateStage();
-                if (GUILayout.Button("삭제", EditorStyles.miniButton)) DeleteSelectedStage();
-                if (GUILayout.Button("▲", EditorStyles.miniButton, GUILayout.Width(28))) MoveSelectedStage(-1);
-                if (GUILayout.Button("▼", EditorStyles.miniButton, GUILayout.Width(28))) MoveSelectedStage(1);
-            }
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.EndVertical();
-        }
-
-        /// <summary>목록 한 행에 스테이지 번호·종류·웨이브 수를 표시하고 클릭으로 선택한다.</summary>
-        private void DrawSidebarRow(SerializedProperty stages, int index)
-        {
-            SerializedProperty stage = stages.GetArrayElementAtIndex(index);
-            string kind = stage.FindPropertyRelative("_kind").stringValue;
-            int waveCount = stage.FindPropertyRelative("_waves").arraySize;
-
-            Rect row = EditorGUILayout.GetControlRect(GUILayout.Height(SIDEBAR_ROW_HEIGHT));
-            if (index == _selectedStageIndex) EditorGUI.DrawRect(row, SELECTION_BACKGROUND);
-            if (Event.current.type == EventType.MouseDown && row.Contains(Event.current.mousePosition) && Event.current.button == 0)
-            {
-                SelectStage(index);
-                Event.current.Use();
-            }
-
-            Rect labelRect = new Rect(row.x + 4, row.y, row.width * 0.55f, row.height);
-            Rect tagRect = new Rect(labelRect.xMax, row.y, row.width - labelRect.width - 4, row.height);
-            GUI.Label(labelRect, " " + StageRangeLabel(stage));
-            Color previous = GUI.contentColor;
-            if (kind == KIND_VALUES[1]) GUI.contentColor = BOSS_TAG_COLOR;
-            GUI.Label(tagRect, (kind == KIND_VALUES[1] ? "보스" : "일반") + " · 웨이브 " + waveCount, EditorStyles.miniLabel);
-            GUI.contentColor = previous;
-        }
-
-        /// <summary>진행 탭 좌측에 스테이지별 라운드 목록을 그린다. 고정 구조라 추가·삭제 버튼은 없다.</summary>
+        /// <summary>좌측에 스테이지별 라운드 목록을 그린다. 고정 구조라 추가·삭제 버튼은 없다.</summary>
         private void DrawProgressionSidebar()
         {
             EditorGUILayout.BeginVertical(GUILayout.Width(SIDEBAR_WIDTH));
@@ -357,7 +312,6 @@ namespace RuneCode.Editor
                 SerializedProperty growth = root.FindPropertyRelative("_growth");
                 DrawDoubleFieldLayout(growth.FindPropertyRelative("_hpStageScale"), new GUIContent("체력 증가율", "스테이지당 체력 배율 증가. 0.15 = 스테이지당 +15%"));
                 DrawDoubleFieldLayout(growth.FindPropertyRelative("_damageStageScale"), new GUIContent("피해 증가율", "스테이지당 피해 배율 증가. 0.1 = 스테이지당 +10%"));
-                DrawDoubleFieldLayout(growth.FindPropertyRelative("_clearRewardStageScale"), new GUIContent("클리어 보상 증가율", "스테이지당 클리어 보상 증가. 0.15 = 스테이지당 +15%"));
             }
 
             _foldSpawn = EditorGUILayout.Foldout(_foldSpawn, "스폰", true);
@@ -387,88 +341,7 @@ namespace RuneCode.Editor
                 _rewardsList.DoLayoutList();
         }
 
-        /// <summary>선택한 스테이지의 헤더·스트림·웨이브·엘리트·Modifier 보상 섹션을 그린다.</summary>
-        private void DrawStageSections()
-        {
-            SerializedProperty stage = SelectedStageProperty();
-            if (stage == null)
-            {
-                EditorGUILayout.HelpBox("왼쪽 목록에서 스테이지를 선택하세요.", MessageType.Info);
-                return;
-            }
-            DrawStageHeader(stage);
-            DrawStreamSection(stage);
-            DrawWavesSection();
-            DrawEliteSection(stage);
-            DrawModifierRewardSection();
-        }
-
-        /// <summary>선택한 스테이지의 번호 범위·종류·시간·클리어 보상을 그린다.</summary>
-        private void DrawStageHeader(SerializedProperty stage)
-        {
-            _foldStage = EditorGUILayout.Foldout(_foldStage, "스테이지 " + StageRangeLabel(stage), true);
-            if (!_foldStage) return;
-            DrawIntFieldLayout(stage.FindPropertyRelative("_fromStage"), new GUIContent("시작 번호"));
-            DrawIntFieldLayout(stage.FindPropertyRelative("_toStage"), new GUIContent("종료 번호", "0 = 상한 없음(무한 모드 순환 대상)"));
-            DrawStringPopupLayout(stage.FindPropertyRelative("_kind"), "종류", KIND_VALUES, KIND_VALUES, null);
-            bool isBoss = stage.FindPropertyRelative("_kind").stringValue == KIND_VALUES[1];
-            GUIContent timeLabel = isBoss
-                ? new GUIContent("제한 시간(초) (진행 미션 미사용)", "보스 처치 제한 시간이다. 진행 미션에서는 쓰이지 않지만 검증을 위해 0보다 커야 한다.")
-                : new GUIContent("생존 시간(초) (진행 미션 미사용)", "버텨야 하는 시간이다. 진행 미션에서는 쓰이지 않지만 검증을 위해 0보다 커야 한다.");
-            DrawDoubleFieldLayout(stage.FindPropertyRelative("_timeLimit"), timeLabel);
-            DrawIntFieldLayout(stage.FindPropertyRelative("_clearReward"), new GUIContent("클리어 보상"));
-        }
-
-        /// <summary>선택한 스테이지의 적 유입 간격·진형·후보 목록을 그린다.</summary>
-        private void DrawStreamSection(SerializedProperty stage)
-        {
-            _foldStream = EditorGUILayout.Foldout(_foldStream, "적 유입 (Stream) - 진행 미션 미사용 · 검증용", true);
-            if (!_foldStream) return;
-            SerializedProperty stream = stage.FindPropertyRelative("_stream");
-            if (stream == null)
-            {
-                EditorGUILayout.HelpBox("스트림 설정이 없습니다. 이 상태로는 저장 전 검증을 통과하지 못합니다.", MessageType.Warning);
-                return;
-            }
-            DrawDoubleFieldLayout(stream.FindPropertyRelative("_baseInterval"), new GUIContent("기본 간격(초)"));
-            DrawDoubleFieldLayout(stream.FindPropertyRelative("_minInterval"), new GUIContent("최소 간격(초)", "기본 간격 이하"));
-            DrawDoubleFieldLayout(stream.FindPropertyRelative("_stageScale"), new GUIContent("스테이지 가속 계수", "0 이상. 스테이지가 오를수록 간격이 이 계수만큼 줄어든다."));
-            DrawDoubleFieldLayout(stream.FindPropertyRelative("_intraRamp"), new GUIContent("스테이지 내 가속", "0 이상 1 미만. 스테이지 경과 시간에 따라 간격이 최대 이 비율만큼 줄어든다."));
-            DrawDoubleFieldLayout(stream.FindPropertyRelative("_rampSeconds"), new GUIContent("가속 도달 시간(초)"));
-            DrawIntFieldLayout(stream.FindPropertyRelative("_groupSize"), new GUIContent("묶음 크기", "한 번의 유입 간격마다 같은 틱에 묶어서 내는 적 수. 0은 1기로 본다"));
-            DrawStringPopupLayout(stream.FindPropertyRelative("_formation"), "진형", _formationIds, _formationIds, null);
-            if (_candidatesList != null)
-                _candidatesList.DoLayoutList();
-        }
-
-        /// <summary>선택한 스테이지의 웨이브 목록을 그린다.</summary>
-        private void DrawWavesSection()
-        {
-            _foldWaves = EditorGUILayout.Foldout(_foldWaves, "웨이브 - 진행 미션 미사용 · 검증용", true);
-            if (_foldWaves && _wavesList != null)
-                _wavesList.DoLayoutList();
-        }
-
-        /// <summary>선택한 스테이지의 엘리트 주기와 순회 타입 목록을 그린다.</summary>
-        private void DrawEliteSection(SerializedProperty stage)
-        {
-            _foldElite = EditorGUILayout.Foldout(_foldElite, "엘리트", true);
-            if (!_foldElite) return;
-            EditorGUILayout.HelpBox("시간제 스테이지의 스트림 엘리트 설정이다. 연속 미션 엘리트는 진행 편성 탭의 엘리트 타입과 웨이브 유닛 토글로 설정한다.", MessageType.Info);
-            DrawIntFieldLayout(stage.FindPropertyRelative("_eliteEvery"), new GUIContent("엘리트 주기", "기본 스폰 순번이 이 배수일 때 엘리트를 스폰한다. 0 = 엘리트 없음"));
-            if (_eliteTypesList != null)
-                _eliteTypesList.DoLayoutList();
-        }
-
-        /// <summary>선택한 스테이지의 Modifier 보상 목록을 그린다.</summary>
-        private void DrawModifierRewardSection()
-        {
-            _foldModifierRewards = EditorGUILayout.Foldout(_foldModifierRewards, "Modifier 보상", true);
-            if (_foldModifierRewards && _modifierRewardsList != null)
-                _modifierRewardsList.DoLayoutList();
-        }
-
-        /// <summary>진행 탭 상세 영역에 선택 라운드의 제목, 스테이지 정의 요약과 세 웨이브를 그린다.</summary>
+        /// <summary>상세 영역에 선택 라운드의 제목, 엘리트 타입, 라운드 보상과 세 웨이브를 그린다.</summary>
         private void DrawProgressionDetail()
         {
             SerializedProperty stage = SelectedProgressionStageProperty();
@@ -488,9 +361,10 @@ namespace RuneCode.Editor
             SerializedProperty round = rounds.GetArrayElementAtIndex(_selectedProgressionRoundIndex);
 
             GUILayout.Label("스테이지 " + stageNumber + " · 라운드 " + (_selectedProgressionRoundIndex + 1), EditorStyles.boldLabel);
-            DrawProgressionDefinitionSummary(stageNumber);
             DrawProgressionEliteSection();
-            EditorGUILayout.PropertyField(round.FindPropertyRelative("_reward"), new GUIContent("라운드 선택 보상"), true);
+            bool isStageClearRound = _selectedProgressionRoundIndex == StageCatalog.PROGRESSION_ROUND_COUNT - 1;
+            DrawStringPopup(EditorGUILayout.GetControlRect(), round.FindPropertyRelative("_rewardDropTable"),
+                new GUIContent(isStageClearRound ? "스테이지 종료 보상 테이블" : "라운드 보상 테이블"), _dropTableIds, _dropTableIds);
 
             SerializedProperty waves = round.FindPropertyRelative("_waves");
             if (waves == null || waves.arraySize != StageCatalog.PROGRESSION_WAVE_COUNT)
@@ -499,27 +373,6 @@ namespace RuneCode.Editor
                 return;
             }
             DrawProgressionWaves(waves);
-        }
-
-        /// <summary>진행 스테이지 번호에 대응하는 정의의 보상 요약과 스테이지 정의 열기 버튼을 그린다.</summary>
-        private void DrawProgressionDefinitionSummary(int stageNumber)
-        {
-            int definitionIndex = FindStageDefinitionIndex(stageNumber);
-            if (definitionIndex < 0)
-            {
-                EditorGUILayout.HelpBox("스테이지 " + stageNumber + "에 대응하는 스테이지 정의 항목이 없습니다.", MessageType.Warning);
-                return;
-            }
-            SerializedProperty definition = StageProperties().GetArrayElementAtIndex(definitionIndex);
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.Label("클리어 보상 " + definition.FindPropertyRelative("_clearReward").intValue
-                + " · Modifier 보상 " + definition.FindPropertyRelative("_modifierRewards").arraySize + "개", EditorStyles.miniLabel, GUILayout.ExpandWidth(true));
-            if (GUILayout.Button("스테이지 정의 열기", EditorStyles.miniButton, GUILayout.Width(110)))
-            {
-                _selectedStageIndex = definitionIndex;
-                SwitchTab(EditorTab.StageDefinition);
-            }
-            EditorGUILayout.EndHorizontal();
         }
 
         /// <summary>선택한 진행 스테이지의 엘리트 타입 목록을 그린다. 웨이브 엘리트 유닛이 이 정의로 생성된다.</summary>
@@ -566,7 +419,7 @@ namespace RuneCode.Editor
             }
         }
 
-        /// <summary>진행 웨이브 하나를 진형 재정의 박스와 유닛 리스트로 그린다. 시각·반복 간격은 진행 미션에서 쓰지 않는다.</summary>
+        /// <summary>진행 웨이브 하나를 진형 재정의 박스와 유닛 리스트로 그린다.</summary>
         private void DrawProgressionWave(SerializedProperty waves, int waveIndex)
         {
             SerializedProperty wave = waves.GetArrayElementAtIndex(waveIndex);
@@ -601,34 +454,12 @@ namespace RuneCode.Editor
             return total;
         }
 
-        /// <summary>스테이지 번호에 대응하는 정의 항목의 인덱스를 반환한다. 단일 항목을 먼저 보고 없으면 범위 포함 항목을 찾는다. 없으면 -1.</summary>
-        private int FindStageDefinitionIndex(int stageNumber)
-        {
-            SerializedProperty stages = StageProperties();
-            for (int i = 0; i < stages.arraySize; i++)
-            {
-                SerializedProperty stage = stages.GetArrayElementAtIndex(i);
-                if (stage.FindPropertyRelative("_fromStage").intValue == stageNumber
-                    && stage.FindPropertyRelative("_toStage").intValue == stageNumber)
-                    return i;
-            }
-            for (int i = 0; i < stages.arraySize; i++)
-            {
-                SerializedProperty stage = stages.GetArrayElementAtIndex(i);
-                int from = stage.FindPropertyRelative("_fromStage").intValue;
-                int to = stage.FindPropertyRelative("_toStage").intValue;
-                if (stageNumber >= from && (to == 0 || stageNumber <= to))
-                    return i;
-            }
-            return -1;
-        }
-
-        /// <summary>창 하단에 현재 상태 메시지를 한 줄로 표시한다.</summary>
-        private void DrawBottomStatus()
+        /// <summary>창 하단에 현재 탭의 상태 메시지를 한 줄로 표시한다.</summary>
+        private static void DrawBottomStatus(string message, bool isError)
         {
             Color previous = GUI.contentColor;
-            if (_statusIsError) GUI.contentColor = ERROR_TEXT_COLOR;
-            GUILayout.Label(_statusMessage, EditorStyles.miniLabel);
+            if (isError) GUI.contentColor = ERROR_TEXT_COLOR;
+            GUILayout.Label(message, EditorStyles.miniLabel);
             GUI.contentColor = previous;
         }
 
@@ -653,53 +484,7 @@ namespace RuneCode.Editor
             DrawIntField(rewardRect, element.FindPropertyRelative("_reward"), GUIContent.none);
         }
 
-        /// <summary>유입 후보 한 행에 적 ID·첫 등장 스테이지·가중치를 그린다.</summary>
-        private void DrawCandidateRow(Rect rect, int index)
-        {
-            SerializedProperty element = _candidatesList.serializedProperty.GetArrayElementAtIndex(index);
-            Rect content = ElementContent(rect);
-            float y = rect.y + 1;
-            float popupWidth = Mathf.Clamp(content.width - 230f, 80f, content.width * 0.55f);
-            float firstWidth = Mathf.Min(90f, content.width * 0.25f);
-            float weightWidth = content.width - popupWidth - firstWidth - FIELD_GAP * 2;
-            Rect idRect = new Rect(content.x, y, popupWidth, ROW_HEIGHT);
-            Rect firstRect = new Rect(idRect.xMax + FIELD_GAP, y, firstWidth, ROW_HEIGHT);
-            Rect weightRect = new Rect(firstRect.xMax + FIELD_GAP, y, weightWidth, ROW_HEIGHT);
-            DrawStringPopup(idRect, element.FindPropertyRelative("_enemyId"), GUIContent.none, _enemyIds, _enemyIds);
-            DrawIntField(firstRect, element.FindPropertyRelative("_firstStage"), GUIContent.none);
-            DrawDoubleField(weightRect, element.FindPropertyRelative("_weight"), GUIContent.none);
-        }
-
-        /// <summary>웨이브 요소에 시각·반복 간격과 진형 재정의 박스, 유닛 리스트를 그린다. 그립·삭제 버튼 영역은 비운다.</summary>
-        private void DrawWaveElement(Rect rect, int index)
-        {
-            if (index >= _waveUnitLists.Count) return;
-            SerializedProperty wave = _wavesList.serializedProperty.GetArrayElementAtIndex(index);
-            SerializedProperty at = wave.FindPropertyRelative("_at");
-            SerializedProperty units = wave.FindPropertyRelative("_units");
-            bool expanded = _expandedWaves.Contains(index);
-
-            Rect content = ElementContent(rect);
-            float y = rect.y + 1;
-            string summary = "  t=" + at.doubleValue.ToString("0.#") + "초 · 유닛 " + units.arraySize;
-            expanded = EditorGUI.Foldout(new Rect(content.x, y, content.width, ROW_HEIGHT), expanded, "웨이브 " + (index + 1) + summary, true);
-            if (expanded != _expandedWaves.Contains(index)) SetExpandedWave(index, expanded);
-            y += ROW_HEIGHT + ROW_GAP;
-            if (!expanded) return;
-
-            float half = (content.width - FIELD_GAP) * 0.5f;
-            DrawDoubleField(new Rect(content.x, y, half, ROW_HEIGHT), at, new GUIContent("발생 시각(초)"));
-            DrawDoubleField(new Rect(content.x + half + FIELD_GAP, y, half, ROW_HEIGHT), wave.FindPropertyRelative("_repeatInterval"), new GUIContent("반복 간격(초)", "0 = 1회만 실행"));
-            y += ROW_HEIGHT + ROW_GAP;
-
-            DrawFormationOverrideBox(new Rect(content.x, y, content.width, FORMATION_BOX_HEIGHT), wave.FindPropertyRelative("_formation"));
-            y += FORMATION_BOX_HEIGHT + ROW_GAP;
-
-            ReorderableList unitList = _waveUnitLists[index];
-            unitList.DoList(new Rect(content.x, y, content.width, unitList.GetHeight()));
-        }
-
-        /// <summary>Rect 영역에 진형 재정의 박스(진형·각도·간격·주기·슬롯 수)를 그린다. 기존 웨이브 요소와 진행 편성 탭이 함께 쓴다.</summary>
+        /// <summary>Rect 영역에 진형 재정의 박스(진형·각도·간격·주기·슬롯 수)를 그린다.</summary>
         private void DrawFormationOverrideBox(Rect rect, SerializedProperty formation)
         {
             GUI.Box(rect, GUIContent.none, EditorStyles.helpBox);
@@ -717,19 +502,6 @@ namespace RuneCode.Editor
             DrawDoubleField(new Rect(innerX + pairWidth + FIELD_GAP, innerY, pairWidth, ROW_HEIGHT), formation.FindPropertyRelative("_interval"), new GUIContent("주기", "0 = 원본 유지"));
             innerY += ROW_HEIGHT;
             DrawIntField(new Rect(innerX, innerY, innerWidth, ROW_HEIGHT), formation.FindPropertyRelative("_slots"), new GUIContent("슬롯 수", "0 = 원본 유지. 반원 진형은 배수 제한이 있다."));
-        }
-
-        /// <summary>유닛 한 행에 적 ID 팝업과 수량을 그린다.</summary>
-        private void DrawWaveUnitRow(Rect rect, int index, ReorderableList list)
-        {
-            SerializedProperty element = list.serializedProperty.GetArrayElementAtIndex(index);
-            Rect content = ElementContent(rect);
-            float y = rect.y + 1;
-            float countWidth = Mathf.Min(84f, content.width * 0.35f);
-            Rect countRect = new Rect(content.xMax - countWidth, y, countWidth, ROW_HEIGHT);
-            Rect idRect = new Rect(content.x, y, countRect.xMin - FIELD_GAP - content.x, ROW_HEIGHT);
-            DrawStringPopup(idRect, element.FindPropertyRelative("_enemyId"), GUIContent.none, _enemyIds, _enemyIds);
-            DrawIntField(countRect, element.FindPropertyRelative("_count"), GUIContent.none);
         }
 
         /// <summary>진행 웨이브 유닛 한 행에 적 ID 팝업, 수량과 엘리트 토글을 그린다.</summary>
@@ -787,22 +559,6 @@ namespace RuneCode.Editor
             DrawDoubleField(fieldRect, property, GUIContent.none);
         }
 
-        /// <summary>Modifier 보상 한 행에 룬·등급 팝업과 수량을 그린다.</summary>
-        private void DrawModifierRewardRow(Rect rect, int index)
-        {
-            SerializedProperty element = _modifierRewardsList.serializedProperty.GetArrayElementAtIndex(index);
-            Rect content = ElementContent(rect);
-            float y = rect.y + 1;
-            float countWidth = Mathf.Min(84f, content.width * 0.3f);
-            float gradeWidth = Mathf.Min(60f, content.width * 0.24f);
-            Rect countRect = new Rect(content.xMax - countWidth, y, countWidth, ROW_HEIGHT);
-            Rect gradeRect = new Rect(countRect.xMin - FIELD_GAP - gradeWidth, y, gradeWidth, ROW_HEIGHT);
-            Rect runeRect = new Rect(content.x, y, gradeRect.xMin - FIELD_GAP - content.x, ROW_HEIGHT);
-            DrawStringPopup(runeRect, element.FindPropertyRelative("_runeId"), GUIContent.none, _runeIds, _runeIds);
-            DrawStringPopup(gradeRect, element.FindPropertyRelative("_grade"), GUIContent.none, _gradeValues, _gradeValues);
-            DrawIntField(countRect, element.FindPropertyRelative("_count"), GUIContent.none);
-        }
-
         /// <summary>ReorderableList 요소 rect에서 왼쪽 드래그 그립과 오른쪽 삭제 버튼 영역을 제외한 내용 영역을 반환한다.</summary>
         private static Rect ElementContent(Rect elementRect)
         {
@@ -824,24 +580,6 @@ namespace RuneCode.Editor
             int next = string.IsNullOrEmpty(label.text)
                 ? EditorGUI.Popup(rect, index, display)
                 : EditorGUI.Popup(rect, label.text, index, display);
-            GUI.backgroundColor = previous;
-            if (next == index || next >= values.Length) return;
-            property.stringValue = values[next];
-            ApplyChanges();
-        }
-
-        /// <summary>레이아웃 기반 문자열 팝업을 그리고 값을 프로퍼티에 반영한다. 목록에 없는 값은 보존하고 배경을 경고색으로 표시한다.</summary>
-        private void DrawStringPopupLayout(SerializedProperty property, string label, string[] values, string[] labels, string tooltip)
-        {
-            string current = property.stringValue;
-            int index = Array.IndexOf(values, current);
-            bool isUnknown = index < 0;
-            string[] display = isUnknown ? AppendUnknown(labels, current) : labels;
-            if (isUnknown) index = display.Length - 1;
-
-            Color previous = GUI.backgroundColor;
-            if (isUnknown) GUI.backgroundColor = UNKNOWN_VALUE_BACKGROUND;
-            int next = EditorGUILayout.Popup(new GUIContent(label, tooltip), index, display);
             GUI.backgroundColor = previous;
             if (next == index || next >= values.Length) return;
             property.stringValue = values[next];
@@ -908,23 +646,27 @@ namespace RuneCode.Editor
             _statusIsError = isError;
         }
 
-        /// <summary>dirty 상태를 창 제목에 반영한다.</summary>
+        /// <summary>스테이지·드롭 테이블 중 하나라도 저장하지 않은 변경이 있으면 창 제목에 표시한다.</summary>
         private void UpdateTitle()
         {
-            titleContent = new GUIContent(_isDirty ? "Stage Table*" : "Stage Table");
+            bool isDirty = _isDirty || (_dropTableTab != null && _dropTableTab.IsDirty);
+            string title = isDirty ? "Stage Table*" : "Stage Table";
+            if (titleContent == null || titleContent.text != title) titleContent = new GUIContent(title);
         }
 
-        /// <summary>웨이브 요소의 펼침 상태를 기록한다.</summary>
-        private void SetExpandedWave(int index, bool expanded)
-        {
-            if (expanded) _expandedWaves.Add(index);
-            else _expandedWaves.Remove(index);
-        }
-
-        /// <summary>Undo·Redo 후 리스트 캐시 재구성을 예약한다.</summary>
+        /// <summary>Undo·Redo 후 두 탭의 리스트 캐시 재구성을 예약한다.</summary>
         private void OnUndoRedoPerformed()
         {
             _needsStageListRefresh = true;
+            _dropTableTab?.OnUndoRedo();
+            Repaint();
+        }
+
+        /// <summary>드롭 테이블 저장 후 스테이지 탭의 드롭 테이블 ID 팝업 목록을 다시 읽는다.</summary>
+        private void OnDropTablesSaved()
+        {
+            LoadExternalOptions();
+            Repaint();
         }
 
         /// <summary>Resources의 stages.json을 역직렬화해 편집 대상으로 삼고 선택·리스트 캐시를 초기화한다.</summary>
@@ -934,15 +676,14 @@ namespace RuneCode.Editor
             _host = null;
             _serialized = null;
             _isDirty = false;
-            _expandedWaves.Clear();
             UpdateTitle();
             try
             {
                 TextAsset asset = Resources.Load<TextAsset>(STAGES_RESOURCE);
                 if (asset == null) throw new FormatException("누락된 스테이지 데이터: " + STAGES_RESOURCE);
                 StageCatalog catalog = JsonUtility.FromJson<StageCatalog>(asset.text);
-                if (catalog == null || catalog.Stages == null || catalog.Stages.Count == 0)
-                    throw new FormatException("스테이지 정의가 없습니다: " + STAGES_RESOURCE);
+                if (catalog == null || catalog.ProgressionStages == null || catalog.ProgressionStages.Count == 0)
+                    throw new FormatException("연속 미션 스테이지가 없습니다: " + STAGES_RESOURCE);
                 string path = AssetDatabase.GetAssetPath(asset);
                 if (string.IsNullOrEmpty(path)) throw new FormatException("저장 경로를 찾지 못했습니다: " + STAGES_RESOURCE);
 
@@ -958,13 +699,12 @@ namespace RuneCode.Editor
                 SetStatus("불러오기 실패 - " + exception.Message, true);
                 return;
             }
-            _selectedStageIndex = FindDefaultStageIndex();
             _selectedProgressionStageIndex = 0;
             _selectedProgressionRoundIndex = 0;
             RebuildStageLists();
         }
 
-        /// <summary>팝업 후보로 쓸 적·진형·드롭·룬 ID와 Modifier 등급을 Resources JSON에서 읽어 캐시한다.</summary>
+        /// <summary>팝업 후보로 쓸 적·진형·드롭 ID와 보스 목록을 Resources JSON에서 읽어 캐시한다.</summary>
         private void LoadExternalOptions()
         {
             try
@@ -981,16 +721,6 @@ namespace RuneCode.Editor
             _enemyIds = LoadIdEntries(ENEMIES_RESOURCE, json => JsonUtility.FromJson<EnemyIdList>(json)?.Entries);
             _formationIds = LoadIdEntries(FORMATIONS_RESOURCE, json => JsonUtility.FromJson<FormationIdList>(json)?.Entries);
             _dropTableIds = LoadIdEntries(DROPS_RESOURCE, json => JsonUtility.FromJson<DropIdList>(json)?.Entries);
-            _runeIds = LoadIdEntries(RUNES_RESOURCE, json => JsonUtility.FromJson<RuneIdList>(json)?.Entries);
-            try
-            {
-                string[] grades = JsonUtility.FromJson<GradeOrderList>(LoadResourceText(GRADES_RESOURCE))?.Values;
-                _gradeValues = grades != null && grades.Length > 0 ? grades : FALLBACK_GRADES;
-            }
-            catch (Exception)
-            {
-                _gradeValues = FALLBACK_GRADES;
-            }
 
             _dropPopupValues = new string[_dropTableIds.Length + 1];
             _dropPopupLabels = new string[_dropTableIds.Length + 1];
@@ -1021,23 +751,23 @@ namespace RuneCode.Editor
         }
 
         /// <summary>Resources의 JSON 텍스트를 읽고 없으면 예외를 던진다. 런타임 로더와 같은 경로를 쓴다.</summary>
-        private static string LoadResourceText(string resource)
+        internal static string LoadResourceText(string resource)
         {
             TextAsset asset = Resources.Load<TextAsset>(resource);
             if (asset == null) throw new FormatException("누락된 데이터: " + resource);
             return asset.text;
         }
 
-        /// <summary>JSON 텍스트를 런타임과 동일한 StageCatalog.FromJson으로 검증하고 실패 시 예외를 던진다.</summary>
-        private static void ValidateStageJson(string json)
+        /// <summary>스테이지·드롭 JSON 텍스트를 런타임과 같은 순서의 DropCatalog.FromJson·StageCatalog.FromJson으로 함께 검증하고 실패 시 예외를 던진다. 나머지 테이블은 디스크에서 읽는다.</summary>
+        internal static void ValidateTables(string stagesJson, string dropsJson)
         {
             EnemyCatalog enemies = EnemyCatalog.FromJson(LoadResourceText(ENEMIES_RESOURCE));
-            DropCatalog drops = DropCatalog.FromJson(LoadResourceText(DROPS_RESOURCE));
             FormationCatalog formations = FormationCatalog.FromJson(LoadResourceText(FORMATIONS_RESOURCE));
             RuneCatalog runes = RuneCatalog.FromTable(JsonUtility.FromJson<RuneTableData>(LoadResourceText(RUNES_RESOURCE)));
             ModifierGradeTable grades = ModifierGradeTable.FromJson(LoadResourceText(GRADES_RESOURCE), runes);
+            DropCatalog drops = DropCatalog.FromJson(dropsJson, runes, grades);
             BossCatalog bosses = BossCatalog.FromJson(LoadResourceText(BOSSES_RESOURCE), enemies, formations);
-            StageCatalog.FromJson(json, enemies, formations, drops, grades, runes, bosses);
+            StageCatalog.FromJson(stagesJson, enemies, formations, drops, grades, runes, bosses);
         }
 
         /// <summary>저장 없이 현재 편집 상태를 런타임 검증으로 확인하고 결과를 상태줄에 표시한다.</summary>
@@ -1047,7 +777,7 @@ namespace RuneCode.Editor
             string json = JsonUtility.ToJson(_host.Catalog, true);
             try
             {
-                ValidateStageJson(json);
+                ValidateTables(json, LoadResourceText(DROPS_RESOURCE));
                 SetStatus("검증 통과 - 저장할 수 있습니다.", false);
             }
             catch (Exception exception)
@@ -1063,7 +793,7 @@ namespace RuneCode.Editor
             string json = JsonUtility.ToJson(_host.Catalog, true);
             try
             {
-                ValidateStageJson(json);
+                ValidateTables(json, LoadResourceText(DROPS_RESOURCE));
             }
             catch (Exception exception)
             {
@@ -1085,46 +815,6 @@ namespace RuneCode.Editor
             SetStatus("저장 완료 - " + _savePath, false);
         }
 
-        /// <summary>카탈로그의 스테이지 배열 프로퍼티를 반환한다.</summary>
-        private SerializedProperty StageProperties()
-        {
-            return _serialized.FindProperty("_catalog._stages");
-        }
-
-        /// <summary>사이드바에서 선택한 스테이지의 프로퍼티를 반환하고 선택이 범위를 벗어나면 보정한다.</summary>
-        private SerializedProperty SelectedStageProperty()
-        {
-            SerializedProperty stages = StageProperties();
-            if (stages.arraySize == 0) return null;
-            _selectedStageIndex = Mathf.Clamp(_selectedStageIndex, 0, stages.arraySize - 1);
-            return stages.GetArrayElementAtIndex(_selectedStageIndex);
-        }
-
-        /// <summary>1스테이지를 담는 항목의 목록 상 인덱스를 찾고 없으면 0을 반환한다.</summary>
-        private int FindDefaultStageIndex()
-        {
-            SerializedProperty stages = StageProperties();
-            for (int i = 0; i < stages.arraySize; i++)
-                if (stages.GetArrayElementAtIndex(i).FindPropertyRelative("_fromStage").intValue == 1) return i;
-            return 0;
-        }
-
-        /// <summary>스테이지 항목의 번호 범위 라벨을 반환한다.</summary>
-        private static string StageRangeLabel(SerializedProperty stage)
-        {
-            int from = stage.FindPropertyRelative("_fromStage").intValue;
-            int to = stage.FindPropertyRelative("_toStage").intValue;
-            return to == from ? from + " 스테이지" : from + "~" + to + " 스테이지";
-        }
-
-        /// <summary>사이드바 선택을 바꾸고 스테이지 전용 리스트 캐시를 다시 만든다.</summary>
-        private void SelectStage(int index)
-        {
-            if (_selectedStageIndex == index) return;
-            _selectedStageIndex = index;
-            RebuildStageLists();
-        }
-
         /// <summary>선택한 진행 스테이지의 프로퍼티를 반환하고 선택이 범위를 벗어나면 보정한다.</summary>
         private SerializedProperty SelectedProgressionStageProperty()
         {
@@ -1143,50 +833,18 @@ namespace RuneCode.Editor
             RebuildStageLists();
         }
 
-        /// <summary>현재 탭에 맞는 스테이지 전용 리스트 캐시를 다시 만든다. 보상표는 탭과 관계없이 재구성한다.</summary>
+        /// <summary>보상표와 선택 스테이지·라운드의 리스트 캐시를 다시 만든다.</summary>
         private void RebuildStageLists()
         {
             if (_serialized == null) return;
             _serialized.Update();
             _rewardsList = BuildRewardsList(_serialized.FindProperty("_catalog._rewards"));
-            if (_activeTab == EditorTab.Progression)
-            {
-                RebuildProgressionLists();
-                return;
-            }
-            _progressionUnitLists.Clear();
-            SerializedProperty stage = SelectedStageProperty();
-            if (stage == null)
-            {
-                _candidatesList = null;
-                _wavesList = null;
-                _eliteTypesList = null;
-                _modifierRewardsList = null;
-                _waveUnitLists.Clear();
-                return;
-            }
-            _candidatesList = BuildCandidatesList(stage.FindPropertyRelative("_stream._candidates"));
-            _eliteTypesList = BuildEliteTypesList(stage.FindPropertyRelative("_eliteTypes"));
-            _modifierRewardsList = BuildModifierRewardsList(stage.FindPropertyRelative("_modifierRewards"));
-            RebuildWaveLists(stage.FindPropertyRelative("_waves"));
+            RebuildProgressionLists();
         }
 
-        /// <summary>웨이브 목록과 유닛 하위 리스트 캐시를 선택 스테이지 기준으로 다시 만든다.</summary>
-        private void RebuildWaveLists(SerializedProperty waves)
-        {
-            _wavesList = BuildWavesList(waves);
-            _waveUnitLists.Clear();
-            for (int i = 0; i < waves.arraySize; i++)
-                _waveUnitLists.Add(BuildWaveUnitList(waves.GetArrayElementAtIndex(i).FindPropertyRelative("_units")));
-        }
-
-        /// <summary>진행 탭에서 정의 탭 전용 리스트 캐시를 비우고 선택 스테이지의 엘리트 타입과 선택 라운드의 웨이브 유닛 리스트를 다시 만든다.</summary>
+        /// <summary>선택 스테이지의 엘리트 타입과 선택 라운드의 웨이브 유닛 리스트 캐시를 다시 만든다.</summary>
         private void RebuildProgressionLists()
         {
-            _candidatesList = null;
-            _wavesList = null;
-            _modifierRewardsList = null;
-            _waveUnitLists.Clear();
             _progressionUnitLists.Clear();
 
             SerializedProperty stage = SelectedProgressionStageProperty();
@@ -1214,43 +872,6 @@ namespace RuneCode.Editor
             {
                 element.FindPropertyRelative("_enemyId").stringValue = _enemyIds.Length > 0 ? _enemyIds[0] : "";
                 element.FindPropertyRelative("_reward").intValue = 1;
-            });
-            return list;
-        }
-
-        /// <summary>유입 후보 리스트를 만든다.</summary>
-        private ReorderableList BuildCandidatesList(SerializedProperty property)
-        {
-            ReorderableList list = NewList(property, "유입 후보 (적 / 첫 등장 / 가중치)");
-            list.drawElementCallback = (rect, index, active, focused) => DrawCandidateRow(rect, index);
-            list.onAddCallback = target => AppendElement(target, element =>
-            {
-                element.FindPropertyRelative("_enemyId").stringValue = _enemyIds.Length > 0 ? _enemyIds[0] : "";
-                element.FindPropertyRelative("_firstStage").intValue = 1;
-                element.FindPropertyRelative("_weight").doubleValue = 1;
-            });
-            return list;
-        }
-
-        /// <summary>웨이브 목록을 만든다. 요소 높이는 펼침 상태와 유닛 수에 따라 달라진다.</summary>
-        private ReorderableList BuildWavesList(SerializedProperty property)
-        {
-            ReorderableList list = NewList(property, "웨이브");
-            list.drawElementCallback = (rect, index, active, focused) => DrawWaveElement(rect, index);
-            list.elementHeightCallback = index => WaveElementHeight(index);
-            list.onAddCallback = target => AppendElement(target, InitializeNewWave);
-            return list;
-        }
-
-        /// <summary>웨이브 유닛 리스트를 만든다.</summary>
-        private ReorderableList BuildWaveUnitList(SerializedProperty property)
-        {
-            ReorderableList list = NewList(property, "유닛 (적 / 수량)");
-            list.drawElementCallback = (rect, index, active, focused) => DrawWaveUnitRow(rect, index, list);
-            list.onAddCallback = target => AppendElement(target, element =>
-            {
-                element.FindPropertyRelative("_enemyId").stringValue = _enemyIds.Length > 0 ? _enemyIds[0] : "";
-                element.FindPropertyRelative("_count").intValue = 1;
             });
             return list;
         }
@@ -1288,20 +909,6 @@ namespace RuneCode.Editor
             return list;
         }
 
-        /// <summary>Modifier 보상 리스트를 만든다.</summary>
-        private ReorderableList BuildModifierRewardsList(SerializedProperty property)
-        {
-            ReorderableList list = NewList(property, "Modifier 보상 (룬 / 등급 / 수량)");
-            list.drawElementCallback = (rect, index, active, focused) => DrawModifierRewardRow(rect, index);
-            list.onAddCallback = target => AppendElement(target, element =>
-            {
-                element.FindPropertyRelative("_runeId").stringValue = _runeIds.Length > 0 ? _runeIds[0] : "";
-                element.FindPropertyRelative("_grade").stringValue = _gradeValues[0];
-                element.FindPropertyRelative("_count").intValue = 1;
-            });
-            return list;
-        }
-
         /// <summary>공통 설정(헤더 라벨, 구조 변경 시 캐시 재구성 예약)을 갖춘 리스트를 만든다.</summary>
         private ReorderableList NewList(SerializedProperty property, string header)
         {
@@ -1319,118 +926,6 @@ namespace RuneCode.Editor
             initialize?.Invoke(property.GetArrayElementAtIndex(property.arraySize - 1));
             ApplyChanges();
             _needsStageListRefresh = true;
-        }
-
-        /// <summary>웨이브 요소의 높이를 펼침 상태와 유닛 수에 따라 반환한다.</summary>
-        private float WaveElementHeight(int index)
-        {
-            if (!_expandedWaves.Contains(index) || index >= _waveUnitLists.Count) return WAVE_COLLAPSED_HEIGHT;
-            return WAVE_EXPANDED_BASE + _waveUnitLists[index].GetHeight();
-        }
-
-        /// <summary>검증을 통과하는 기본값으로 새 스테이지 항목을 목록 끝에 추가하고 선택한다.</summary>
-        private void AddStage()
-        {
-            SerializedProperty stages = StageProperties();
-            int nextNumber = stages.arraySize == 0
-                ? 1
-                : stages.GetArrayElementAtIndex(stages.arraySize - 1).FindPropertyRelative("_fromStage").intValue + 1;
-            stages.arraySize++;
-            InitializeNewStage(stages.GetArrayElementAtIndex(stages.arraySize - 1), nextNumber);
-            ApplyChanges();
-            _needsStageListRefresh = true;
-            _selectedStageIndex = stages.arraySize - 1;
-            RebuildStageLists();
-        }
-
-        /// <summary>새 스테이지 항목에 스트림 후보 1개를 포함한 최소 구성을 채운다.</summary>
-        private void InitializeNewStage(SerializedProperty stage, int number)
-        {
-            stage.FindPropertyRelative("_fromStage").intValue = number;
-            stage.FindPropertyRelative("_toStage").intValue = number;
-            stage.FindPropertyRelative("_kind").stringValue = KIND_VALUES[0];
-            stage.FindPropertyRelative("_timeLimit").doubleValue = 30;
-            stage.FindPropertyRelative("_clearReward").intValue = 20;
-            stage.FindPropertyRelative("_eliteEvery").intValue = 0;
-            stage.FindPropertyRelative("_waves").arraySize = 0;
-            stage.FindPropertyRelative("_eliteTypes").arraySize = 0;
-            stage.FindPropertyRelative("_modifierRewards").arraySize = 0;
-
-            SerializedProperty stream = stage.FindPropertyRelative("_stream");
-            stream.FindPropertyRelative("_baseInterval").doubleValue = 1.6;
-            stream.FindPropertyRelative("_minInterval").doubleValue = 0.35;
-            stream.FindPropertyRelative("_stageScale").doubleValue = 0.08;
-            stream.FindPropertyRelative("_intraRamp").doubleValue = 0.5;
-            stream.FindPropertyRelative("_rampSeconds").doubleValue = 60;
-            stream.FindPropertyRelative("_groupSize").intValue = 1;
-            stream.FindPropertyRelative("_formation").stringValue = _formationIds.Length > 0 ? _formationIds[0] : "";
-            SerializedProperty candidates = stream.FindPropertyRelative("_candidates");
-            candidates.arraySize = 1;
-            SerializedProperty candidate = candidates.GetArrayElementAtIndex(0);
-            candidate.FindPropertyRelative("_enemyId").stringValue = _enemyIds.Length > 0 ? _enemyIds[0] : "";
-            candidate.FindPropertyRelative("_firstStage").intValue = number;
-            candidate.FindPropertyRelative("_weight").doubleValue = 1;
-        }
-
-        /// <summary>선택한 스테이지를 복제하고 번호를 1 늘려 단일 항목 중복 검증을 피하게 한다.</summary>
-        private void DuplicateStage()
-        {
-            SerializedProperty stages = StageProperties();
-            if (stages.arraySize == 0) return;
-            _selectedStageIndex = Mathf.Clamp(_selectedStageIndex, 0, stages.arraySize - 1);
-            stages.InsertArrayElementAtIndex(_selectedStageIndex);
-            SerializedProperty copy = stages.GetArrayElementAtIndex(_selectedStageIndex);
-            copy.FindPropertyRelative("_fromStage").intValue += 1;
-            SerializedProperty toStage = copy.FindPropertyRelative("_toStage");
-            if (toStage.intValue != 0) toStage.intValue += 1;
-            ApplyChanges();
-            _needsStageListRefresh = true;
-            RebuildStageLists();
-        }
-
-        /// <summary>선택한 스테이지 항목을 확인 후 삭제한다.</summary>
-        private void DeleteSelectedStage()
-        {
-            SerializedProperty stages = StageProperties();
-            if (stages.arraySize == 0) return;
-            string label = StageRangeLabel(stages.GetArrayElementAtIndex(_selectedStageIndex));
-            if (!EditorUtility.DisplayDialog("스테이지 삭제", label + " 항목을 삭제할까요?", "삭제", "취소")) return;
-            stages.DeleteArrayElementAtIndex(_selectedStageIndex);
-            ApplyChanges();
-            _needsStageListRefresh = true;
-            _selectedStageIndex = Mathf.Clamp(_selectedStageIndex - 1, 0, Mathf.Max(0, stages.arraySize - 1));
-            RebuildStageLists();
-        }
-
-        /// <summary>선택한 스테이지를 목록에서 위(-1)·아래(+1)로 이동한다.</summary>
-        private void MoveSelectedStage(int delta)
-        {
-            SerializedProperty stages = StageProperties();
-            int target = _selectedStageIndex + delta;
-            if (stages.arraySize == 0 || target < 0 || target >= stages.arraySize) return;
-            stages.MoveArrayElement(_selectedStageIndex, target);
-            _selectedStageIndex = target;
-            ApplyChanges();
-            _needsStageListRefresh = true;
-            RebuildStageLists();
-        }
-
-        /// <summary>새 웨이브에 기본 시각과 진형 재정의, 첫 유닛을 채운다.</summary>
-        private void InitializeNewWave(SerializedProperty wave)
-        {
-            wave.FindPropertyRelative("_at").doubleValue = 5;
-            wave.FindPropertyRelative("_repeatInterval").doubleValue = 0;
-            SerializedProperty formation = wave.FindPropertyRelative("_formation");
-            formation.FindPropertyRelative("_id").stringValue = _formationIds.Length > 0 ? _formationIds[0] : "";
-            formation.FindPropertyRelative("_angle").stringValue = "";
-            formation.FindPropertyRelative("_spacing").doubleValue = 0;
-            formation.FindPropertyRelative("_interval").doubleValue = 0;
-            formation.FindPropertyRelative("_slots").intValue = 0;
-            SerializedProperty units = wave.FindPropertyRelative("_units");
-            units.arraySize = 1;
-            SerializedProperty unit = units.GetArrayElementAtIndex(0);
-            unit.FindPropertyRelative("_enemyId").stringValue = _enemyIds.Length > 0 ? _enemyIds[0] : "";
-            unit.FindPropertyRelative("_count").intValue = 1;
         }
 
         /// <summary>카탈로그를 담아 SerializedObject로 편집하기 위한 에디터 세션 전용 컨테이너다.</summary>
@@ -1482,20 +977,5 @@ namespace RuneCode.Editor
             public IdEntry[] Entries => _dropTables;
         }
 
-        /// <summary>tables/runes.json의 룬 ID 목록을 읽기 위한 형식이다.</summary>
-        [Serializable]
-        private sealed class RuneIdList
-        {
-            [SerializeField] private IdEntry[] _runes;
-            public IdEntry[] Entries => _runes;
-        }
-
-        /// <summary>tables/elite_modifier_drops.json의 등급 순서를 읽기 위한 형식이다.</summary>
-        [Serializable]
-        private sealed class GradeOrderList
-        {
-            [SerializeField] private string[] _gradeOrder;
-            public string[] Values => _gradeOrder;
-        }
     }
 }

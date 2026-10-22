@@ -9,12 +9,124 @@
   "_dropTables": [
     {
       "_id": "drop.elite.basic",
-      "_rolls": 1,
-      "_guaranteed": [],
+      "_categoryChances": [
+        { "_category": "behavior", "_percent": 25 },
+        { "_category": "modifier", "_percent": 65 },
+        { "_category": "element", "_percent": 10 }
+      ],
+      "_gradeChances": [],
+      "_entries": []
+    },
+    {
+      "_id": "drop.round.modifier",
+      "_categoryChances": [
+        { "_category": "behavior", "_percent": 0 },
+        { "_category": "modifier", "_percent": 100 },
+        { "_category": "element", "_percent": 0 }
+      ],
+      "_gradeChances": [
+        { "_category": "modifier", "_grade": "C", "_percent": 50 },
+        { "_category": "modifier", "_grade": "B", "_percent": 30 },
+        { "_category": "modifier", "_grade": "A", "_percent": 15 },
+        { "_category": "modifier", "_grade": "S", "_percent": 5 }
+      ],
       "_entries": [
-        { "_type": "element", "_id": "randomElement", "_count": 1, "_weight": 10 },
-        { "_type": "behavior", "_id": "randomBehavior", "_count": 1, "_weight": 25 },
-        { "_type": "modifier", "_id": "eliteModifier", "_count": 1, "_weight": 65 }
+        { "_type": "modifier", "_id": "mod.saving", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.beamEmpower", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.knockback", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.amplify", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.multi", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.pierce", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.expand", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.duration", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.speed", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.homing", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.orbit", "_weight": 1 },
+        { "_type": "modifier", "_id": "mod.sequence", "_weight": 1 }
+      ]
+    },
+    {
+      "_id": "drop.round.behavior",
+      "_categoryChances": [
+        { "_category": "behavior", "_percent": 100 },
+        { "_category": "modifier", "_percent": 0 },
+        { "_category": "element", "_percent": 0 }
+      ],
+      "_gradeChances": [
+        { "_category": "behavior", "_grade": "C", "_percent": 30 },
+        { "_category": "behavior", "_grade": "B", "_percent": 40 },
+        { "_category": "behavior", "_grade": "A", "_percent": 20 },
+        { "_category": "behavior", "_grade": "S", "_percent": 10 }
+      ],
+      "_entries": [
+        { "_type": "behavior", "_id": "behavior.launch", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.burst", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.beam", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.slash", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.persist", "_weight": 1 }
+      ]
+    },
+    {
+      "_id": "drop.stageClear.1",
+      "_categoryChances": [
+        { "_category": "behavior", "_percent": 100 },
+        { "_category": "modifier", "_percent": 0 },
+        { "_category": "element", "_percent": 0 }
+      ],
+      "_gradeChances": [
+        { "_category": "behavior", "_grade": "C", "_percent": 30 },
+        { "_category": "behavior", "_grade": "B", "_percent": 40 },
+        { "_category": "behavior", "_grade": "A", "_percent": 20 },
+        { "_category": "behavior", "_grade": "S", "_percent": 10 }
+      ],
+      "_entries": [
+        { "_type": "behavior", "_id": "behavior.launch", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.burst", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.beam", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.slash", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.persist", "_weight": 1 }
+      ]
+    },
+    {
+      "_id": "drop.stageClear.2",
+      "_categoryChances": [
+        { "_category": "behavior", "_percent": 100 },
+        { "_category": "modifier", "_percent": 0 },
+        { "_category": "element", "_percent": 0 }
+      ],
+      "_gradeChances": [
+        { "_category": "behavior", "_grade": "C", "_percent": 30 },
+        { "_category": "behavior", "_grade": "B", "_percent": 40 },
+        { "_category": "behavior", "_grade": "A", "_percent": 20 },
+        { "_category": "behavior", "_grade": "S", "_percent": 10 }
+      ],
+      "_entries": [
+        { "_type": "behavior", "_id": "behavior.launch", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.burst", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.beam", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.slash", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.persist", "_weight": 1 }
+      ]
+    },
+    {
+      "_id": "drop.stageClear.3",
+      "_categoryChances": [
+        { "_category": "behavior", "_percent": 100 },
+        { "_category": "modifier", "_percent": 0 },
+        { "_category": "element", "_percent": 0 }
+      ],
+      "_gradeChances": [
+        { "_category": "behavior", "_grade": "C", "_percent": 30 },
+        { "_category": "behavior", "_grade": "B", "_percent": 40 },
+        { "_category": "behavior", "_grade": "A", "_percent": 20 },
+        { "_category": "behavior", "_grade": "S", "_percent": 10 }
+      ],
+      "_entries": [
+        { "_type": "behavior", "_id": "behavior.launch", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.burst", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.beam", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.slash", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.persist", "_weight": 1 }
       ]
     }
   ]

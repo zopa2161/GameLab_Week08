@@ -99,7 +99,6 @@ namespace RuneCode
         public bool IsDead => _world.Stage == MissionStage.Dead;
         public bool IsTimedOut => _world.Stage == MissionStage.TimedOut;
         public bool IsFailed => _world.IsFailed;
-        public bool IsTimedBattle => _world.IsMission && !_world.IsProgressionMission;
         public bool IsProgressionMission => _world.IsProgressionMission;
         public int StageNumber => _world.StageNumber;
         public int RoundNumber => _world.RoundNumber;
@@ -108,8 +107,6 @@ namespace RuneCode
         /// <summary>연속 미션 전투 중 현재 웨이브의 살아 있는 적과 미배출·예고·분열 예약 수를 반환하며 대기·종료 상태에서는 0이다.</summary>
         public int RemainingWaveEnemyCount => IsProgressionMission && Stage == MissionStage.Combat ? _spawn.RemainingWaveEnemyCount : 0;
         public bool IsBossStage => _world.IsBossStage;
-        public double TimeLimit => _world.TimeLimit;
-        public double RemainingTime => Math.Max(0, TimeLimit - Time);
         public int TargetKills => _rules.TargetKills;
         public SimVector MapCenter => new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
         public double EnergyRegen => _world.EnergyRegen;
@@ -122,7 +119,6 @@ namespace RuneCode
         public int BigScrapSpawnEventCount => _loot.BigScrapSpawnEventCount;
         /// <summary>플레이어가 직접 줍거나 스테이지 클리어 시 회수한 스크랩 누계를 반환한다.</summary>
         public int EarnedFragments => _loot.CollectedFragments;
-        public int ClearReward => _rules.ClearReward;
         public int SettlementFragments => _rules.GetSettlementFragments(_loot.CollectedFragments);
         public double TotalDamage => _stats.TotalDamage;
 
@@ -161,7 +157,7 @@ namespace RuneCode
             _spawn = new SpawnSystem(_world, _feedback, _stats);
             _bench = new BenchScenario(_world, _spawn);
             _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, _statuses, _executor, this);
-            _loot = new LootSystem(_world, _stats, _statuses, _rules, _spawn, _enemy, setup.Runes, setup.ModifierGrades,
+            _loot = new LootSystem(_world, _stats, _statuses, _rules, _spawn, _enemy,
                 setup.ScrapGainMultiplier, setup.ScrapPickupRangeMultiplier, setup.ScrapHealRatio, setup.KillEnergyBonus);
             _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, setup.Runes, _runtime);
             _entities = new SpellEntitySystem(_world, _combat, _runtime);
@@ -201,12 +197,9 @@ namespace RuneCode
         /// <summary>아직 지급하지 않은 새로 주운 Modifier 드롭 목록을 반환하고 미지급 목록을 비운다.</summary>
         public List<SimulationItemDrop> TakeNewPickedItems() => _loot.TakeNewPickedItems();
 
-        /// <summary>
-        /// 보스 스테이지 클리어 Modifier 선택 정보와 결정적 난수로 후보와 후보별 등급을 뽑아 반환한다. 선택 보상이 없으면 false를 반환한다.
-        /// 슬롯별 등급 확률이 있으면 슬롯마다 등급을 따로 굴리고, 없으면 모든 슬롯이 설정 등급을 쓴다. 같은 Modifier는 다시 뽑지 않는다.
-        /// </summary>
-        public bool TryDrawClearModifierChoices(out EliteModifierClearChoice choice, out List<string> candidates, out List<string> grades)
-            => _loot.TryDrawClearModifierChoices(out choice, out candidates, out grades);
+        /// <summary>현재 라운드의 보상 드롭 테이블과 결정적 난수로 서로 다른 룬 후보와 후보별 등급을 뽑아 반환한다. 후보가 없으면 false를 반환한다.</summary>
+        public bool TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades)
+            => _loot.TryDrawClearModifierChoices(out candidates, out grades);
 
         /// <summary>지정 슬롯에 아직 종료되지 않은 직접 시전 빔이 있는지 반환한다.</summary>
         public bool HasActiveBeam(int slot) => _beam.HasActiveBeam(slot);
@@ -228,7 +221,6 @@ namespace RuneCode
             {
                 _world.StageNumber++;
                 _world.RoundNumber = 1;
-                _world.StageDefinition = _world.Stages.Get(_world.StageNumber);
             }
             else _world.RoundNumber++;
             _world.WaveNumber = 1;
@@ -250,7 +242,6 @@ namespace RuneCode
             _world.StageNumber = stage;
             _world.RoundNumber = round;
             _world.WaveNumber = StageCatalog.PROGRESSION_WAVE_COUNT;
-            _world.StageDefinition = _world.Stages.Get(stage);
             _world.Player.SetHp(_world.Player.MaxHp);
             _world.Stage = MissionStage.Combat;
             StartProgressionWave();
@@ -292,11 +283,7 @@ namespace RuneCode
             Adaptation.Advance(Time, Time + STEP_SECONDS);
             _world.Tick++;
             _executor.RunScheduled();
-            if (_world.IsMission && _world.Stage == MissionStage.Combat)
-            {
-                if (_world.IsProgressionMission) CheckProgressionWaveEnd();
-                else CheckBattleEnd();
-            }
+            if (_world.IsMission && _world.Stage == MissionStage.Combat) CheckProgressionWaveEnd();
             TrimFeedback();
         }
 
@@ -325,12 +312,10 @@ namespace RuneCode
             return SpawnEnemy(id, _world.Map.NearestFree(_world.Player.Position + _world.Player.AimDirection * 260, 24), false, 0, elite);
         }
 
-        /// <summary>디버그 엘리트에 현재 스테이지에서 해당 종족이 쓰는 드롭 테이블을 연결하고, 없으면 첫 설정 테이블을 반환한다. 연속 미션은 현재 연속 스테이지의 엘리트 타입을 쓴다.</summary>
+        /// <summary>디버그 엘리트에 현재 연속 스테이지에서 해당 종족이 쓰는 드롭 테이블을 연결하고, 없으면 첫 설정 테이블을 반환한다.</summary>
         private string GetDebugEliteDropTable(string enemyId)
         {
-            IReadOnlyList<EliteSpawnDefinition> elites = _world.IsProgressionMission
-                ? _world.Stages.GetProgressionStage(_world.StageNumber).EliteTypes
-                : _world.Stages.Get(_world.StageNumber).EliteTypes;
+            IReadOnlyList<EliteSpawnDefinition> elites = _world.Stages.GetProgressionStage(_world.StageNumber).EliteTypes;
             foreach (EliteSpawnDefinition elite in elites)
                 if (elite.EnemyId == enemyId && !string.IsNullOrEmpty(elite.DropTable)) return elite.DropTable;
             foreach (EliteSpawnDefinition elite in elites)
@@ -356,7 +341,7 @@ namespace RuneCode
             state.Append(_world.Tick).Append('|').Append(_world.Random.State).Append('|').Append(_world.NextEntityId).Append('|').Append(_world.Stage).Append('|').Append(_world.StageNumber).Append('|').Append(_rules.TargetKills).Append('|').Append(_rules.IsBossDefeated).Append('|').Append(_spawn.SpawnedEnemies).Append('|').Append(_loot.KillCount).Append('|').Append(_bench.Scenario).Append('|').Append(_world.DebugInvulnerable);
             if (_world.IsProgressionMission) state.Append("|progression:").Append(_world.RoundNumber).Append(':').Append(_world.WaveNumber);
             state.Append('|').Append(_executor.ActionBudgetTick).Append('|').Append(_executor.ActionsThisTick).Append('|').Append(_executor.DroppedExecutions);
-            SimHash.AppendNumber(state, TimeLimit); SimHash.AppendNumber(state, _world.EnergyRegen);
+            SimHash.AppendNumber(state, _world.EnergyRegen);
             state.Append('|').Append(_executor.AimPoint.HasValue);
             if (_executor.AimPoint.HasValue) { SimHash.AppendNumber(state, _executor.AimPoint.Value.X); SimHash.AppendNumber(state, _executor.AimPoint.Value.Y); }
             SimHash.AppendNumber(state, _world.DamageMultiplier); SimHash.AppendNumber(state, _world.MoveSpeedMultiplier);
@@ -430,20 +415,6 @@ namespace RuneCode
         /// <summary>처치 드롭과 같은 테이블·결정적 난수로 완료 스테이지의 클리어 룬 1개를 추첨한다.</summary>
         public DropRoll DrawClearRuneReward() => _loot.DrawClearRuneReward();
 
-        /// <summary>
-        /// 전투 규칙의 종료 판정(일반은 TimeLimit 도달, 보스는 처치·제한시간)으로 끝났으면 클리어는 남은 스크랩·Modifier를 모두 회수하고, 보스 제한시간 초과는 미획득 스크랩을 버린다.
-        /// 이후 전투를 취소하고 클리어는 남은 적을 정지된 전장 표시용으로 보존하며 상태 이상을 정리한다. 같은 틱의 사망은 Step에서 먼저 판정되므로 이 확인보다 우선한다.
-        /// </summary>
-        private void CheckBattleEnd()
-        {
-            if (!_rules.TryEndBattle()) return;
-            if (_world.Stage == MissionStage.Cleared) _loot.CollectRemainingDrops();
-            else _loot.DiscardUncollectedOrbs();
-            CancelCombat();
-            if (_world.Stage != MissionStage.Cleared) return;
-            _statuses.ClearOnClear();
-        }
-
         /// <summary>현재 웨이브가 배출·처치 완료되면 다음 웨이브를 시작하거나 라운드 대기·최종 클리어 상태로 전환한다.</summary>
         private void CheckProgressionWaveEnd()
         {
@@ -480,33 +451,28 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 스테이지 편성으로 외곽 벽만 있는 맵, 맵 중앙의 플레이어, 스폰 반경, 처치 집계와 스폰 진행을 준비하고 0틱 예약을 바로 스폰한다.
-        /// 연속 미션을 진행 스테이지·라운드와 함께 이어하면 마지막 웨이브를 끝낸 라운드 대기 상태로 두고, 아니면 1스테이지 1라운드 1웨이브로 시작한다.
+        /// 스테이지 편성으로 외곽 벽만 있는 맵, 맵 중앙의 플레이어, 스폰 반경, 처치 집계를 준비하고 연속 미션을 시작한다.
+        /// 진행 스테이지·라운드와 함께 이어하면 마지막 웨이브를 끝낸 라운드 대기 상태로 두고, 아니면 1스테이지 1라운드 1웨이브로 시작한다.
         /// 스폰 반경 = 기본 발사 사거리 + 가장 큰 적 반경 + 여유이며 막 스폰된 적에게 기본 발사체가 닿지 않게 한다.
-        /// 적 분리 격자를 맵 크기와 적 상한, 가장 큰 적 반경의 2배 칸 크기로 준비한다. 가장 큰 적 반경에는 이 스테이지 엘리트 타입의 반경 배율을 반영하고,
-        /// 연속 미션은 진행할 모든 연속 스테이지 엘리트 타입의 반경 배율도 반영한다.
+        /// 적 분리 격자를 맵 크기와 적 상한, 가장 큰 적 반경의 2배 칸 크기로 준비한다. 가장 큰 적 반경에는 모든 연속 스테이지 엘리트 타입의 반경 배율을 반영한다.
         /// 기본 발사 수치는 runes에서 조회한다.
         /// </summary>
         private void BeginTimedBattle(RuneCatalog runes, int progressionStage, int progressionRound, double progressionHp)
         {
             _world.Stage = MissionStage.Combat;
-            bool isResumingRoundBreak = _world.IsProgressionMission && progressionStage > 0;
-            if (_world.IsProgressionMission)
+            bool isResumingRoundBreak = progressionStage > 0;
+            if (isResumingRoundBreak)
             {
-                if (isResumingRoundBreak)
-                {
-                    _world.StageNumber = progressionStage;
-                    _world.RoundNumber = progressionRound;
-                    _world.WaveNumber = StageCatalog.PROGRESSION_WAVE_COUNT;
-                }
-                else
-                {
-                    _world.StageNumber = 1;
-                    _world.RoundNumber = 1;
-                    _world.WaveNumber = 1;
-                }
+                _world.StageNumber = progressionStage;
+                _world.RoundNumber = progressionRound;
+                _world.WaveNumber = StageCatalog.PROGRESSION_WAVE_COUNT;
             }
-            _world.StageDefinition = _world.Stages.Get(_world.StageNumber);
+            else
+            {
+                _world.StageNumber = 1;
+                _world.RoundNumber = 1;
+                _world.WaveNumber = 1;
+            }
             _world.Map = MissionMap.CreateOpen(_world.Stages.Map.Columns, _world.Stages.Map.Rows, _world.Sector.TileSize);
             _world.Player = new SimulationPlayer(_world.MaxHp, _world.MaxEnergy, MapCenter);
             if (progressionHp > 0) _world.Player.SetHp(progressionHp);
@@ -514,25 +480,14 @@ namespace RuneCode
             RuneStats bolt = runes.Get(BOLT_RUNE_ID).Stats;
             double largestRadius = 0;
             foreach (EnemyDefinition enemy in _world.EnemyCatalog.Enemies) largestRadius = Math.Max(largestRadius, enemy.Radius);
-            foreach (EliteSpawnDefinition elite in _world.StageDefinition.EliteTypes) largestRadius = Math.Max(largestRadius, _world.EnemyCatalog.Get(elite.EnemyId).Radius * elite.RadiusMultiplier);
-            if (_world.IsProgressionMission)
-                foreach (ProgressionStageDefinition progression in _world.Stages.ProgressionStages)
-                    foreach (EliteSpawnDefinition elite in progression.EliteTypes)
-                        largestRadius = Math.Max(largestRadius, _world.EnemyCatalog.Get(elite.EnemyId).Radius * elite.RadiusMultiplier);
+            foreach (ProgressionStageDefinition progression in _world.Stages.ProgressionStages)
+                foreach (EliteSpawnDefinition elite in progression.EliteTypes)
+                    largestRadius = Math.Max(largestRadius, _world.EnemyCatalog.Get(elite.EnemyId).Radius * elite.RadiusMultiplier);
             _enemy.ResizeSeparation(_world.Map.Width, _world.Map.Height, EnemyLimit, largestRadius * 2);
             _spawn.SpawnRadius = (double)bolt.Speed * bolt.Lifetime + largestRadius + _world.Stages.Spawn.RingMargin;
             _rules.ResetForBattle();
-            if (_world.IsProgressionMission)
-            {
-                if (isResumingRoundBreak) _world.Stage = MissionStage.RoundBreak;
-                else StartProgressionWave();
-            }
-            else
-            {
-                _spawn.Director = new SpawnDirector(_world.StageDefinition, _world.StageNumber, _world.Formations, TICK_RATE);
-                _spawn.AdvanceSpawns();
-                _spawn.RefreshSpawnWarnings();
-            }
+            if (isResumingRoundBreak) _world.Stage = MissionStage.RoundBreak;
+            else StartProgressionWave();
         }
 
 

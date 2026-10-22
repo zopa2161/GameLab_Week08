@@ -33,7 +33,7 @@ var catalog = new[]
     new Table("bosses", "미션", "보스", "bosses.json", "_bosses", "list"),
     new Table("drops", "미션", "드롭 테이블", "drops.json", "_dropTables", "list"),
     new Table("sector1", "미션", "섹터 맵·웨이브", "sector1.json", "_rooms", "rooms"),
-    new Table("stages", "미션", "스테이지", "stages.json", "_stages", "stages"),
+    new Table("stages", "미션", "스테이지", "stages.json", "", "stages"),
 };
 var tableById = catalog.ToDictionary(t => t.Id, StringComparer.Ordinal);
 

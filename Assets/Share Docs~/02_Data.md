@@ -206,43 +206,55 @@ flowchart LR
 | 필드 | 의미 |
 |---|---|
 | `_map` | 맵 크기. 현재 50×50 타일(타일 32px → 1600×1600px) |
-| `_growth` | 스테이지당 적 체력 +15%, 피해 +5%, 클리어 보상 +15% |
+| `_growth` | 스테이지당 적 체력 +15%, 피해 +5% |
 | `_spawn` | 원형 슬롯 수 20, 예고 0.8s, 플레이어 최소·최대 거리 240·650, 스폰 직후 접촉 유예 0.3s 등 |
 | `_stationaryAdvanceSpeed` | 고정형 적이 미션에서 다가오는 속도 |
 | `_rewards[]` | 적 ID별 처치 보상 덮어쓰기 |
-| `_stages[]` | `StageDefinition` 목록 |
+| `_progressionStages[]` | 연속 미션 편성. 스테이지 3개 × 라운드 6개 × 웨이브 3개 고정 |
 
-`StageDefinition`:
+연속 미션 편성(`ProgressionStageDefinition` → `ProgressionRoundDefinition` → `WaveDefinition`):
 
-| 필드 | 의미 |
-|---|---|
-| `_fromStage`, `_toStage` | 적용 스테이지 범위(같으면 단일) |
-| `_kind` | `normal` 또는 `boss` |
-| `_timeLimit` | 일반: 버티면 클리어하는 시간(30s). 보스: 보스 처치 제한시간(60s) |
-| `_clearReward` | 클리어 보상 스크랩(일반 20, 보스 60) |
-| `_stream` | 기본 흐름 스폰: 후보 적(`_candidates[]`의 `_enemyId`·`_firstStage`·`_weight`), 간격(`_baseInterval`→`_minInterval`), 진형, 묶음 크기 |
-| `_waves[]` | 시각 `_at`에 나오는 웨이브. `_repeatInterval`(0이면 1회), `_formation` 덮어쓰기, `_units[]`(적 ID·수) |
-| `_eliteEvery`, `_eliteTypes[]` | 기본 흐름 N번째마다 엘리트. 배율(체력·보상·속도·반경), 드롭 테이블·확률 |
-| `_modifierRewards[]` | 첫 클리어 시 지급할 룬(룬 ID·등급·수량) |
+| 위치 | 필드 | 의미 |
+|---|---|---|
+| 스테이지 | `_stage` | 1부터 시작하는 스테이지 번호 |
+| 스테이지 | `_eliteTypes[]` | 엘리트 정의. 적 ID, 배율(체력·보상·속도·반경), 드롭 테이블·확률. 웨이브 유닛의 `_isElite`가 이 정의를 쓴다 |
+| 스테이지 | `_rounds[]` | 라운드 6개 |
+| 라운드 | `_waves[]` | 웨이브 3개. 앞 웨이브를 모두 처치하면 다음 웨이브가 나온다 |
+| 라운드 | `_rewardDropTable` | 라운드 종료 시 3개 중 1개 선택 보상을 추첨할 `drops.json` 테이블 ID. 6라운드는 스테이지 종료 보상 테이블(아래) |
+| 웨이브 | `_formation` | 진형 ID와 덮어쓰기(`_angle`·`_spacing`·`_interval`·`_slots`, 빈 값·0은 원본 유지) |
+| 웨이브 | `_units[]` | 적 ID·수량·엘리트 여부 |
 
-현재 1~20스테이지가 정의돼 있고 5·10·15·20이 보스다. **21스테이지 이후는 11~20 정의를 순환 재사용**하며 체력 배율이 추가로 붙는다(`StageCatalog.ResolveDataStage`, `ENDLESS_*` 상수). 메뉴 `Rune Code/Stage Table Editor`(`Editor/StageTableEditorWindow`)로 이 파일을 폼 형태로 편집할 수 있다.
+3라운드 마지막 웨이브에는 미니 보스 1기, 6라운드 마지막 웨이브에는 보스 1기가 있어야 한다. 메뉴 `Rune Code/Stage Table Editor`(`Editor/StageTableEditorWindow`)로 이 파일을 폼 형태로 편집할 수 있다.
 
-연속 미션은 `_progressionStages[] → _rounds[]`의 각 라운드에 `_waves`와 `_reward`를 둔다.
-`_reward`는 해당 라운드 종료 시 제시할 행동·Modifier 룬 3개 중 1개 선택 보상이다.
+라운드가 끝나면 `_rewardDropTable`의 드롭 테이블에서 서로 다른 룬 3개를 추첨해 1개를 고르게 한다. 6라운드(스테이지 종료)는 스테이지마다 다른 테이블(`drop.stageClear.N`)을 쓰며 6라운드 라운드 보상을 대체한다. 현재 기본 연결은 1·2·4·5라운드 `drop.round.modifier`, 3라운드 `drop.round.behavior`, 6라운드 `drop.stageClear.1~3`이다. 3스테이지는 라운드 대기 없이 바로 완료되므로 `drop.stageClear.3`은 아직 쓰이지 않는다.
 
 ```json
-"_reward": {
-  "_candidates": ["behavior.launch", "behavior.burst", "mod.expand", "mod.homing"],
+{
+  "_id": "drop.round.behavior",
+  "_categoryChances": [
+    { "_category": "behavior", "_percent": 100 },
+    { "_category": "modifier", "_percent": 0 },
+    { "_category": "element", "_percent": 0 }
+  ],
   "_gradeChances": [
-    { "_grade": "A", "_percent": 90 },
-    { "_grade": "S", "_percent": 10 }
+    { "_category": "behavior", "_grade": "C", "_percent": 30 },
+    { "_category": "behavior", "_grade": "S", "_percent": 70 }
+  ],
+  "_entries": [
+    { "_type": "behavior", "_id": "behavior.launch", "_weight": 1 },
+    { "_type": "behavior", "_id": "behavior.burst", "_weight": 1 }
   ]
 }
 ```
 
-각 슬롯의 등급을 확률대로 뽑고, 후보 목록 중 그 등급을 지원하는 행동·Modifier를 균등하게 추첨한다. 같은 룬은 중복하지 않는다.
-확률은 정수 퍼센트이며 합계가 100이어야 한다. 후보 ID와 등급은 중복할 수 없고,
-확률이 0보다 큰 각 등급마다 유효한 후보가 최소 3개 필요하다.
+드롭 테이블(라운드 보상·엘리트 드롭 공통)은 한 번에 룬 1개를 다음 순서로 추첨한다.
+1. `_categoryChances`로 분류(behavior 행동, modifier 강화, element 속성)를 고른다. 합은 100이어야 한다.
+2. 그 분류의 `_gradeChances`로 등급을 고른다. 분류마다 합은 100이어야 하고, 속성은 등급이 없다. 분류의 등급 행이 없으면 `elite_modifier_drops.json`의 스테이지 등급표(Modifier·행동)를 따른다.
+3. 그 분류의 `_entries` 중 굴린 등급을 지원하는 후보에서 `_weight`(같은 분류 안의 비율)로 고른다. 분류의 후보가 없으면 그 분류의 활성 룬 전체를 같은 가중치로 쓴다(속성은 일반 속성 제외). 확률이 있는 분류·등급마다 후보가 1개 이상 있어야 한다.
+
+라운드 보상은 같은 테이블에서 서로 다른 룬 3개를 뽑는다. 라운드 보상 테이블에는 속성 확률을 둘 수 없고, 확률이 있는 분류·등급마다 후보가 3개 이상 필요하다.
+메뉴 `Rune Code/Stage Table Editor`의 [드롭 테이블] 탭(`Editor/DropTableEditorTab`)에서 테이블 추가·복제·삭제, 분류·등급 확률(합계 100 표시)과 후보를 편집할 수 있고, 저장 전에 `drops.json`과 이를 참조하는 `stages.json`을 런타임 로더로 함께 검증한다.
+
 Modifier의 등급별 효과 값은 기존 `tables/elite_modifier_drops.json`을 참조한다.
 행동은 `tables/runes.json`의 `_behaviorGrades`에 정의된 등급을 지원하며, 비활성 행동은 후보로 사용할 수 없다.
 행동 ID는 `behavior.launch`, `behavior.burst`, `behavior.persist`, `behavior.beam`, `behavior.slash`이다.
@@ -256,7 +268,7 @@ Stage Table Editor의 진행 편성 탭에서도 선택한 라운드의 보상�
 |---|---|---|
 | `formations.json` | `FormationCatalog` | 진형 ID → 모양(`ringRandomSlot`, `ringAllSlots`, `pointSequence`, `ringDouble`, `ringHalf`, `ringSectorBlock` 등), 시작 각도 규칙(`random`/`ahead`/`fixed`), 간격 |
 | `bosses.json` | `BossCatalog` | 보스 패턴(`governor`): 페이즈 임계(0.67/0.34), 패치 시간, 방사·조준 사격 주기, 장판, 증원 |
-| `drops.json` | `DropCatalog` | 일반 적 드롭 확률(스테이지별), 드롭 테이블(`_type`=element/behavior/modifier, `_id`=randomElement/randomBehavior/eliteModifier, 가중치) |
+| `drops.json` | `DropCatalog` | 일반 적 드롭 확률(스테이지별), 드롭 테이블(분류 확률 `_categoryChances`, 분류별 등급 확률 `_gradeChances`, 후보 룬·가중치 `_entries`) |
 | `sector1.json` | `SectorDefinition` | 타일 크기 32, 플레이어 반경 12, 시험 도크 맵 타일 문자열(`_benchTiles`) |
 | `encyclopedia.json` | `EncyclopediaData` | 온보딩·도움말 항목(제목, 페이지 본문·영상·이미지 경로) |
 | `spells/*.json` | `SpellGraphData` | 시작 마법 템플릿(현재 `core.cast` 노드만 가진 빈 마법) |
@@ -438,7 +450,7 @@ classDiagram
 | 적 능력치 | `enemies.json` |
 | 적 외형 | `Resources/RuneCode/enemies/*.prefab`, `Prefabs/Mission/MissionEnemy.prefab` |
 | 스테이지 편성·제한시간·보상 | `stages.json` (Stage Table Editor 창 권장) |
-| 드롭 확률 | `drops.json`, 등급 확률은 `elite_modifier_drops.json`의 `_stageDropTables` |
+| 드롭 확률 | `drops.json`(분류·등급 확률 포함). 테이블에 등급 확률이 없는 분류는 `elite_modifier_drops.json`의 `_stageDropTables` |
 | 강화 트리 | `UpgradeTree.asset` (Upgrade Tree Editor 창) |
 | 화면 문구 | `strings.ko.json` |
 | 도움말·온보딩 | `encyclopedia.json`, `Resources/RuneCode/Onboarding/` |

@@ -108,7 +108,7 @@ namespace RuneCode
             SectorDefinition sector = SectorDefinition.FromJson(ReadResource("sector1"));
             FormationCatalog formations = FormationCatalog.FromJson(ReadResource("formations"));
             BossCatalog bosses = BossCatalog.FromJson(ReadResource("bosses"), enemies, formations);
-            DropCatalog drops = DropCatalog.FromJson(ReadResource("drops"));
+            DropCatalog drops = DropCatalog.FromJson(ReadResource("drops"), runes, modifierGrades);
             StageCatalog stages = StageCatalog.FromJson(ReadResource("stages"), enemies, formations, drops, modifierGrades, runes, bosses);
             _enemies = enemies;
             _sector = sector;

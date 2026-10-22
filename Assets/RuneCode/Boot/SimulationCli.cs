@@ -60,21 +60,26 @@ namespace RuneCode
             var economy = GameData.Balance.Economy;
             if (stage < 1 || stage > 1000000)
                 throw new ArgumentOutOfRangeException(nameof(stage), "스테이지가 유효하지 않습니다.");
-            var isTimedBattle = scenario == "incremental";
+            var isMission = scenario == "incremental";
+            if (isMission && stage != 1) UnityEngine.Debug.LogWarning("--stage는 미션 시나리오에서 쓰이지 않습니다. 연속 미션은 항상 1스테이지 1라운드부터 시작합니다.");
             var capacity = economy.BaseCapacity;
             var maxEnergy = GameData.Balance.Player.MaxEnergy;
             var compiled = GraphCompiler.Compile(graph, GameData.Runes, GameData.Balance.Grammar, GameData.Runes.All.Select(rune => rune.Id), capacity, maxEnergy);
             if (!compiled.Ok) throw new ArgumentException(string.Join("\n", compiled.Errors.Select(CompileIssueText.Format)));
-            var simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, isTimedBattle, GameData.Balance.Player.MaxHp, maxEnergy, stage,
-                GameData.Balance.Player.EnergyRegen));
-            if (!isTimedBattle) { simulation.ResetBench(scenario); simulation.SetAdaptationEnabled(scenario == "adapt_loop"); }
+            var simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, isMission, GameData.Balance.Player.MaxHp, maxEnergy, stage,
+                GameData.Balance.Player.EnergyRegen, isProgressionMission: isMission));
+            if (!isMission) { simulation.ResetBench(scenario); simulation.SetAdaptationEnabled(scenario == "adapt_loop"); }
             simulation.SetUnlockedElements(new[] { "raw", "fire", "ice", "arc" });
             simulation.SetLoadout(new[] { compiled.Spell });
             var castRange = GetAutomaticCastRange(compiled.Spell);
             if (isInvulnerable) simulation.SetDebugInvulnerable(true);
             var timer = Stopwatch.StartNew();
             for (var tick = 0; tick < ticks && !simulation.Completed && !simulation.IsFailed; tick++)
-                simulation.Step(isTimedBattle ? CreateAutomaticInput(simulation, castRange) : new SimulationInput(SimVector.Zero, new SimVector(1, 0), true, isAutomatic: true));
+            {
+                // 자동 실행에는 라운드 보상 선택이 없으므로 라운드 대기에 들어가면 바로 다음 라운드를 시작한다.
+                if (simulation.IsWaitingForNextRound) simulation.TryStartNextRound();
+                simulation.Step(isMission ? CreateAutomaticInput(simulation, castRange) : new SimulationInput(SimVector.Zero, new SimVector(1, 0), true, isAutomatic: true));
+            }
             timer.Stop();
             return JsonUtility.ToJson(new SimulationReport(simulation, simulation.Tick, seed, scenario, compiled.Spell, timer.Elapsed.TotalMilliseconds), true);
         }
@@ -147,14 +152,11 @@ namespace RuneCode
         [SerializeField] private double _elapsedMilliseconds;
         [SerializeField] private string _stateHash;
         [SerializeField] private int _stage;
-        [SerializeField] private double _timeLimit;
-        [SerializeField] private double _remainingTime;
         [SerializeField] private int _targetKills;
         [SerializeField] private string _result;
         [SerializeField] private int _kills;
         [SerializeField] private int _earnedRam;
         [SerializeField] private int _settledRam;
-        [SerializeField] private int _clearReward;
         [SerializeField] private int _spawnedEnemies;
         [SerializeField] private int _droppedExecutions;
         [SerializeField] private double _energyRegen;
@@ -168,11 +170,10 @@ namespace RuneCode
             _energySpent = simulation.EnergySpent; _peakSpellEntities = simulation.PeakSpellEntities;
             _nodeExecutionCount = simulation.NodeExecutionCount; _elapsedMilliseconds = elapsedMilliseconds;
             _stateHash = simulation.StateHash();
-            _stage = simulation.StageNumber; _timeLimit = simulation.TimeLimit; _remainingTime = simulation.RemainingTime;
+            _stage = simulation.StageNumber;
             _targetKills = simulation.TargetKills;
             _result = simulation.Stage.ToString(); _kills = simulation.KillCount; _earnedRam = simulation.EarnedFragments;
             _settledRam = simulation.Completed || simulation.IsFailed ? simulation.SettlementFragments : 0;
-            _clearReward = simulation.ClearReward;
             _spawnedEnemies = simulation.SpawnedEnemies; _droppedExecutions = simulation.DroppedExecutions; _energyRegen = simulation.EnergyRegen;
         }
     }

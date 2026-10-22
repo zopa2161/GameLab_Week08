@@ -8,8 +8,6 @@ namespace RuneCode
     {
         private const double MIN_KILL_ENERGY = 1;
         private readonly SimulationWorld _world;
-        private readonly RuneCatalog _runes;
-        private readonly ModifierGradeTable _modifierGrades;
         private readonly SimulationStats _stats;
         private readonly EnemyStatusSystem _statuses;
         private readonly BattleRules _rules;
@@ -61,15 +59,13 @@ namespace RuneCode
         internal double KillEnergyBonus { get; private set; }
 
         /// <summary>
-        /// 공유 월드·통계·상태이상·전투·스폰·적 시스템, 룬·등급 카탈로그와 스크랩 배율·보너스로 전리품 시스템을 만든다.
+        /// 공유 월드·통계·상태이상·전투·스폰·적 시스템과 스크랩 배율·보너스로 전리품 시스템을 만든다.
         /// 회복 비율은 0~1로, 처치 전력 보너스는 0 이상으로 제한한다.
         /// </summary>
         internal LootSystem(SimulationWorld world, SimulationStats stats, EnemyStatusSystem statuses, BattleRules rules, SpawnSystem spawn, EnemySystem enemy,
-            RuneCatalog runes, ModifierGradeTable modifierGrades, double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
+            double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
         {
             _world = world;
-            _runes = runes;
-            _modifierGrades = modifierGrades;
             _stats = stats;
             _statuses = statuses;
             _rules = rules;
@@ -88,46 +84,21 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 연속 미션은 현재 라운드의 후보·등급 확률을, 일반 미션은 기존 클리어 설정을 사용해 후보와 등급을 추첨한다. 선택 보상이 없으면 false를 반환한다.
-        /// 슬롯별 등급 확률이 있으면 따로 굴리고, 없으면 설정 등급을 쓴다. 연속 미션은 행동·Modifier를 지원하며 같은 룬은 다시 뽑지 않는다.
+        /// 현재 라운드의 보상 드롭 테이블로 서로 다른 룬 후보를 최대 3개 추첨해 후보 ID와 등급 목록으로 반환한다. 마지막 라운드는 스테이지 종료 보상 테이블을 쓴다.
+        /// 후보가 하나도 없으면 false를 반환한다.
         /// </summary>
-        internal bool TryDrawClearModifierChoices(out EliteModifierClearChoice choice, out List<string> candidates, out List<string> grades)
+        internal bool TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades)
         {
-            RoundRewardDefinition roundReward = _world.IsProgressionMission
-                ? _world.Stages.GetProgressionStage(_world.StageNumber).Rounds[_world.RoundNumber - 1].Reward : null;
-            choice = _world.IsProgressionMission ? roundReward.ToChoice() : _world.EliteDrops.GetClearChoice(_world.StageNumber);
+            string tableId = _world.Stages.GetProgressionStage(_world.StageNumber).Rounds[_world.RoundNumber - 1].RewardDropTable;
             candidates = new List<string>();
             grades = new List<string>();
-            if (choice == null || choice.ChoiceCount <= 0) return false;
-            for (int i = 0; i < choice.ChoiceCount; i++)
+            foreach (DropRoll roll in RuneRewardRoller.DrawChoices(_world.Drops.Get(tableId), _world.StageNumber,
+                StageCatalog.ROUND_REWARD_CHOICE_COUNT, _world.EliteDrops, _world.Random.Next))
             {
-                string grade = choice.SlotGradeChances != null ? RollSlotGrade(choice.SlotGradeChances) : choice.Grade;
-                var pool = new List<string>();
-                IReadOnlyList<string> source = roundReward != null ? roundReward.Candidates : _world.EliteDrops.GetModifiersWithGrade(grade);
-                foreach (string runeId in source)
-                    if (!candidates.Contains(runeId)
-                        && (roundReward == null || RoundRewardDefinition.IsCandidateGradeAvailable(_runes, _modifierGrades, runeId, grade))) pool.Add(runeId);
-                // 이 등급에 남은 후보가 없으면 슬롯을 비운다.
-                if (pool.Count == 0) continue;
-                candidates.Add(pool[Math.Min(pool.Count - 1, (int)(_world.Random.Next() * pool.Count))]);
-                grades.Add(grade);
+                candidates.Add(roll.RuneId);
+                grades.Add(roll.Grade);
             }
             return candidates.Count > 0;
-        }
-
-        /// <summary>등급 확률 목록(퍼센트)으로 등급 하나를 굴려 반환한다. 확률 0인 등급은 뽑지 않는다.</summary>
-        private string RollSlotGrade(IReadOnlyList<EliteModifierGradeChance> chances)
-        {
-            double roll = _world.Random.Next() * 100;
-            string last = null;
-            foreach (EliteModifierGradeChance chance in chances)
-            {
-                if (chance.Percent <= 0) continue;
-                last = chance.Grade;
-                roll -= chance.Percent;
-                if (roll < 0) return chance.Grade;
-            }
-            return last;
         }
 
         /// <summary>적의 처치 재화에 설정 비율을 곱해 내림한 기본 회복량을 최소 1로 보정하고 트리의 추가 전력을 더해 회복한다.</summary>

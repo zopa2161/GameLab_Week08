@@ -37,12 +37,11 @@ namespace RuneCode
             if (SimulationCli.TryRunCommandLine()) { enabled = false; return; }
             Application.targetFrameRate = GameData.Balance.Sim.TickRate;
             PlayerSave save = SaveStore.Load();
-            StageCatalog stages = GameData.Stages;
             UpgradeTreeDefinition upgradeTree = Resources.Load<UpgradeTreeDefinition>("RuneCode/UpgradeTree");
             if (upgradeTree == null) throw new InvalidOperationException("업그레이드 트리 자산이 없습니다: RuneCode/UpgradeTree");
             if (!upgradeTree.Validate(out string treeError)) throw new InvalidOperationException(treeError);
             bool isDebug = Environment.GetCommandLineArgs().Contains("-debug") || Application.absoluteURL.Contains("debug=1");
-            _session = new RuneCodeSession(save, stages, upgradeTree, isDebug, SaveStore.LastWarning);
+            _session = new RuneCodeSession(save, upgradeTree, isDebug, SaveStore.LastWarning);
             _session.ScreenRequested += OnScreenRequested;
             if (SoundManager.Instance == null)
             {

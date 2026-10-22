@@ -18,7 +18,6 @@ namespace RuneCode
 
         private PlayerSave _save;
         private PlayerSave _normalSave;
-        private readonly StageCatalog _stages;
         private readonly ModifierGradeDropSource _synthesisGrades;
         private readonly UpgradeTreeDefinition _upgradeTree;
         private bool _isDebugEnabled;
@@ -77,10 +76,8 @@ namespace RuneCode
         public float ScrapPickupRangeMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapPickupRange);
         public float ScrapHealRatio => GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapHeal);
         public float KillEnergyBonus => GetUpgradeTreeEffectTotal(UpgradeEffectType.KillEnergy);
-        public float BattleDuration => (float)_stages.Get(1).Stream.RampSeconds;
         public int EquippedRam => CalculateEquippedRam(_spells.Graph);
         public int SelectedStage => _save.SelectedStage;
-        public StageDefinition SelectedStageDefinition => _stages.Get(SelectedStage);
         public int HighestClearedStage => _save.HighestClearedStage;
         public bool HasClearedProgression => _save.HasClearedProgression;
         public IReadOnlyList<string> PendingProgressionChoiceIds => _save.PendingProgressionChoiceIds;
@@ -93,15 +90,14 @@ namespace RuneCode
         public event Action<AppScreen> ScreenRequested;
 
         /// <summary>
-        /// 세이브, 스테이지 정의(제한시간 성장 표시 기준값), 디버그 여부와 시작 경고 문구로 세션과 마법 편집 세션을 만든다.
+        /// 세이브, 강화 트리, 디버그 여부와 시작 경고 문구로 세션과 마법 편집 세션을 만든다.
         /// </summary>
-        public RuneCodeSession(PlayerSave save, StageCatalog stages, UpgradeTreeDefinition upgradeTree, bool isDebugEnabled,
+        public RuneCodeSession(PlayerSave save, UpgradeTreeDefinition upgradeTree, bool isDebugEnabled,
             string initialStatus)
         {
             _normalSave = save;
             SaveStore.InitializeFeedbackSettings(save);
             _save = isDebugEnabled ? PlayerSave.CreateNew() : save;
-            _stages = stages;
             _synthesisGrades = new ModifierGradeDropSource(GameData.ModifierGrades);
             _upgradeTree = upgradeTree;
             _isDebugEnabled = isDebugEnabled;
@@ -702,14 +698,6 @@ namespace RuneCode
             IReadOnlyList<string> progressionChoiceIds = null, IReadOnlyList<string> progressionChoiceGrades = null)
         {
             var modifierRewards = new List<ModifierRewardDefinition>();
-            if (isCleared && (!isProgressionMission || !_save.HasClearedProgression))
-            {
-                foreach (ModifierRewardDefinition reward in _stages.Get(stageNumber).ModifierRewards)
-                {
-                    GrantRune(reward.RuneId, reward.Grade, reward.Count, "stage_clear", persist: !isProgressionMission);
-                    modifierRewards.Add(reward);
-                }
-            }
             if (isCleared && clearRuneReward != null)
             {
                 GrantRune(clearRuneReward.RuneId, clearRuneReward.Grade, clearRuneReward.Count, "stage_clear", persist: !isProgressionMission);
@@ -754,7 +742,7 @@ namespace RuneCode
             if (index < 0 || index >= _save.PendingProgressionChoiceIds.Count) return false;
             string runeId = _save.PendingProgressionChoiceIds[index];
             string grade = _save.PendingProgressionChoiceGrades[index];
-            if (!RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return false;
+            if (!RuneRewardRoller.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return false;
             RuneDefinition rune = GameData.Runes.Get(runeId);
             int before = _save.GetStock(runeId, grade);
             _save.AddStock(runeId, grade, 1);
@@ -773,7 +761,7 @@ namespace RuneCode
         /// <summary>라운드 보상 후보 행동·Modifier 룬을 소지량에 즉시 반영하고 대기 후보를 비운 뒤 한 번에 저장하고 다시 컴파일한다.</summary>
         public void GrantRoundChoice(string runeId, string grade)
         {
-            if (!RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return;
+            if (!RuneRewardRoller.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return;
             RuneDefinition rune = GameData.Runes.Get(runeId);
             int before = _save.GetStock(runeId, grade);
             _save.AddStock(runeId, grade, 1);

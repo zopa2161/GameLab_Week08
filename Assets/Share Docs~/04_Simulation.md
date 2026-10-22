@@ -368,13 +368,7 @@ flowchart LR
 
 ### 8.1 스폰 진행기: `SpawnDirector`
 
-스테이지 정의를 읽어 **기본 흐름(stream)**과 **웨이브(waves)**를 커서로 진행한다. 미리 전체 목록을 만들지 않고, `TryPeek`가 현재 틱까지 도달한 다음 스폰을 하나씩 내준다. 그래서 기본 흐름은 시간이 지나는 한 계속 이어진다.
-
-| 묶음 | 동작 |
-|---|---|
-| 기본 흐름 | 후보 적 가중치 추첨(스테이지 `_firstStage` 이상만), 간격은 `_baseInterval`에서 스테이지·시간에 따라 `_minInterval`까지 감소. N번째(`_eliteEvery`)마다 엘리트 |
-| 웨이브 | `_at`초에 편성 `_units`를 진형으로 배치. `_repeatInterval`이 있으면 반복 |
-| 같은 틱 | 기본 흐름 먼저, 웨이브는 데이터 순서 |
+연속 미션 웨이브 하나를 커서로 진행한다. 웨이브 시작 틱부터 편성 `_units`를 진형 주기(`_interval`) 간격으로 한 기씩 내주며, 미리 전체 목록을 만들지 않고 `TryPeek`가 현재 틱까지 도달한 다음 스폰을 하나씩 내준다. `_isElite` 유닛은 현재 스테이지의 `_eliteTypes` 정의로 생성한다. 모든 유닛을 내고 남은 적이 없으면 다음 웨이브로 넘어간다.
 
 ### 8.2 배치
 
@@ -392,14 +386,14 @@ flowchart LR
 
 ## 9. 전투 종료와 보상
 
-### 9.1 종료 조건 (`BattleRules.TryEndBattle`)
+### 9.1 종료 조건 (`BattleRules.IsProgressionWaveFinished`)
 
-| 스테이지 | 클리어(`Cleared`) | 실패 |
+| 웨이브 | 종료 | 실패 |
 |---|---|---|
-| 일반 | **제한시간(`_timeLimit`, 현재 30초)까지 생존** | 체력 0 → `Dead` |
-| 보스 | 보스 처치 | 체력 0 → `Dead`, 제한시간(60초) 초과 → `TimedOut` |
+| 일반 | 편성을 모두 내고 맵의 적을 전부 처치 | 체력 0 → `Dead` |
+| 보스(6라운드 마지막) | 보스 처치 | 체력 0 → `Dead` |
 
-같은 틱에 사망과 종료가 겹치면 사망 판정이 `Step` 안에서 먼저 일어난다. 클리어가 같은 틱의 시간 초과보다 우선한다.
+라운드의 마지막 웨이브가 끝나면 `RoundBreak`(라운드 대기), 3스테이지 6라운드가 끝나면 `Cleared`가 된다. 같은 틱에 사망과 종료가 겹치면 사망 판정이 `Step` 안에서 먼저 일어난다.
 
 ### 9.2 전리품 (`LootSystem`)
 
@@ -416,8 +410,8 @@ flowchart LR
 
 | 결과 | 지급 스크랩 | 코드 |
 |---|---|---|
-| 클리어 | 회수한 스크랩 + 클리어 보상(`_clearReward × (1 + (스테이지−1) × 0.15)`) | `BattleRules.GetSettlementFragments`, `ClearReward` |
-| 사망·보스 시간 초과 | 회수한 스크랩 × 0.7 (반올림) | 같은 메서드 |
+| 클리어 | 회수한 스크랩 | `BattleRules.GetSettlementFragments` |
+| 사망 | 회수한 스크랩 × 0.7 (반올림) | 같은 메서드 |
 | 후퇴(중단) | 획득 스크랩 × 0.7 (반올림) | `MissionRun.AbandonMission` |
 
 추가 보상(클리어 보장 룬 1개, 첫 클리어 룬, 보스 첫 클리어 모드 선택 3택 1)은 `MissionRun.FinishMission`이 처리한다(6 문서 1.4절).
@@ -448,10 +442,10 @@ UI와 Features가 읽는 `RuneSimulation`의 주요 공개 멤버를 용도별�
 |---|---|
 | 월드 표시 | `Player`, `Enemies`, `SpellEntities`, `EnemyProjectiles`, `Orbs`, `ItemDrops`, `Map`, `MapCenter` |
 | 표시 전용 효과 | `DamageNumbers`, `ArcLinks`, `HealPulses`, `BeamFlashes`(+`BeamFlashGeneration`), `SpawnWarnings`, `NodeEvents`, `ClearOrbs`, `ClearItemDrops` |
-| HUD | `Tick`, `Time`, `RemainingTime`, `TimeLimit`, `StageNumber`, `IsBossStage`, `KillCount`, `EarnedFragments`, `SpawnedEnemies`, `Loadout` |
+| HUD | `Tick`, `Time`, `StageNumber`, `RoundNumber`, `WaveNumber`, `RemainingWaveEnemyCount`, `IsBossStage`, `KillCount`, `EarnedFragments`, `SpawnedEnemies`, `Loadout` |
 | 상태 | `Stage`, `Completed`, `IsDead`, `IsTimedOut`, `IsFailed`, `HasAnyActiveBeam` |
 | 사운드 트리거(누적 카운터) | `EnemyDamageEventCount`, `ShotLaunch/Burst/Persist/SlashEventCount`, `BurnTickDamageEventCount`, `ArcDamageEventCount`, `FreezeStartEventCount`, 스크랩 줍기·생성 카운트 |
-| 통계·정산 | `TotalDamage`, `StatusDamage`, `PersistDamage`, `RollingDps`, `EnergySpent`, `SettlementFragments`, `ClearReward`, `KillCounts`, `GetActionCombatLogSnapshot()` |
+| 통계·정산 | `TotalDamage`, `StatusDamage`, `PersistDamage`, `RollingDps`, `EnergySpent`, `SettlementFragments`, `KillCounts`, `GetActionCombatLogSnapshot()` |
 | 범위 미리보기 | `IsAreaPreviewAction`, `CanShowAreaPreview`, `GetRangePreview`, `GetAreaTargetPosition`, `GetAreaPlacementRange` |
 | 적 표시 보조 | `HasEnemyStatus`, `GetChillStacks`, `GetSniperEnd` |
 | 조작 | `Step`, `SetLoadout`, `SetUnlockedElements`, `TryCast`, `CancelBeamInput`, `CancelPendingSpellExecutions`, `TakeNewPickedItems`, `ResetBench`, `SetAdaptationEnabled` |

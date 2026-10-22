@@ -180,11 +180,11 @@ flowchart TB
 1. `enemies.json`에 행 추가(이동·공격·특성은 기존 문자열 중 선택).
 2. 새 이동·공격 방식이면 `EnemyDefinition`의 상수, `EnemyMovement`의 판단 분기, `EnemySystem`의 공격 분기를 추가한다. 상태가 늘면 `SimulationEnemy.WriteState`에 기록한다.
 3. 외형이 필요하면 `Resources/RuneCode/enemies/{Name}.prefab`(`EnemyView`의 `EnemyId` 설정)을 만든다. 없으면 기본 `MissionEnemy.prefab`으로 그린다.
-4. `stages.json`의 `_stream._candidates` 또는 `_waves[]._units`에 넣어 등장시킨다. 처치 보상 덮어쓰기는 `_rewards`.
+4. `stages.json`의 `_progressionStages[]._rounds[]._waves[]._units`에 넣어 등장시킨다. 처치 보상 덮어쓰기는 `_rewards`.
 
 ### 3.4 새 스테이지·편성 조정
 
-메뉴 `Rune Code/Stage Table Editor`(`Editor/StageTableEditorWindow`)로 `stages.json`을 편집하면 저장 전에 런타임 검증(`StageCatalog.FromJson`)을 거친다. 진형은 `formations.json`, 드롭은 `drops.json`, 등급 확률은 `elite_modifier_drops.json`의 `_stageDropTables`.
+메뉴 `Rune Code/Stage Table Editor`(`Editor/StageTableEditorWindow`)로 `stages.json`을 편집하면 저장 전에 런타임 검증(`StageCatalog.FromJson`)을 거친다. 같은 창의 [드롭 테이블] 탭은 `drops.json`을 편집한다. 진형은 `formations.json`, 등급 확률은 드롭 테이블의 `_gradeChances`이고 비워 둔 분류는 `elite_modifier_drops.json`의 `_stageDropTables`.
 
 ### 3.5 새 화면·팝업 추가
 

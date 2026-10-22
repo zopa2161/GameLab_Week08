@@ -93,7 +93,7 @@ namespace RuneCode
             int progressionStage = 0, int progressionRound = 0, double progressionHp = 0)
         {
             GameData.Load();
-            if (isProgressionMission && !isMission) throw new System.ArgumentException("연속 스테이지는 미션에서만 사용할 수 있습니다.", nameof(isProgressionMission));
+            if (isProgressionMission != isMission) throw new System.ArgumentException("미션은 연속 스테이지로만 실행하며 연속 스테이지는 미션에서만 사용할 수 있습니다.", nameof(isProgressionMission));
             if (!isProgressionMission && (progressionStage != 0 || progressionRound != 0 || progressionHp != 0))
                 throw new System.ArgumentException("연속 진행 시작 값은 연속 스테이지에서만 사용할 수 있습니다.", nameof(progressionStage));
             return new SimulationSetup

@@ -453,7 +453,7 @@ namespace RuneCode
             for (int index = 0; index < PendingProgressionChoiceIds.Count; index++)
             {
                 string runeId = PendingProgressionChoiceIds[index];
-                if (!RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades,
+                if (!RuneRewardRoller.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades,
                     runeId, PendingProgressionChoiceGrades[index]))
                 {
                     error = "save.invalidValues";
@@ -483,7 +483,7 @@ namespace RuneCode
                 for (int index = 0; index < _pendingRoundChoiceIds.Length; index++)
                 {
                     string runeId = _pendingRoundChoiceIds[index];
-                    if (!RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades,
+                    if (!RuneRewardRoller.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades,
                         runeId, _pendingRoundChoiceGrades[index]))
                     {
                         error = "save.invalidValues";

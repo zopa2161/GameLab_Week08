@@ -27,19 +27,14 @@ namespace RuneCode
         [Header("스테이지 성장")]
         [SerializeField] private double _hpStageScale;
         [SerializeField] private double _damageStageScale;
-        [SerializeField] private double _clearRewardStageScale;
         public double HpStageScale => _hpStageScale;
         public double DamageStageScale => _damageStageScale;
-        public double ClearRewardStageScale => _clearRewardStageScale;
 
         /// <summary>스테이지 번호로 체력 배율을 계산해 반환한다. 입력 stage는 1부터 시작한다.</summary>
         public double GetHpMultiplier(int stage) => 1 + (stage - 1) * _hpStageScale;
 
         /// <summary>스테이지 번호로 피해 배율을 계산해 반환한다. 입력 stage는 1부터 시작한다.</summary>
         public double GetDamageMultiplier(int stage) => 1 + (stage - 1) * _damageStageScale;
-
-        /// <summary>스테이지 기본 클리어 보상에 스테이지 번호 성장 계수를 적용한 보상을 반환한다.</summary>
-        public int GetClearReward(int baseReward, int stage) => (int)Math.Round(baseReward * (1 + (stage - 1) * _clearRewardStageScale), MidpointRounding.AwayFromZero);
     }
 
     [Serializable]
@@ -80,52 +75,6 @@ namespace RuneCode
         [SerializeField] private int _reward;
         public string EnemyId => _enemyId;
         public int Reward => _reward;
-    }
-
-    [Serializable]
-    public sealed class StreamCandidate
-    {
-        [Header("유입 후보")]
-        [SerializeField] private string _enemyId;
-        [SerializeField] private int _firstStage;
-        [SerializeField] private double _weight;
-        public string EnemyId => _enemyId;
-        public int FirstStage => _firstStage;
-        public double Weight => _weight;
-    }
-
-    [Serializable]
-    public sealed class StreamDefinition
-    {
-        [Header("적 유입")]
-        [SerializeField] private StreamCandidate[] _candidates;
-        [SerializeField] private double _baseInterval;
-        [SerializeField] private double _minInterval;
-        [SerializeField] private double _stageScale;
-        [SerializeField] private double _intraRamp;
-        [SerializeField] private double _rampSeconds;
-        [SerializeField] private string _formation;
-        [SerializeField] private int _groupSize;
-        public IReadOnlyList<StreamCandidate> Candidates => _candidates;
-        public double BaseInterval => _baseInterval;
-        public double MinInterval => _minInterval;
-        public double StageScale => _stageScale;
-        public double IntraRamp => _intraRamp;
-        public double RampSeconds => _rampSeconds;
-        public string Formation => _formation;
-
-        /// <summary>한 번의 유입 간격마다 같은 틱에 묶어서 내는 적 수다. 데이터에 기재하지 않은 0은 1기로 본다.</summary>
-        public int GroupSize => _groupSize > 0 ? _groupSize : 1;
-        internal int RawGroupSize => _groupSize;
-
-        /// <summary>스테이지 배율과 스테이지 내 경과 시간에 따른 가속을 반영해 다음 묶음까지의 틱 수를 반환한다. tick은 현재 틱 번호, tickRate는 초당 틱 수다.</summary>
-        public int GetIntervalTicks(int stage, int tick, int tickRate)
-        {
-            double time = tick * (1.0 / tickRate);
-            double progress = Math.Max(0, Math.Min(1, time / _rampSeconds));
-            double seconds = _baseInterval / (1 + (stage - 1) * _stageScale) * (1 - progress * _intraRamp);
-            return Math.Max(1, (int)Math.Round(Math.Max(_minInterval, seconds) * tickRate));
-        }
     }
 
     public readonly struct FormationSettings
@@ -213,7 +162,7 @@ namespace RuneCode
         public string EnemyId => _enemyId;
         public int Count => _count;
 
-        /// <summary>이 유닛을 스테이지 엘리트 정의로 생성할지 반환한다. 연속 미션 웨이브에서만 쓴다.</summary>
+        /// <summary>이 유닛을 스테이지 엘리트 정의로 생성할지 반환한다.</summary>
         public bool IsElite => _isElite;
     }
 
@@ -221,13 +170,8 @@ namespace RuneCode
     public sealed class WaveDefinition
     {
         [Header("웨이브")]
-        [SerializeField] private double _at;
-        [SerializeField] private double _repeatInterval;
         [SerializeField] private FormationOverride _formation;
         [SerializeField] private WaveUnit[] _units;
-        public double At => _at;
-        public double RepeatInterval => _repeatInterval;
-        public bool IsRepeating => _repeatInterval > 0;
         public FormationOverride Formation => _formation;
         public IReadOnlyList<WaveUnit> Units => _units;
         public int UnitCount
@@ -300,114 +244,15 @@ namespace RuneCode
     }
 
     [Serializable]
-    public sealed class StageDefinition
-    {
-        [Header("스테이지")]
-        [SerializeField] private int _fromStage;
-        [SerializeField] private int _toStage;
-        [SerializeField] private string _kind;
-        [SerializeField] private double _timeLimit;
-        [SerializeField] private int _clearReward;
-        [SerializeField] private StreamDefinition _stream;
-        [SerializeField] private WaveDefinition[] _waves;
-        [SerializeField] private int _eliteEvery;
-        [SerializeField] private EliteSpawnDefinition[] _eliteTypes;
-        [SerializeField] private ModifierRewardDefinition[] _modifierRewards;
-        public int FromStage => _fromStage;
-        public int ToStage => _toStage;
-        public string Kind => _kind;
-
-        /// <summary>일반 스테이지는 버티면 클리어하는 시간, 보스 스테이지는 보스를 처치해야 하는 제한 시간(초)이다.</summary>
-        public double TimeLimit => _timeLimit;
-        public int ClearReward => _clearReward;
-        public StreamDefinition Stream => _stream;
-        public IReadOnlyList<WaveDefinition> Waves => _waves ?? Array.Empty<WaveDefinition>();
-        public int EliteEvery => _eliteEvery;
-        public IReadOnlyList<EliteSpawnDefinition> EliteTypes => _eliteTypes ?? Array.Empty<EliteSpawnDefinition>();
-
-        /// <summary>이 항목의 스테이지를 처음 클리어할 때 주는 Modifier 소지량 보상이다. 없으면 빈 목록이다.</summary>
-        public IReadOnlyList<ModifierRewardDefinition> ModifierRewards => _modifierRewards ?? Array.Empty<ModifierRewardDefinition>();
-        public bool IsBoss => _kind == "boss";
-        public bool IsSingle => _toStage == _fromStage;
-
-        /// <summary>스테이지 번호가 이 항목 범위 안인지 반환한다. toStage가 0이면 상한이 없다.</summary>
-        public bool Contains(int stage) => stage >= _fromStage && (_toStage == 0 || stage <= _toStage);
-
-        /// <summary>기본 흐름 스폰 순번이 엘리트 주기의 배수이면 순회할 엘리트 정의를 반환하고 아니면 false를 반환한다.</summary>
-        public bool TryGetElite(int streamSpawnIndex, out EliteSpawnDefinition elite)
-        {
-            elite = null;
-            if (_eliteEvery <= 0 || streamSpawnIndex % _eliteEvery != 0) return false;
-            IReadOnlyList<EliteSpawnDefinition> types = EliteTypes;
-            elite = types[(streamSpawnIndex / _eliteEvery - 1) % types.Count];
-            return true;
-        }
-    }
-
-    [Serializable]
-    public sealed class RoundRewardDefinition
-    {
-        public const int CHOICE_COUNT = 3;
-
-        [Header("라운드 선택 보상")]
-        [SerializeField] private string[] _candidates;
-        [SerializeField] private EliteModifierGradeChance[] _gradeChances;
-        public IReadOnlyList<string> Candidates => _candidates ?? Array.Empty<string>();
-        public IReadOnlyList<EliteModifierGradeChance> GradeChances => _gradeChances ?? Array.Empty<EliteModifierGradeChance>();
-
-        /// <summary>라운드의 등급 확률을 사용하는 3개 중 1개 선택 보상 설정을 반환한다.</summary>
-        public EliteModifierClearChoice ToChoice()
-            => new EliteModifierClearChoice(null, CHOICE_COUNT, 1, GradeChances);
-
-        /// <summary>등급표로 후보 ID·등급·확률 합과 각 유효 등급의 중복 없는 3개 후보 확보 여부를 검증한다.</summary>
-        public void Validate(ModifierGradeTable modifierGrades, RuneCatalog runes, int stage, int round)
-        {
-            string location = "스테이지 " + stage + ", 라운드 " + round;
-            var ids = new HashSet<string>(StringComparer.Ordinal);
-            foreach (string id in Candidates)
-            {
-                if (string.IsNullOrEmpty(id) || !ids.Add(id) || !runes.TryGet(id, out RuneDefinition rune) || rune.IsDisabled
-                    || (rune.Category != SpellGrammar.CATEGORY_MODIFIER && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR))
-                    throw new FormatException("라운드 보상 후보 ID 누락·중복 또는 미등록: " + id + " (" + location + ")");
-            }
-            var knownGrades = new HashSet<string>(modifierGrades.GradeOrder, StringComparer.Ordinal);
-            knownGrades.UnionWith(runes.BehaviorGradeOrder);
-            var grades = new HashSet<string>(StringComparer.Ordinal);
-            int total = 0;
-            foreach (EliteModifierGradeChance chance in GradeChances)
-            {
-                if (string.IsNullOrEmpty(chance.Grade) || !knownGrades.Contains(chance.Grade) || !grades.Add(chance.Grade)
-                    || chance.Percent < 0 || chance.Percent > 100)
-                    throw new FormatException("라운드 보상 등급·확률 오류: " + location);
-                total += chance.Percent;
-                if (chance.Percent == 0) continue;
-                int available = 0;
-                foreach (string id in Candidates)
-                    if (IsCandidateGradeAvailable(runes, modifierGrades, id, chance.Grade)) available++;
-                if (available < CHOICE_COUNT)
-                    throw new FormatException("라운드 보상은 확률이 있는 각 등급의 후보가 3개 이상이어야 합니다: " + chance.Grade + " (" + location + ")");
-            }
-            if (total != 100) throw new FormatException("라운드 보상 등급 확률의 합은 100이어야 합니다: " + location);
-        }
-
-        /// <summary>후보 룬과 등급을 카탈로그로 확인해 활성 행동의 슬롯 등급 또는 Modifier 효과 등급이 지원되는지 반환한다.</summary>
-        public static bool IsCandidateGradeAvailable(RuneCatalog runes, ModifierGradeTable modifierGrades, string runeId, string grade)
-        {
-            if (!runes.TryGet(runeId, out RuneDefinition rune) || rune.IsDisabled) return false;
-            if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
-                return runes.TryGetBehaviorSlots(grade, out _, out _);
-            return rune.Category == SpellGrammar.CATEGORY_MODIFIER && modifierGrades.IsGradeAvailable(runeId, grade);
-        }
-    }
-
-    [Serializable]
     public sealed class ProgressionRoundDefinition
     {
         [Header("라운드 편성")]
         [SerializeField] private WaveDefinition[] _waves;
-        [SerializeField] private RoundRewardDefinition _reward;
+        [SerializeField] private string _rewardDropTable;
         public IReadOnlyList<WaveDefinition> Waves => _waves ?? Array.Empty<WaveDefinition>();
-        public RoundRewardDefinition Reward => _reward;
+
+        /// <summary>라운드 종료 시 3개 중 1개 선택 보상을 추첨할 drops.json 테이블 ID다. 마지막 라운드에서는 스테이지 종료 보상 테이블이다.</summary>
+        public string RewardDropTable => _rewardDropTable;
     }
 
     [Serializable]
@@ -417,7 +262,6 @@ namespace RuneCode
         [SerializeField] private int _stage;
         [SerializeField] private ProgressionRoundDefinition[] _rounds;
         [SerializeField] private EliteSpawnDefinition[] _eliteTypes;
-        [SerializeField] private StreamDefinition _stream;
         public int Stage => _stage;
         public IReadOnlyList<ProgressionRoundDefinition> Rounds => _rounds ?? Array.Empty<ProgressionRoundDefinition>();
         public IReadOnlyList<EliteSpawnDefinition> EliteTypes => _eliteTypes ?? Array.Empty<EliteSpawnDefinition>();
@@ -430,12 +274,6 @@ namespace RuneCode
                 if (candidate.EnemyId == enemyId) { elite = candidate; return true; }
             return false;
         }
-        // Unity가 누락된 직렬화 클래스를 빈 객체로 생성해도 실제 설정이 있을 때만 스트림으로 판단한다.
-        internal bool HasStream => _stream != null
-            && ((_stream.Candidates != null && _stream.Candidates.Count > 0)
-                || _stream.BaseInterval != 0 || _stream.MinInterval != 0
-                || _stream.StageScale != 0 || _stream.IntraRamp != 0 || _stream.RampSeconds != 0
-                || !string.IsNullOrEmpty(_stream.Formation) || _stream.RawGroupSize != 0);
     }
 
     [Serializable]
@@ -487,6 +325,7 @@ namespace RuneCode
         public const int PROGRESSION_ROUND_COUNT = 6;
         public const int PROGRESSION_WAVE_COUNT = 3;
         public const int MINI_BOSS_ROUND = 3;
+        public const int ROUND_REWARD_CHOICE_COUNT = 3;
         internal const int STAGE_CYCLE_START = 21;
         internal const int STAGE_CYCLE_FIRST_STAGE = 11;
         internal const int STAGE_CYCLE_LAST_STAGE = 20;
@@ -501,14 +340,12 @@ namespace RuneCode
         [SerializeField] private StageSpawnSettings _spawn;
         [SerializeField] private double _stationaryAdvanceSpeed;
         [SerializeField] private EnemyReward[] _rewards;
-        [SerializeField] private StageDefinition[] _stages;
         [SerializeField] private ProgressionStageDefinition[] _progressionStages;
         public StageMapSettings Map => _map;
         public StageGrowth Growth => _growth;
         public StageSpawnSettings Spawn => _spawn;
         public double StationaryAdvanceSpeed => _stationaryAdvanceSpeed;
         public IReadOnlyList<EnemyReward> Rewards => _rewards;
-        public IReadOnlyList<StageDefinition> Stages => _stages;
         public IReadOnlyList<ProgressionStageDefinition> ProgressionStages => _progressionStages;
 
         /// <summary>연속 미션의 1부터 시작하는 stage 번호에 대응하는 편성을 반환한다.</summary>
@@ -519,22 +356,8 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 스테이지 번호의 정의를 반환한다. 단일 항목을 먼저 찾고 없으면 첫 범위 항목을 사용하며 둘 다 없으면 데이터 오류를 발생시킨다.
-        /// 21스테이지부터는 11~20스테이지 정의를 순환해서 재사용한다.
-        /// </summary>
-        public StageDefinition Get(int stage)
-        {
-            stage = ResolveDataStage(stage);
-            for (int i = 0; i < _stages.Length; i++)
-                if (_stages[i].IsSingle && _stages[i].FromStage == stage) return _stages[i];
-            for (int i = 0; i < _stages.Length; i++)
-                if (_stages[i].Contains(stage)) return _stages[i];
-            throw new FormatException("스테이지 정의가 없습니다: " + stage);
-        }
-
-        /// <summary>
         /// 스테이지 번호가 쓸 데이터의 스테이지 번호를 반환한다. 20스테이지까지는 그대로, 21스테이지 이후는 11~20 하나로 순환 배치한다.
-        /// 21→11, 22→12, … 30→20, 31→11 순서다. 스테이지 정의와 등급표 조회가 같은 순환 규칙을 쓴다.
+        /// 21→11, 22→12, … 30→20, 31→11 순서다. 등급표 조회가 이 순환 규칙을 쓴다.
         /// </summary>
         public static int ResolveDataStage(int stage)
         {
@@ -562,24 +385,17 @@ namespace RuneCode
             return fallback;
         }
 
-        /// <summary>JSON 스테이지 설정을 읽어 기존 편성과 연속 미션의 3×6×3 편성, 적·진형 참조 및 등급표에 따른 라운드 보상을 검증한다.</summary>
+        /// <summary>JSON 스테이지 설정을 읽어 루트 설정, 적 보상표와 연속 미션의 3×6×3 편성, 적·진형 참조 및 라운드 보상 드롭 테이블을 검증한다.</summary>
         public static StageCatalog FromJson(string json, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops,
             ModifierGradeTable modifierGrades, RuneCatalog runes, BossCatalog bosses)
         {
             var catalog = JsonUtility.FromJson<StageCatalog>(json);
             if (catalog == null || catalog._map == null || catalog._growth == null || catalog._spawn == null
-                || catalog._rewards == null || catalog._stages == null || catalog._stages.Length == 0)
+                || catalog._rewards == null)
                 throw new FormatException("스테이지 루트 설정이 비어 있습니다.");
             ValidateRoot(catalog);
             ValidateRewards(catalog._rewards, enemies);
-            var singleStages = new HashSet<int>();
-            foreach (StageDefinition stage in catalog._stages)
-            {
-                ValidateStage(stage, enemies, formations, drops, singleStages);
-                ValidateFormationSlots(stage, formations, catalog._spawn.RingSlots);
-            }
             ValidateProgression(catalog, enemies, formations, drops, modifierGrades, runes, bosses);
-            catalog.Get(1); // 1스테이지를 담는 항목이 반드시 있어야 한다.
             return catalog;
         }
 
@@ -592,20 +408,19 @@ namespace RuneCode
             for (int stageIndex = 0; stageIndex < PROGRESSION_STAGE_COUNT; stageIndex++)
             {
                 ProgressionStageDefinition stage = catalog._progressionStages[stageIndex];
-                if (stage == null || stage.Stage != stageIndex + 1 || stage.HasStream || stage.Rounds.Count != PROGRESSION_ROUND_COUNT)
-                    throw new FormatException("연속 미션 스테이지 번호·라운드 수 또는 스트림 오류: " + (stageIndex + 1));
+                if (stage == null || stage.Stage != stageIndex + 1 || stage.Rounds.Count != PROGRESSION_ROUND_COUNT)
+                    throw new FormatException("연속 미션 스테이지 번호 또는 라운드 수 오류: " + (stageIndex + 1));
                 for (int roundIndex = 0; roundIndex < PROGRESSION_ROUND_COUNT; roundIndex++)
                 {
                     ProgressionRoundDefinition round = stage.Rounds[roundIndex];
                     if (round == null || round.Waves.Count != PROGRESSION_WAVE_COUNT)
                         throw new FormatException("연속 미션 라운드의 웨이브 수 오류: " + stage.Stage + "/" + (roundIndex + 1));
-                    if (round.Reward == null) throw new FormatException("라운드 보상이 없습니다: " + stage.Stage + "/" + (roundIndex + 1));
-                    round.Reward.Validate(modifierGrades, runes, stage.Stage, roundIndex + 1);
+                    ValidateRewardDropTable(round.RewardDropTable, drops, runes, modifierGrades, "스테이지 " + stage.Stage + ", 라운드 " + (roundIndex + 1));
                     for (int waveIndex = 0; waveIndex < PROGRESSION_WAVE_COUNT; waveIndex++)
                     {
                         WaveDefinition wave = round.Waves[waveIndex];
-                        if (wave == null || wave.At != 0 || wave.RepeatInterval != 0)
-                            throw new FormatException("연속 미션 웨이브에 시각·반복을 설정할 수 없습니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
+                        if (wave == null)
+                            throw new FormatException("연속 미션 웨이브가 비어 있습니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
                         ValidateWave(wave, stage.Stage, enemies, formations);
                         CheckFormationSlots(wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings()), catalog._spawn.RingSlots, stage.Stage);
                         bool isBossWave = roundIndex == PROGRESSION_ROUND_COUNT - 1 && waveIndex == PROGRESSION_WAVE_COUNT - 1;
@@ -641,14 +456,34 @@ namespace RuneCode
             }
         }
 
+        /// <summary>
+        /// 라운드 선택 보상 테이블이 등록돼 있고 속성 확률이 없으며, 확률이 0보다 큰 행동·강화 분류의 나올 수 있는 등급마다 후보가 선택지 수 이상인지 확인한다.
+        /// location은 오류 메시지의 위치 표기다.
+        /// </summary>
+        private static void ValidateRewardDropTable(string tableId, DropCatalog drops, RuneCatalog runes, ModifierGradeTable modifierGrades, string location)
+        {
+            if (string.IsNullOrEmpty(tableId) || !drops.Has(tableId))
+                throw new FormatException("라운드 보상 드롭 테이블이 없거나 등록되지 않았습니다: " + tableId + " (" + location + ")");
+            DropTableDefinition table = drops.Get(tableId);
+            foreach (DropCategoryChance chance in table.CategoryChances)
+            {
+                if (chance.Percent <= 0) continue;
+                if (chance.Category == DropCatalog.TYPE_ELEMENT)
+                    throw new FormatException("라운드 보상 드롭 테이블에는 속성 확률을 둘 수 없습니다: " + tableId + " (" + location + ")");
+                foreach (string grade in table.GetPossibleGrades(chance.Category, runes, modifierGrades))
+                    if (RuneRewardRoller.CollectCandidates(table, chance.Category, grade, runes, modifierGrades, null).Count < ROUND_REWARD_CHOICE_COUNT)
+                        throw new FormatException("라운드 보상 드롭 테이블은 확률이 있는 분류·등급마다 후보가 " + ROUND_REWARD_CHOICE_COUNT + "개 이상이어야 합니다: "
+                            + chance.Category + " " + grade + " (" + tableId + ", " + location + ")");
+            }
+        }
+
         /// <summary>루트의 맵 칸수, 성장 배율, 스폰 설정(맵형 스폰 예고·거리·유예 포함), 정지 전진 속도 범위와 유한값을 확인한다.</summary>
         private static void ValidateRoot(StageCatalog catalog)
         {
             if (catalog._map.RoomColumns < 1 || catalog._map.RoomRows < 1 || catalog._map.RoomsX < 1 || catalog._map.RoomsY < 1)
                 throw new FormatException("맵 칸수는 1 이상이어야 합니다.");
             if (!IsFinite(catalog._growth.HpStageScale) || !IsFinite(catalog._growth.DamageStageScale)
-                || catalog._growth.HpStageScale < 0 || catalog._growth.DamageStageScale < 0
-                || !IsFinite(catalog._growth.ClearRewardStageScale) || catalog._growth.ClearRewardStageScale < 0)
+                || catalog._growth.HpStageScale < 0 || catalog._growth.DamageStageScale < 0)
                 throw new FormatException("성장 배율은 0 이상의 유한값이어야 합니다.");
             if (catalog._spawn.RingSlots < 1 || !IsFinite(catalog._spawn.RingMargin) || catalog._spawn.RingMargin < 0
                 || !IsFinite(catalog._spawn.JitterScale) || catalog._spawn.JitterScale < 0
@@ -675,62 +510,9 @@ namespace RuneCode
             }
         }
 
-        /// <summary>스테이지 항목의 번호 범위, 종류, 생존·제한 시간, 클리어 보상, 단일 항목 중복과 스트림·웨이브를 확인한다.</summary>
-        private static void ValidateStage(StageDefinition stage, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops, HashSet<int> singleStages)
-        {
-            if (stage.FromStage < 1) throw new FormatException("시작 스테이지는 1 이상이어야 합니다: 스테이지 " + stage.FromStage);
-            if (stage.ToStage != 0 && stage.ToStage < stage.FromStage) throw new FormatException("종료 스테이지가 시작보다 앞섭니다: 스테이지 " + stage.FromStage);
-            if (stage.Kind != "normal" && stage.Kind != "boss") throw new FormatException("스테이지 종류는 normal 또는 boss여야 합니다: " + stage.Kind + " (스테이지 " + stage.FromStage + ")");
-            if (!IsFinite(stage.TimeLimit)) throw new FormatException("제한시간은 유한값이어야 합니다: 스테이지 " + stage.FromStage);
-            if (stage.TimeLimit <= 0) throw new FormatException("생존·제한 시간은 0보다 커야 합니다: 스테이지 " + stage.FromStage);
-            if (stage.ClearReward < 0) throw new FormatException("클리어 보상은 0 이상이어야 합니다: 스테이지 " + stage.FromStage);
-            if (stage.IsSingle && !singleStages.Add(stage.FromStage)) throw new FormatException("같은 번호의 단일 스테이지 항목이 중복됩니다: 스테이지 " + stage.FromStage);
-            ValidateStream(stage, enemies, formations);
-            ValidateWaves(stage, enemies, formations);
-            ValidateElites(stage, enemies, drops);
-            ValidateModifierRewards(stage);
-        }
-
-        /// <summary>스트림의 후보 적, 시작 스테이지, 가중치, 간격 공식, 가속 구간, 묶음 크기, 진형 참조를 확인한다.</summary>
-        private static void ValidateStream(StageDefinition stage, EnemyCatalog enemies, FormationCatalog formations)
-        {
-            StreamDefinition stream = stage.Stream;
-            if (stream == null || stream.Candidates == null || stream.Candidates.Count == 0)
-                throw new FormatException("스트림 후보가 비어 있습니다: 스테이지 " + stage.FromStage);
-            bool hasStartCandidate = false;
-            foreach (StreamCandidate candidate in stream.Candidates)
-            {
-                enemies.Get(candidate.EnemyId); // 없는 적 ID면 여기서 오류가 난다.
-                if (candidate.FirstStage < 1 || !IsFinite(candidate.Weight) || candidate.Weight <= 0)
-                    throw new FormatException("스트림 후보 값 오류입니다: " + candidate.EnemyId + " (스테이지 " + stage.FromStage + ")");
-                if (candidate.FirstStage <= stage.FromStage) hasStartCandidate = true;
-            }
-            if (!hasStartCandidate) throw new FormatException("시작 스테이지에서 스폰 가능한 스트림 후보가 없습니다: 스테이지 " + stage.FromStage);
-            if (!IsFinite(stream.BaseInterval) || !IsFinite(stream.MinInterval) || !IsFinite(stream.StageScale)
-                || !IsFinite(stream.IntraRamp) || !IsFinite(stream.RampSeconds))
-                throw new FormatException("스트림 값은 유한해야 합니다: 스테이지 " + stage.FromStage);
-            if (stream.BaseInterval <= 0 || stream.MinInterval <= 0 || stream.MinInterval > stream.BaseInterval
-                || stream.StageScale < 0 || stream.IntraRamp < 0 || stream.IntraRamp >= 1 || stream.RampSeconds <= 0)
-                throw new FormatException("스트림 간격 설정 오류입니다: 스테이지 " + stage.FromStage);
-            if (stream.RawGroupSize < 0) throw new FormatException("스트림 묶음 크기는 0 이상이어야 합니다: 스테이지 " + stage.FromStage);
-            if (!formations.Has(stream.Formation)) throw new FormatException("등록되지 않은 스트림 진형입니다: " + stream.Formation);
-        }
-
-        /// <summary>웨이브의 시각, 반복 간격, 진형 재정의 참조와 값, 유닛 편성을 확인하고 엘리트 유닛은 금지한다. waves가 없으면 확인을 생략한다.</summary>
-        private static void ValidateWaves(StageDefinition stage, EnemyCatalog enemies, FormationCatalog formations)
-        {
-            foreach (WaveDefinition wave in stage.Waves)
-            {
-                ValidateWave(wave, stage.FromStage, enemies, formations);
-                foreach (WaveUnit unit in wave.Units)
-                    if (unit.IsElite) throw new FormatException("시간제 스테이지 웨이브는 엘리트 유닛을 지원하지 않습니다: " + unit.EnemyId + " (스테이지 " + stage.FromStage + ")");
-            }
-        }
-
-        /// <summary>기존/연속 미션 웨이브의 유닛·진형·스폰 시각·반복 값과 참조를 검증한다.</summary>
+        /// <summary>연속 미션 웨이브의 유닛·진형 재정의 값과 적·진형 참조를 검증한다.</summary>
         private static void ValidateWave(WaveDefinition wave, int stageNumber, EnemyCatalog enemies, FormationCatalog formations)
         {
-            if (!IsFinite(wave.At) || wave.At < 0) throw new FormatException("웨이브 시각은 0 이상의 유한값이어야 합니다: 스테이지 " + stageNumber);
             FormationOverride formation = wave.Formation;
             if (formation == null || !formations.Has(formation.Id)) throw new FormatException("웨이브 진형 참조 오류입니다: 스테이지 " + stageNumber);
             if (!string.IsNullOrEmpty(formation.Angle) && formation.Angle != "random" && formation.Angle != "ahead" && formation.Angle != "fixed")
@@ -738,29 +520,12 @@ namespace RuneCode
             if (!IsFinite(formation.Spacing) || formation.Spacing < 0 || !IsFinite(formation.Interval) || formation.Interval < 0 || formation.Slots < 0)
                 throw new FormatException("웨이브 진형 값 오류입니다: 스테이지 " + stageNumber);
             if (wave.Units == null || wave.Units.Count == 0) throw new FormatException("웨이브에 유닛이 없습니다: 스테이지 " + stageNumber);
-            bool hasBossUnit = false;
             foreach (WaveUnit unit in wave.Units)
             {
                 if (unit == null || string.IsNullOrEmpty(unit.EnemyId)) throw new FormatException("웨이브 적 ID가 비었습니다: 스테이지 " + stageNumber);
                 enemies.Get(unit.EnemyId);
-                hasBossUnit |= unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal);
                 if (unit.Count < 1) throw new FormatException("웨이브 유닛 수는 1 이상이어야 합니다: " + unit.EnemyId + " (스테이지 " + stageNumber + ")");
             }
-            if (!IsFinite(wave.RepeatInterval) || wave.RepeatInterval < 0)
-                throw new FormatException("웨이브 반복 간격은 0 이상의 유한값이어야 합니다: 스테이지 " + stageNumber);
-            if (!wave.IsRepeating) return;
-            if (hasBossUnit) throw new FormatException("보스가 들어 있는 웨이브는 반복할 수 없습니다: 스테이지 " + stageNumber);
-            double interval = wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings()).Interval;
-            if (wave.RepeatInterval <= (wave.UnitCount - 1) * interval)
-                throw new FormatException("반복 간격은 한 회차의 유닛 배출 시간보다 길어야 합니다: 스테이지 " + stageNumber);
-        }
-
-        /// <summary>스트림과 웨이브가 실제로 쓰는 슬롯 수(진형·재정의 값, 0이면 루트 링 슬롯 수)가 진형 모양에 맞는지 확인한다.</summary>
-        private static void ValidateFormationSlots(StageDefinition stage, FormationCatalog formations, int ringSlots)
-        {
-            CheckFormationSlots(formations.Get(stage.Stream.Formation).ToSettings(), ringSlots, stage.FromStage);
-            foreach (WaveDefinition wave in stage.Waves)
-                CheckFormationSlots(wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings()), ringSlots, stage.FromStage);
         }
 
         /// <summary>진형 설정의 슬롯 수(0이면 ringSlots)가 모양에 맞지 않으면 데이터 오류를 발생시킨다.</summary>
@@ -769,27 +534,6 @@ namespace RuneCode
             int slots = settings.Slots > 0 ? settings.Slots : ringSlots;
             if (!SpawnFormations.IsValidSlotCount(settings.Shape, slots))
                 throw new FormatException("반원 진형 슬롯 수는 " + SpawnFormations.HALF_RING_SLOT_STEP + "의 배수여야 합니다: 스테이지 " + stageNumber);
-        }
-
-        /// <summary>Modifier 보상의 룬 ID가 비어 있지 않고 수량이 1 이상인지 확인한다. 룬 존재 여부는 지급 시 확인한다.</summary>
-        private static void ValidateModifierRewards(StageDefinition stage)
-        {
-            foreach (ModifierRewardDefinition reward in stage.ModifierRewards)
-            {
-                if (reward == null || string.IsNullOrEmpty(reward.RuneId) || reward.Count < 1)
-                    throw new FormatException("Modifier 보상은 룬 ID와 1 이상의 수량이 필요합니다 (스테이지 " + stage.FromStage + ")");
-            }
-        }
-
-        /// <summary>엘리트 주기와 순회 타입 유무를 확인하고 각 정의는 공통 검증에 맡긴다. 주기가 0이면 타입 확인을 생략한다.</summary>
-        private static void ValidateElites(StageDefinition stage, EnemyCatalog enemies, DropCatalog drops)
-        {
-            if (stage.EliteEvery < 0) throw new FormatException("엘리트 주기는 0 이상이어야 합니다: 스테이지 " + stage.FromStage);
-            if (stage.EliteEvery > 0 && stage.EliteTypes.Count == 0)
-                throw new FormatException("엘리트 주기가 있으면 순회 타입이 1개 이상 필요합니다: 스테이지 " + stage.FromStage);
-            string location = "스테이지 " + stage.FromStage;
-            foreach (EliteSpawnDefinition elite in stage.EliteTypes)
-                ValidateEliteDefinition(elite, enemies, drops, location);
         }
 
         /// <summary>엘리트 정의 하나의 대상 적, 보스 종족 제외, 배율, 드롭 확률 범위와 드롭 테이블 참조를 확인한다. location은 오류 메시지의 위치 표기다.</summary>

@@ -14,7 +14,6 @@ namespace RuneCode
     /// </summary>
     public sealed class MissionPresenter
     {
-        private const float TIMER_WARNING_SECONDS = 5f;
         private const float TOAST_DURATION = 0.9f;
         private const float ITEM_TOAST_DURATION = 2.5f;
         private const float VIGNETTE_BASE_STRENGTH = 0.45f;
@@ -709,19 +708,10 @@ namespace RuneCode
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
             _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount + "  ·  " + GameData.L("ui.fragments") + " " + sim.EarnedFragments);
-            if (sim.IsProgressionMission)
-            {
-                string objective = _run.IsFinished ? (sim.Completed ? "미션 완료" : sim.IsFailed ? "전투 패배" : "전투 중단")
-                    : sim.IsWaitingForNextRound ? "다음 라운드 대기"
-                    : (sim.IsBossStage ? "보스를 처치하세요 · " : "") + "남은 적 " + sim.RemainingWaveEnemyCount;
-                _hud.SetTimer(objective, false);
-            }
-            else
-            {
-                string objective = GameData.L(sim.IsBossStage ? "ui.bossObjective" : "ui.surviveObjective")
-                    + " · " + sim.RemainingTime.ToString("0.0") + "s";
-                _hud.SetTimer(objective, sim.IsBossStage && sim.RemainingTime <= TIMER_WARNING_SECONDS);
-            }
+            string objective = _run.IsFinished ? (sim.Completed ? "미션 완료" : sim.IsFailed ? "전투 패배" : "전투 중단")
+                : sim.IsWaitingForNextRound ? "다음 라운드 대기"
+                : (sim.IsBossStage ? "보스를 처치하세요 · " : "") + "남은 적 " + sim.RemainingWaveEnemyCount;
+            _hud.SetTimer(objective, false);
             string executionState = sim.HasActiveBeam(0) ? GameData.L("ui.beamActive") : sim.Player.IsSpellRunning(0)
                 ? GameData.L("ui.executing") + " " + sim.Player.ExecutionRemaining(0).ToString("0.0") + "s " + GameData.L("ui.remaining")
                 : GameData.L("ui.cooldown") + " " + sim.Player.Cooldowns[0].ToString("0.0") + "s";

@@ -384,10 +384,10 @@ namespace RuneCode
             if (_simulation.Completed || _simulation.IsFailed) FinishMission();
         }
 
-        /// <summary>라운드 종료 시 해당 라운드의 보상 설정과 시뮬레이션 난수로 후보와 등급을 한 번 추첨한다.</summary>
+        /// <summary>라운드 종료 시 해당 라운드의 보상 드롭 테이블과 시뮬레이션 난수로 후보와 등급을 한 번 추첨한다.</summary>
         private void SetRoundModifierChoices()
         {
-            if (!_simulation.TryDrawClearModifierChoices(out _, out List<string> candidates, out List<string> grades)) return;
+            if (!_simulation.TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades)) return;
             _clearModifierChoices = candidates;
             _clearModifierGrades = grades;
             _isClearModifierChosen = false;

@@ -21,7 +21,6 @@ namespace RuneCode
         private SpawnDirector _director;
         private double _spawnRadius;
         private int _tickSpawnPositionsTick = -1;
-        private int _streamSpawns;
         private int _spawnedEnemies;
 
         /// <summary>분열 대기 목록이다. 상태 해시와 전투 취소가 같은 인스턴스를 쓴다.</summary>
@@ -80,8 +79,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 현재 틱까지 도달한 스폰을 순서대로 처리한다. 기본 흐름 스폰 순번이 엘리트 주기와 일치하면 그 종족을 엘리트로 생성하고,
-        /// 웨이브 엘리트 유닛은 현재 연속 스테이지의 엘리트 정의로 생성한다.
+        /// 현재 틱까지 도달한 웨이브 스폰을 순서대로 처리한다. 엘리트 유닛은 현재 연속 스테이지의 엘리트 정의로 생성한다.
         /// 살아 있는 적과 예고 대기 스폰을 합친 수가 상한이면 이번 틱 처리를 멈춘다.
         /// </summary>
         internal void AdvanceSpawns()
@@ -90,14 +88,9 @@ namespace RuneCode
             {
                 if (_world.Enemies.Count + _pendingSpawns.Count >= _world.EnemyLimit) return;
                 _director.Consume(_world.Tick);
-                bool isStream = order.IsStream;
                 EliteSpawnDefinition elite = null;
-                if (isStream)
-                {
-                    if (_world.StageDefinition.TryGetElite(++_streamSpawns, out EliteSpawnDefinition found)) elite = found;
-                }
-                else if (order.IsElite) _world.Stages.GetProgressionStage(_world.StageNumber).TryGetElite(order.EnemyId, out elite);
-                SpawnByFormation(order, elite != null ? elite.EnemyId : (isStream ? PickStreamEnemy() : order.EnemyId), elite, isKillTarget: true);
+                if (order.IsElite) _world.Stages.GetProgressionStage(_world.StageNumber).TryGetElite(order.EnemyId, out elite);
+                SpawnByFormation(order, order.EnemyId, elite, isKillTarget: true);
             }
         }
 
@@ -116,32 +109,32 @@ namespace RuneCode
 
         /// <summary>
         /// 예약의 진형으로 플레이어 주변 원형 슬롯 중 위치를 정해 적을 생성한다. elite가 있으면 엘리트 배율로 생성하고,
-        /// isKillTarget은 기본 흐름과 웨이브 스폰에 true로 받아 목표 처치 수 집계 대상으로 만든다.
-        /// 묶음의 첫 스폰에서 슬롯 시작 각도(무작위, 진행 방향 또는 고정 0도)와 기준 슬롯을 정하고, 위치는 스폰 순간의 플레이어 위치 기준으로 계산한다.
+        /// isKillTarget은 웨이브 스폰에 true로 받아 목표 처치 수 집계 대상으로 만든다.
+        /// 웨이브의 첫 스폰에서 슬롯 시작 각도(무작위, 진행 방향 또는 고정 0도)와 기준 슬롯을 정하고, 위치는 스폰 순간의 플레이어 위치 기준으로 계산한다.
         /// 맵형 진형은 원형 슬롯 대신 EnqueueArenaSpawn으로 예고 대기 스폰을 등록한다.
         /// </summary>
         private void SpawnByFormation(SpawnOrder order, string enemyId, EliteSpawnDefinition elite, bool isKillTarget)
         {
-            FormationSettings settings = _director.GetSettings(order.Group);
+            FormationSettings settings = _director.Settings;
             SpawnFormation formation = SpawnFormations.Get(settings.Shape);
             double radius = _world.EnemyCatalog.Get(enemyId).Radius * (elite != null ? elite.RadiusMultiplier : 1);
             if (formation.IsArena) { EnqueueArenaSpawn(order, enemyId, elite, isKillTarget, formation, settings, radius); return; }
             int slotCount = settings.Slots > 0 ? settings.Slots : _world.Stages.Spawn.RingSlots;
             double spawnRadius = _spawnRadius * settings.RadiusScale;
-            if (!_director.IsStarted(order.Group))
+            if (!_director.IsStarted)
             {
                 double startAngle = settings.Angle == SpawnFormations.ANGLE_AHEAD ? GetAheadAngle()
                     : settings.Angle == SpawnFormations.ANGLE_FIXED ? 0 : _world.Random.Next() * 2 * Math.PI / slotCount;
                 _spawnSlots.Refresh(_world.Map, _world.Player.Position, spawnRadius, slotCount, startAngle, radius);
-                _director.Start(order.Group, startAngle, formation.ChooseAnchor(_spawnSlots, settings));
+                _director.Start(startAngle, formation.ChooseAnchor(_spawnSlots, settings));
             }
-            else _spawnSlots.Refresh(_world.Map, _world.Player.Position, spawnRadius, slotCount, _director.GetStartAngle(order.Group), radius);
-            SpawnPlacement placement = formation.Place(order.Index, order.Count, _director.GetAnchor(order.Group), _spawnSlots, settings);
+            else _spawnSlots.Refresh(_world.Map, _world.Player.Position, spawnRadius, slotCount, _director.StartAngle, radius);
+            SpawnPlacement placement = formation.Place(order.Index, order.Count, _director.Anchor, _spawnSlots, settings);
             SpawnEnemy(enemyId, ResolvePlacement(placement, radius), false, 0, elite, isKillTarget);
         }
 
         /// <summary>
-        /// 맵형 진형 예약의 생성 위치를 정해 예고 시간 뒤에 생성할 대기 스폰으로 등록한다. 무리를 공유하는 진형은 묶음의 첫 스폰에서 무리 중심을 정하고
+        /// 맵형 진형 예약의 생성 위치를 정해 예고 시간 뒤에 생성할 대기 스폰으로 등록한다. 무리를 공유하는 진형은 웨이브의 첫 스폰에서 무리 중심을 정하고
         /// 각 기체를 중심 기준 오프셋에 두며, 그 위치가 맵 밖이거나 플레이어 최소 거리 안이면 무리 중심을 쓴다. 예고 표시는 무리 중심과 무리 반경을 쓴다.
         /// 그 외 맵형 진형은 기체마다 맵 전체에서 위치를 고른다.
         /// </summary>
@@ -153,8 +146,8 @@ namespace RuneCode
             double warningRadius = radius;
             if (formation.SharesArenaAnchor)
             {
-                if (!_director.IsStarted(order.Group)) _director.StartAt(order.Group, PickArenaPoint(radius));
-                warningCenter = _director.GetAnchorPoint(order.Group);
+                if (!_director.IsStarted) _director.StartAt(PickArenaPoint(radius));
+                warningCenter = _director.AnchorPoint;
                 warningRadius += formation.GetArenaSpread(order.Count, settings);
                 position = warningCenter + formation.GetArenaOffset(order.Index, settings);
                 if (!_world.Map.CanOccupy(position, radius) || (position - _world.Player.Position).Length < _world.Stages.Spawn.MinPlayerDistance) position = warningCenter;
@@ -292,24 +285,6 @@ namespace RuneCode
         {
             SimVector direction = _world.HasMoveDirection ? _world.MoveDirection : _world.Player.AimDirection;
             return Math.Atan2(direction.Y, direction.X);
-        }
-
-        /// <summary>기본 흐름 후보 중 현재 스테이지에서 나올 수 있는 적을 가중 난수로 고른다. 부동소수 오차로 고르지 못하면 마지막 후보를 쓴다.</summary>
-        private string PickStreamEnemy()
-        {
-            IReadOnlyList<StreamCandidate> candidates = _world.StageDefinition.Stream.Candidates;
-            double totalWeight = 0;
-            foreach (StreamCandidate candidate in candidates) if (candidate.FirstStage <= _world.StageNumber) totalWeight += candidate.Weight;
-            double choice = _world.Random.Next() * totalWeight;
-            string last = null;
-            foreach (StreamCandidate candidate in candidates)
-            {
-                if (candidate.FirstStage > _world.StageNumber) continue;
-                last = candidate.EnemyId;
-                choice -= candidate.Weight;
-                if (choice <= 0) return candidate.EnemyId;
-            }
-            return last;
         }
 
         /// <summary>무반격 더미 적을 지정한 위치와 체력으로 생성한다.</summary>

@@ -13,9 +13,8 @@ const VOCAB = {
   enemyTrait: ["aegisShield", "relayAura", "deathExplosion", "circleShield", "carrier"],
   formationShape: ["ringRandomSlot", "ringAllSlots", "ringDouble", "pointSequence", "ringHalf", "ringSectorBlock", "arenaRandom", "arenaCluster"],
   angle: ["random", "ahead", "fixed"],
-  stageKind: ["normal", "boss"],
   stageType: ["normal", "boss"],
-  dropType: ["fragments", "modifier", "none"],
+  dropType: ["behavior", "modifier", "element"],
   ramMode: ["shared", "perSpell"],
   effectType: ["effectMultiplier", "energyCostMultiplier", "multipleCount", "pierceCount", "radiusMultiplier", "durationMultiplier", "speedMultiplier", "homingTier", "waveCount", "beamEmpowerMultiplier"],
   grade: ["C", "B", "A", "S"],
@@ -240,28 +239,28 @@ const SCHEMAS = {
     ],
   },
   drops: {
-    columns: ["_id", "_rolls"],
+    columns: ["_id"],
     groups: [ { title: "드롭 테이블", fields: [
-      { k: "_id", label: "ID", type: "text" }, { k: "_rolls", label: "추첨 횟수", type: "number" },
-      { k: "_guaranteed", label: "보장 항목", type: "list", item: "dropEntry" },
-      { k: "_entries", label: "추첨 항목", type: "list", item: "dropEntry" } ] } ],
+      { k: "_id", label: "ID", type: "text" },
+      { k: "_categoryChances", label: "분류 확률(합 100)", type: "list", item: [
+        { k: "_category", label: "분류", type: "select", vocab: "dropType" }, { k: "_percent", label: "확률(%)", type: "number" } ] },
+      { k: "_gradeChances", label: "분류별 등급 확률(분류마다 합 100, 비운 분류는 스테이지 등급표)", type: "list", item: [
+        { k: "_category", label: "분류", type: "select", vocab: "dropType" },
+        { k: "_grade", label: "등급", type: "ref", ref: "grade" }, { k: "_percent", label: "확률(%)", type: "number" } ] },
+      { k: "_entries", label: "후보 룬(비운 분류는 활성 룬 전체)", type: "list", item: "dropEntry" } ] } ],
   },
   dropEntry: [
-    { k: "_type", label: "형식", type: "select", vocab: "dropType" },
-    { k: "_id", label: "Modifier ID", type: "ref", ref: "modifierOrElite" },
-    { k: "_grade", label: "등급", type: "ref", ref: "grade", allowEmpty: true },
-    { k: "_count", label: "수량", type: "number" }, { k: "_min", label: "최소", type: "number" },
-    { k: "_max", label: "최대", type: "number" }, { k: "_weight", label: "가중치", type: "number" },
+    { k: "_type", label: "분류", type: "select", vocab: "dropType" },
+    { k: "_id", label: "룬 ID", type: "ref", ref: "rune" },
+    { k: "_weight", label: "가중치", type: "number" },
   ],
   stages: {
-    columns: ["_fromStage", "_toStage", "_kind", "_timeLimit", "_clearReward"],
     head: [
       { k: "_map", label: "맵", type: "object", fields: [
         { k: "_roomColumns", label: "방 열 수", type: "number" }, { k: "_roomRows", label: "방 행 수", type: "number" },
         { k: "_roomsX", label: "가로 방 수", type: "number" }, { k: "_roomsY", label: "세로 방 수", type: "number" } ] },
       { k: "_growth", label: "성장", type: "object", fields: [
-        { k: "_hpStageScale", label: "체력 스케일", type: "number" }, { k: "_damageStageScale", label: "피해 스케일", type: "number" },
-        { k: "_clearRewardStageScale", label: "클리어 보상 스케일", type: "number" } ] },
+        { k: "_hpStageScale", label: "체력 스케일", type: "number" }, { k: "_damageStageScale", label: "피해 스케일", type: "number" } ] },
       { k: "_spawn", label: "스폰", type: "object", fields: [
         { k: "_ringSlots", label: "링 슬롯", type: "number" }, { k: "_ringMargin", label: "링 여백", type: "number" },
         { k: "_jitterScale", label: "지터 스케일", type: "number" }, { k: "_reinforcementGap", label: "증원 간격", type: "number" },
@@ -270,41 +269,6 @@ const SCHEMAS = {
       { k: "_stationaryAdvanceSpeed", label: "정지 전진 속도", type: "number" },
       { k: "_rewards", label: "보상표", type: "list", item: [
         { k: "_enemyId", label: "적 ID", type: "ref", ref: "enemy" }, { k: "_reward", label: "보상", type: "number" } ] },
-    ],
-    groups: [
-      { title: "스테이지", fields: [
-        { k: "_fromStage", label: "시작 스테이지", type: "number" }, { k: "_toStage", label: "끝 스테이지(0=무한)", type: "number" },
-        { k: "_kind", label: "종류", type: "select", vocab: "stageKind" },
-        { k: "_timeLimit", label: "생존·제한 시간", type: "number" }, { k: "_clearReward", label: "클리어 보상", type: "number" },
-        { k: "_eliteEvery", label: "엘리트 주기", type: "number" } ] },
-      { title: "스트림", fields: [
-        { k: "_stream", label: "스트림", type: "object", fields: [
-          { k: "_baseInterval", label: "기본 간격", type: "number" }, { k: "_minInterval", label: "최소 간격", type: "number" },
-          { k: "_stageScale", label: "스테이지 스케일", type: "number" }, { k: "_intraRamp", label: "내부 램프", type: "number" },
-          { k: "_rampSeconds", label: "램프 시간", type: "number" }, { k: "_formation", label: "진형", type: "ref", ref: "formation" },
-          { k: "_groupSize", label: "묶음 크기", type: "number" },
-          { k: "_candidates", label: "후보", type: "list", item: [
-            { k: "_enemyId", label: "적 ID", type: "ref", ref: "enemy" },
-            { k: "_firstStage", label: "시작 스테이지", type: "number" }, { k: "_weight", label: "가중치", type: "number" } ] } ] } ] },
-      { title: "웨이브", fields: [
-        { k: "_waves", label: "웨이브", type: "list", item: [
-          { k: "_formation", label: "진형 오버라이드", type: "object", fields: [
-            { k: "_id", label: "진형 ID", type: "ref", ref: "formation" }, { k: "_angle", label: "각도", type: "select", vocab: "angle" },
-            { k: "_spacing", label: "간격", type: "number" }, { k: "_interval", label: "간격(초)", type: "number" },
-            { k: "_slots", label: "슬롯", type: "number" } ] },
-          { k: "_units", label: "유닛", type: "list", item: [
-            { k: "_enemyId", label: "적 ID", type: "ref", ref: "enemy" }, { k: "_count", label: "수량", type: "number" },
-            { k: "_at", label: "시점", type: "number" }, { k: "_repeatInterval", label: "반복 간격", type: "number" } ] } ] } ] },
-      { title: "엘리트·보상", fields: [
-        { k: "_eliteTypes", label: "엘리트 종류", type: "list", item: [
-          { k: "_enemyId", label: "적 ID", type: "ref", ref: "enemy" },
-          { k: "_hpMultiplier", label: "체력 배율", type: "number" }, { k: "_rewardMultiplier", label: "보상 배율", type: "number" },
-          { k: "_speedMultiplier", label: "속도 배율", type: "number" }, { k: "_radiusMultiplier", label: "반경 배율", type: "number" },
-          { k: "_dropTable", label: "드롭 테이블", type: "ref", ref: "drop", allowEmpty: true },
-          { k: "_dropChancePercent", label: "드롭 확률(%, 0=100)", type: "number" } ] },
-        { k: "_modifierRewards", label: "Modifier 보상", type: "list", item: [
-          { k: "_runeId", label: "룬 ID", type: "ref", ref: "modifier" },
-          { k: "_grade", label: "등급", type: "select", vocab: "grade" }, { k: "_count", label: "수량", type: "number" } ] } ] },
     ],
   },
   sector1: {

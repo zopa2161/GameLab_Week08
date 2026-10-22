@@ -83,9 +83,6 @@ namespace RuneCode
         /// <summary>현재 전투 진행 단계다.</summary>
         internal MissionStage Stage { get; set; }
 
-        /// <summary>현재 스테이지 정의다. 미션 시작 시 설정된다.</summary>
-        internal StageDefinition StageDefinition { get; set; }
-
         /// <summary>시뮬레이션 틱 카운터다. Step마다 증가한다.</summary>
         internal int Tick { get; set; }
 
@@ -110,13 +107,9 @@ namespace RuneCode
         /// <summary>사망 또는 보스 제한시간 초과로 실패했는지 나타낸다.</summary>
         internal bool IsFailed => Stage == MissionStage.Dead || Stage == MissionStage.TimedOut;
 
-        /// <summary>현재 스테이지가 보스 스테이지인지 나타낸다.</summary>
+        /// <summary>현재 웨이브가 연속 미션 마지막 라운드의 보스 웨이브인지 나타낸다.</summary>
         internal bool IsBossStage => IsProgressionMission
-            ? RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT && WaveNumber == StageCatalog.PROGRESSION_WAVE_COUNT
-            : StageDefinition != null && StageDefinition.IsBoss;
-
-        /// <summary>현재 스테이지 제한시간(초)이다. 스테이지 정의가 없으면 0이다.</summary>
-        internal double TimeLimit => IsProgressionMission ? 0 : StageDefinition?.TimeLimit ?? 0;
+            && RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT && WaveNumber == StageCatalog.PROGRESSION_WAVE_COUNT;
 
         /// <summary>동시에 살아 있을 수 있는 적 수 상한이다.</summary>
         internal int EnemyLimit => Balance.Limits.MaxEnemies;
