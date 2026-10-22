@@ -22,6 +22,9 @@ namespace RuneCode
         private const float LOW_HEALTH_FRACTION = 0.3f;
         private const float LOW_HEALTH_MAX_LEVEL = 0.4f;
         private const double PLAYER_DAMAGE_EPSILON = 0.000001;
+        private const int ONBOARDING_BATTLE_START = 1;
+        private const int ONBOARDING_FIRST_CLEAR = 2;
+        private const int ONBOARDING_ROUND_RETURN = 4;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -108,6 +111,7 @@ namespace RuneCode
             }
             _hud.SetNextRound(false, false);
             _hud.SetWorkshop(false, false);
+            _hud.SetWorkshopHighlight(false);
             _hud.SetDebugBosses(false, false);
             if (_session.IsRunSuspended) return;
             _run = null;
@@ -157,6 +161,8 @@ namespace RuneCode
             {
                 if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowRoundChoices();
             }
+            if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices) && !_ui.IsPopupOpen)
+                OpenTestOnboarding(ONBOARDING_FIRST_CLEAR);
             RenderHud();
         }
 
@@ -580,7 +586,36 @@ namespace RuneCode
             RenderHud();
             if (_run.IsResumedRoundBreak && _run.HasClearModifierChoices && !_run.IsClearModifierChosen)
                 ShowRoundChoices(isResumed: true);
+            ShowBattleStartOnboarding();
             return true;
+        }
+
+        /// <summary>테스트 모드의 첫 전투 직전에 미션을 일시정지하고 온보딩을 띄운다. 온보딩이 닫히면 같은 미션의 일시정지를 푼다.</summary>
+        private void ShowBattleStartOnboarding()
+        {
+            OnboardingPopup popup = OpenTestOnboarding(ONBOARDING_BATTLE_START);
+            if (popup == null) return;
+            MissionRun run = _run;
+            if (!run.IsPaused) run.TogglePause();
+            popup.Closed += () => { if (_run == run && run.IsPaused) run.TogglePause(); };
+        }
+
+        /// <summary>
+        /// 테스트 모드에서 chapter가 다음 순서의 온보딩이면 도움말 챕터를 안내 팝업으로 열어 반환한다.
+        /// 순서가 아니면 null을 반환하고, 도움말 데이터에 챕터가 없으면 경고를 남기고 순서만 넘긴다.
+        /// </summary>
+        private OnboardingPopup OpenTestOnboarding(int chapter)
+        {
+            if (!_session.TryAdvanceTestOnboarding(chapter)) return null;
+            EncyclopediaEntry entry = GameData.Encyclopedia?.FindChapter(chapter);
+            if (entry == null)
+            {
+                Debug.LogWarning("게임 도움말 JSON에 온보딩 챕터가 없습니다: " + chapter);
+                return null;
+            }
+            OnboardingPopup popup = _ui.OpenPopup<OnboardingPopup>();
+            popup.Configure(entry.Title, entry.Pages);
+            return popup;
         }
 
         /// <summary>
@@ -595,6 +630,7 @@ namespace RuneCode
             _session.ResumeSuspendedRun();
             // 결과 패널은 화면과 함께 꺼졌다 켜질 뿐 상태가 남으므로, 같은 후보를 다시 그려 선택 포커스만 되살린다.
             if (_hasPresentedChoices && _run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowPendingChoices();
+            OpenTestOnboarding(ONBOARDING_ROUND_RETURN);
             RenderHud();
             return true;
         }
@@ -639,6 +675,9 @@ namespace RuneCode
             _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished && _run.IsClearModifierChosen,
                 !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetWorkshop(CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
+            // 첫 클리어 온보딩 뒤 보상을 고르면 작업실 온보딩 전까지 작업실 버튼을 강조한다.
+            _hud.SetWorkshopHighlight(CanOpenWorkshop && _run.IsClearModifierChosen
+                && _session.TestOnboardingChapter == ONBOARDING_FIRST_CLEAR);
             _hud.SetDebugBosses(_session.IsDebugEnabled && CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],

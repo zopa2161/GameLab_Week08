@@ -15,6 +15,7 @@ namespace RuneCode
     {
         private const int HIGHLIGHT_TICKS = 12;
         private const float STATUS_TOAST_DURATION = 4f;
+        private const int ONBOARDING_WORKSHOP_ENTER = 3;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -53,11 +54,25 @@ namespace RuneCode
             _session.Spells.Compiled += RecordCompileResult;
         }
 
-        /// <summary>작업실에 들어올 때 도크를 다시 시작한 뒤 에디터 탭을 갱신한다.</summary>
+        /// <summary>작업실에 들어올 때 도크를 다시 시작한 뒤 에디터 탭을 갱신하고, 테스트 모드의 작업실 온보딩 차례면 띄운다.</summary>
         public void Enter()
         {
             LocalTelemetry.BeginUsabilityEditingEpisode();
             ShowEditorTab();
+            ShowWorkshopOnboarding();
+        }
+
+        /// <summary>테스트 모드에서 작업실 온보딩이 다음 순서면 도움말 챕터를 안내 팝업으로 연다. 챕터가 없으면 경고만 남긴다.</summary>
+        private void ShowWorkshopOnboarding()
+        {
+            if (!_session.TryAdvanceTestOnboarding(ONBOARDING_WORKSHOP_ENTER)) return;
+            EncyclopediaEntry entry = GameData.Encyclopedia?.FindChapter(ONBOARDING_WORKSHOP_ENTER);
+            if (entry == null)
+            {
+                Debug.LogWarning("게임 도움말 JSON에 온보딩 챕터가 없습니다: " + ONBOARDING_WORKSHOP_ENTER);
+                return;
+            }
+            _ui.OpenPopup<OnboardingPopup>().Configure(entry.Title, entry.Pages);
         }
 
         /// <summary>작업실을 떠날 때 편집 패널을 닫고 도크 누적 시간을 버린다.</summary>
@@ -112,7 +127,7 @@ namespace RuneCode
 
         float ISpellEditorHost.EnergyRegen => _session.EnergyRegen;
 
-        bool ISpellEditorHost.CanSynthesizeRunes => !_session.IsTestMode;
+        bool ISpellEditorHost.CanSynthesizeRunes => true;
 
         int ISpellEditorHost.SynthesisStage => _session.SelectedStage;
 

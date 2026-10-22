@@ -14,9 +14,6 @@ namespace RuneCode
     public sealed class RuneCodeSession
     {
         private const int DEBUG_MODIFIER_STOCK = 9;
-        private const int TEST_CLEARED_STAGE = 10;
-        private const int TEST_STAGE = 9;
-        private const int TEST_STOCK_COUNT = 2;
         private const string PLAY_LOG_PARTICIPANT_KEY = "RuneCode.PlayLogParticipantId";
 
         private PlayerSave _save;
@@ -32,6 +29,7 @@ namespace RuneCode
         private bool _isSaveDirty;
         private bool _hasStartedGame;
         private bool _isRunSuspended;
+        private int _testOnboardingChapter;
 
         private string _dockScenario = "dummy_single";
         private int _dockDummyCount = 1;
@@ -43,8 +41,11 @@ namespace RuneCode
         public ISpellEditor Spells => _spells;
         public bool IsDebugEnabled => _isDebugEnabled;
 
-        /// <summary>타이틀의 테스트 모드로 시작한 메모리 진행인지 반환한다. 디버그 권한은 주지 않는다.</summary>
+        /// <summary>타이틀의 테스트 모드로 시작한 메모리 진행인지 반환한다. 규칙은 일반 진행과 같고 디버그 권한은 주지 않는다.</summary>
         public bool IsTestMode => _isTestMode;
+
+        /// <summary>테스트 모드에서 마지막으로 띄운 온보딩 챕터 번호다. 아직 띄우지 않았으면 0이다.</summary>
+        public int TestOnboardingChapter => _testOnboardingChapter;
 
         /// <summary>디버그·테스트처럼 저장 슬롯에 쓰지 않는 메모리 진행인지 반환한다.</summary>
         public bool IsMemorySession => _isDebugEnabled || _isTestMode;
@@ -76,7 +77,7 @@ namespace RuneCode
         public float KillEnergyBonus => GetUpgradeTreeEffectTotal(UpgradeEffectType.KillEnergy);
         public float BattleDuration => (float)_stages.Get(1).Stream.RampSeconds;
         public int EquippedRam => CalculateEquippedRam(_spells.Graph);
-        public int SelectedStage => _isTestMode ? TEST_STAGE : _save.SelectedStage;
+        public int SelectedStage => _save.SelectedStage;
         public StageDefinition SelectedStageDefinition => _stages.Get(SelectedStage);
         public int HighestClearedStage => _save.HighestClearedStage;
         public bool HasClearedProgression => _save.HasClearedProgression;
@@ -220,14 +221,19 @@ namespace RuneCode
             }
         }
 
-        /// <summary>익명 참가자 ID로 테스트 프로필과 로컬 로그 세션을 열고 시작에 성공하면 true를 반환한다.</summary>
+        /// <summary>
+        /// 익명 참가자 ID로 저장하지 않는 새 진행과 로컬 로그 세션을 열고 전투 화면으로 전환한다.
+        /// 진행 규칙은 일반 모드와 같으며 시작에 성공하면 true를 반환한다.
+        /// </summary>
         public bool StartTestGame(string participantId)
         {
             if (string.IsNullOrWhiteSpace(participantId)) return false;
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("restarted", _spells.Graph);
             _isDebugEnabled = false;
             _isTestMode = true;
-            _save = CreateTestSave();
+            _testOnboardingChapter = 0;
+            _save = PlayerSave.CreateNew();
+            RestorePurchasedRuneUnlocks(_save);
             _spells.Reload();
 
             var stock = new Dictionary<string, object>(StringComparer.Ordinal);
@@ -284,7 +290,27 @@ namespace RuneCode
             }
             _hasStartedGame = true;
             _isRunSuspended = false;
-            RequestScreen(AppScreen.Workshop);
+            LocalTelemetry.RecordUsabilityEvent("simulation_request", "title", new Dictionary<string, object>
+            {
+                ["input_method"] = "title_start",
+                ["stage"] = SelectedStage,
+            });
+            RequestScreen(AppScreen.Mission);
+            return true;
+        }
+
+        /// <summary>
+        /// 테스트 모드에서 chapter가 다음 순서의 온보딩이면 띄운 것으로 기록하고 로그를 남긴 뒤 true를 반환한다.
+        /// 테스트 모드가 아니거나 순서가 맞지 않으면 false를 반환한다.
+        /// </summary>
+        public bool TryAdvanceTestOnboarding(int chapter)
+        {
+            if (!_isTestMode || chapter != _testOnboardingChapter + 1) return false;
+            _testOnboardingChapter = chapter;
+            LocalTelemetry.RecordUsabilityEvent("onboarding_shown", "onboarding", new Dictionary<string, object>
+            {
+                ["chapter"] = chapter,
+            });
             return true;
         }
 
@@ -551,7 +577,6 @@ namespace RuneCode
         /// <summary>출격 스테이지를 선택하고 저장한다. 디버그 모드에서는 클리어에 따른 선택 제한을 무시한다.</summary>
         public void SelectStage(int stage)
         {
-            if (_isTestMode && stage != TEST_STAGE) return;
             if (stage < 1 || (!_isDebugEnabled && stage > HighestClearedStage + 1)) return;
             _save.SelectStage(stage, _isDebugEnabled);
             PersistProgress();
@@ -579,7 +604,7 @@ namespace RuneCode
             SaveStore.SetFeedbackSetting(key, enabled);
         }
 
-        /// <summary>진행을 초기화하고 새 시작 마법으로 편집 세션을 다시 연다. 테스트 모드는 테스트 프로필로 다시 만든다.</summary>
+        /// <summary>진행을 초기화하고 새 시작 마법으로 편집 세션을 다시 연다.</summary>
         public void ResetSave()
         {
             RenewSave();
@@ -598,9 +623,10 @@ namespace RuneCode
         /// <summary>현재 모드에 맞는 새 진행으로 바꾸고 보관 중인 런을 버린 뒤 편집 세션을 다시 연다. 일반 진행은 _normalSave도 함께 바꾸고 디버그면 룬을 전부 해금한다.</summary>
         private void RenewSave()
         {
-            _save = _isTestMode ? CreateTestSave() : PlayerSave.CreateNew();
+            _save = PlayerSave.CreateNew();
             if (_isDebugEnabled) PrepareDebugSave();
-            else if (!_isTestMode) _normalSave = _save;
+            else if (_isTestMode) RestorePurchasedRuneUnlocks(_save);
+            else _normalSave = _save;
             _isRunSuspended = false;
             _spells.Reload();
         }
@@ -642,14 +668,13 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 일반 모드에서 전투 보상과 처치 기록을 세이브에 반영하고, 연속 미션은 기존 스테이지 선택 기록 대신 별도 완주 기록을 남긴다. 테스트 모드에서는 반영하지 않는다.
+        /// 전투 보상과 처치 기록을 세이브에 반영하고, 연속 미션은 기존 스테이지 선택 기록 대신 별도 완주 기록을 남긴다.
         /// 클리어 때 지급한 룬 보상 목록을 반환한다.
         /// </summary>
         public IReadOnlyList<ModifierRewardDefinition> SettleMission(int stageNumber, int fragments, bool isCleared, IEnumerable<KeyValuePair<string, int>> killCounts,
             ModifierRewardDefinition clearRuneReward = null, bool isProgressionMission = false,
             IReadOnlyList<string> progressionChoiceIds = null, IReadOnlyList<string> progressionChoiceGrades = null)
         {
-            if (_isTestMode) return Array.Empty<ModifierRewardDefinition>();
             var modifierRewards = new List<ModifierRewardDefinition>();
             if (isCleared && (!isProgressionMission || !_save.HasClearedProgression))
             {
@@ -684,12 +709,11 @@ namespace RuneCode
 
         /// <summary>
         /// 라운드 동안 모아 둔 조각과 소지 아이템 드롭을 세이브에 한 번에 지급하고, 끝낸 라운드 위치와 그 시점 체력, 라운드 보상 후보를 기록한다.
-        /// persist이면 저장 정책에 맞춰 한 번 기록한다. 아이템이 늘면 소지량 검사를 위해 다시 컴파일한다. 테스트 모드에서는 지급하지 않는다.
+        /// persist이면 저장 정책에 맞춰 한 번 기록한다. 아이템이 늘면 소지량 검사를 위해 다시 컴파일한다.
         /// </summary>
         public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, int stageNumber, int roundNumber,
             double hp, double maxHp, IReadOnlyList<string> roundChoiceIds, IReadOnlyList<string> roundChoiceGrades, bool persist = true)
         {
-            if (_isTestMode) return;
             _save.Settle(fragments, false);
             foreach (SimulationItemDrop drop in drops)
                 GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup", persist: false);
@@ -701,7 +725,7 @@ namespace RuneCode
         /// <summary>저장된 연속 미션 보상 후보 index를 하나 지급하고 후보 삭제와 소지량 변경을 한 번에 저장한다.</summary>
         public bool ClaimProgressionChoice(int index)
         {
-            if (_isTestMode || index < 0 || index >= _save.PendingProgressionChoiceIds.Count) return false;
+            if (index < 0 || index >= _save.PendingProgressionChoiceIds.Count) return false;
             string runeId = _save.PendingProgressionChoiceIds[index];
             string grade = _save.PendingProgressionChoiceGrades[index];
             if (!RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return false;
@@ -720,10 +744,10 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>라운드 보상 후보 행동·Modifier 룬을 소지량에 즉시 반영하고 대기 후보를 비운 뒤 한 번에 저장하고 다시 컴파일한다. 테스트 모드는 지급하지 않는다.</summary>
+        /// <summary>라운드 보상 후보 행동·Modifier 룬을 소지량에 즉시 반영하고 대기 후보를 비운 뒤 한 번에 저장하고 다시 컴파일한다.</summary>
         public void GrantRoundChoice(string runeId, string grade)
         {
-            if (_isTestMode || !RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return;
+            if (!RoundRewardDefinition.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return;
             RuneDefinition rune = GameData.Runes.Get(runeId);
             int before = _save.GetStock(runeId, grade);
             _save.AddStock(runeId, grade, 1);
@@ -738,10 +762,10 @@ namespace RuneCode
             });
         }
 
-        /// <summary>일반 모드에서 룬 소지량을 늘리고 persist가 참이면 즉시 저장한다. 테스트 모드는 시작 소지량을 유지한다.</summary>
+        /// <summary>룬 소지량을 늘리고 persist가 참이면 저장 정책에 맞춰 기록한다.</summary>
         public void GrantRune(string runeId, string grade, int count, string reason = "unspecified", bool persist = true)
         {
-            if (_isTestMode || count <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)
+            if (count <= 0 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)
                 || (rune.Category != SpellGrammar.CATEGORY_MODIFIER && rune.Category != SpellGrammar.CATEGORY_ELEMENT
                     && rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)) return;
             int before = _save.GetStock(runeId, grade);
@@ -765,11 +789,6 @@ namespace RuneCode
             resultId = null;
             resultGrade = null;
             error = "같은 분류와 등급의 사용하지 않는 룬 3개가 필요합니다.";
-            if (_isTestMode)
-            {
-                error = "테스트 모드에서는 시작 지급 수량을 유지하므로 합성을 사용할 수 없습니다.";
-                return false;
-            }
             grade = grade ?? "";
             if (materials == null || materials.Count != RuneSynthesisRules.MATERIAL_COUNT) return false;
             var counts = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -943,40 +962,6 @@ namespace RuneCode
                     _save.AddStock(rune.Id, "", DEBUG_MODIFIER_STOCK - _save.GetStock(rune.Id, ""));
                 }
             }
-        }
-
-        /// <summary>
-        /// 테스트 프로필 세이브를 만든다. 1~10스테이지 클리어, 시작 소지량에 더해
-        /// 활성 모디·행동의 사용 가능한 모든 등급을 최소 2개씩, 무속성을 제외한 전투 속성을 각 2개 지급한다.
-        /// 행동 C등급의 시작 소지량은 유지하며 새 룬·등급은 등록된 데이터에서 자동으로 포함한다.
-        /// </summary>
-        private PlayerSave CreateTestSave()
-        {
-            PlayerSave save = PlayerSave.CreateNew();
-            for (int stage = 1; stage <= TEST_CLEARED_STAGE; stage++) save.RecordStageClear(stage);
-            save.SelectStage(TEST_STAGE, false);
-            foreach (RuneDefinition rune in GameData.Runes.All)
-            {
-                if (rune.IsDisabled) continue;
-                if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
-                {
-                    foreach (string grade in GameData.ModifierGrades.GetAvailableGrades(rune.Id))
-                        save.AddModifierStock(rune.Id, grade, TEST_STOCK_COUNT - save.GetModifierStock(rune.Id, grade));
-                }
-                else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR && !rune.IsDisabled)
-                {
-                    int startStock = GameData.Balance.Economy.BehaviorStartStock;
-                    save.AddStock(rune.Id, SpellGrammar.DEFAULT_BEHAVIOR_GRADE, startStock - save.GetStock(rune.Id, SpellGrammar.DEFAULT_BEHAVIOR_GRADE));
-                    foreach (string grade in GameData.Runes.BehaviorGradeOrder)
-                        save.AddStock(rune.Id, grade, TEST_STOCK_COUNT - save.GetStock(rune.Id, grade));
-                }
-                else if (rune.Category == SpellGrammar.CATEGORY_ELEMENT && !rune.IsDisabled
-                    && GameData.Runes.TryGetRuneElement(rune.Id, out ElementDefinition element) && element.Id != SpellGrammar.ELEMENT_NEUTRAL)
-                {
-                    save.AddStock(rune.Id, "", TEST_STOCK_COUNT);
-                }
-            }
-            return save;
         }
 
         /// <summary>그래프에서 엣지에 연결된 룬의 RAM만 합산한다.</summary>

@@ -29,6 +29,13 @@ namespace RuneCode
             return null;
         }
 
+        /// <summary>1부터 세는 chapter 번호의 도움말 항목을 반환하고 범위를 벗어나면 null을 반환한다.</summary>
+        public EncyclopediaEntry FindChapter(int chapter)
+        {
+            if (_entries == null || chapter < 1 || chapter > _entries.Length) return null;
+            return _entries[chapter - 1];
+        }
+
         /// <summary>Resources의 도움말 JSON을 읽어 반환한다. 파일이 없거나 읽지 못하면 경고를 남기고 null을 반환한다.</summary>
         public static EncyclopediaData LoadResource()
         {

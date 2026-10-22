@@ -324,6 +324,7 @@ namespace RuneCode
         private double _patchUntil;
         private double _reinforcementAt;
         private double _hazardAt;
+        private int _hazardRemaining;
         private double _observedTime;
         private string _lastDamageElement = "raw";
         private string _lastDamageForm = "";
@@ -388,6 +389,9 @@ namespace RuneCode
         internal SimVector AttackDirection { get => _attackDirection; set => _attackDirection = value; }
         internal double ReinforcementAt { get => _reinforcementAt; set => _reinforcementAt = value; }
         internal double HazardAt { get => _hazardAt; set => _hazardAt = value; }
+
+        /// <summary>현재 장판 세트에서 아직 설치할 장판 수다. 0이 되면 세트 간격 후 새 세트를 시작한다.</summary>
+        internal int HazardRemaining { get => _hazardRemaining; set => _hazardRemaining = value; }
         internal SimVector ShotOrigin { get => _attackOrigin; set => _attackOrigin = value; }
         internal double AimEndsAt { get => _aimUntil; set => _aimUntil = value; }
         internal double BehaviorRemaining { get => _behaviorRemaining; set => _behaviorRemaining = value; }

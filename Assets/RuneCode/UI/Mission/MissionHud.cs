@@ -16,6 +16,11 @@ namespace RuneCode
     {
         private const float BAR_WIDTH = 238f;
         private const float BAR_HEIGHT = 9f;
+        private const float WORKSHOP_HIGHLIGHT_PULSE_SPEED = 5f;
+        private const float WORKSHOP_HIGHLIGHT_PULSE_SCALE = 0.08f;
+
+        private static readonly Color WORKSHOP_HIGHLIGHT_COLOR = new Color(1f, 0.85f, 0.2f, 1f);
+        private static readonly Vector2 WORKSHOP_HIGHLIGHT_DISTANCE = new Vector2(4f, -4f);
 
 
         [Header("막대")]
@@ -49,6 +54,8 @@ namespace RuneCode
 
         private bool _isBound;
         private readonly List<Button> _debugBossButtons = new List<Button>();
+        private Outline _workshopOutline;
+        private bool _isWorkshopHighlighted;
 
         /// <summary>일시정지 버튼을 눌렀을 때 알린다.</summary>
         public event Action PauseClicked;
@@ -64,6 +71,13 @@ namespace RuneCode
 
         /// <summary>디버그 보스 바로 상대하기 버튼을 눌렀을 때 버튼 순번을 알린다.</summary>
         public event Action<int> DebugBossClicked;
+
+        void Update()
+        {
+            if (!_isWorkshopHighlighted) return;
+            float scale = 1f + WORKSHOP_HIGHLIGHT_PULSE_SCALE * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * WORKSHOP_HIGHLIGHT_PULSE_SPEED));
+            _workshopButton.transform.localScale = new Vector3(scale, scale, 1f);
+        }
 
         /// <summary>버튼 클릭을 이벤트로 처음 한 번만 연결하고 디버그 버튼 표시 여부를 정한다.</summary>
         public void Bind(bool isDebugVisible)
@@ -121,6 +135,21 @@ namespace RuneCode
         {
             _workshopButton.interactable = isVisible && isInteractable;
             _workshopButton.gameObject.SetActive(isVisible);
+        }
+
+        /// <summary>작업실 버튼에 외곽선과 크기 맥동 강조를 켜거나 끈다. 끄면 원래 크기로 되돌린다. 외곽선은 처음 켤 때 만든다.</summary>
+        public void SetWorkshopHighlight(bool isHighlighted)
+        {
+            if (_isWorkshopHighlighted == isHighlighted) return;
+            _isWorkshopHighlighted = isHighlighted;
+            if (isHighlighted && _workshopOutline == null)
+            {
+                _workshopOutline = _workshopButton.targetGraphic.gameObject.AddComponent<Outline>();
+                _workshopOutline.effectColor = WORKSHOP_HIGHLIGHT_COLOR;
+                _workshopOutline.effectDistance = WORKSHOP_HIGHLIGHT_DISTANCE;
+            }
+            if (_workshopOutline != null) _workshopOutline.enabled = isHighlighted;
+            if (!isHighlighted) _workshopButton.transform.localScale = Vector3.one;
         }
 
         /// <summary>스테이지 문구를 표시하고 남은 적 수가 있으면 기존 타이머 텍스트 색상으로 덧붙인다.</summary>

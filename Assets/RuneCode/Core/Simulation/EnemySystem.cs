@@ -276,7 +276,8 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 보스 패턴의 폭발 사격, 조준 사격, 예고 장판, 증원 주기 및 접촉 피해를 페이즈에 맞춰 처리한다.
+        /// 보스 패턴의 폭발 사격, 조준 사격, 세트 단위 예고 장판, 증원 주기 및 접촉 피해를 페이즈에 맞춰 처리한다.
+        /// 장판은 현재 페이즈 설정으로 세트당 Count개를 Interval 간격으로 쓰고 다음 세트 전에 SetInterval만큼 쉰다.
         /// 페이즈 전환과 이동은 호출 전에 끝난 상태여야 하며 조준은 이동 전 방향을 사용한다.
         /// </summary>
         private void AdvanceBoss(SimulationEnemy boss, BossDefinition pattern, SimVector direction)
@@ -291,7 +292,7 @@ namespace RuneCode
                 boss.AttackAt = _world.Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval) / multiplier;
             }
             if (boss.Phase >= 2 && _world.Time >= boss.HazardAt)
-            { _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, pattern.HazardDamage * boss.DamageMultiplier, pattern.HazardRadius, pattern.HazardLifetime + pattern.HazardWarning, true, pattern.HazardWarning)); boss.HazardAt = _world.Time + pattern.HazardInterval / multiplier; }
+            { BossHazard hazard = pattern.GetHazard(boss.Phase); _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, hazard.Damage * boss.DamageMultiplier, hazard.Radius, hazard.Lifetime + hazard.Warning, true, hazard.Warning)); bool setEnded = --boss.HazardRemaining <= 0; if (setEnded) boss.HazardRemaining = hazard.Count; boss.HazardAt = _world.Time + (setEnded ? hazard.SetInterval : hazard.Interval) / multiplier; }
             if (_world.Time >= boss.ReinforcementAt)
             {
                 if (_world.IsMission) _spawn.SpawnReinforcements(boss, pattern.Reinforcement);
@@ -301,13 +302,13 @@ namespace RuneCode
             HurtByContact(boss);
         }
 
-        /// <summary>보스 체력 문턱에서 패치 무적과 최고 피해 태그 잠금을 적용한다.</summary>
+        /// <summary>보스 체력 문턱에서 패치 무적, 최고 피해 태그 잠금과 새 페이즈 장판 세트 초기화를 적용한다.</summary>
         internal void CheckBossPatch(SimulationEnemy boss, BossDefinition pattern)
         {
             if (boss.IsPatching) return;
             int next = boss.Phase == 1 && boss.Hp / boss.MaxHp <= pattern.PhaseTwoThreshold ? 2 : boss.Phase == 2 && boss.Hp / boss.MaxHp <= pattern.PhaseThreeThreshold ? 3 : boss.Phase;
             if (next == boss.Phase) return;
-            boss.Patch(next, _world.Time, pattern.PatchSeconds); boss.Observe(_world.Time); _world.Adaptation.LockTopDamageTags();
+            boss.Patch(next, _world.Time, pattern.PatchSeconds); boss.Observe(_world.Time); boss.HazardRemaining = pattern.GetHazard(next).Count; _world.Adaptation.LockTopDamageTags();
             boss.AttackAt = _world.Time + pattern.PatchSeconds + boss.Definition.WarningSeconds;
         }
 
