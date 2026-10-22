@@ -269,6 +269,7 @@ namespace RuneCode
     public sealed class BossDefinition
     {
         public const string GOVERNOR_PATTERN = "governor";
+        public const string MINI_GOVERNOR_PATTERN = "mini_governor";
         public const string HYDRA_PATTERN = "hydra";
 
         [Header("보스 패턴")]
@@ -301,7 +302,8 @@ namespace RuneCode
         public double PreferredDistance => _preferredDistance;
         public BossReinforcement Reinforcement => _reinforcement;
         public string DropTable => _dropTable;
-        public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN;
+        public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN || IsMiniBoss;
+        public bool IsMiniBoss => _pattern == MINI_GOVERNOR_PATTERN;
         public bool IsHydraPattern => _pattern == HYDRA_PATTERN;
         public HydraDefinition Hydra => _hydra;
 
@@ -312,6 +314,15 @@ namespace RuneCode
         /// <summary>패턴 이름, 페이즈 문턱, 공격 주기, 장판 세트 설정과 증원의 적·진형 참조를 검증하고 모르는 값이나 증원에 쓸 수 없는 맵형 진형에는 데이터 오류를 발생시킨다.</summary>
         public void Validate(EnemyCatalog enemies, FormationCatalog formations)
         {
+            if (IsMiniBoss)
+            {
+                if (!IsPositive(_phaseTwoThreshold) || _phaseTwoThreshold >= 1 || !IsPositive(_patchSeconds)
+                    || _radialCount < 1 || !IsPositive(_radialInterval) || !IsPositive(_aimInterval)
+                    || _aimInterval >= _radialInterval || !IsPositive(_preferredDistance)
+                    || !IsPositive(enemies.Get(_enemyId).WarningSeconds))
+                    throw new FormatException("미니 거버너의 페이즈·사격·예고 설정 오류입니다: " + _enemyId);
+                return;
+            }
             if (IsHydraPattern)
             {
                 if (_hydra == null) throw new FormatException("Hydra 설정이 없습니다: " + _enemyId);
@@ -329,6 +340,9 @@ namespace RuneCode
             if (SpawnFormations.Get(formations.Get(_reinforcement.Formation).Shape).IsArena)
                 throw new FormatException("보스 증원에는 맵형 진형을 쓸 수 없습니다: " + _enemyId + ", " + _reinforcement.Formation);
         }
+
+        /// <summary>보스 패턴 수치가 유한한 양수인지 반환한다.</summary>
+        private static bool IsPositive(double value) => !double.IsNaN(value) && !double.IsInfinity(value) && value > 0;
     }
 
     [Serializable]
