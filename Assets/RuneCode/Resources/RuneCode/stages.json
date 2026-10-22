@@ -5423,7 +5423,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 9,
+                                    "_count": 14,
                                     "_isElite": false
                                 },
                                 {
@@ -5446,7 +5446,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 8,
+                                    "_count": 13,
                                     "_isElite": false
                                 },
                                 {
@@ -5469,7 +5469,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 15,
                                     "_isElite": false
                                 },
                                 {
@@ -5530,7 +5530,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 15,
                                     "_isElite": false
                                 },
                                 {
@@ -5553,7 +5553,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 15,
                                     "_isElite": false
                                 },
                                 {
@@ -5576,7 +5576,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 15,
                                     "_isElite": false
                                 },
                                 {
@@ -5642,7 +5642,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 15,
                                     "_isElite": false
                                 },
                                 {
@@ -5665,7 +5665,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 15,
                                     "_isElite": false
                                 },
                                 {
@@ -5688,7 +5688,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 17,
                                     "_isElite": false
                                 },
                                 {
@@ -5778,7 +5778,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 8,
+                                    "_count": 18,
                                     "_isElite": false
                                 },
                                 {
@@ -5801,7 +5801,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 9,
+                                    "_count": 19,
                                     "_isElite": false
                                 },
                                 {
@@ -5824,7 +5824,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 20,
                                     "_isElite": false
                                 },
                                 {
@@ -5890,7 +5890,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 20,
                                     "_isElite": false
                                 },
                                 {
@@ -5918,7 +5918,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 9,
+                                    "_count": 19,
                                     "_isElite": false
                                 },
                                 {
@@ -5941,7 +5941,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 20,
                                     "_isElite": false
                                 },
                                 {
@@ -6007,7 +6007,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 20,
                                     "_isElite": false
                                 },
                                 {
@@ -6030,7 +6030,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 22,
                                     "_isElite": false
                                 },
                                 {
@@ -6053,7 +6053,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 10,
+                                    "_count": 20,
                                     "_isElite": false
                                 },
                                 {
@@ -6117,7 +6117,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 27,
                                     "_isElite": false
                                 },
                                 {
@@ -6140,7 +6140,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 27,
                                     "_isElite": false
                                 },
                                 {
@@ -6163,7 +6163,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 27,
                                     "_isElite": false
                                 },
                                 {
@@ -6229,7 +6229,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 27,
                                     "_isElite": false
                                 },
                                 {
@@ -6252,7 +6252,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 27,
                                     "_isElite": false
                                 },
                                 {
@@ -6275,7 +6275,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 14,
+                                    "_count": 29,
                                     "_isElite": false
                                 },
                                 {
@@ -6341,7 +6341,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 14,
+                                    "_count": 29,
                                     "_isElite": false
                                 },
                                 {
@@ -6364,7 +6364,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 14,
+                                    "_count": 29,
                                     "_isElite": false
                                 },
                                 {
@@ -6388,6 +6388,11 @@
                                 {
                                     "_enemyId": "boss.governor",
                                     "_count": 1,
+                                    "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.scout",
+                                    "_count": 15,
                                     "_isElite": false
                                 }
                             ]
@@ -6462,7 +6467,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 32,
                                     "_isElite": false
                                 },
                                 {
@@ -6485,7 +6490,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 32,
                                     "_isElite": false
                                 },
                                 {
@@ -6508,7 +6513,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 32,
                                     "_isElite": false
                                 },
                                 {
@@ -6574,7 +6579,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 32,
                                     "_isElite": false
                                 },
                                 {
@@ -6597,7 +6602,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 12,
+                                    "_count": 32,
                                     "_isElite": false
                                 },
                                 {
@@ -6620,7 +6625,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 14,
+                                    "_count": 34,
                                     "_isElite": false
                                 },
                                 {
@@ -6686,7 +6691,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 14,
+                                    "_count": 34,
                                     "_isElite": false
                                 },
                                 {
@@ -6709,7 +6714,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 16,
+                                    "_count": 36,
                                     "_isElite": false
                                 },
                                 {
@@ -6732,7 +6737,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 18,
+                                    "_count": 38,
                                     "_isElite": false
                                 },
                                 {
@@ -6796,7 +6801,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 16,
+                                    "_count": 41,
                                     "_isElite": false
                                 },
                                 {
@@ -6819,7 +6824,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 16,
+                                    "_count": 41,
                                     "_isElite": false
                                 },
                                 {
@@ -6842,7 +6847,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 20,
+                                    "_count": 45,
                                     "_isElite": false
                                 },
                                 {
@@ -6903,7 +6908,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 16,
+                                    "_count": 41,
                                     "_isElite": false
                                 },
                                 {
@@ -6926,7 +6931,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 18,
+                                    "_count": 43,
                                     "_isElite": false
                                 },
                                 {
@@ -6949,7 +6954,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 18,
+                                    "_count": 43,
                                     "_isElite": false
                                 },
                                 {
@@ -7015,7 +7020,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 18,
+                                    "_count": 43,
                                     "_isElite": false
                                 },
                                 {
@@ -7038,7 +7043,7 @@
                             "_units": [
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 18,
+                                    "_count": 43,
                                     "_isElite": false
                                 },
                                 {
@@ -7062,6 +7067,11 @@
                                 {
                                     "_enemyId": "boss.governor",
                                     "_count": 1,
+                                    "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.scout",
+                                    "_count": 25,
                                     "_isElite": false
                                 }
                             ]
