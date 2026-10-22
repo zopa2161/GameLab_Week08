@@ -25,6 +25,9 @@ namespace RuneCode
         private const int ONBOARDING_BATTLE_START = 1;
         private const int ONBOARDING_FIRST_CLEAR = 2;
         private const int ONBOARDING_ROUND_RETURN = 4;
+        private const int ONBOARDING_SPELL_ORDER = 5;
+        private const int ONBOARDING_SPELL_ORDER_STAGE = 1;
+        private const int ONBOARDING_SPELL_ORDER_ROUND = 3;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -159,7 +162,11 @@ namespace RuneCode
             UpdateDamageFeedback(playerDamageBefore);
             if (_run.IsWaitingForNextRound && _run.HasClearModifierChoices && !_hasPresentedChoices && !_ui.IsPopupOpen)
             {
-                if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowRoundChoices();
+                if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime))
+                {
+                    ShowRoundChoices();
+                    ShowSpellOrderOnboarding();
+                }
             }
             if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices) && !_ui.IsPopupOpen)
                 OpenTestOnboarding(ONBOARDING_FIRST_CLEAR);
@@ -174,6 +181,14 @@ namespace RuneCode
             _result.Show();
             ShowPendingChoices();
             if (!isResumed) SoundManager.Instance.PlayRoundClear();
+        }
+
+        /// <summary>연속 미션의 지정 스테이지·라운드 보상 선택창이 뜬 직후 테스트 모드의 마법 순서 온보딩을 그 위에 띄운다.</summary>
+        private void ShowSpellOrderOnboarding()
+        {
+            RuneSimulation sim = _run.Simulation;
+            if (sim.StageNumber != ONBOARDING_SPELL_ORDER_STAGE || sim.RoundNumber != ONBOARDING_SPELL_ORDER_ROUND) return;
+            OpenTestOnboarding(ONBOARDING_SPELL_ORDER);
         }
 
         /// <summary>지난 확인 이후 적이 실제 피해를 받은 횟수만큼 피격음을 재생하고 소비한 횟수를 갱신한다.</summary>
