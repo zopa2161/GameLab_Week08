@@ -55,21 +55,21 @@ namespace RuneCode
         public void SetPan(Vector2 pan) => _pan = pan;
 
         /// <summary>캔버스 로컬 지점을 중심으로 한 단계 확대·축소한다. 그 지점 아래의 그래프 위치는 화면에서 그대로 유지된다.</summary>
-        public void ZoomAt(Vector2 local, bool isZoomIn)
+        public void ZoomAt(Vector2 local, bool isZoomIn, float minimumZoom = MIN_ZOOM)
         {
             Vector2 point = local - TopLeft;
-            float nextZoom = Mathf.Clamp(_zoom * (isZoomIn ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR), MIN_ZOOM, MAX_ZOOM);
+            float nextZoom = Mathf.Clamp(_zoom * (isZoomIn ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR), minimumZoom, MAX_ZOOM);
             _pan = point - (point - _pan) * (nextZoom / _zoom);
             _zoom = nextZoom;
         }
 
         /// <summary>그래프 좌표 범위(최소·최대)가 여백을 두고 화면에 모두 보이도록 배율과 화면 이동을 맞춘다.</summary>
-        public void Fit(Vector2 minimum, Vector2 maximum)
+        public void Fit(Vector2 minimum, Vector2 maximum, float minimumZoom = MIN_ZOOM)
         {
             Rect bounds = _rect.rect;
             float zoomX = (bounds.width - FIT_MARGIN * 2) / Mathf.Max(1, maximum.x - minimum.x);
             float zoomY = (bounds.height - FIT_MARGIN * 2) / Mathf.Max(1, maximum.y - minimum.y);
-            _zoom = Mathf.Clamp(Mathf.Min(zoomX, zoomY), MIN_ZOOM, MAX_FIT_ZOOM);
+            _zoom = Mathf.Clamp(Mathf.Min(zoomX, zoomY), minimumZoom, MAX_FIT_ZOOM);
             _pan = new Vector2(FIT_MARGIN - minimum.x * _zoom, -FIT_MARGIN + minimum.y * _zoom);
         }
 

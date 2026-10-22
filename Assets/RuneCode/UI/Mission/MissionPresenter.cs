@@ -450,12 +450,8 @@ namespace RuneCode
             RuneSimulation sim = _run.Simulation;
             if (sim.Completed) SoundManager.Instance.PlayRoundClear();
             else SoundManager.Instance.PlayRoundDefeat();
-            int elapsedSeconds = (int)sim.Time;
             RunResultPopup popup = _ui.OpenPopup<RunResultPopup>();
-            popup.Configure(sim.Completed ? "런 클리어" : "런 종료",
-                GameData.L("ui.stage") + " " + sim.StageNumber,
-                "플레이 타임 " + (elapsedSeconds / 60).ToString("00") + ":" + (elapsedSeconds % 60).ToString("00"),
-                GameData.L("ui.kills") + " " + sim.KillCount);
+            popup.Configure(_run.ResultGraph, _run.ResultLibrary, _run.ResultSpell, sim);
             popup.TitleClicked += _session.ReturnToTitle;
             popup.Closed += () => popup.TitleClicked -= _session.ReturnToTitle;
         }
