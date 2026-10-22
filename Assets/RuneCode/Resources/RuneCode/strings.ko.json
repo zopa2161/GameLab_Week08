@@ -1,5 +1,6 @@
 {
   "_entries": [
+    { "_key": "boss.mini_governor", "_value": "미니 거버너" },
     {"_key": "ui.mod.savingHint", "_value": "장착한 행동의 기본 비용에 다른 모드와 함께 전력 소비 배율을 곱합니다. 이후 더해지는 속성·형태 비용과 후속 행동의 비용은 줄이지 않습니다. 빔은 연장 결제에도 적용됩니다."},
     {"_key": "tag.slash", "_value": "참격"},
     {"_key": "form.slash", "_value": "참격"},

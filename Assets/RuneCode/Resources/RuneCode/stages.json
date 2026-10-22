@@ -5371,41 +5371,39 @@
                                     "_enemyId": "enemy.scout",
                                     "_count": 1,
                                     "_isElite": true
+                                },
+                                {
+                                    "_enemyId": "boss.mini_governor",
+                                    "_count": 1,
+                                    "_isElite": false
                                 }
                             ]
                         }
                     ],
                     "_reward": {
                         "_candidates": [
-                            "mod.saving",
-                            "mod.beamEmpower",
-                            "mod.knockback",
-                            "mod.amplify",
-                            "mod.multi",
-                            "mod.pierce",
-                            "mod.expand",
-                            "mod.duration",
-                            "mod.speed",
-                            "mod.homing",
-                            "mod.orbit",
-                            "mod.sequence"
+                            "behavior.launch",
+                            "behavior.burst",
+                            "behavior.beam",
+                            "behavior.slash",
+                            "behavior.persist"
                         ],
                         "_gradeChances": [
                             {
                                 "_grade": "C",
-                                "_percent": 50
-                            },
-                            {
-                                "_grade": "B",
                                 "_percent": 30
                             },
                             {
+                                "_grade": "B",
+                                "_percent": 40
+                            },
+                            {
                                 "_grade": "A",
-                                "_percent": 15
+                                "_percent": 20
                             },
                             {
                                 "_grade": "S",
-                                "_percent": 5
+                                "_percent": 10
                             }
                         ]
                     }
@@ -6067,41 +6065,39 @@
                                     "_enemyId": "enemy.scout",
                                     "_count": 1,
                                     "_isElite": true
+                                },
+                                {
+                                    "_enemyId": "boss.mini_governor",
+                                    "_count": 1,
+                                    "_isElite": false
                                 }
                             ]
                         }
                     ],
                     "_reward": {
                         "_candidates": [
-                            "mod.saving",
-                            "mod.beamEmpower",
-                            "mod.knockback",
-                            "mod.amplify",
-                            "mod.multi",
-                            "mod.pierce",
-                            "mod.expand",
-                            "mod.duration",
-                            "mod.speed",
-                            "mod.homing",
-                            "mod.orbit",
-                            "mod.sequence"
+                            "behavior.launch",
+                            "behavior.burst",
+                            "behavior.beam",
+                            "behavior.slash",
+                            "behavior.persist"
                         ],
                         "_gradeChances": [
                             {
                                 "_grade": "C",
-                                "_percent": 50
-                            },
-                            {
-                                "_grade": "B",
                                 "_percent": 30
                             },
                             {
+                                "_grade": "B",
+                                "_percent": 40
+                            },
+                            {
                                 "_grade": "A",
-                                "_percent": 15
+                                "_percent": 20
                             },
                             {
                                 "_grade": "S",
-                                "_percent": 5
+                                "_percent": 10
                             }
                         ]
                     }
@@ -6390,7 +6386,7 @@
                             },
                             "_units": [
                                 {
-                                    "_enemyId": "boss.hydra",
+                                    "_enemyId": "boss.governor",
                                     "_count": 1,
                                     "_isElite": false
                                 }
@@ -6748,41 +6744,39 @@
                                     "_enemyId": "enemy.scout",
                                     "_count": 1,
                                     "_isElite": true
+                                },
+                                {
+                                    "_enemyId": "boss.mini_governor",
+                                    "_count": 1,
+                                    "_isElite": false
                                 }
                             ]
                         }
                     ],
                     "_reward": {
                         "_candidates": [
-                            "mod.saving",
-                            "mod.beamEmpower",
-                            "mod.knockback",
-                            "mod.amplify",
-                            "mod.multi",
-                            "mod.pierce",
-                            "mod.expand",
-                            "mod.duration",
-                            "mod.speed",
-                            "mod.homing",
-                            "mod.orbit",
-                            "mod.sequence"
+                            "behavior.launch",
+                            "behavior.burst",
+                            "behavior.beam",
+                            "behavior.slash",
+                            "behavior.persist"
                         ],
                         "_gradeChances": [
                             {
                                 "_grade": "C",
-                                "_percent": 50
-                            },
-                            {
-                                "_grade": "B",
                                 "_percent": 30
                             },
                             {
+                                "_grade": "B",
+                                "_percent": 40
+                            },
+                            {
                                 "_grade": "A",
-                                "_percent": 15
+                                "_percent": 20
                             },
                             {
                                 "_grade": "S",
-                                "_percent": 5
+                                "_percent": 10
                             }
                         ]
                     }

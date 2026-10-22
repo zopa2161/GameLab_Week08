@@ -486,6 +486,7 @@ namespace RuneCode
         public const int PROGRESSION_STAGE_COUNT = 3;
         public const int PROGRESSION_ROUND_COUNT = 6;
         public const int PROGRESSION_WAVE_COUNT = 3;
+        public const int MINI_BOSS_ROUND = 3;
         internal const int STAGE_CYCLE_START = 21;
         internal const int STAGE_CYCLE_FIRST_STAGE = 11;
         internal const int STAGE_CYCLE_LAST_STAGE = 20;
@@ -563,7 +564,7 @@ namespace RuneCode
 
         /// <summary>JSON 스테이지 설정을 읽어 기존 편성과 연속 미션의 3×6×3 편성, 적·진형 참조 및 등급표에 따른 라운드 보상을 검증한다.</summary>
         public static StageCatalog FromJson(string json, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops,
-            ModifierGradeTable modifierGrades, RuneCatalog runes)
+            ModifierGradeTable modifierGrades, RuneCatalog runes, BossCatalog bosses)
         {
             var catalog = JsonUtility.FromJson<StageCatalog>(json);
             if (catalog == null || catalog._map == null || catalog._growth == null || catalog._spawn == null
@@ -577,14 +578,14 @@ namespace RuneCode
                 ValidateStage(stage, enemies, formations, drops, singleStages);
                 ValidateFormationSlots(stage, formations, catalog._spawn.RingSlots);
             }
-            ValidateProgression(catalog, enemies, formations, drops, modifierGrades, runes);
+            ValidateProgression(catalog, enemies, formations, drops, modifierGrades, runes, bosses);
             catalog.Get(1); // 1스테이지를 담는 항목이 반드시 있어야 한다.
             return catalog;
         }
 
-        /// <summary>연속 미션의 순서·수량, 유한 웨이브와 마지막 보스만 허용하며 모든 적·진형 참조와 엘리트 정의·엘리트 유닛 참조를 검증한다.</summary>
+        /// <summary>연속 미션 편성·참조와 3라운드 미니 보스·마지막 라운드 보스의 위치 및 수량을 검증한다.</summary>
         private static void ValidateProgression(StageCatalog catalog, EnemyCatalog enemies, FormationCatalog formations, DropCatalog drops,
-            ModifierGradeTable modifierGrades, RuneCatalog runes)
+            ModifierGradeTable modifierGrades, RuneCatalog runes, BossCatalog bosses)
         {
             if (catalog._progressionStages == null || catalog._progressionStages.Length != PROGRESSION_STAGE_COUNT)
                 throw new FormatException("연속 미션은 스테이지가 정확히 3개여야 합니다.");
@@ -608,7 +609,9 @@ namespace RuneCode
                         ValidateWave(wave, stage.Stage, enemies, formations);
                         CheckFormationSlots(wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings()), catalog._spawn.RingSlots, stage.Stage);
                         bool isBossWave = roundIndex == PROGRESSION_ROUND_COUNT - 1 && waveIndex == PROGRESSION_WAVE_COUNT - 1;
+                        bool isMiniBossWave = roundIndex + 1 == MINI_BOSS_ROUND && waveIndex == PROGRESSION_WAVE_COUNT - 1;
                         int bossCount = 0;
+                        int miniBossCount = 0;
                         foreach (WaveUnit unit in wave.Units)
                         {
                             if (unit.IsElite)
@@ -618,10 +621,14 @@ namespace RuneCode
                                 if (!stage.TryGetElite(unit.EnemyId, out _))
                                     throw new FormatException("엘리트 유닛의 스테이지 엘리트 정의가 없습니다: " + unit.EnemyId + " (스테이지 " + stage.Stage + ")");
                             }
-                            if (unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal)) bossCount += unit.Count;
+                            if (!unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal)) continue;
+                            if (bosses.Get(unit.EnemyId).IsMiniBoss) miniBossCount += unit.Count;
+                            else bossCount += unit.Count;
                         }
                         if (bossCount != (isBossWave ? 1 : 0))
                             throw new FormatException("보스는 각 스테이지의 마지막 웨이브에 1기만 있어야 합니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
+                        if (miniBossCount != (isMiniBossWave ? 1 : 0))
+                            throw new FormatException("미니 보스는 각 스테이지 3라운드 마지막 웨이브에 1기만 있어야 합니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
                     }
                 }
                 var eliteIds = new HashSet<string>(StringComparer.Ordinal);

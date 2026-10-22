@@ -325,6 +325,7 @@ namespace RuneCode
         private double _reinforcementAt;
         private double _hazardAt;
         private int _hazardRemaining;
+        private bool _isNextBossBurst;
         private double _observedTime;
         private string _lastDamageElement = "raw";
         private string _lastDamageForm = "";
@@ -392,6 +393,7 @@ namespace RuneCode
 
         /// <summary>현재 장판 세트에서 아직 설치할 장판 수다. 0이 되면 세트 간격 후 새 세트를 시작한다.</summary>
         internal int HazardRemaining { get => _hazardRemaining; set => _hazardRemaining = value; }
+        internal bool IsNextBossBurst { get => _isNextBossBurst; set => _isNextBossBurst = value; }
         internal SimVector ShotOrigin { get => _attackOrigin; set => _attackOrigin = value; }
         internal double AimEndsAt { get => _aimUntil; set => _aimUntil = value; }
         internal double BehaviorRemaining { get => _behaviorRemaining; set => _behaviorRemaining = value; }
@@ -508,6 +510,7 @@ namespace RuneCode
         {
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
             _hydra?.WriteState(state);
+            if (_boss != null && _boss.IsMiniBoss) state.Append('|').Append(_isNextBossBurst);
             if (_pendingDisplacementTick >= 0 || _displacementRemaining > 0)
                 state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));
             state.Append(FormattableString.Invariant($"|{_damage:R}|{_damageMultiplier:R}|{_reward}"));

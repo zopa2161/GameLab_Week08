@@ -37,7 +37,7 @@ namespace RuneCode
         internal void RecordKillProgress(SimulationEnemy enemy)
         {
             if (enemy.IsKillTarget) _targetKills++;
-            if (enemy.Boss != null) _isBossDefeated = true;
+            if (enemy.Boss != null && !enemy.Boss.IsMiniBoss) _isBossDefeated = true;
         }
 
         /// <summary>
