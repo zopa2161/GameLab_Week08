@@ -55,6 +55,8 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI[] _clearChoiceGradeLabels;
         [SerializeField] private TextMeshProUGUI[] _clearChoiceNameLabels;
         [SerializeField] private TextMeshProUGUI[] _clearChoiceDescriptionLabels;
+        [SerializeField] private GameObject[] _clearChoiceModPanels;
+        [SerializeField] private GameObject[] _clearChoiceBehaviorPanels;
 
         private bool _isBound;
         private GameObject _resultContent;
@@ -365,8 +367,9 @@ namespace RuneCode
             tooltipRect.anchoredPosition = new Vector2(x - parent.rect.xMin, y - parent.rect.yMax);
         }
 
-        /// <summary>클리어 Modifier 후보 이름·효과와 후보별 등급(grades, 후보와 같은 순서)을 팝업 카드에 표시하고 선택 입력을 받는다.</summary>
-        public void ShowClearModifierChoices(string title, IReadOnlyList<string> names, IReadOnlyList<string> descriptions, IReadOnlyList<string> grades)
+        /// <summary>후보 이름·효과·등급을 카드에 표시하고 같은 순서의 runeIds로 행동·Modifier 패널을 전환해 선택 입력을 받는다.</summary>
+        public void ShowClearModifierChoices(string title, IReadOnlyList<string> names, IReadOnlyList<string> descriptions,
+            IReadOnlyList<string> grades, IReadOnlyList<string> runeIds)
         {
             HideRewardTooltip();
             _clearChoicePopup.SetActive(true);
@@ -380,6 +383,9 @@ namespace RuneCode
             {
                 bool hasChoice = names != null && i < names.Count;
                 _clearChoiceCards[i].SetActive(hasChoice);
+                string category = hasChoice ? GameData.Runes.Get(runeIds[i]).Category : string.Empty;
+                _clearChoiceModPanels[i].SetActive(category == SpellGrammar.CATEGORY_MODIFIER);
+                _clearChoiceBehaviorPanels[i].SetActive(category == SpellGrammar.CATEGORY_BEHAVIOR);
                 if (!hasChoice) continue;
                 if (firstChoice == null) firstChoice = _clearChoiceButtons[i].gameObject;
                 _clearChoiceButtons[i].interactable = true;
@@ -404,6 +410,8 @@ namespace RuneCode
             for (int i = 0; i < _clearChoiceButtons.Length; i++)
             {
                 _clearChoiceCards[i].SetActive(false);
+                _clearChoiceModPanels[i].SetActive(false);
+                _clearChoiceBehaviorPanels[i].SetActive(false);
                 _clearChoiceButtons[i].interactable = true;
             }
             SetNavigationEnabled(!_isRevealing && !_isWaitingForRelease);
