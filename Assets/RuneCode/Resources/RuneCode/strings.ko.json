@@ -1656,6 +1656,6 @@
     {"_key": "rune.detail.launchSpread", "_value": "발사 행동 퍼짐 <b>{value}°</b>"},
     {"_key": "rune.detail.waveInterval", "_value": "연속 간격 <b>{value}s</b>"},
     {"_key": "rune.detail.pierceDamage", "_value": "관통 적중당 피해 <b>×{value}</b> · 최소 피해 1"},
-    {"_key": "rune.modifierTargets", "_value": "장착 가능 행동: <b>{targets}</b>"}
+    {"_key": "rune.modifierTargets", "_value": "장착 가능 행동: \n<b>{targets}</b>"}
   ]
 }
