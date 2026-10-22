@@ -12,6 +12,8 @@ namespace RuneCode
     /// <summary>팔레트 옆 합성창의 재료 예약·슬롯 선택·결과 안내와 편집 입력 잠금을 관리한다.</summary>
     public sealed class RuneSynthesisPresenter : IDisposable
     {
+        // 합성 버튼을 복구하려면 이 값을 true로 변경한다.
+        private const bool IS_SYNTHESIS_BUTTON_VISIBLE = false;
         private const float PALETTE_BUTTON_SPACE = 42f;
         private const float AUTOMATIC_BUTTON_SPACE = 58f;
         private readonly ISpellEditor _editor;
@@ -48,7 +50,7 @@ namespace RuneCode
             _view = view;
             UiFactory factory = view.CreateSynthesisUi(out RectTransform paletteRect, out RectTransform scroll);
             _emptySlotTemplate = factory.ButtonPrefab.GetComponent<Button>();
-            scroll.offsetMin += new Vector2(0f, PALETTE_BUTTON_SPACE);
+            scroll.offsetMin += new Vector2(0f, IS_SYNTHESIS_BUTTON_VISIBLE ? PALETTE_BUTTON_SPACE : 0f);
             _openButton = factory.Button(paletteRect, 10, 0, 170, 30, "룬 합성", Open, 13, "OpenRuneSynthesis");
             RectTransform openRect = (RectTransform)_openButton.transform;
             openRect.anchorMin = new Vector2(0f, 0f);
@@ -56,6 +58,7 @@ namespace RuneCode
             openRect.pivot = new Vector2(0.5f, 0f);
             openRect.anchoredPosition = new Vector2(0f, 8f);
             openRect.sizeDelta = new Vector2(-20f, 30f);
+            _openButton.gameObject.SetActive(IS_SYNTHESIS_BUTTON_VISIBLE);
 
             _blocker = UiFactory.Rect(view.transform, "RuneSynthesisBlocker", 0, 0, 0, 0);
             Stretch(_blocker);
