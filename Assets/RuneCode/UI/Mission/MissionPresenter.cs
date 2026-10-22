@@ -420,7 +420,8 @@ namespace RuneCode
                         : string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false));
                     descriptions.Add(ModifierGradeText.Colorize(description, grade));
                 }
-                _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions, _run.ClearModifierGrades);
+                _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions,
+                    _run.ClearModifierGrades, _run.ClearModifierChoices);
             }
             else _result.HideClearModifierChoices();
         }
