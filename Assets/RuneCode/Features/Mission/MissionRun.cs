@@ -158,7 +158,7 @@ namespace RuneCode
                 ["ram_used"] = spell.RamUsed,
                 ["is_compile_valid"] = true,
             });
-            _testCombatId = LocalTelemetry.BeginUsabilityCombat(_simulation.StageNumber, _spellBuildId, seed);
+            _testCombatId = LocalTelemetry.BeginUsabilityCombat(_simulation.StageNumber, _spellBuildId, seed, _simulation.TakeEnemyCombatLogSnapshot);
             LocalTelemetry.RecordUsabilityEvent("stage_enter", "combat", new Dictionary<string, object>
             {
                 ["stage"] = _simulation.StageNumber,
@@ -371,6 +371,7 @@ namespace RuneCode
                 {
                     ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber,
                     ["active_seconds"] = _activeMissionClock.Elapsed.TotalSeconds,
+                    ["enemy_stats"] = _simulation.TakeEnemyCombatLogSnapshot(),
                 });
             }
             if (_simulation.Completed || _simulation.IsFailed) FinishMission();

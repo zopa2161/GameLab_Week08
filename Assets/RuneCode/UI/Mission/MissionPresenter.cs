@@ -258,7 +258,7 @@ namespace RuneCode
         private void OpenWorkshop()
         {
             if (!CanOpenWorkshop || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
-            _session.SuspendRunForWorkshop();
+            _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
         }
 
         /// <summary>보스 정의마다 그 보스가 처음 보스 웨이브에 나오는 연속 스테이지를 찾아 디버그 보스 버튼과 스테이지 목록을 만든다. 등장 스테이지가 없는 보스는 제외한다.</summary>

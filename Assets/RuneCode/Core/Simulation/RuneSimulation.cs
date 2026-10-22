@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -158,7 +158,7 @@ namespace RuneCode
             _executor = new SpellExecutor(_world, _feedback, _stats, _beam, _runtime);
             _statuses = new EnemyStatusSystem(_world, _stats, this);
             _rules = new BattleRules(_world);
-            _spawn = new SpawnSystem(_world, _feedback);
+            _spawn = new SpawnSystem(_world, _feedback, _stats);
             _bench = new BenchScenario(_world, _spawn);
             _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, _statuses, _executor, this);
             _loot = new LootSystem(_world, _stats, _statuses, _rules, _spawn, _enemy, setup.Runes, setup.ModifierGrades,
@@ -451,7 +451,11 @@ namespace RuneCode
                 StartProgressionWave();
                 return;
             }
-            if (_world.IsBossStage) _world.Enemies.Clear();
+            if (_world.IsBossStage)
+            {
+                foreach (SimulationEnemy enemy in _world.Enemies) _stats.RecordEnemyEnd(enemy, Time, "wave_ended_alive");
+                _world.Enemies.Clear();
+            }
             _statuses.ClearAll();
             _world.Player.CancelDash(Time);
             _loot.CollectRemainingDrops();
@@ -554,6 +558,10 @@ namespace RuneCode
             _feedback.Trim();
             _stats.TrimRollingDamage(_world.Tick);
         }
+
+        /// <summary>적별 생성·사망·관측 시간과 플레이어에게 준 실제 피해의 변경분을 반환한다.</summary>
+        public IReadOnlyList<Dictionary<string, object>> TakeEnemyCombatLogSnapshot()
+            => _stats.TakeEnemyCombatLogSnapshot(Time);
 
         /// <summary>장착된 행동을 순회하고 노드별 실제 피해와 OnHit 후속 생성 누계를 로그용 복사본으로 반환한다.</summary>
         public IReadOnlyList<Dictionary<string, object>> GetActionCombatLogSnapshot()
