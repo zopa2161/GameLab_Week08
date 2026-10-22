@@ -16,6 +16,7 @@ namespace RuneCode
         private const int HIGHLIGHT_TICKS = 12;
         private const float STATUS_TOAST_DURATION = 4f;
         private const int ONBOARDING_WORKSHOP_ENTER = 3;
+        private const int ONBOARDING_UPGRADE_TREE = 6;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -60,20 +61,22 @@ namespace RuneCode
             _selectedTab = WorkshopScreen.TAB_EDITOR;
             LocalTelemetry.BeginUsabilityEditingEpisode(_session.GetWorkshopLogSnapshot);
             ShowEditorTab();
-            ShowWorkshopOnboarding();
+            // 온보딩은 순서대로만 열리므로 둘 중 다음 차례인 챕터 하나만 뜬다.
+            if (!ShowWorkshopOnboarding(ONBOARDING_WORKSHOP_ENTER)) ShowWorkshopOnboarding(ONBOARDING_UPGRADE_TREE);
         }
 
-        /// <summary>테스트 모드에서 작업실 온보딩이 다음 순서면 도움말 챕터를 안내 팝업으로 연다. 챕터가 없으면 경고만 남긴다.</summary>
-        private void ShowWorkshopOnboarding()
+        /// <summary>테스트 모드에서 chapter가 다음 순서면 도움말 챕터를 안내 팝업으로 열고 순서를 넘겼으면 true를 반환한다. 챕터가 없으면 경고만 남긴다.</summary>
+        private bool ShowWorkshopOnboarding(int chapter)
         {
-            if (!_session.TryAdvanceTestOnboarding(ONBOARDING_WORKSHOP_ENTER)) return;
-            EncyclopediaEntry entry = GameData.Encyclopedia?.FindChapter(ONBOARDING_WORKSHOP_ENTER);
+            if (!_session.TryAdvanceTestOnboarding(chapter)) return false;
+            EncyclopediaEntry entry = GameData.Encyclopedia?.FindChapter(chapter);
             if (entry == null)
             {
-                Debug.LogWarning("게임 도움말 JSON에 온보딩 챕터가 없습니다: " + ONBOARDING_WORKSHOP_ENTER);
-                return;
+                Debug.LogWarning("게임 도움말 JSON에 온보딩 챕터가 없습니다: " + chapter);
+                return true;
             }
             _ui.OpenPopup<OnboardingPopup>().Configure(entry.Title, entry.Pages);
+            return true;
         }
 
         /// <summary>작업실을 떠날 때 편집 패널을 닫고 도크 누적 시간을 버린다.</summary>

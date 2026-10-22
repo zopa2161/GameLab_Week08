@@ -26,15 +26,15 @@ MonoBehaviour:
     _prerequisites: []
     _exclusiveGroupId: 
     _levels:
+    - _cost: 0
+      _amount: 2
+    - _cost: 20
+      _amount: 2
     - _cost: 20
       _amount: 2
     - _cost: 40
       _amount: 2
     - _cost: 60
-      _amount: 2
-    - _cost: 80
-      _amount: 2
-    - _cost: 100
       _amount: 2
   - _id: upgrade.maxHp.0
     _requiredStage: 1
@@ -50,15 +50,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
+    - _cost: 20
+      _amount: 10
+    - _cost: 20
+      _amount: 10
     - _cost: 40
       _amount: 10
     - _cost: 60
       _amount: 10
-    - _cost: 80
-      _amount: 10
-    - _cost: 100
-      _amount: 10
-    - _cost: 120
+    - _cost: 60
       _amount: 10
   - _id: upgrade.moveSpeed.0
     _requiredStage: 1
@@ -74,15 +74,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
+    - _cost: 20
+      _amount: 0.01
+    - _cost: 40
+      _amount: 0.01
     - _cost: 60
       _amount: 0.01
-    - _cost: 85
+    - _cost: 80
       _amount: 0.01
-    - _cost: 110
-      _amount: 0.01
-    - _cost: 135
-      _amount: 0.01
-    - _cost: 160
+    - _cost: 80
       _amount: 0.01
   - _id: upgrade.maxHp.1
     _requiredStage: 1
@@ -98,15 +98,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 10
+    - _cost: 60
+      _amount: 10
+    - _cost: 80
+      _amount: 10
+    - _cost: 100
       _amount: 10
     - _cost: 120
-      _amount: 10
-    - _cost: 150
-      _amount: 10
-    - _cost: 180
-      _amount: 10
-    - _cost: 210
       _amount: 10
   - _id: upgrade.ram.3
     _requiredStage: 1
@@ -118,21 +118,19 @@ MonoBehaviour:
     _runeId: 
     _initialLevel: 0
     _prerequisites:
-    - _nodeId: upgrade.moveSpeed.1
-      _requiredLevel: 1
-    - _nodeId: upgrade.maxHp.1
+    - _nodeId: upgrade.moveSpeed.0
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 1
+    - _cost: 60
+      _amount: 1
+    - _cost: 80
+      _amount: 1
+    - _cost: 100
       _amount: 1
     - _cost: 120
-      _amount: 1
-    - _cost: 150
-      _amount: 1
-    - _cost: 180
-      _amount: 1
-    - _cost: 210
       _amount: 1
   - _id: upgrade.moveSpeed.1
     _requiredStage: 1
@@ -148,15 +146,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 0.01
+    - _cost: 60
+      _amount: 0.01
+    - _cost: 80
+      _amount: 0.01
+    - _cost: 100
       _amount: 0.01
     - _cost: 120
-      _amount: 0.01
-    - _cost: 150
-      _amount: 0.01
-    - _cost: 180
-      _amount: 0.01
-    - _cost: 210
       _amount: 0.01
   - _id: upgrade.mainboard.0
     _requiredStage: 1
@@ -172,15 +170,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
+    - _cost: 20
+      _amount: 2
+    - _cost: 20
+      _amount: 2
     - _cost: 40
       _amount: 2
     - _cost: 60
       _amount: 2
-    - _cost: 80
-      _amount: 2
-    - _cost: 100
-      _amount: 2
-    - _cost: 120
+    - _cost: 60
       _amount: 2
   - _id: upgrade.maxEnergy.0
     _requiredStage: 1
@@ -196,15 +194,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
+    - _cost: 20
+      _amount: 10
+    - _cost: 40
+      _amount: 10
     - _cost: 60
       _amount: 10
-    - _cost: 85
+    - _cost: 80
       _amount: 10
-    - _cost: 110
-      _amount: 10
-    - _cost: 135
-      _amount: 10
-    - _cost: 160
+    - _cost: 80
       _amount: 10
   - _id: upgrade.killEnergy.0
     _requiredStage: 1
@@ -220,15 +218,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 3
+    - _cost: 60
+      _amount: 3
+    - _cost: 80
+      _amount: 3
+    - _cost: 100
       _amount: 3
     - _cost: 120
-      _amount: 3
-    - _cost: 150
-      _amount: 3
-    - _cost: 180
-      _amount: 3
-    - _cost: 210
       _amount: 3
   - _id: upgrade.mainboard.1
     _requiredStage: 1
@@ -244,15 +242,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 2
+    - _cost: 60
+      _amount: 2
+    - _cost: 80
+      _amount: 2
+    - _cost: 100
       _amount: 2
     - _cost: 120
-      _amount: 2
-    - _cost: 150
-      _amount: 2
-    - _cost: 180
-      _amount: 2
-    - _cost: 210
       _amount: 2
   - _id: upgrade.moveSpeed.4
     _requiredStage: 1
@@ -268,15 +266,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 10
+    - _cost: 60
+      _amount: 10
+    - _cost: 80
+      _amount: 10
+    - _cost: 100
       _amount: 10
     - _cost: 120
-      _amount: 10
-    - _cost: 150
-      _amount: 10
-    - _cost: 180
-      _amount: 10
-    - _cost: 210
       _amount: 10
   - _id: upgrade.ram.0
     _requiredStage: 1
@@ -292,15 +290,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
+    - _cost: 20
+      _amount: 1
     - _cost: 40
+      _amount: 1
+    - _cost: 60
       _amount: 1
     - _cost: 80
       _amount: 1
-    - _cost: 120
-      _amount: 1
-    - _cost: 140
-      _amount: 1
-    - _cost: 160
+    - _cost: 80
       _amount: 1
   - _id: upgrade.gpu.0
     _requiredStage: 1
@@ -316,15 +314,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
+    - _cost: 20
+      _amount: 0.1
+    - _cost: 40
+      _amount: 0.1
     - _cost: 60
       _amount: 0.1
-    - _cost: 85
+    - _cost: 80
       _amount: 0.1
-    - _cost: 110
-      _amount: 0.1
-    - _cost: 135
-      _amount: 0.1
-    - _cost: 160
+    - _cost: 80
       _amount: 0.1
   - _id: upgrade.ram.1
     _requiredStage: 1
@@ -340,15 +338,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
       _amount: 1
-    - _cost: 150
+    - _cost: 80
       _amount: 1
-    - _cost: 210
+    - _cost: 120
       _amount: 1
-    - _cost: 240
+    - _cost: 140
       _amount: 1
-    - _cost: 270
+    - _cost: 160
       _amount: 1
   - _id: upgrade.maxEnergy.3
     _requiredStage: 1
@@ -364,15 +362,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 10
+    - _cost: 60
+      _amount: 10
+    - _cost: 80
+      _amount: 10
+    - _cost: 100
       _amount: 10
     - _cost: 120
-      _amount: 10
-    - _cost: 150
-      _amount: 10
-    - _cost: 180
-      _amount: 10
-    - _cost: 210
       _amount: 10
   - _id: upgrade.gpu.2
     _requiredStage: 1
@@ -388,15 +386,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 0.1
+    - _cost: 60
+      _amount: 0.1
+    - _cost: 80
+      _amount: 0.1
+    - _cost: 100
       _amount: 0.1
     - _cost: 120
-      _amount: 0.1
-    - _cost: 150
-      _amount: 0.1
-    - _cost: 180
-      _amount: 0.1
-    - _cost: 210
       _amount: 0.1
   - _id: upgrade.scrapGain.0
     _requiredStage: 1
@@ -412,15 +410,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
+    - _cost: 20
+      _amount: 0.1
+    - _cost: 20
+      _amount: 0.1
     - _cost: 40
       _amount: 0.1
     - _cost: 60
       _amount: 0.1
-    - _cost: 80
-      _amount: 0.1
-    - _cost: 100
-      _amount: 0.1
-    - _cost: 120
+    - _cost: 60
       _amount: 0.1
   - _id: upgrade.scrapPickupRange.0
     _requiredStage: 1
@@ -436,15 +434,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
+    - _cost: 20
+      _amount: 0.1
+    - _cost: 40
+      _amount: 0.1
     - _cost: 60
       _amount: 0.1
-    - _cost: 85
+    - _cost: 80
       _amount: 0.1
-    - _cost: 110
-      _amount: 0.1
-    - _cost: 135
-      _amount: 0.1
-    - _cost: 160
+    - _cost: 80
       _amount: 0.1
   - _id: upgrade.mainboard.3
     _requiredStage: 1
@@ -460,15 +458,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 2
+    - _cost: 60
+      _amount: 2
+    - _cost: 80
+      _amount: 2
+    - _cost: 100
       _amount: 2
     - _cost: 120
-      _amount: 2
-    - _cost: 150
-      _amount: 2
-    - _cost: 180
-      _amount: 2
-    - _cost: 210
       _amount: 2
   - _id: upgrade.moveSpeed.3
     _requiredStage: 1
@@ -484,15 +482,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 0.1
+    - _cost: 60
+      _amount: 0.1
+    - _cost: 80
+      _amount: 0.1
+    - _cost: 100
       _amount: 0.1
     - _cost: 120
-      _amount: 0.1
-    - _cost: 150
-      _amount: 0.1
-    - _cost: 180
-      _amount: 0.1
-    - _cost: 210
       _amount: 0.1
   - _id: upgrade.maxEnergy.4
     _requiredStage: 1
@@ -508,15 +506,15 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 90
+    - _cost: 40
+      _amount: 10
+    - _cost: 60
+      _amount: 10
+    - _cost: 80
+      _amount: 10
+    - _cost: 100
       _amount: 10
     - _cost: 120
-      _amount: 10
-    - _cost: 150
-      _amount: 10
-    - _cost: 180
-      _amount: 10
-    - _cost: 210
       _amount: 10
   - _id: upgrade.scrapHeal.0
     _requiredStage: 1
@@ -532,45 +530,13 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
+    - _cost: 20
+      _amount: 0.01
+    - _cost: 40
+      _amount: 0.01
     - _cost: 60
       _amount: 0.01
-    - _cost: 85
+    - _cost: 80
       _amount: 0.01
-    - _cost: 110
+    - _cost: 80
       _amount: 0.01
-    - _cost: 135
-      _amount: 0.01
-    - _cost: 160
-      _amount: 0.01
-  - _id: upgrade.new
-    _requiredStage: 1
-    _titleKey: ui.tree.mainboard
-    _descriptionKey: ui.tree.mainboard
-    _icon: {fileID: 0}
-    _layoutCell: {x: 9, y: 3}
-    _effectType: 0
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.mainboard.1
-      _requiredLevel: 1
-    _exclusiveGroupId: Test1
-    _levels:
-    - _cost: 0
-      _amount: 0
-  - _id: upgrade.new2
-    _requiredStage: 1
-    _titleKey: ui.tree.mainboard
-    _descriptionKey: ui.tree.mainboard
-    _icon: {fileID: 0}
-    _layoutCell: {x: 9, y: 5}
-    _effectType: 0
-    _runeId: 
-    _initialLevel: 0
-    _prerequisites:
-    - _nodeId: upgrade.mainboard.1
-      _requiredLevel: 1
-    _exclusiveGroupId: Test1
-    _levels:
-    - _cost: 0
-      _amount: 0

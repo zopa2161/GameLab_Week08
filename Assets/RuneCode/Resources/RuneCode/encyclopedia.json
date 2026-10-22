@@ -24,9 +24,14 @@
       "_title": "강화 룬을 장착해 마법을 강화 시키세요!",
       "_pages": [
         {
-          "_body": "룬 팔레트에서 강화 룬을 행동 룬의 슬롯에 끌어다 놓으세요.\n강화 룬의 효과에 따라 마법이 강화 됩니다.",
+          "_body": "룬 팔레트에서 강화 룬을 행동 룬의 슬롯에 끌어다 놓으세요.\n강화 룬의 효과에 따라 마법이 강화 됩니다.\n룬을 해제하려면 슬롯을 우클릭하세요.",
           "_video": "RuneCode/Onboarding/Onboarding_Video_2",
           "_image": ""
+        },
+        {
+          "_body": "강화 노드를 업그레이드해 캐릭터를 성장 시키세요.\n전투 중 모은 크레딧을 사용하여 캐릭터를 성장시킬 수 있습니다.",
+          "_video": "",
+          "_image": "RuneCode/Onboarding/Onboarding_Tree"
         }
       ]
     },
@@ -41,21 +46,26 @@
       ]
     },
     {
-      "_title": "마법의 순서를 바꿔보세요!",
+      "_title": "새로운 마법 행동을 선택 할 수 있습니다",
       "_pages": [
         {
-          "_body": "연결되는 마법의 순서를 바꾸면 다른 형태의 마법을 사용할 수 있습니다.\n연결 된 선은 우클릭 시 끊을 수 있습니다.",
-          "_video": "RuneCode/Onboarding/Onboarding_Video_4",
-          "_image": ""
+          "_body": "새로운 마법 행동을 통해 주문을 강화 할 수 있습니다.",
+          "_video": "",
+          "_image": "RuneCode/Onboarding/Onboarding_Action"
         }
       ]
     },
     {
-      "_title": "캐릭터를 강화하세요!",
+      "_title": "마법을 연결하세요!",
       "_pages": [
         {
-          "_body": "전투중 획득 할 수 있는 스크랩을 이용하여 강화 트리의 노드를 업그레이드 하세요.",
-          "_video": "RuneCode/Onboarding/Onboarding_Video_5",
+          "_body": "마법을 연결하면 적중시 연결한 마법이 발동됩니다.",
+          "_video": "RuneCode/Onboarding/Onboarding_Video_3",
+          "_image": ""
+        },
+        {
+          "_body": "연결의 순서를 바꾸면 새로운 형태의 주문을 만들 수 있습니다.\n연결 선은 우클릭을 통해 삭제할 수 있습니다.",
+          "_video": "RuneCode/Onboarding/Onboarding_Video_4",
           "_image": ""
         }
       ]
