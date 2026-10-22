@@ -217,10 +217,12 @@ namespace RuneCode
         /// <summary>입력 중단 시 기존 빔 홀드와 예약 클릭을 취소하며 다른 행동의 입력 규칙은 유지한다.</summary>
         public void CancelBeamInput() => _beam.CancelBeamInput();
 
-        /// <summary>라운드 소강상태에서 한 번만 다음 라운드 또는 스테이지로 전환하고 그 첫 웨이브를 시작한다.</summary>
+        /// <summary>소강상태에서 다음 라운드 또는 스테이지로 전환하며 이전 피해 표시를 지우고 전력을 최대로 회복한 뒤 첫 웨이브를 시작한다.</summary>
         public bool TryStartNextRound()
         {
             if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak) return false;
+            _feedback.ClearDamageNumbers();
+            _world.Player.RestoreEnergy(_world.Player.MaxEnergy);
             _loot.ClearClearFeedback();
             if (_world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT)
             {
