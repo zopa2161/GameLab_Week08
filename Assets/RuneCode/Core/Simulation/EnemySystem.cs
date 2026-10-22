@@ -20,6 +20,7 @@ namespace RuneCode
         private readonly EnemySeparation _separation = new EnemySeparation();
         private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
         private readonly Action<double> _hurtPlayer;
+        private int _hydraSourceEnemyId;
 
         /// <summary>예약 사격 목록이다. 상태 해시와 전투 취소가 같은 인스턴스를 쓴다.</summary>
         internal List<PendingEnemyShot> PendingEnemyShots => _pendingEnemyShots;
@@ -79,7 +80,9 @@ namespace RuneCode
                 if (enemy.IsDummy) continue;
                 if (enemy.Hydra != null)
                 {
+                    _hydraSourceEnemyId = enemy.Id;
                     enemy.Hydra.Advance(enemy, _world, _simulation, _hurtPlayer);
+                    _hydraSourceEnemyId = 0;
                     if (!enemy.Hydra.IsAirborne) HurtByContact(enemy);
                     continue;
                 }
@@ -172,7 +175,7 @@ namespace RuneCode
             { enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction; return; }
             if (_world.Time + RuneSimulation.COLLISION_EPSILON < enemy.WarningUntil) return;
             _world.EnemyProjectiles.Add(new SimulationProjectile(enemy.AttackOrigin, enemy.AttackDirection, definition.ProjectileSpeed,
-                enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime));
+                enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime, sourceEnemyId: enemy.Id));
             enemy.AimEndsAt = 0; enemy.WarningUntil = 0;
             enemy.AttackAt = _world.Time + definition.AttackInterval - definition.AimSeconds - definition.LockSeconds;
         }
@@ -223,16 +226,20 @@ namespace RuneCode
         private bool HurtByContact(SimulationEnemy enemy)
         {
             if (!_world.IsMission || _world.Time < enemy.ContactGraceUntil || SimVector.Distance(enemy.Position, _world.Player.Position) > enemy.Radius + _world.Sector.PlayerRadius) return false;
-            HurtPlayer(enemy.Damage); return true;
+            HurtPlayer(enemy.Damage, enemy.Id); return true;
         }
 
         /// <summary>플레이어 피해에 디버그 무적과 기본 피격 무적을 반영한다.</summary>
-        internal void HurtPlayer(double damage)
+        internal void HurtPlayer(double damage) => HurtPlayer(damage, _hydraSourceEnemyId);
+
+        /// <summary>피해량과 공격한 적 ID로 피격을 처리하고 실제 HP 피해·보호막 흡수를 해당 적에게 귀속한다.</summary>
+        private void HurtPlayer(double damage, int sourceEnemyId)
         {
             if (_world.DebugInvulnerable || !_world.IsMission) return;
             double shieldBefore = _world.Player.Shield;
             double actual = _world.Player.Hurt(damage, _world.Time, _world.Balance.Player.HurtInvulnerability);
             if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
+            _stats.RecordPlayerDamage(_world, sourceEnemyId, actual, Math.Max(0, shieldBefore - _world.Player.Shield));
             if (actual > 0 || _world.Player.Shield < shieldBefore) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_HIT_TAKEN);
         }
 
@@ -243,7 +250,9 @@ namespace RuneCode
         internal void HurtPlayerByStatus(double damage)
         {
             if (_world.DebugInvulnerable || !_world.IsMission) return;
+            double shieldBefore = _world.Player.Shield;
             double actual = _world.Player.HurtByStatus(damage);
+            _stats.RecordPlayerDamage(_world, -1, actual, Math.Max(0, shieldBefore - _world.Player.Shield));
             if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
         }
 
@@ -252,7 +261,7 @@ namespace RuneCode
         {
             EnemyDefinition definition = enemy.Definition;
             for (int i = 0; i < count; i++)
-            { double spread = count == 1 ? 0 : (i / (double)(count - 1) * 2 - 1) * definition.SpreadDegrees * RuneSimulation.DEGREES_TO_RADIANS; SimVector aim = direction.Rotated(spread); _world.EnemyProjectiles.Add(new SimulationProjectile(enemy.Position + aim * (enemy.Radius + _world.Balance.Sim.WandOffset), aim, definition.ProjectileSpeed * speedMultiplier, enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime)); }
+            { double spread = count == 1 ? 0 : (i / (double)(count - 1) * 2 - 1) * definition.SpreadDegrees * RuneSimulation.DEGREES_TO_RADIANS; SimVector aim = direction.Rotated(spread); _world.EnemyProjectiles.Add(new SimulationProjectile(enemy.Position + aim * (enemy.Radius + _world.Balance.Sim.WandOffset), aim, definition.ProjectileSpeed * speedMultiplier, enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime, sourceEnemyId: enemy.Id)); }
         }
 
         /// <summary>예고된 조준 방향에 첫 탄을 발사하고 데이터 간격에 맞춰 나머지 2발을 예약한다.</summary>
@@ -290,7 +299,7 @@ namespace RuneCode
                 boss.AttackAt = _world.Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval) / multiplier;
             }
             if (boss.Phase >= 2 && _world.Time >= boss.HazardAt)
-            { _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, pattern.HazardDamage * boss.DamageMultiplier, pattern.HazardRadius, pattern.HazardLifetime + pattern.HazardWarning, true, pattern.HazardWarning)); boss.HazardAt = _world.Time + pattern.HazardInterval / multiplier; }
+            { _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, pattern.HazardDamage * boss.DamageMultiplier, pattern.HazardRadius, pattern.HazardLifetime + pattern.HazardWarning, true, pattern.HazardWarning, sourceEnemyId: boss.Id)); boss.HazardAt = _world.Time + pattern.HazardInterval / multiplier; }
             if (_world.Time >= boss.ReinforcementAt)
             {
                 if (_world.IsMission) _spawn.SpawnReinforcements(boss, pattern.Reinforcement);
@@ -322,11 +331,11 @@ namespace RuneCode
                 {
                     double wall = _simulation.FirstWallFraction(previous, projectile.Position, projectile.Radius);
                     double hit = SpellGeometry.CircleContactFraction(previous, projectile.Position, _world.Player.Position, projectile.Radius + _world.Sector.PlayerRadius);
-                    if (hit < wall && !double.IsPositiveInfinity(hit)) { HurtPlayer(projectile.Damage); _world.EnemyProjectiles.RemoveAt(i); continue; }
+                    if (hit < wall && !double.IsPositiveInfinity(hit)) { HurtPlayer(projectile.Damage, projectile.SourceEnemyId); _world.EnemyProjectiles.RemoveAt(i); continue; }
                     if (!double.IsPositiveInfinity(wall)) { _world.EnemyProjectiles.RemoveAt(i); continue; }
                 }
                 else if (!projectile.IsExplosion && !projectile.IsWarning && SimVector.Distance(projectile.Position, _world.Player.Position) <= projectile.Radius + _world.Sector.PlayerRadius)
-                    HurtPlayer(projectile.Damage);
+                    HurtPlayer(projectile.Damage, projectile.SourceEnemyId);
                 if (projectile.Age + RuneSimulation.COLLISION_EPSILON >= projectile.Lifetime) _world.EnemyProjectiles.RemoveAt(i);
             }
         }
@@ -336,7 +345,7 @@ namespace RuneCode
             double radius = source.Definition.ExplosionRadius;
             double damage = source.Definition.ExplosionDamage * source.DamageMultiplier;
             _world.EnemyProjectiles.Add(new SimulationProjectile(source.Position, SimVector.Zero, 0, 0, radius, EXPLOSION_VISUAL_SECONDS, true, 0, true));
-            if (SimVector.Distance(source.Position, _world.Player.Position) <= radius + _world.Sector.PlayerRadius) HurtPlayer(damage);
+            if (SimVector.Distance(source.Position, _world.Player.Position) <= radius + _world.Sector.PlayerRadius) HurtPlayer(damage, source.Id);
             foreach (SimulationEnemy target in _world.Enemies)
             {
                 if (!target.IsAlive || target.IsPatching || SimVector.Distance(source.Position, target.Position) > radius + target.Radius) continue;

@@ -56,7 +56,8 @@ namespace RuneCode
         /// <summary>작업실에 들어올 때 도크를 다시 시작한 뒤 에디터 탭을 갱신한다.</summary>
         public void Enter()
         {
-            LocalTelemetry.BeginUsabilityEditingEpisode();
+            _selectedTab = WorkshopScreen.TAB_EDITOR;
+            LocalTelemetry.BeginUsabilityEditingEpisode(_session.GetWorkshopLogSnapshot);
             ShowEditorTab();
         }
 
@@ -133,6 +134,11 @@ namespace RuneCode
         /// </summary>
         private void SetTab(string tab)
         {
+            if (_selectedTab != tab)
+                LocalTelemetry.RecordUsabilityEvent("workshop_tab_switch", "workshop", new Dictionary<string, object>
+                {
+                    ["from_tab"] = _selectedTab, ["to_tab"] = tab,
+                });
             _selectedTab = tab;
             _view.ShowTab(tab);
             _view.SetDeployResume(_session.IsRunSuspended);

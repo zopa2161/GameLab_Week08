@@ -7,6 +7,9 @@ namespace RuneCode
     /// <summary>시뮬레이션의 피해 누계, 이벤트 카운터, 자원 소비와 행동별 전투 로그를 기록한다.</summary>
     internal sealed class SimulationStats
     {
+        private readonly Dictionary<int, Dictionary<string, object>> _enemyLogRows = new Dictionary<int, Dictionary<string, object>>();
+        private readonly HashSet<int> _dirtyEnemyRows = new HashSet<int>();
+
         private readonly Queue<DamageSample> _damageWindow = new Queue<DamageSample>();
         private readonly Dictionary<string, double> _resourceCostsSpent = new Dictionary<string, double>(StringComparer.Ordinal);
         private readonly Dictionary<string, int> _killCounts = new Dictionary<string, int>();
@@ -49,6 +52,71 @@ namespace RuneCode
         /// <summary>마나 자원의 소비 누계다. 기록이 없으면 0이다.</summary>
         internal double EnergySpent => _resourceCostsSpent.TryGetValue("mana", out double amount) ? amount : 0;
 
+        /// <summary>미션에서 생성한 적의 유형·스테이지·라운드와 전투 시간을 로그 누계에 등록한다.</summary>
+        internal void RecordEnemySpawn(SimulationWorld world, SimulationEnemy enemy)
+        {
+            if (!world.IsMission || enemy.IsDummy) return;
+            _enemyLogRows[enemy.Id] = new Dictionary<string, object>
+            {
+                ["enemy_id"] = enemy.Id, ["enemy_kind"] = enemy.Kind,
+                ["stage"] = world.StageNumber, ["round"] = world.RoundNumber, ["is_elite"] = enemy.IsElite,
+                ["spawn_seconds"] = world.Time, ["observed_seconds"] = world.Time,
+                ["lifetime_seconds"] = null, ["end_reason"] = null,
+                ["damage_hp"] = 0d, ["shield_absorbed"] = 0d, ["hit_count"] = 0,
+            };
+            _dirtyEnemyRows.Add(enemy.Id);
+        }
+
+        /// <summary>실제 사망 또는 강제 제거 시각을 한 번 기록한다. 사망한 적만 생존시간을 확정한다.</summary>
+        internal void RecordEnemyEnd(SimulationEnemy enemy, double time, string reason)
+        {
+            if (!_enemyLogRows.TryGetValue(enemy.Id, out Dictionary<string, object> row) || row["end_reason"] != null) return;
+            row["observed_seconds"] = time;
+            row["end_reason"] = reason;
+            if (reason == "killed") row["lifetime_seconds"] = Math.Max(0, time - (double)row["spawn_seconds"]);
+            _dirtyEnemyRows.Add(enemy.Id);
+        }
+
+        /// <summary>실제 HP 감소와 보호막 흡수를 공격한 적의 누계에 더한다. 상태 이상과 출처 불명은 적 통계와 구분한다.</summary>
+        internal void RecordPlayerDamage(SimulationWorld world, int sourceId, double hp, double shield)
+        {
+            if (!world.IsMission || hp <= 0 && shield <= 0) return;
+            int key = sourceId;
+            if (sourceId <= 0) key = -((world.StageNumber * 1000 + world.RoundNumber) * 2 + (sourceId < 0 ? 1 : 0));
+            if (!_enemyLogRows.TryGetValue(key, out Dictionary<string, object> row))
+            {
+                row = new Dictionary<string, object>
+                {
+                    ["enemy_id"] = key, ["enemy_kind"] = sourceId < 0 ? "player_status" : "unknown",
+                    ["stage"] = world.StageNumber, ["round"] = world.RoundNumber, ["is_elite"] = false,
+                    ["spawn_seconds"] = null, ["observed_seconds"] = world.Time,
+                    ["lifetime_seconds"] = null, ["end_reason"] = "non_enemy_source",
+                    ["damage_hp"] = 0d, ["shield_absorbed"] = 0d, ["hit_count"] = 0,
+                };
+                _enemyLogRows.Add(key, row);
+            }
+            row["damage_hp"] = (double)row["damage_hp"] + hp;
+            row["shield_absorbed"] = (double)row["shield_absorbed"] + shield;
+            row["hit_count"] = (int)row["hit_count"] + 1;
+            _dirtyEnemyRows.Add(key);
+        }
+
+        /// <summary>변경된 적 누계와 생존 중인 적의 관측 상태를 복사한다. 확정하지 못한 생존시간은 null로 유지한다.</summary>
+        internal IReadOnlyList<Dictionary<string, object>> TakeEnemyCombatLogSnapshot(double time)
+        {
+            var result = new List<Dictionary<string, object>>();
+            foreach (KeyValuePair<int, Dictionary<string, object>> entry in _enemyLogRows)
+            {
+                Dictionary<string, object> row = entry.Value;
+                bool isAlive = row["end_reason"] == null;
+                if (!isAlive && !_dirtyEnemyRows.Contains(entry.Key)) continue;
+                if (isAlive) row["observed_seconds"] = time;
+                result.Add(new Dictionary<string, object>(row));
+            }
+            _dirtyEnemyRows.Clear();
+            return result;
+        }
+
         /// <summary>실제 피해를 총 피해와 롤링 DPS 누적에 더하고 5초 창에 샘플을 넣는다.</summary>
         internal void RecordEnemyDamage(double actual, int tick)
         {
@@ -71,6 +139,8 @@ namespace RuneCode
         /// <summary>시험 도크 초기화에 맞춰 누계·카운터, 자원 소비, 종류별 처치 수와 DPS 창을 모두 되돌린다.</summary>
         internal void ResetForBench()
         {
+            _enemyLogRows.Clear();
+            _dirtyEnemyRows.Clear();
             _damageWindow.Clear();
             _killCounts.Clear();
             TotalDamage = 0; StatusDamage = 0; PersistDamage = 0; RollingDamage = 0; _resourceCostsSpent.Clear(); PeakSpellEntities = 0;

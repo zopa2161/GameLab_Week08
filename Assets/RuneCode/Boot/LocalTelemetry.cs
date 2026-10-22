@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -19,9 +19,11 @@ namespace RuneCode
         private static readonly Dictionary<string, int> _usabilityEventCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         private static readonly HashSet<string> _completedUsabilitySignatures = new HashSet<string>(StringComparer.Ordinal);
         private static string _editingEpisodeId;
+        private static Func<Dictionary<string, object>> _editingSnapshot;
         private static string _graphRevisionId;
         private static string _spellBuildId;
         private static string _combatId;
+        private static Func<IReadOnlyList<Dictionary<string, object>>> _enemySnapshot;
         public static int Count => _entries.Count;
         public static bool IsUsabilityTestActive => _usabilityLogWriter != null;
         public static string UsabilityTestSessionId => _usabilityLogWriter?.SessionId;
@@ -33,10 +35,12 @@ namespace RuneCode
             _usabilityLogWriter = UsabilityLogWriter.StartSession(metadata, combatColumns ?? USABILITY_COMBAT_COLUMNS);
             _usabilityEventCounts.Clear();
             _completedUsabilitySignatures.Clear();
-            _editingEpisodeId = Guid.NewGuid().ToString("N");
+            _editingEpisodeId = null;
+            _editingSnapshot = null;
             _graphRevisionId = Guid.NewGuid().ToString("N");
             _spellBuildId = null;
             _combatId = null;
+            _enemySnapshot = null;
         }
 
         /// <summary>Writes a structured test event when a usability session is active.</summary>
@@ -55,24 +59,30 @@ namespace RuneCode
             if (eventName == "test_start" || eventName == "test_end" || eventName == "stage_enter"
                 || eventName == "combat_start" || eventName == "combat_end" || eventName == "spell_complete"
                 || eventName == "clear_reward_selected" || eventName == "round_break_end"
+                || eventName == "editor_enter" || eventName == "editor_exit"
+                || eventName == "upgrade_purchase" || eventName == "rune_synthesis"
                 || eventName == "pause_start" || eventName == "pause_end")
                 _usabilityLogWriter.Flush();
         }
 
         /// <summary>Starts an editor interval and assigns its ID to following events.</summary>
-        public static void BeginUsabilityEditingEpisode()
+        public static void BeginUsabilityEditingEpisode(Func<Dictionary<string, object>> snapshot = null)
         {
             if (_usabilityLogWriter == null) return;
             _editingEpisodeId = Guid.NewGuid().ToString("N");
-            RecordUsabilityEvent("editor_enter", "editor", new Dictionary<string, object>());
+            _editingSnapshot = snapshot;
+            RecordUsabilityEvent("editor_enter", "editor", snapshot?.Invoke());
         }
 
         /// <summary>Closes the active editor interval and clears its event linkage.</summary>
         public static void EndUsabilityEditingEpisode(string reason)
         {
-            if (_usabilityLogWriter == null) return;
-            RecordUsabilityEvent("editor_exit", "editor", new Dictionary<string, object> { ["reason"] = reason });
+            if (_usabilityLogWriter == null || _editingEpisodeId == null) return;
+            Dictionary<string, object> data = _editingSnapshot?.Invoke() ?? new Dictionary<string, object>();
+            data["reason"] = reason;
+            RecordUsabilityEvent("editor_exit", "editor", data);
             _editingEpisodeId = null;
+            _editingSnapshot = null;
         }
 
         /// <summary>Creates a fresh graph revision ID after a successful editing operation.</summary>
@@ -101,10 +111,11 @@ namespace RuneCode
             return buildId;
         }
 
-        /// <summary>Begins a combat interval and links its events to the selected graph snapshot.</summary>
-        public static string BeginUsabilityCombat(int stage, string spellBuildId, int seed)
+        /// <summary>전투 구간을 시작하고 빌드 ID와 이벤트를 연결한다. 종료 시 사용할 적 누계 공급자를 보관하고 전투 ID를 반환한다.</summary>
+        public static string BeginUsabilityCombat(int stage, string spellBuildId, int seed, Func<IReadOnlyList<Dictionary<string, object>>> enemySnapshot = null)
         {
             if (_usabilityLogWriter == null) return null;
+            _enemySnapshot = enemySnapshot;
             _combatId = Guid.NewGuid().ToString("N");
             _spellBuildId = spellBuildId;
             RecordUsabilityEvent("combat_start", "combat", new Dictionary<string, object>
@@ -124,9 +135,11 @@ namespace RuneCode
                 : new Dictionary<string, object>(data);
             combatData["combat_id"] = _combatId;
             combatData["spell_build_id"] = _spellBuildId;
+            if (_enemySnapshot != null) combatData["enemy_stats"] = _enemySnapshot();
             RecordUsabilityEvent("combat_end", "combat", combatData);
             _usabilityLogWriter.AppendCombatSummary(combatData);
             _combatId = null;
+            _enemySnapshot = null;
         }
 
         /// <summary>Appends one structured row to the active test session's combat CSV.</summary>
@@ -146,6 +159,7 @@ namespace RuneCode
         {
             if (_usabilityLogWriter == null) return;
             UsabilityLogWriter writer = _usabilityLogWriter;
+            EndUsabilityEditingEpisode(reason);
             if (_combatId != null)
                 EndUsabilityCombat(new Dictionary<string, object> { ["result"] = "incomplete", ["reason"] = reason });
             if (finalGraph != null)
@@ -179,6 +193,7 @@ namespace RuneCode
             _graphRevisionId = null;
             _spellBuildId = null;
             _combatId = null;
+            _enemySnapshot = null;
         }
 
         /// <summary>Returns a source-graph signature that ignores names, coordinates, array order and arbitrary node IDs.</summary>
@@ -270,10 +285,12 @@ namespace RuneCode
             UsabilityLogWriter writer = _usabilityLogWriter;
             _usabilityLogWriter = null;
             _usabilityEventCounts.Clear();
+            _editingSnapshot = null;
             _editingEpisodeId = null;
             _graphRevisionId = null;
             _spellBuildId = null;
             _combatId = null;
+            _enemySnapshot = null;
             writer?.Dispose();
         }
 
@@ -294,11 +311,13 @@ namespace RuneCode
             }
         }
 
-        /// <summary>시뮬레이션 tick과 종류·상세를 최대 500건의 로컬 링 버퍼에 기록한다.</summary>
+        /// <summary>tick·종류·상세를 최대 500건의 메모리 링 버퍼에 기록한다. 중복 상세 종류를 제외한 기록만 활성 세션 파일에도 남긴다.</summary>
         public static void Record(int tick, string kind, string detail)
         {
             if (_entries.Count == MAX_ENTRIES) _entries.Dequeue();
             _entries.Enqueue(new TelemetryEntry(tick, kind, detail));
+            if (kind == "mission.node" || kind == "dock.node" || kind == "bench.cast"
+                || kind == "mission.start" || kind == "mission.result" || kind == "upgradeTree.purchase") return;
             RecordUsabilityEvent("local_telemetry", "runtime", new Dictionary<string, object>
             {
                 ["tick"] = tick,

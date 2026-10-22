@@ -815,6 +815,7 @@ namespace RuneCode
 
     public sealed class SimulationProjectile
     {
+        private readonly int _sourceEnemyId;
         private readonly SimVector _direction;
         private readonly double _speed;
         private readonly double _damage;
@@ -832,12 +833,13 @@ namespace RuneCode
         public double Age => _age;
         public bool IsHazard => _isHazard;
         public bool IsWarning => _isHazard && _age < _warning;
+        internal int SourceEnemyId => _sourceEnemyId;
         internal double Damage => _damage;
         internal double Lifetime => _lifetime;
 
-        /// <summary>적 탄환 또는 예고 장판을 위치와 공격 설정으로 생성한다.</summary>
-        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false)
-        { _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; }
+        /// <summary>위치·공격 설정으로 적 탄환 또는 예고 장판을 생성하고 피해 귀속용 원래 적 ID를 보관한다.</summary>
+        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0)
+        { _sourceEnemyId = sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; }
 
         /// <summary>탄환의 위치와 수명을 고정 시간만큼 진행한다.</summary>
         internal void Advance(double dt) { _age += dt; _position += _direction * (_speed * dt); }

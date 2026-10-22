@@ -10,6 +10,7 @@ namespace RuneCode
         private const int ARENA_PICK_ROUNDS = 2;
 
         private readonly SimulationWorld _world;
+        private readonly SimulationStats _stats;
         private readonly SimulationFeedback _feedback;
         private readonly List<PendingSplit> _pendingSplits = new List<PendingSplit>();
         private readonly List<PendingSpawn> _pendingSpawns = new List<PendingSpawn>();
@@ -54,10 +55,11 @@ namespace RuneCode
         /// <summary>시험 도크 초기화 시 생성한 적 수를 0으로 되돌린다.</summary>
         internal void ResetForBench() => _spawnedEnemies = 0;
 
-        /// <summary>월드·표시 버퍼로 만들고 공유 난수와 적 목록을 쓰는 슬롯·맵 배치 보조를 준비한다.</summary>
-        internal SpawnSystem(SimulationWorld world, SimulationFeedback feedback)
+        /// <summary>월드·표시 버퍼·생성 통계 참조를 보관하고 공유 난수와 적 목록을 쓰는 슬롯·맵 배치 보조를 준비한다.</summary>
+        internal SpawnSystem(SimulationWorld world, SimulationFeedback feedback, SimulationStats stats)
         {
             _world = world;
+            _stats = stats;
             _feedback = feedback;
             _spawnSlots = new SpawnSlots(_world.Random.Next, _world.Enemies);
             _arenaSpawnPoints = new ArenaSpawnPoints(_world.Random.Next, _world.Enemies);
@@ -328,7 +330,8 @@ namespace RuneCode
             if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = _world.Time;
             if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = _world.Carrier.Interval;
             if (boss != null && boss.IsGovernorPattern) { enemy.ReinforcementAt = _world.Time + boss.Reinforcement.Interval; enemy.HazardAt = _world.Time + boss.HazardInterval; }
-            enemy.Observe(_world.Time); _world.Enemies.Add(enemy); if (_world.IsMission) _spawnedEnemies++; return enemy;
+            enemy.Observe(_world.Time); _world.Enemies.Add(enemy);
+            _stats.RecordEnemySpawn(_world, enemy); if (_world.IsMission) _spawnedEnemies++; return enemy;
         }
     }
 }

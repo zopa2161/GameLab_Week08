@@ -32,6 +32,8 @@ namespace RuneCode
         private bool _isSaveDirty;
         private bool _hasStartedGame;
         private bool _isRunSuspended;
+        private int _workshopStage;
+        private int _workshopRound;
 
         private string _dockScenario = "dummy_single";
         private int _dockDummyCount = 1;
@@ -115,9 +117,11 @@ namespace RuneCode
         public void RequestScreen(AppScreen screen) { ScreenRequested?.Invoke(screen); }
 
         /// <summary>진행 중인 런을 보관 상태로 표시하고 작업실 화면 전환을 요청한다. 미션 화면은 이 표시를 보고 런을 버리지 않는다.</summary>
-        public void SuspendRunForWorkshop()
+        public void SuspendRunForWorkshop(int stage, int round)
         {
             _isRunSuspended = true;
+            _workshopStage = stage;
+            _workshopRound = round;
             RequestScreen(AppScreen.Workshop);
         }
 
@@ -493,6 +497,21 @@ namespace RuneCode
             return false;
         }
 
+        /// <summary>작업실의 라운드·진입 경로·보유 룬·강화와 의미상 빌드 비교키를 복사해 반환한다.</summary>
+        public Dictionary<string, object> GetWorkshopLogSnapshot()
+        {
+            return new Dictionary<string, object>
+            {
+                ["stage"] = _isRunSuspended ? _workshopStage : SelectedStage,
+                ["round"] = _isRunSuspended ? (object)_workshopRound : null,
+                ["entry_reason"] = _isRunSuspended ? "round_break" : "workshop",
+                ["inventory"] = GetInventoryLogSnapshot(),
+                ["skill_tree"] = GetSkillTreeLogSnapshot(),
+                ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(_spells.Graph),
+                ["node_count"] = _spells.Graph.Nodes.Count, ["edge_count"] = _spells.Graph.Edges.Count,
+            };
+        }
+
         /// <summary>보유 모듈의 종류·등급·총수량, 해금 목록과 재화를 복사해 로그용 스냅샷을 반환한다.</summary>
         public Dictionary<string, object> GetInventoryLogSnapshot()
         {
@@ -544,6 +563,7 @@ namespace RuneCode
             UpgradeTreeNodeDefinition node = _upgradeTree.FindNode(nodeId);
             int currentLevel = GetUpgradeNodeLevel(nodeId);
             int cost = GetUpgradeNodeCost(nodeId);
+            int currencyBefore = _save.Currency;
             if (!_save.Spend(cost))
             {
                 SetStatus("tree.insufficient");
@@ -553,6 +573,12 @@ namespace RuneCode
             if (node.EffectType == UpgradeEffectType.RuneUnlock) _save.Unlock(node.RuneId);
             PersistProgress();
             _spells.Recompile();
+            LocalTelemetry.RecordUsabilityEvent("upgrade_purchase", "workshop", new Dictionary<string, object>
+            {
+                ["node_id"] = nodeId, ["level_before"] = currentLevel, ["level_after"] = currentLevel + 1,
+                ["cost"] = cost, ["currency_before"] = currencyBefore, ["currency_after"] = _save.Currency,
+                ["skill_tree"] = GetSkillTreeLogSnapshot(),
+            });
             LocalTelemetry.Record(0, "upgradeTree.purchase", nodeId + ":" + (currentLevel + 1) + ":" + cost);
             return true;
         }
@@ -749,6 +775,22 @@ namespace RuneCode
 
         /// <summary>미사용 룬 3개와 스크랩 비용으로 합성한다. 속성은 스테이지 확률을, S는 교차 추첨을 쓰며 저장 실패 시 재고와 스크랩을 복구한다.</summary>
         public bool TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
+            out string resultId, out string resultGrade, out string error)
+        {
+            int currencyBefore = _save.Currency;
+            bool isSuccess = TrySynthesizeRunesCore(materials, grade, out resultId, out resultGrade, out error);
+            LocalTelemetry.RecordUsabilityEvent("rune_synthesis", "workshop", new Dictionary<string, object>
+            {
+                ["materials"] = materials == null ? null : new List<string>(materials), ["material_grade"] = grade,
+                ["result"] = isSuccess ? "success" : "rejected", ["rune_id"] = resultId, ["grade"] = resultGrade,
+                ["error"] = error, ["currency_before"] = currencyBefore, ["currency_after"] = _save.Currency,
+                ["inventory"] = GetInventoryLogSnapshot(),
+            });
+            return isSuccess;
+        }
+
+        /// <summary>재료·등급과 재화를 검증해 합성을 실행하고 결과 룬 또는 실패 사유를 반환한다. 저장 실패 시 소비를 복구한다.</summary>
+        private bool TrySynthesizeRunesCore(IReadOnlyList<string> materials, string grade,
             out string resultId, out string resultGrade, out string error)
         {
             resultId = null;
