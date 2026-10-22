@@ -13,7 +13,7 @@ namespace RuneCode
         private static readonly string[] USABILITY_COMBAT_COLUMNS =
         {
             "combat_id", "stage", "spell_build_id", "result", "duration_ms", "damage_dealt", "damage_received", "shield_absorbed",
-            "energy_spent", "cast_requests", "cast_successes", "dash_inputs", "dashes_started", "kill_count", "fragments", "seed", "reason", "skill_tree", "inventory", "module_rewards", "action_stats"
+            "energy_spent", "cast_requests", "cast_successes", "dash_inputs", "dashes_started", "kill_count", "fragments", "seed", "reason", "skill_tree", "inventory", "module_rewards", "action_stats", "active_seconds", "enemy_stats"
         };
         private static UsabilityLogWriter _usabilityLogWriter;
         private static readonly Dictionary<string, int> _usabilityEventCounts = new Dictionary<string, int>(StringComparer.Ordinal);

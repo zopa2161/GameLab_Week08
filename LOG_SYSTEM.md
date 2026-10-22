@@ -226,3 +226,10 @@ Windows 빌드 후처리의 설정 선택 순서는 다음과 같다.
 중복 local_telemetry 세부 종류 mission.node, dock.node, bench.cast, mission.start, mission.result, upgradeTree.purchase의 세션 파일 기록을 중단했다. 기존 500건 메모리 링 버퍼와 구조화된 시전·전투·강화 기록은 유지한다.
 
 검증: Core와 Assembly-CSharp를 기존 Unity 참조로 직접 컴파일 통과. C# 누계 객체 실행으로 생성·생존 관측·사망시간·변경분 중복 억제·사망 후 피해 갱신을 확인했다. 메모리 JSONL로 최신 누계 병합, 전투별 ID 구분, 전체/스테이지별 합계, 미관측 생존시간 제외, 중앙값과 DB 관측 행 적재를 확인했다. 웹은 메모리 DOM으로 전체/스테이지 전환과 상세 렌더링을 확인했다. 신규 홈페이지 게시와 신규 분석기 재시작을 진행했다. Unity Editor 실제 플레이·Player 빌드·실제 공격별 수신 전체 흐름은 미검증이다. 별도 Inspector 연결은 없다.
+
+
+## 13. 2026-10-22 플레이어 로그 마감 오류 수정
+
+Player.log에서 Unknown combat column: enemy_stats 예외를 확인했다. 적 통계 공급자가 combat_end에 추가한 enemy_stats와 미션 종료 누계 active_seconds가 고정 CSV 열 목록에 없었다. 두 열을 등록해 JSONL과 CSV의 입력 계약을 일치시켰다. 이전 빌드는 CSV 기록 직전 예외로 combat_id를 해제하지 못하고 test_end·summary.csv를 만들지 못했으며, 완료 세션만 보내는 업로더가 해당 폴더를 전송하지 않았다. 종료 재시도에 따른 반복 combat_end는 별개의 전투가 아니다.
+
+해당 실제 플레이 원본(events.jsonl 275건·빌드 5개)은 변경하지 않고 신규 관리기의 2026-10-22 수집 폴더로 복사·색인했다. test_end·summary.csv를 임의 생성하지 않았으며 부분 세션으로 해석해야 한다. 원본 플레이어 폴더는 보존했다. 검증: Core·게임 코드 컴파일 통과, 수정된 실제 기록기를 사용해 combat_end → CSV → test_end → summary.csv → ended 마감 경로 통과. 기존 Player 실행 파일에는 수정이 반영되지 않으므로 재빌드가 필요하다. 수정한 Player 빌드의 실제 업로드까지는 아직 미검증이다.
