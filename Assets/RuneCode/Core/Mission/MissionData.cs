@@ -238,6 +238,34 @@ namespace RuneCode
     }
 
     [Serializable]
+    public sealed class BossHazard
+    {
+        [Header("장판 세트")]
+        [SerializeField] private double _interval;
+        [SerializeField] private int _count;
+        [SerializeField] private double _setInterval;
+        [Header("장판 판정")]
+        [SerializeField] private double _warning;
+        [SerializeField] private double _lifetime;
+        [SerializeField] private double _radius;
+        [SerializeField] private double _damage;
+        public double Interval => _interval;
+        public int Count => _count;
+        public double SetInterval => _setInterval;
+        public double Warning => _warning;
+        public double Lifetime => _lifetime;
+        public double Radius => _radius;
+        public double Damage => _damage;
+
+        /// <summary>세트 개수와 간격, 장판 예고·지속 시간·크기·피해가 양수인지 검증한다.</summary>
+        internal void Validate(string enemyId)
+        {
+            if (_count < 1 || _interval <= 0 || _setInterval <= 0 || _warning <= 0 || _lifetime <= 0 || _radius <= 0 || _damage <= 0)
+                throw new FormatException("보스 장판 설정 오류입니다: " + enemyId);
+        }
+    }
+
+    [Serializable]
     public sealed class BossDefinition
     {
         public const string GOVERNOR_PATTERN = "governor";
@@ -252,11 +280,9 @@ namespace RuneCode
         [SerializeField] private double _radialInterval;
         [SerializeField] private int _radialCount;
         [SerializeField] private double _aimInterval;
-        [SerializeField] private double _hazardInterval;
-        [SerializeField] private double _hazardWarning;
-        [SerializeField] private double _hazardLifetime;
-        [SerializeField] private double _hazardRadius;
-        [SerializeField] private double _hazardDamage;
+        [Header("장판 세트")]
+        [SerializeField] private BossHazard _hazardPhaseTwo;
+        [SerializeField] private BossHazard _hazardPhaseThree;
         [SerializeField] private double _phaseThreeMultiplier;
         [SerializeField] private double _preferredDistance;
         [SerializeField] private BossReinforcement _reinforcement;
@@ -271,11 +297,6 @@ namespace RuneCode
         public double RadialInterval => _radialInterval;
         public int RadialCount => _radialCount;
         public double AimInterval => _aimInterval;
-        public double HazardInterval => _hazardInterval;
-        public double HazardWarning => _hazardWarning;
-        public double HazardLifetime => _hazardLifetime;
-        public double HazardRadius => _hazardRadius;
-        public double HazardDamage => _hazardDamage;
         public double PhaseThreeMultiplier => _phaseThreeMultiplier;
         public double PreferredDistance => _preferredDistance;
         public BossReinforcement Reinforcement => _reinforcement;
@@ -284,7 +305,11 @@ namespace RuneCode
         public bool IsHydraPattern => _pattern == HYDRA_PATTERN;
         public HydraDefinition Hydra => _hydra;
 
-        /// <summary>패턴 이름, 페이즈 문턱, 공격 주기와 증원의 적·진형 참조를 검증하고 모르는 값이나 증원에 쓸 수 없는 맵형 진형에는 데이터 오류를 발생시킨다.</summary>
+        /// <summary>페이즈에 대응하는 장판 세트 설정을 반환하고 2페이즈가 아니면 3페이즈 설정을 반환한다.</summary>
+        public BossHazard GetHazard(int phase)
+        { return phase == 2 ? _hazardPhaseTwo : _hazardPhaseThree; }
+
+        /// <summary>패턴 이름, 페이즈 문턱, 공격 주기, 장판 세트 설정과 증원의 적·진형 참조를 검증하고 모르는 값이나 증원에 쓸 수 없는 맵형 진형에는 데이터 오류를 발생시킨다.</summary>
         public void Validate(EnemyCatalog enemies, FormationCatalog formations)
         {
             if (IsHydraPattern)
@@ -295,6 +320,9 @@ namespace RuneCode
             }
             if (_pattern != GOVERNOR_PATTERN) throw new FormatException("알 수 없는 보스 패턴입니다: " + _enemyId + ", " + _pattern);
             if (_phaseTwoThreshold <= _phaseThreeThreshold || _patchSeconds <= 0 || _radialCount < 1 || _radialInterval <= 0) throw new FormatException("보스 패턴 설정 오류입니다: " + _enemyId);
+            if (_hazardPhaseTwo == null || _hazardPhaseThree == null) throw new FormatException("보스 장판 설정이 없습니다: " + _enemyId);
+            _hazardPhaseTwo.Validate(_enemyId);
+            _hazardPhaseThree.Validate(_enemyId);
             if (_reinforcement == null || _reinforcement.Count < 1 || _reinforcement.Interval <= 0) throw new FormatException("보스 증원 설정 오류입니다: " + _enemyId);
             enemies.Get(_reinforcement.EnemyId);
             // 증원은 보스 주변 원형 슬롯에 즉시 생성하므로 예고를 거치는 맵형 진형은 쓸 수 없다.

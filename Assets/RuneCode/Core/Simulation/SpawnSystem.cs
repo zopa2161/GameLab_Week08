@@ -332,7 +332,8 @@ namespace RuneCode
             enemy.InitializeHydra(_world.Time);
             if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = _world.Time;
             if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = definition.CarrierInterval;
-            if (boss != null && boss.IsGovernorPattern) { enemy.ReinforcementAt = _world.Time + boss.Reinforcement.Interval; enemy.HazardAt = _world.Time + boss.HazardInterval; }
+            if (boss != null && boss.IsGovernorPattern)
+            { BossHazard hazard = boss.GetHazard(2); enemy.ReinforcementAt = _world.Time + boss.Reinforcement.Interval; enemy.HazardAt = _world.Time + hazard.Interval; enemy.HazardRemaining = hazard.Count; }
             enemy.Observe(_world.Time); _world.Enemies.Add(enemy);
             _stats.RecordEnemySpawn(_world, enemy); if (_world.IsMission) _spawnedEnemies++; return enemy;
         }

@@ -387,7 +387,7 @@ namespace RuneCode
             RecordModifierChoices();
         }
 
-        /// <summary>새 소지 아이템 드롭을 기록하고 일반 모드에서만 라운드 지급 대기 목록과 결과 목록에 담는다. 세이브 지급은 라운드가 끝날 때 한다.</summary>
+        /// <summary>새 소지 아이템 드롭을 기록하고 라운드 지급 대기 목록과 결과 목록에 담는다. 세이브 지급은 라운드가 끝날 때 한다.</summary>
         private void CollectPickedItems()
         {
             foreach (SimulationItemDrop drop in _simulation.TakeNewPickedItems())
@@ -397,9 +397,8 @@ namespace RuneCode
                     ["rune_id"] = drop.RuneId,
                     ["grade"] = drop.Grade,
                     ["count"] = drop.Count,
-                    ["inventory_grant_enabled"] = !_session.IsTestMode,
+                    ["inventory_grant_enabled"] = true,
                 });
-                if (_session.IsTestMode) continue;
                 _pendingRoundDrops.Add(drop);
                 _pickedModifiers.Add(drop);
                 AddModifierReward(drop.RuneId, drop.Grade, drop.Count);
@@ -557,7 +556,7 @@ namespace RuneCode
                 if (!_session.ClaimProgressionChoice(index)) return false;
             }
             else if (!_settled) _session.GrantRoundChoice(_clearModifierChoices[index], grade);
-            else if (!_session.IsTestMode) _session.GrantRune(_clearModifierChoices[index], grade, 1, "clear_choice");
+            else _session.GrantRune(_clearModifierChoices[index], grade, 1, "clear_choice");
             AddModifierReward(_clearModifierChoices[index], grade, 1);
             _isClearModifierChosen = true;
             LocalTelemetry.RecordUsabilityEvent("clear_reward_selected", _settled ? "result" : "round_break", new Dictionary<string, object>

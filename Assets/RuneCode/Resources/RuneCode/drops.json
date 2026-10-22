@@ -1,7 +1,7 @@
 {
   "_normalEnemyDrop": {
     "_dropTable": "drop.elite.basic",
-    "_chancePercent": 0.5,
+    "_chancePercent": 0,
     "_stageChances": [
       { "_fromStage": 1, "_toStage": 5, "_chancePercent": 1 }
     ]
