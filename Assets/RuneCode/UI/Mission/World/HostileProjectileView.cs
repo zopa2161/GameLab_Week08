@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace RuneCode
 {
-    /// <summary>적 탄환(마름모와 잔상)과 보스 위험 장판(채움, 외곽 링, 사선 표시)을 표시한다.
+    /// <summary>적 탄환, 레골라스의 길쭉한 삼각 탄환과 보스 위험 장판(채움, 외곽 링, 사선 표시)을 표시한다.
     /// 예고 중에는 노란색으로 채우고 링이 장판 경계로 수축하며, 활성화되면 빨간색으로 바꾼다.</summary>
     public sealed class HostileProjectileView : MonoBehaviour
     {
@@ -21,10 +21,21 @@ namespace RuneCode
         [SerializeField] private SpriteRenderer _bullet;
         [SerializeField] private SpriteRenderer _trail;
 
+        [Header("레골라스 저격 탄환")]
+        [SerializeField] private Sprite _legolasProjectileShape;
+        [SerializeField, Min(1f)] private float _legolasProjectileStretch = 3f;
+
+        private Sprite _defaultBulletSprite;
+
         [Header("장판")]
         [SerializeField] private SpriteRenderer _hazardFill;
         [SerializeField] private SpriteRenderer _hazardRing;
         [SerializeField] private SpriteRenderer _hazardMark;
+
+        void Awake()
+        {
+            _defaultBulletSprite = _bullet.sprite;
+        }
 
         /// <summary>적 탄환 또는 장판의 위치·크기·예고 상태로 맵 중앙(origin) 기준 월드 표시를 갱신한다.</summary>
         public void Apply(SimulationProjectile projectile, SimVector origin)
@@ -49,7 +60,12 @@ namespace RuneCode
                 MissionWorldSpace.PlaceLine(_hazardMark, -Vector2.one * radius * HAZARD_MARK_SCALE, Vector2.one * radius * HAZARD_MARK_SCALE, HAZARD_LINE_WIDTH, hazardColor);
                 return;
             }
-            MissionWorldSpace.Place(_bullet, Vector2.zero, radius * 2, Tint);
+            bool isLegolasShot = projectile.OwnerBoss != null && projectile.OwnerBoss.IsLegolasPattern;
+            _bullet.sprite = isLegolasShot ? _legolasProjectileShape : _defaultBulletSprite;
+            _bullet.transform.localRotation = isLegolasShot
+                ? Quaternion.Euler(0, 0, MissionWorldSpace.ToWorldAngle(projectile.Direction)) : Quaternion.identity;
+            MissionWorldSpace.Place(_bullet, Vector2.zero,
+                new Vector2(radius * 2 * (isLegolasShot ? _legolasProjectileStretch : 1), radius * 2), Tint);
             MissionWorldSpace.PlaceLine(_trail, -MissionWorldSpace.ToWorldDirection(projectile.Direction) * TRAIL_LENGTH, Vector2.zero, radius, TrailColor);
         }
     }

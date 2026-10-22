@@ -327,7 +327,7 @@ namespace RuneCode
             double radius = definition.Radius * (elite != null ? elite.RadiusMultiplier : 1);
             var enemy = new SimulationEnemy(_world.AllocateEntityId(), definition, EnemyMovements.Resolve(definition.Movement), boss, _world.Map.NearestFree(position, radius), isDummy, hp, _world.Balance.Sim.HitFlashSeconds, hpMultiplier, damageMultiplier, carrierOwnerId == 0 ? reward : 0, elite != null, elite != null ? elite.SpeedMultiplier : 1, elite, isKillTarget, carrierOwnerId);
             enemy.AttackAt = _world.Time + definition.AttackInterval;
-            enemy.InitializeHydra(_world.Time);
+            enemy.InitializeBossState(_world.Time);
             if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = _world.Time;
             if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = definition.CarrierInterval;
             if (boss != null && boss.IsGovernorPattern) { enemy.ReinforcementAt = _world.Time + boss.Reinforcement.Interval; enemy.HazardAt = _world.Time + boss.HazardInterval; }

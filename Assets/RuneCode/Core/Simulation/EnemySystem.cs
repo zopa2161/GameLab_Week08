@@ -90,6 +90,12 @@ namespace RuneCode
                     continue;
                 }
                 SimVector offset = _world.Player.Position - enemy.Position; SimVector direction = offset.Normalized();
+                if (enemy.Legolas != null)
+                {
+                    enemy.Legolas.Advance(enemy, _world, _simulation, _hurtPlayer);
+                    if (!enemy.Legolas.IsAirborne) HurtByContact(enemy);
+                    continue;
+                }
                 BossDefinition bossPattern = enemy.Boss;
                 bool isBoss = bossPattern != null && bossPattern.IsGovernorPattern;
                 if (isBoss) { CheckBossPatch(enemy, bossPattern); if (enemy.IsPatching) continue; }
@@ -317,6 +323,7 @@ namespace RuneCode
             for (int i = _world.EnemyProjectiles.Count - 1; i >= 0; i--)
             {
                 SimulationProjectile projectile = _world.EnemyProjectiles[i];
+                if (projectile.HasDeadOwner) { _world.EnemyProjectiles.RemoveAt(i); continue; }
                 SimVector previous = projectile.Position;
                 projectile.Advance(Math.Min(RuneSimulation.STEP_SECONDS, Math.Max(0, projectile.Lifetime - projectile.Age)));
                 if (!projectile.IsHazard)

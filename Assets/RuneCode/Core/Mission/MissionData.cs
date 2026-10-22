@@ -242,6 +242,7 @@ namespace RuneCode
     {
         public const string GOVERNOR_PATTERN = "governor";
         public const string HYDRA_PATTERN = "hydra";
+        public const string LEGOLAS_PATTERN = "legolas";
 
         [Header("보스 패턴")]
         [SerializeField] private string _enemyId;
@@ -263,6 +264,8 @@ namespace RuneCode
         [SerializeField] private string _dropTable;
         [Header("Hydra")]
         [SerializeField] private HydraDefinition _hydra;
+        [Header("레골라스")]
+        [SerializeField] private LegolasDefinition _legolas;
         public string EnemyId => _enemyId;
         public string Pattern => _pattern;
         public double PhaseTwoThreshold => _phaseTwoThreshold;
@@ -283,10 +286,20 @@ namespace RuneCode
         public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN;
         public bool IsHydraPattern => _pattern == HYDRA_PATTERN;
         public HydraDefinition Hydra => _hydra;
+        public bool IsLegolasPattern => _pattern == LEGOLAS_PATTERN;
+        public bool IsMiniBoss => IsLegolasPattern;
+        public LegolasDefinition Legolas => _legolas;
 
         /// <summary>패턴 이름, 페이즈 문턱, 공격 주기와 증원의 적·진형 참조를 검증하고 모르는 값이나 증원에 쓸 수 없는 맵형 진형에는 데이터 오류를 발생시킨다.</summary>
         public void Validate(EnemyCatalog enemies, FormationCatalog formations)
         {
+            if (IsLegolasPattern)
+            {
+                if (_legolas == null || enemies.Get(_enemyId).Attack != EnemyDefinition.ATTACK_SNIPER)
+                    throw new FormatException("레골라스의 저격 또는 패턴 설정이 없습니다: " + _enemyId);
+                _legolas.Validate();
+                return;
+            }
             if (IsHydraPattern)
             {
                 if (_hydra == null) throw new FormatException("Hydra 설정이 없습니다: " + _enemyId);

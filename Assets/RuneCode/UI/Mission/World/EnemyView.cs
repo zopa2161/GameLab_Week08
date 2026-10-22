@@ -66,6 +66,7 @@ namespace RuneCode
         [SerializeField] private SpriteRenderer _circleShield;
         [SerializeField] private SpriteRenderer _sniperLine;
         [SerializeField] private HydraBossView _hydraView;
+        [SerializeField] private LegolasBossView _legolasView;
 
         /// <summary>적 상태와 시뮬레이션의 시간·상태 이상·적응 정보로 맵 중앙(origin) 기준 월드 표시와 엘리트 외곽선의 맥동을 갱신한다.</summary>
         public void Apply(SimulationEnemy enemy, RuneSimulation sim, SimVector origin)
@@ -118,6 +119,7 @@ namespace RuneCode
             if (ratio > 0) MissionWorldSpace.PlaceLine(_hpFill, new Vector2(-width * 0.5f, barY), new Vector2(-width * 0.5f + width * ratio, barY), HP_BAR_HEIGHT, tint);
             ApplyAdditionalIndicators(enemy, sim);
             if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, _body, _rotator);
+            if (_legolasView != null && enemy.Legolas != null) _legolasView.Apply(enemy, _body, _rotator);
         }
 
         /// <summary>원형 보호막과 저격 경로를 시뮬레이션의 반경·저장 조준선으로 갱신한다.</summary>

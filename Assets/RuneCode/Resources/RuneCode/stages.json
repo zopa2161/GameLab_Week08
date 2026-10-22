@@ -5347,65 +5347,45 @@
                             ]
                         },
                         {
-                            "_at": 0.0,
-                            "_repeatInterval": 0.0,
+                            "_at": 0,
+                            "_repeatInterval": 0,
                             "_formation": {
                                 "_id": "ambush",
                                 "_angle": "",
-                                "_spacing": 0.0,
-                                "_interval": 0.0,
+                                "_spacing": 0,
+                                "_interval": 0,
                                 "_slots": 0
                             },
                             "_units": [
                                 {
+                                    "_enemyId": "boss.legolas",
+                                    "_count": 1,
+                                    "_isElite": false
+                                },
+                                {
                                     "_enemyId": "enemy.scout",
                                     "_count": 8,
                                     "_isElite": false
-                                },
-                                {
-                                    "_enemyId": "enemy.hunter",
-                                    "_count": 1,
-                                    "_isElite": false
-                                },
-                                {
-                                    "_enemyId": "enemy.scout",
-                                    "_count": 1,
-                                    "_isElite": true
                                 }
                             ]
                         }
                     ],
                     "_reward": {
                         "_candidates": [
-                            "mod.saving",
-                            "mod.beamEmpower",
-                            "mod.knockback",
-                            "mod.amplify",
-                            "mod.multi",
-                            "mod.pierce",
-                            "mod.expand",
-                            "mod.duration",
-                            "mod.speed",
-                            "mod.homing",
-                            "mod.orbit",
-                            "mod.sequence"
+                            "behavior.launch",
+                            "behavior.burst",
+                            "behavior.beam",
+                            "behavior.slash",
+                            "behavior.persist"
                         ],
                         "_gradeChances": [
                             {
                                 "_grade": "C",
-                                "_percent": 50
+                                "_percent": 75
                             },
                             {
                                 "_grade": "B",
-                                "_percent": 30
-                            },
-                            {
-                                "_grade": "A",
-                                "_percent": 15
-                            },
-                            {
-                                "_grade": "S",
-                                "_percent": 5
+                                "_percent": 25
                             }
                         ]
                     }
@@ -6043,65 +6023,45 @@
                             ]
                         },
                         {
-                            "_at": 0.0,
-                            "_repeatInterval": 0.0,
+                            "_at": 0,
+                            "_repeatInterval": 0,
                             "_formation": {
                                 "_id": "ambush",
                                 "_angle": "",
-                                "_spacing": 0.0,
-                                "_interval": 0.0,
+                                "_spacing": 0,
+                                "_interval": 0,
                                 "_slots": 0
                             },
                             "_units": [
                                 {
-                                    "_enemyId": "enemy.scout",
-                                    "_count": 10,
-                                    "_isElite": false
-                                },
-                                {
-                                    "_enemyId": "enemy.splitter",
-                                    "_count": 2,
-                                    "_isElite": false
-                                },
-                                {
-                                    "_enemyId": "enemy.scout",
+                                    "_enemyId": "boss.legolas",
                                     "_count": 1,
-                                    "_isElite": true
+                                    "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.scout",
+                                    "_count": 8,
+                                    "_isElite": false
                                 }
                             ]
                         }
                     ],
                     "_reward": {
                         "_candidates": [
-                            "mod.saving",
-                            "mod.beamEmpower",
-                            "mod.knockback",
-                            "mod.amplify",
-                            "mod.multi",
-                            "mod.pierce",
-                            "mod.expand",
-                            "mod.duration",
-                            "mod.speed",
-                            "mod.homing",
-                            "mod.orbit",
-                            "mod.sequence"
+                            "behavior.launch",
+                            "behavior.burst",
+                            "behavior.beam",
+                            "behavior.slash",
+                            "behavior.persist"
                         ],
                         "_gradeChances": [
                             {
-                                "_grade": "C",
-                                "_percent": 50
-                            },
-                            {
                                 "_grade": "B",
-                                "_percent": 30
+                                "_percent": 75
                             },
                             {
                                 "_grade": "A",
-                                "_percent": 15
-                            },
-                            {
-                                "_grade": "S",
-                                "_percent": 5
+                                "_percent": 25
                             }
                         ]
                     }
@@ -6724,65 +6684,45 @@
                             ]
                         },
                         {
-                            "_at": 0.0,
-                            "_repeatInterval": 0.0,
+                            "_at": 0,
+                            "_repeatInterval": 0,
                             "_formation": {
-                                "_id": "surround",
+                                "_id": "ambush",
                                 "_angle": "",
-                                "_spacing": 0.0,
-                                "_interval": 0.0,
+                                "_spacing": 0,
+                                "_interval": 0,
                                 "_slots": 0
                             },
                             "_units": [
                                 {
-                                    "_enemyId": "enemy.scout",
-                                    "_count": 18,
-                                    "_isElite": false
-                                },
-                                {
-                                    "_enemyId": "enemy.sentry",
+                                    "_enemyId": "boss.legolas",
                                     "_count": 1,
                                     "_isElite": false
                                 },
                                 {
                                     "_enemyId": "enemy.scout",
-                                    "_count": 1,
-                                    "_isElite": true
+                                    "_count": 8,
+                                    "_isElite": false
                                 }
                             ]
                         }
                     ],
                     "_reward": {
                         "_candidates": [
-                            "mod.saving",
-                            "mod.beamEmpower",
-                            "mod.knockback",
-                            "mod.amplify",
-                            "mod.multi",
-                            "mod.pierce",
-                            "mod.expand",
-                            "mod.duration",
-                            "mod.speed",
-                            "mod.homing",
-                            "mod.orbit",
-                            "mod.sequence"
+                            "behavior.launch",
+                            "behavior.burst",
+                            "behavior.beam",
+                            "behavior.slash",
+                            "behavior.persist"
                         ],
                         "_gradeChances": [
                             {
-                                "_grade": "C",
-                                "_percent": 50
-                            },
-                            {
-                                "_grade": "B",
-                                "_percent": 30
-                            },
-                            {
                                 "_grade": "A",
-                                "_percent": 15
+                                "_percent": 75
                             },
                             {
                                 "_grade": "S",
-                                "_percent": 5
+                                "_percent": 25
                             }
                         ]
                     }

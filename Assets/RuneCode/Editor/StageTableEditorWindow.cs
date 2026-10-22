@@ -19,6 +19,7 @@ namespace RuneCode.Editor
         private const string DROPS_RESOURCE = "RuneCode/drops";
         private const string RUNES_RESOURCE = "RuneCode/tables/runes";
         private const string GRADES_RESOURCE = "RuneCode/tables/elite_modifier_drops";
+        private const string BOSSES_RESOURCE = "RuneCode/bosses";
         private const float SIDEBAR_WIDTH = 260f;
         private const float SIDEBAR_ROW_HEIGHT = 24f;
         private const float ROW_GAP = 3f;
@@ -47,6 +48,7 @@ namespace RuneCode.Editor
         private static readonly float WAVE_EXPANDED_BASE = ROW_HEIGHT * 2 + FORMATION_BOX_HEIGHT + ROW_GAP * 3 + 5;
 
         private StageCatalogHost _host;
+        private BossCatalog _bosses;
         private SerializedObject _serialized;
         private string _savePath = "";
 
@@ -285,7 +287,7 @@ namespace RuneCode.Editor
                 DrawProgressionRoundRow(rounds, stageIndex, roundIndex);
         }
 
-        /// <summary>라운드 한 행에 라운드 번호·유닛 합계를 표시하고 마지막 라운드에 보스 태그를 붙인다. 클릭으로 선택한다.</summary>
+        /// <summary>라운드 번호·유닛 합계와 3라운드 미니 보스 또는 마지막 라운드 보스 태그를 표시하고 클릭으로 선택한다.</summary>
         private void DrawProgressionRoundRow(SerializedProperty rounds, int stageIndex, int roundIndex)
         {
             SerializedProperty waves = rounds.GetArrayElementAtIndex(roundIndex).FindPropertyRelative("_waves");
@@ -296,6 +298,7 @@ namespace RuneCode.Editor
             }
             bool isSelected = stageIndex == _selectedProgressionStageIndex && roundIndex == _selectedProgressionRoundIndex;
             bool isBossRound = roundIndex == StageCatalog.PROGRESSION_ROUND_COUNT - 1;
+            bool isMiniBossRound = roundIndex + 1 == StageCatalog.MINI_BOSS_ROUND;
 
             Rect row = EditorGUILayout.GetControlRect(GUILayout.Height(SIDEBAR_ROW_HEIGHT));
             if (isSelected) EditorGUI.DrawRect(row, SELECTION_BACKGROUND);
@@ -308,10 +311,10 @@ namespace RuneCode.Editor
             Rect labelRect = new Rect(row.x + 4, row.y, row.width * 0.62f, row.height);
             Rect tagRect = new Rect(labelRect.xMax, row.y, row.width - labelRect.width - 4, row.height);
             GUI.Label(labelRect, "  라운드 " + (roundIndex + 1) + " · 유닛 " + CountRoundUnits(waves));
-            if (!isBossRound) return;
+            if (!isBossRound && !isMiniBossRound) return;
             Color previous = GUI.contentColor;
             GUI.contentColor = BOSS_TAG_COLOR;
-            GUI.Label(tagRect, "보스", EditorStyles.miniLabel);
+            GUI.Label(tagRect, isMiniBossRound ? "미니 보스" : "보스", EditorStyles.miniLabel);
             GUI.contentColor = previous;
         }
 
@@ -536,13 +539,15 @@ namespace RuneCode.Editor
         private void DrawProgressionWaves(SerializedProperty waves)
         {
             bool isBossRound = _selectedProgressionRoundIndex == StageCatalog.PROGRESSION_ROUND_COUNT - 1;
+            bool isMiniBossRound = _selectedProgressionRoundIndex + 1 == StageCatalog.MINI_BOSS_ROUND;
             int bossWaveIndex = StageCatalog.PROGRESSION_WAVE_COUNT - 1;
             for (int waveIndex = 0; waveIndex < waves.arraySize; waveIndex++)
             {
-                int bossCount = CountBossUnits(waves.GetArrayElementAtIndex(waveIndex));
+                int bossCount = CountBossUnits(waves.GetArrayElementAtIndex(waveIndex), false);
+                int miniBossCount = CountBossUnits(waves.GetArrayElementAtIndex(waveIndex), true);
                 if (isBossRound && waveIndex == bossWaveIndex)
                 {
-                    EditorGUILayout.HelpBox("이 웨이브에 보스(boss.*) 1기가 필요합니다.", MessageType.Info);
+                    EditorGUILayout.HelpBox("이 웨이브에 최종 보스 1기가 필요합니다.", MessageType.Info);
                     if (bossCount != 1)
                         EditorGUILayout.HelpBox("마지막 웨이브의 보스 수가 1기가 아닙니다.", MessageType.Warning);
                 }
@@ -550,6 +555,13 @@ namespace RuneCode.Editor
                 {
                     EditorGUILayout.HelpBox("보스는 마지막 라운드의 마지막 웨이브에만 둘 수 있습니다.", MessageType.Warning);
                 }
+                if (isMiniBossRound && waveIndex == bossWaveIndex)
+                {
+                    EditorGUILayout.HelpBox("이 웨이브에 미니 보스(레골라스) 1기가 필요합니다. 동반 적까지 모두 처치해야 완료됩니다.", MessageType.Info);
+                    if (miniBossCount != 1) EditorGUILayout.HelpBox("미니 보스 수가 1기가 아닙니다.", MessageType.Warning);
+                }
+                else if (miniBossCount > 0)
+                    EditorGUILayout.HelpBox("미니 보스는 3라운드의 마지막 웨이브에만 둘 수 있습니다.", MessageType.Warning);
                 DrawProgressionWave(waves, waveIndex);
             }
         }
@@ -573,8 +585,8 @@ namespace RuneCode.Editor
             EditorGUILayout.Space(4);
         }
 
-        /// <summary>웨이브 유닛 중 boss. 접두어 적의 수량 합을 반환한다.</summary>
-        private static int CountBossUnits(SerializedProperty wave)
+        /// <summary>보스 데이터의 미니 보스 구분과 일치하는 웨이브 유닛 수량 합을 반환한다.</summary>
+        private int CountBossUnits(SerializedProperty wave, bool isMiniBoss)
         {
             SerializedProperty units = wave.FindPropertyRelative("_units");
             if (units == null) return 0;
@@ -582,7 +594,8 @@ namespace RuneCode.Editor
             for (int i = 0; i < units.arraySize; i++)
             {
                 SerializedProperty unit = units.GetArrayElementAtIndex(i);
-                if (unit.FindPropertyRelative("_enemyId").stringValue.StartsWith("boss.", StringComparison.Ordinal))
+                string id = unit.FindPropertyRelative("_enemyId").stringValue;
+                if (_bosses != null && _bosses.TryGet(id, out BossDefinition boss) && boss.IsMiniBoss == isMiniBoss)
                     total += unit.FindPropertyRelative("_count").intValue;
             }
             return total;
@@ -954,6 +967,17 @@ namespace RuneCode.Editor
         /// <summary>팝업 후보로 쓸 적·진형·드롭·룬 ID와 Modifier 등급을 Resources JSON에서 읽어 캐시한다.</summary>
         private void LoadExternalOptions()
         {
+            try
+            {
+                EnemyCatalog enemies = EnemyCatalog.FromJson(LoadResourceText(ENEMIES_RESOURCE));
+                FormationCatalog formations = FormationCatalog.FromJson(LoadResourceText(FORMATIONS_RESOURCE));
+                _bosses = BossCatalog.FromJson(LoadResourceText(BOSSES_RESOURCE), enemies, formations);
+            }
+            catch (Exception exception)
+            {
+                _bosses = null;
+                Debug.LogError("[StageTableEditor] 보스 목록 로드 실패: " + exception.Message);
+            }
             _enemyIds = LoadIdEntries(ENEMIES_RESOURCE, json => JsonUtility.FromJson<EnemyIdList>(json)?.Entries);
             _formationIds = LoadIdEntries(FORMATIONS_RESOURCE, json => JsonUtility.FromJson<FormationIdList>(json)?.Entries);
             _dropTableIds = LoadIdEntries(DROPS_RESOURCE, json => JsonUtility.FromJson<DropIdList>(json)?.Entries);
@@ -1012,7 +1036,8 @@ namespace RuneCode.Editor
             FormationCatalog formations = FormationCatalog.FromJson(LoadResourceText(FORMATIONS_RESOURCE));
             RuneCatalog runes = RuneCatalog.FromTable(JsonUtility.FromJson<RuneTableData>(LoadResourceText(RUNES_RESOURCE)));
             ModifierGradeTable grades = ModifierGradeTable.FromJson(LoadResourceText(GRADES_RESOURCE), runes);
-            StageCatalog.FromJson(json, enemies, formations, drops, grades, runes);
+            BossCatalog bosses = BossCatalog.FromJson(LoadResourceText(BOSSES_RESOURCE), enemies, formations);
+            StageCatalog.FromJson(json, enemies, formations, drops, grades, runes, bosses);
         }
 
         /// <summary>저장 없이 현재 편집 상태를 런타임 검증으로 확인하고 결과를 상태줄에 표시한다.</summary>
