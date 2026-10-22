@@ -32,13 +32,15 @@ namespace RuneCode
 
         private readonly GraphViewport _viewport;
         private readonly Func<SpellGraph> _graph;
+        private readonly bool _isReadOnly;
         private readonly Dictionary<string, GraphNode> _nodeLookup = new Dictionary<string, GraphNode>();
 
         /// <summary>뷰포트와 현재 그래프 조회 함수로 배치 계산기를 만든다.</summary>
-        public GraphNodeLayout(GraphViewport viewport, Func<SpellGraph> graph)
+        public GraphNodeLayout(GraphViewport viewport, Func<SpellGraph> graph, bool isReadOnly = false)
         {
             _viewport = viewport;
             _graph = graph;
+            _isReadOnly = isReadOnly;
         }
 
         /// <summary>현재 그래프 노드를 ID로 찾는 조회 테이블을 다시 채운다. 연결선 위치 조회 전에 호출한다.</summary>
@@ -112,7 +114,7 @@ namespace RuneCode
         public bool TryGetGradeButtonRect(GraphNode node, RuneDefinition rune, out Rect rect)
         {
             rect = default;
-            if (!HasSlots(rune)) return false;
+            if (_isReadOnly || !HasSlots(rune)) return false;
             rect = CellRect(node, rune, ElementSlotCount(node) + MODIFIER_SLOT_ROWS, 0, 1);
             return true;
         }
@@ -330,8 +332,8 @@ namespace RuneCode
         }
 
         /// <summary>행동 등급의 속성 행, Modifier 여섯 칸의 세 행과 등급 변경 버튼 행을 포함한 슬롯 영역 높이를 반환한다.</summary>
-        private static float SlotSectionHeight(GraphNode node)
-            => (ElementSlotCount(node) + MODIFIER_SLOT_ROWS + GRADE_BUTTON_ROWS) * SLOT_ROW_HEIGHT + SLOT_PADDING;
+        private float SlotSectionHeight(GraphNode node)
+            => (ElementSlotCount(node) + MODIFIER_SLOT_ROWS + (_isReadOnly ? 0 : GRADE_BUTTON_ROWS)) * SLOT_ROW_HEIGHT + SLOT_PADDING;
 
         /// <summary>최대 속성 슬롯과 Modifier 슬롯에 해당하는 셀 키 배열을 만든다.</summary>
         private static string[] BuildSlotKeys()

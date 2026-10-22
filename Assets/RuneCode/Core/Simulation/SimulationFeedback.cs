@@ -33,6 +33,9 @@ namespace RuneCode
         /// <summary>틱·밸런스 조회에 쓸 공유 월드를 받아 표시 기록 시스템을 만든다.</summary>
         internal SimulationFeedback(SimulationWorld world) { _world = world; }
 
+        /// <summary>이전 라운드의 피해 숫자 표시 기록을 모두 비운다.</summary>
+        internal void ClearDamageNumbers() => _damageNumbers.Clear();
+
         /// <summary>피해 숫자 표시를 목록 끝에 추가한다.</summary>
         internal void AddDamageNumber(SimVector position, double amount, string element)
             => _damageNumbers.Add(new DamageNumber(position, amount, element, _world.Tick));

@@ -59,6 +59,8 @@ namespace RuneCode
         private bool _isPaused;
         private bool _settled;
         private string _lastResult;
+        private SpellGraph _resultGraph;
+        private readonly List<SpellGraph> _resultLibrary = new List<SpellGraph>();
         private readonly List<SimulationItemDrop> _pickedModifiers = new List<SimulationItemDrop>();
         private readonly List<SimulationItemDrop> _pendingRoundDrops = new List<SimulationItemDrop>();
         private int _grantedFragments;
@@ -75,6 +77,11 @@ namespace RuneCode
 
         /// <summary>시전할 마법 이름을 반환한다.</summary>
         public string SpellName => _spellName;
+
+        /// <summary>진행 초기화 전에 보관한 마지막 빌드와 참조 마법 목록이다.</summary>
+        public SpellGraph ResultGraph => _resultGraph;
+        public IReadOnlyList<SpellGraph> ResultLibrary => _resultLibrary;
+        public CompiledSpell ResultSpell => _spell;
 
         /// <summary>시전할 마법의 에너지 비용을 반환한다.</summary>
         public float SpellCost => _spell?.EnergyCost ?? 0f;
@@ -525,6 +532,9 @@ namespace RuneCode
                     ["is_first_completion"] = isFirstCompletion,
                 });
             }
+            _resultGraph = _session.Spells.Graph.Clone();
+            _resultLibrary.Clear();
+            foreach (SpellGraph graph in _session.Spells.Library) _resultLibrary.Add(graph.Clone());
             _session.EndRun();
         }
 

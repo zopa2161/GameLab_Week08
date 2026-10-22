@@ -43,6 +43,7 @@ namespace RuneCode
         private double _lastPlayerDamage;
         private bool _isResultShown;
         private bool _hasPresentedChoices;
+        private bool _isInitialDebugRoundBreak;
         private int _lastFragments;
         private int _lastEnemyDamageEventCount;
         private int _lastShotLaunchEventCount;
@@ -63,8 +64,9 @@ namespace RuneCode
         /// <summary>현재 진행 중인 미션의 시뮬레이션이다. 경기장 그래픽이 읽으며 미션이 없으면 null이다.</summary>
         public RuneSimulation Simulation => _run?.Simulation;
 
-        /// <summary>진행 중인 런이 라운드 대기(RoundBreak) 상태라 작업실을 열 수 있는지 반환한다. 일시정지·팝업 입력 잠금은 따로 확인한다.</summary>
-        private bool CanOpenWorkshop => _run != null && !_run.IsFinished && _run.IsWaitingForNextRound;
+        /// <summary>라운드 대기 중 보상 선택지를 표시했거나 디버그 최초 대기 상태이면 작업실을 열 수 있는지 반환한다. 일시정지·팝업 입력 잠금은 따로 확인한다.</summary>
+        private bool CanOpenWorkshop => _run != null && !_run.IsFinished && _run.IsWaitingForNextRound
+            && (_isInitialDebugRoundBreak || _hasPresentedChoices);
 
         /// <summary>세션·UI 관리자와 미션 화면의 View들을 받아 View 이벤트를 연결한다.</summary>
         public MissionPresenter(RuneCodeSession session, UIManager ui, MissionScreen screen, MissionHud hud, ResultPanel result)
@@ -267,7 +269,15 @@ namespace RuneCode
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             if (_run.TryStartNextRound())
             {
+                _isInitialDebugRoundBreak = false;
                 _hasPresentedChoices = false;
+                _lastPickedItemCount = _run.Simulation.PickedUpItems.Count;
+                _lastFragments = _run.Simulation.EarnedFragments;
+                _pendingToastFragments = 0;
+                _isItemToastVisible = false;
+                _itemToasts.Clear();
+                _toastUntil = 0f;
+                _hud.SetToast(string.Empty);
                 RenderHud();
             }
         }
@@ -313,6 +323,7 @@ namespace RuneCode
         {
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             if (!_run.DebugStartBoss(_debugBossStages[index])) return;
+            _isInitialDebugRoundBreak = false;
             _result.HideClearModifierChoices();
             _result.Hide();
             _hasPresentedChoices = false;
@@ -454,12 +465,8 @@ namespace RuneCode
             RuneSimulation sim = _run.Simulation;
             if (sim.Completed) SoundManager.Instance.PlayRoundClear();
             else SoundManager.Instance.PlayRoundDefeat();
-            int elapsedSeconds = (int)sim.Time;
             RunResultPopup popup = _ui.OpenPopup<RunResultPopup>();
-            popup.Configure(sim.Completed ? "런 클리어" : "런 종료",
-                GameData.L("ui.stage") + " " + sim.StageNumber,
-                "플레이 타임 " + (elapsedSeconds / 60).ToString("00") + ":" + (elapsedSeconds % 60).ToString("00"),
-                GameData.L("ui.kills") + " " + sim.KillCount);
+            popup.Configure(_run.ResultGraph, _run.ResultLibrary, _run.ResultSpell, sim);
             popup.TitleClicked += _session.ReturnToTitle;
             popup.Closed += () => popup.TitleClicked -= _session.ReturnToTitle;
         }
@@ -577,6 +584,7 @@ namespace RuneCode
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
+            _isInitialDebugRoundBreak = _session.IsDebugEnabled && _run.IsWaitingForNextRound;
             _lastEnemyDamageEventCount = 0;
             _lastShotLaunchEventCount = 0;
             _lastShotBurstEventCount = 0;
