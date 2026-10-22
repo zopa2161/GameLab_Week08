@@ -33,7 +33,7 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private readonly Queue<string> _itemToasts = new Queue<string>();
-        private readonly List<int> _debugBossStages = new List<int>();
+        private readonly List<(int Stage, int Round)> _debugBossTargets = new List<(int Stage, int Round)>();
 
         private MissionRun _run;
         private PausePopup _pausePopup;
@@ -267,37 +267,39 @@ namespace RuneCode
             _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
         }
 
-        /// <summary>보스 정의마다 그 보스가 처음 보스 웨이브에 나오는 연속 스테이지를 찾아 디버그 보스 버튼과 스테이지 목록을 만든다. 등장 스테이지가 없는 보스는 제외한다.</summary>
+        /// <summary>보스 종류별 등장 라운드에서 최초 스테이지를 찾아 디버그 버튼과 이동할 스테이지·라운드를 구성한다.</summary>
         private void BuildDebugBosses()
         {
             var labels = new List<string>();
             foreach (BossDefinition boss in GameData.Bosses.Bosses)
             {
-                int stage = FindBossStage(boss.EnemyId);
+                int round = boss.IsMiniBoss ? StageCatalog.MINI_BOSS_ROUND : StageCatalog.PROGRESSION_ROUND_COUNT;
+                int stage = FindBossStage(boss.EnemyId, round);
                 if (stage == 0) continue;
-                _debugBossStages.Add(stage);
-                labels.Add("보스 " + GameData.L(boss.EnemyId) + " · 스테이지 " + stage);
+                _debugBossTargets.Add((stage, round));
+                labels.Add((boss.IsMiniBoss ? "" : "보스 ") + GameData.L(boss.EnemyId) + " · 스테이지 " + stage);
             }
             _hud.BuildDebugBosses(labels);
         }
 
-        /// <summary>연속 스테이지의 보스 웨이브(마지막 라운드·마지막 웨이브) 중 bossId가 처음 나오는 스테이지 번호를 반환하고 없으면 0을 반환한다.</summary>
-        private static int FindBossStage(string bossId)
+        /// <summary>지정 라운드의 마지막 웨이브에 bossId가 처음 나오는 스테이지 번호를 반환하고 없으면 0을 반환한다.</summary>
+        private static int FindBossStage(string bossId, int round)
         {
             foreach (ProgressionStageDefinition stage in GameData.Stages.ProgressionStages)
             {
-                WaveDefinition bossWave = stage.Rounds[StageCatalog.PROGRESSION_ROUND_COUNT - 1].Waves[StageCatalog.PROGRESSION_WAVE_COUNT - 1];
+                WaveDefinition bossWave = stage.Rounds[round - 1].Waves[StageCatalog.PROGRESSION_WAVE_COUNT - 1];
                 foreach (WaveUnit unit in bossWave.Units)
                     if (unit.EnemyId == bossId) return stage.Stage;
             }
             return 0;
         }
 
-        /// <summary>디버그 라운드 대기 중 순번의 보스 스테이지 보스 웨이브로 바로 진입한다. 표시 중인 라운드 보상 카드는 닫고 버린다.</summary>
+        /// <summary>디버그 라운드 대기 중 순번에 연결된 스테이지·라운드의 보스 웨이브로 진입하고 이전 보상 카드를 닫는다.</summary>
         private void StartDebugBoss(int index)
         {
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
-            if (!_run.DebugStartBoss(_debugBossStages[index])) return;
+            (int Stage, int Round) target = _debugBossTargets[index];
+            if (!_run.DebugStartBoss(target.Stage, target.Round)) return;
             _result.HideClearModifierChoices();
             _result.Hide();
             _hasPresentedChoices = false;

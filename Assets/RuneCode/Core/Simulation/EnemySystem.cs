@@ -291,12 +291,12 @@ namespace RuneCode
         /// </summary>
         private void AdvanceBoss(SimulationEnemy boss, BossDefinition pattern, SimVector direction)
         {
+            if (pattern.IsMiniBoss) { AdvanceMiniGovernor(boss, pattern, direction); return; }
             double multiplier = boss.Phase == 3 ? pattern.PhaseThreeMultiplier : 1;
             if (_world.Time + 0.000001 >= boss.AttackAt)
             {
                 if (boss.Phase == 1 || boss.Phase == 3)
-                    for (int i = 0; i < pattern.RadialCount; i++)
-                    { double angle = i * 2 * Math.PI / pattern.RadialCount; ShootFan(boss, new SimVector(Math.Cos(angle), Math.Sin(angle)), 1, multiplier); }
+                    ShootRadial(boss, pattern.RadialCount, multiplier);
                 if (boss.Phase >= 2) ShootBurst(boss, direction, multiplier);
                 boss.AttackAt = _world.Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval) / multiplier;
             }
@@ -311,10 +311,52 @@ namespace RuneCode
             HurtByContact(boss);
         }
 
-        /// <summary>보스 체력 문턱에서 패치 무적, 최고 피해 태그 잠금과 새 페이즈 장판 세트 초기화를 적용한다.</summary>
+        /// <summary>보스 설정의 개수와 탄속 배율로 전방위에 균등한 간격의 단발 탄환을 발사한다.</summary>
+        private void ShootRadial(SimulationEnemy boss, int count, double speedMultiplier)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                double angle = i * 2 * Math.PI / count;
+                ShootFan(boss, new SimVector(Math.Cos(angle), Math.Sin(angle)), 1, speedMultiplier);
+            }
+        }
+
+        /// <summary>짧은 예고 후 미니 거버너의 방사형 사격과 2페이즈의 방향 고정 3연사를 교대로 실행한다.</summary>
+        private void AdvanceMiniGovernor(SimulationEnemy boss, BossDefinition pattern, SimVector direction)
+        {
+            if (boss.WarningUntil > 0)
+            {
+                if (_world.Time + RuneSimulation.COLLISION_EPSILON >= boss.WarningUntil)
+                {
+                    if (boss.Phase == 2 && boss.IsNextBossBurst) ShootBurst(boss, boss.AttackDirection, 1);
+                    else ShootRadial(boss, pattern.RadialCount, 1);
+                    if (boss.Phase == 2) boss.IsNextBossBurst = !boss.IsNextBossBurst;
+                    boss.WarningUntil = 0;
+                    boss.AttackAt = _world.Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval);
+                }
+            }
+            else if (_world.Time + RuneSimulation.COLLISION_EPSILON >= boss.AttackAt)
+            {
+                boss.AttackDirection = direction;
+                boss.WarningUntil = _world.Time + boss.Definition.WarningSeconds;
+            }
+            HurtByContact(boss);
+        }
+
+        /// <summary>체력 문턱에서 보스 페이즈를 전환한다. 미니 보스는 2페이즈까지만 전환하고 장판·학습을 적용하지 않는다.</summary>
         internal void CheckBossPatch(SimulationEnemy boss, BossDefinition pattern)
         {
             if (boss.IsPatching) return;
+            if (pattern.IsMiniBoss)
+            {
+                if (boss.Phase != 1 || boss.Hp / boss.MaxHp > pattern.PhaseTwoThreshold) return;
+                boss.Patch(2, _world.Time, pattern.PatchSeconds);
+                boss.Observe(_world.Time);
+                boss.WarningUntil = 0;
+                boss.IsNextBossBurst = false;
+                boss.AttackAt = _world.Time + pattern.PatchSeconds;
+                return;
+            }
             int next = boss.Phase == 1 && boss.Hp / boss.MaxHp <= pattern.PhaseTwoThreshold ? 2 : boss.Phase == 2 && boss.Hp / boss.MaxHp <= pattern.PhaseThreeThreshold ? 3 : boss.Phase;
             if (next == boss.Phase) return;
             boss.Patch(next, _world.Time, pattern.PatchSeconds); boss.Observe(_world.Time); boss.HazardRemaining = pattern.GetHazard(next).Count; _world.Adaptation.LockTopDamageTags();

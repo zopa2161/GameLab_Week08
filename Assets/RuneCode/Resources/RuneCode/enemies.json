@@ -339,6 +339,28 @@
       "_sides": 8,
       "_reward": 60,
       "_dropTable": ""
+    },
+    {
+      "_dashSeconds": 0,
+      "_radius": 25,
+      "_projectileSpeed": 180,
+      "_spreadDegrees": 12,
+      "_attackInterval": 1.2,
+      "_warningSeconds": 0.45,
+      "_dashSpeed": 0,
+      "_hp": 360,
+      "_attackRange": 1200,
+      "_speed": 55,
+      "_projectileRadius": 6,
+      "_projectileLifetime": 8,
+      "_id": "boss.mini_governor",
+      "_movement": "keepDistance",
+      "_attack": "contact",
+      "_sides": 6,
+      "_dropTable": "",
+      "_reward": 30,
+      "_damage": 8,
+      "_burstInterval": 0.16
     }
   ]
 }

@@ -263,16 +263,16 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 디버그 실행의 라운드 대기 중에만 지정 스테이지의 보스 웨이브로 바로 진입한다. 고르지 않은 라운드 보상 후보는 버린다.
+        /// 디버그 라운드 대기 중 지정 스테이지·라운드의 마지막 웨이브로 진입한다. 기본 라운드는 최종 보스이며 고르지 않은 보상은 버린다.
         /// 보스 처치 후에는 일반 진행과 같이 라운드 보상과 대기 상태로 이어진다. 진입 성공 여부를 반환한다.
         /// </summary>
-        public bool DebugStartBoss(int stage)
+        public bool DebugStartBoss(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT)
         {
             if (!_session.IsDebugEnabled || _settled || _isPaused || !_simulation.IsWaitingForNextRound) return false;
             ResetRoundInput();
             int completedStage = _simulation.StageNumber;
             int completedRound = _simulation.RoundNumber;
-            if (!_simulation.DebugStartBossWave(stage)) return false;
+            if (!_simulation.DebugStartBossWave(stage, round)) return false;
             EndRoundBreak(completedStage, completedRound, "debug_boss_clicked");
             return true;
         }

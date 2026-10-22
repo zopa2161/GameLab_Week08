@@ -236,16 +236,17 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 디버그 기능에서 라운드 소강상태의 연속 미션을 지정 스테이지의 보스 웨이브(마지막 라운드·마지막 웨이브)로 바로 전환한다.
-        /// 플레이어 체력을 최대로 채우며 소강상태가 아니거나 스테이지 범위를 벗어나면 false를 반환한다.
+        /// 디버그 라운드 대기 중 지정 스테이지의 미니 보스 또는 최종 보스 라운드 마지막 웨이브로 전환한다. 기본값은 최종 보스다.
+        /// 플레이어 체력을 최대로 채우며 대기 상태·스테이지·보스 라운드가 유효하지 않으면 false를 반환한다.
         /// </summary>
-        public bool DebugStartBossWave(int stage)
+        public bool DebugStartBossWave(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT)
         {
             if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak
-                || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT) return false;
+                || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT
+                || (round != StageCatalog.MINI_BOSS_ROUND && round != StageCatalog.PROGRESSION_ROUND_COUNT)) return false;
             _loot.ClearClearFeedback();
             _world.StageNumber = stage;
-            _world.RoundNumber = StageCatalog.PROGRESSION_ROUND_COUNT;
+            _world.RoundNumber = round;
             _world.WaveNumber = StageCatalog.PROGRESSION_WAVE_COUNT;
             _world.StageDefinition = _world.Stages.Get(stage);
             _world.Player.SetHp(_world.Player.MaxHp);

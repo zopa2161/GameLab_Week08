@@ -53,6 +53,17 @@
         "_spinLength": 230,
         "_spinSeconds": 0.9
       }
+    },
+    {
+      "_enemyId": "boss.mini_governor",
+      "_pattern": "mini_governor",
+      "_phaseTwoThreshold": 0.5,
+      "_patchSeconds": 0.4,
+      "_radialInterval": 2.6,
+      "_radialCount": 5,
+      "_aimInterval": 1.8,
+      "_preferredDistance": 200,
+      "_dropTable": ""
     }
   ]
 }
