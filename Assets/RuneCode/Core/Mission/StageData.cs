@@ -27,6 +27,11 @@ namespace RuneCode
         [Header("스테이지 성장")]
         [SerializeField] private double _hpStageScale;
         [SerializeField] private double _damageStageScale;
+
+        [Header("3막 체력 곡선")]
+        [SerializeField] private double[] _actHpStartMultipliers = { 1, 2.5, 6 };
+        [SerializeField] private double[] _actHpEndMultipliers = { 2, 5, 12 };
+        [SerializeField, Min(0.01f)] private double _hpCurveExponent = 1.2;
         public double HpStageScale => _hpStageScale;
         public double DamageStageScale => _damageStageScale;
 
@@ -35,6 +40,42 @@ namespace RuneCode
 
         /// <summary>스테이지 번호로 피해 배율을 계산해 반환한다. 입력 stage는 1부터 시작한다.</summary>
         public double GetDamageMultiplier(int stage) => 1 + (stage - 1) * _damageStageScale;
+
+        /// <summary>1부터 시작하는 막·라운드 번호를 곡선 범위로 제한해 해당 라운드의 기본 체력 배율을 반환한다.</summary>
+        public double GetActHpMultiplier(int stage, int round)
+        {
+            int index = Math.Max(0, Math.Min(StageCatalog.PROGRESSION_STAGE_COUNT - 1, stage - 1));
+            double progress = Math.Max(0, Math.Min(StageCatalog.PROGRESSION_ROUND_COUNT - 1, round - 1))
+                / (double)(StageCatalog.PROGRESSION_ROUND_COUNT - 1);
+            return EvaluateHpCurve(_actHpStartMultipliers[index], _actHpEndMultipliers[index], _hpCurveExponent, progress);
+        }
+
+        /// <summary>시작·종료 배율 사이를 지수 보간하고 곡선 지수로 진행률을 조절해 체력 배율을 반환한다.</summary>
+        public static double EvaluateHpCurve(double start, double end, double exponent, double progress)
+        {
+            double curvedProgress = Math.Pow(Math.Max(0, Math.Min(1, progress)), exponent);
+            return Math.Exp(Math.Log(start) * (1 - curvedProgress) + Math.Log(end) * curvedProgress);
+        }
+
+        /// <summary>막별 시작·종료 배율과 곡선 지수가 유한한 양수이며 진행 중 체력이 감소하지 않는지 검사한다.</summary>
+        public void ValidateHpCurve()
+        {
+            if (_actHpStartMultipliers == null || _actHpEndMultipliers == null
+                || _actHpStartMultipliers.Length != StageCatalog.PROGRESSION_STAGE_COUNT
+                || _actHpEndMultipliers.Length != StageCatalog.PROGRESSION_STAGE_COUNT)
+                throw new FormatException("체력 곡선은 3개 막의 시작·종료 배율이 필요합니다.");
+            if (double.IsNaN(_hpCurveExponent) || double.IsInfinity(_hpCurveExponent) || _hpCurveExponent <= 0)
+                throw new FormatException("체력 곡선 지수는 0보다 큰 유한값이어야 합니다.");
+            for (int index = 0; index < _actHpStartMultipliers.Length; index++)
+            {
+                double start = _actHpStartMultipliers[index];
+                double end = _actHpEndMultipliers[index];
+                if (double.IsNaN(start) || double.IsInfinity(start) || start <= 0
+                    || double.IsNaN(end) || double.IsInfinity(end) || end < start
+                    || (index > 0 && start < _actHpEndMultipliers[index - 1]))
+                    throw new FormatException((index + 1) + "막 체력 배율은 양수이며 이전 라운드·막보다 작아질 수 없습니다.");
+            }
+        }
     }
 
     [Serializable]
@@ -480,6 +521,7 @@ namespace RuneCode
         /// <summary>루트의 맵 칸수, 성장 배율, 스폰 설정(맵형 스폰 예고·거리·유예 포함), 정지 전진 속도 범위와 유한값을 확인한다.</summary>
         private static void ValidateRoot(StageCatalog catalog)
         {
+            catalog._growth.ValidateHpCurve();
             if (catalog._map.RoomColumns < 1 || catalog._map.RoomRows < 1 || catalog._map.RoomsX < 1 || catalog._map.RoomsY < 1)
                 throw new FormatException("맵 칸수는 1 이상이어야 합니다.");
             if (!IsFinite(catalog._growth.HpStageScale) || !IsFinite(catalog._growth.DamageStageScale)

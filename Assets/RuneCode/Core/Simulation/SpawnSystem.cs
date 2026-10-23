@@ -296,6 +296,8 @@ namespace RuneCode
             if (_world.IsMission && _world.Stage != MissionStage.Combat || _world.Enemies.Count >= _world.EnemyLimit) return null;
             EnemyDefinition definition = _world.EnemyCatalog.Get(id);
             double hpMultiplier = _world.IsMission ? _world.Stages.GetHpMultiplier(_world.StageNumber) : 1;
+            if (_world.IsProgressionMission)
+                hpMultiplier = _world.Stages.Growth.GetActHpMultiplier(_world.StageNumber, _world.RoundNumber);
             if (elite != null) hpMultiplier *= elite.HpMultiplier;
             double damageMultiplier = _world.IsMission ? _world.Stages.Growth.GetDamageMultiplier(_world.StageNumber) : 1;
             int reward = _world.IsMission ? _world.Stages.GetReward(id, definition.Reward) : definition.Reward;

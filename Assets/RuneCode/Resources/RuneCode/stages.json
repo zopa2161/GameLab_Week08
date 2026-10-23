@@ -6,6 +6,9 @@
         "_roomsY": 1
     },
     "_growth": {
+        "_actHpStartMultipliers": [1, 2.5, 6],
+        "_actHpEndMultipliers": [2, 5, 12],
+        "_hpCurveExponent": 1.2,
         "_hpStageScale": 0.15,
         "_damageStageScale": 0.05
     },
