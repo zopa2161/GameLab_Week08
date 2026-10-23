@@ -64,13 +64,13 @@ namespace RuneCode
                 MissionWorldSpace.SetVisible(_neckWarnings[index], isWarning);
                 if (isWarning)
                     MissionWorldSpace.PlaceLine(_neckWarnings[index], Vector2.zero,
-                        LocalPoint(state.GetNeckEnd(enemy, index, simulation, true), enemy.Position), (float)settings.NeckWidth, WithAlpha(_warningTint, 0.3f));
+                        LocalPoint(state.GetNeckEnd(enemy, index, simulation, true), enemy.Position), (float)settings.NeckWidth, WithAlpha(_warningTint, 0.05f));
             }
             RenderSpinWarning(enemy);
             bool hasRange = state.IsStompWarning;
             MissionWorldSpace.SetVisible(_rangeRing, hasRange);
             if (hasRange) MissionWorldSpace.Place(_rangeRing, LocalPoint(state.JumpTarget, enemy.Position),
-                (float)settings.WaveRadius * 2, WithAlpha(_warningTint, 0.65f));
+                (float)settings.WaveRadius * 2, WithAlpha(_warningTint, 0.4f));
             bool hasTarget = state.IsStompWarning;
             MissionWorldSpace.SetVisible(_targetFill, hasTarget);
             MissionWorldSpace.SetVisible(_targetRing, hasTarget);
@@ -78,7 +78,7 @@ namespace RuneCode
             {
                 Vector2 point = LocalPoint(state.JumpTarget, enemy.Position);
                 float radius = (float)enemy.Radius;
-                MissionWorldSpace.Place(_targetFill, point, radius * 2, WithAlpha(_warningTint, 0.15f));
+                MissionWorldSpace.Place(_targetFill, point, radius * 2, WithAlpha(_warningTint, 0.1f));
                 MissionWorldSpace.Place(_targetRing, point, radius * 2, _warningTint);
             }
             MissionWorldSpace.SetVisible(_chargeOrb, state.IsPoisonWarning);
@@ -89,7 +89,7 @@ namespace RuneCode
                 MissionWorldSpace.Place(_chargeOrb, origin,
                     (float)(settings.PoisonOrbRadius * 2 * state.PoisonChargeProgress), _poisonTint);
                 MissionWorldSpace.PlaceLine(_poisonAim, origin, LocalPoint(state.PoisonTarget, enemy.Position),
-                    (float)settings.PoisonOrbRadius * 2, WithAlpha(_warningTint, 0.3f));
+                    (float)settings.PoisonOrbRadius * 2, WithAlpha(_warningTint, 0.05f));
             }
             RenderPoisons(enemy, body);
             RenderWaves(enemy, body);
@@ -139,7 +139,7 @@ namespace RuneCode
             float width = (float)state.GetSpinHalfExtent(enemy) * 2;
             float length = width + (float)(state.SpinTarget - state.SpinOrigin).Length;
             Vector2 center = LocalPoint((state.SpinOrigin + state.SpinTarget) * 0.5, enemy.Position);
-            MissionWorldSpace.Place(_spinArea, center, new Vector2(length, width), WithAlpha(_warningTint, 0.3f));
+            MissionWorldSpace.Place(_spinArea, center, new Vector2(length, width), WithAlpha(_warningTint, 0.05f));
             _spinArea.transform.localRotation = Quaternion.Euler(0, 0, MissionWorldSpace.ToWorldAngle(state.SpinDirection));
         }
 
