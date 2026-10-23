@@ -14,6 +14,8 @@ namespace RuneCode
     /// </summary>
     public sealed class MissionPresenter
     {
+        private enum HexaDebugActionKind { AddPair, StartSummon, Kill }
+
         private const float TOAST_DURATION = 0.9f;
         private const float ITEM_TOAST_DURATION = 2.5f;
         private const float VIGNETTE_BASE_STRENGTH = 0.45f;
@@ -27,6 +29,7 @@ namespace RuneCode
         private const int ONBOARDING_SPELL_ORDER = 5;
         private const int ONBOARDING_SPELL_ORDER_STAGE = 1;
         private const int ONBOARDING_SPELL_ORDER_ROUND = 3;
+        private const int MAX_HEXA_DEBUG_TARGETS = 2;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -35,8 +38,11 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private readonly Queue<string> _itemToasts = new Queue<string>();
-        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview, bool IsHexaHomingPreview, bool IsHexaSniperPreview)> _debugBossTargets
-            = new List<(int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview, bool IsHexaHomingPreview, bool IsHexaSniperPreview)>();
+        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave)> _debugBossTargets
+            = new List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave)>();
+        private readonly List<(HexaDebugActionKind Kind, int EntityId)> _hexaDebugActions
+            = new List<(HexaDebugActionKind Kind, int EntityId)>();
+        private readonly List<string> _hexaDebugActionLabels = new List<string>();
 
         private MissionRun _run;
         private PausePopup _pausePopup;
@@ -44,6 +50,8 @@ namespace RuneCode
         private bool _isResultShown;
         private bool _hasPresentedChoices;
         private bool _isInitialDebugRoundBreak;
+        private bool _isHexaSummonTestActive;
+        private int _hexaDebugActionSignature = int.MinValue;
         private int _lastFragments;
         private int _lastEnemyDamageEventCount;
         private int _lastShotLaunchEventCount;
@@ -82,6 +90,7 @@ namespace RuneCode
             _hud.NextRoundClicked += StartNextRound;
             _hud.WorkshopClicked += OpenWorkshop;
             _hud.DebugBossClicked += StartDebugBoss;
+            _hud.DebugActionClicked += RunDebugAction;
             BuildDebugBosses();
             _result.Bind();
             _result.ImproveClicked += ReturnToWorkshop;
@@ -117,7 +126,8 @@ namespace RuneCode
             _hud.SetNextRound(false, false);
             _hud.SetWorkshop(false, false);
             _hud.SetWorkshopHighlight(false);
-            _hud.SetDebugBosses(false, false);
+            _hud.SetDebugBossMenu(false, false);
+            ResetHexaDebugActions();
             if (_session.IsRunSuspended) return;
             _run = null;
         }
@@ -270,6 +280,7 @@ namespace RuneCode
             if (_run.TryStartNextRound())
             {
                 _isInitialDebugRoundBreak = false;
+                ResetHexaDebugActions();
                 _hasPresentedChoices = false;
                 _lastPickedItemCount = _run.Simulation.PickedUpItems.Count;
                 _lastFragments = _run.Simulation.EarnedFragments;
@@ -292,7 +303,7 @@ namespace RuneCode
             _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
         }
 
-        /// <summary>보스별 첫 배치와 디버그 진입을 구성한다. 미배치 Hexa는 1스테이지 기본·난사·유도·Sniper 모드를 추가한다.</summary>
+        /// <summary>보스별 첫 배치와 디버그 진입을 구성하고, 일반 웨이브에서 Hexa 두 기 소환 소유권을 시험하는 항목을 추가한다.</summary>
         private void BuildDebugBosses()
         {
             var labels = new List<string>();
@@ -303,21 +314,20 @@ namespace RuneCode
                 bool isHexaPreview = stage == 0 && boss.IsHexaPattern;
                 if (stage == 0 && !isHexaPreview) continue;
                 if (isHexaPreview) stage = 1;
-                _debugBossTargets.Add((stage, round, isHexaPreview, false, false, false));
+                _debugBossTargets.Add((stage, round, isHexaPreview, false));
                 labels.Add((boss.IsMiniBoss ? "" : "보스 ") + GameData.L(boss.EnemyId)
                     + (isHexaPreview ? " · 기본 모드" : " · 스테이지 " + stage));
-                if (isHexaPreview)
-                {
-                    _debugBossTargets.Add((stage, round, true, true, false, false));
-                    labels.Add("보스 " + GameData.L(boss.EnemyId) + " · 난사 모드");
-                    _debugBossTargets.Add((stage, round, true, false, true, false));
-                    labels.Add("보스 " + GameData.L(boss.EnemyId) + " · 유도 모드");
-                    _debugBossTargets.Add((stage, round, true, false, false, true));
-                    labels.Add("보스 " + GameData.L(boss.EnemyId) + " · Sniper 모드");
-                }
             }
+            _debugBossTargets.Add((1, 1, false, true));
+            labels.Add(GameData.L(HexaDefinition.ID) + " 소환 테스트 · 일반 웨이브");
             _hud.BuildDebugBosses(labels);
         }
+
+        /// <summary>복합 디버그 라벨과 HUD에 표시할 하위 공격 이름을 반환한다.</summary>
+        private static string CompositeAttackName(HexaSubAttack attack)
+            => attack == HexaSubAttack.Spray ? "난사"
+                : attack == HexaSubAttack.Homing ? "유도"
+                : attack == HexaSubAttack.Sniper ? "Sniper" : "-";
 
         /// <summary>지정 라운드의 마지막 웨이브에 bossId가 처음 나오는 스테이지 번호를 반환하고 없으면 0을 반환한다.</summary>
         private static int FindBossStage(string bossId, int round)
@@ -331,17 +341,84 @@ namespace RuneCode
             return 0;
         }
 
-        /// <summary>디버그 라운드 대기 중 순번에 연결된 스테이지·라운드의 보스 웨이브로 진입하고 이전 보상 카드를 닫는다.</summary>
+        /// <summary>디버그 라운드 대기 중 선택한 항목의 보스 웨이브 또는 Hexa 소환 시험용 일반 웨이브로 진입하고 이전 보상 카드를 닫는다.</summary>
         private void StartDebugBoss(int index)
         {
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
-            (int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview, bool IsHexaHomingPreview, bool IsHexaSniperPreview) target = _debugBossTargets[index];
-            if (!_run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview, target.IsHexaSprayPreview, target.IsHexaHomingPreview, target.IsHexaSniperPreview)) return;
+            if (index < 0 || index >= _debugBossTargets.Count) return;
+            (int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave) target = _debugBossTargets[index];
+            ResetHexaDebugActions();
+            bool isStarted = target.StartsNormalWave
+                ? _run.DebugStartNormalWave(target.Stage, target.Round)
+                : _run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview);
+            if (!isStarted) return;
+            _isHexaSummonTestActive = target.StartsNormalWave || target.IsHexaPreview;
             _isInitialDebugRoundBreak = false;
             _result.HideClearModifierChoices();
             _result.Hide();
             _hasPresentedChoices = false;
             RenderHud();
+        }
+
+        /// <summary>디버그 소환 시험 버튼 순번을 두 기 추가·개체별 소환 시작·개체별 처치로 나눠 실행한다. 시험 중이 아니거나 대상이 사라졌으면 무시한다.</summary>
+        private void RunDebugAction(int index)
+        {
+            if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (!_isHexaSummonTestActive || index < 0 || index >= _hexaDebugActions.Count) return;
+            (HexaDebugActionKind Kind, int EntityId) action = _hexaDebugActions[index];
+            if (action.Kind == HexaDebugActionKind.AddPair) _run.DebugSpawnHexaPair();
+            else if (action.Kind == HexaDebugActionKind.StartSummon) _run.DebugStartHexaSummon(action.EntityId);
+            else _run.DebugKillHexa(action.EntityId);
+        }
+
+        /// <summary>Hexa 소환 시험 상태와 조작 버튼 캐시를 비운다.</summary>
+        private void ResetHexaDebugActions()
+        {
+            _isHexaSummonTestActive = false;
+            _hexaDebugActions.Clear();
+            _hexaDebugActionLabels.Clear();
+            _hexaDebugActionSignature = int.MinValue;
+        }
+
+        /// <summary>
+        /// 현재 전투의 살아 있는 Hexa를 실제 개체 ID 순서로 최대 두 기까지 찾아 개체별 소환 시작·처치 버튼을 만들고,
+        /// 한 기도 없으면 두 기 추가 버튼을 만든다. 개체 목록이 같으면 라벨을 다시 만들지 않고 입력 가능 여부만 갱신한다.
+        /// </summary>
+        private void UpdateHexaDebugActions(bool isInteractable)
+        {
+            RuneSimulation sim = _run.Simulation;
+            int signature = 17;
+            int liveCount = 0;
+            foreach (SimulationEnemy enemy in sim.Enemies)
+            {
+                if (enemy.Hexa == null || !enemy.IsAlive) continue;
+                liveCount++;
+                if (liveCount <= MAX_HEXA_DEBUG_TARGETS) signature = signature * 31 + enemy.Id;
+            }
+            signature = signature * 31 + Math.Min(liveCount, MAX_HEXA_DEBUG_TARGETS);
+            if (signature != _hexaDebugActionSignature)
+            {
+                _hexaDebugActionSignature = signature;
+                _hexaDebugActions.Clear();
+                _hexaDebugActionLabels.Clear();
+                liveCount = 0;
+                foreach (SimulationEnemy enemy in sim.Enemies)
+                {
+                    if (enemy.Hexa == null || !enemy.IsAlive) continue;
+                    liveCount++;
+                    if (liveCount > MAX_HEXA_DEBUG_TARGETS) break;
+                    _hexaDebugActions.Add((HexaDebugActionKind.StartSummon, enemy.Id));
+                    _hexaDebugActionLabels.Add("Hexa #" + enemy.Id + " 소환 시작");
+                    _hexaDebugActions.Add((HexaDebugActionKind.Kill, enemy.Id));
+                    _hexaDebugActionLabels.Add("Hexa #" + enemy.Id + " 처치");
+                }
+                if (liveCount == 0)
+                {
+                    _hexaDebugActions.Add((HexaDebugActionKind.AddPair, 0));
+                    _hexaDebugActionLabels.Add("Hexa 2기 추가");
+                }
+            }
+            _hud.SetDebugActions(_hexaDebugActionLabels, isInteractable);
         }
 
         /// <summary>미션을 일시정지하고 기존 팝업 위에 일시정지 팝업을 연다. 종료된 미션은 정지 상태를 바꾸지 않는다.</summary>
@@ -599,6 +676,7 @@ namespace RuneCode
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
             _isInitialDebugRoundBreak = _session.IsDebugEnabled && _run.IsWaitingForNextRound;
+            ResetHexaDebugActions();
             _lastEnemyDamageEventCount = 0;
             _lastShotLaunchEventCount = 0;
             _lastShotBurstEventCount = 0;
@@ -716,7 +794,13 @@ namespace RuneCode
             // 첫 클리어 온보딩 뒤 보상을 고르면 작업실 온보딩 전까지 작업실 버튼을 강조한다.
             _hud.SetWorkshopHighlight(CanOpenWorkshop && _run.IsClearModifierChosen
                 && _session.TestOnboardingChapter == ONBOARDING_FIRST_CLEAR);
-            _hud.SetDebugBosses(_session.IsDebugEnabled && CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
+            if (_run.IsFinished || sim.IsWaitingForNextRound) ResetHexaDebugActions();
+            bool isDebugMenuVisible = _session.IsDebugEnabled && CanOpenWorkshop;
+            bool isDebugActionsVisible = _session.IsDebugEnabled && _isHexaSummonTestActive
+                && !_run.IsFinished && !sim.IsWaitingForNextRound;
+            if (isDebugMenuVisible) _hud.SetDebugBossMenu(true, !_run.IsPaused && !_ui.IsPopupOpen);
+            else if (isDebugActionsVisible) UpdateHexaDebugActions(!_run.IsPaused && !_ui.IsPopupOpen);
+            else _hud.SetDebugBossMenu(false, false);
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
@@ -729,6 +813,29 @@ namespace RuneCode
                 {
                     HexaBossState hexa = enemy.Hexa;
                     if (hexa == null) continue;
+                    if (hexa.HasStartedSummon)
+                    {
+                        int summonCount = 0;
+                        foreach (SimulationEnemy summon in sim.Enemies)
+                            if (summon.SummonerId == enemy.Id) summonCount++;
+                        objective = "Hexa #" + enemy.Id + " 소환 " + hexa.SummonBundlesSpawned + "/" + HexaDefinition.SUMMON_BUNDLE_COUNT
+                            + " · 소환물 " + summonCount + " · "
+                            + (hexa.IsCancelled ? "취소" : hexa.IsSummoning ? "진행" : "완료");
+                        break;
+                    }
+                    if (hexa.HasStartedComposite)
+                    {
+                        string compositeState = hexa.IsCancelled ? "취소" : hexa.DelayTicks > 0 ? "대기"
+                            : hexa.IsCompositeComplete ? "완료"
+                            : hexa.IsSniperPaused ? "빙결"
+                            : hexa.IsSpraying || hexa.IsHoming || hexa.IsSniperAttacking ? "진행" : "전환";
+                        objective = "Hexa 복합 " + CompositeAttackName(hexa.CompositeFirstAttack)
+                            + "→" + CompositeAttackName(hexa.CompositeSecondAttack)
+                            + " · " + (hexa.IsCompositeComplete ? 2 : hexa.CompositeStage + 1)
+                            + "/" + HexaDefinition.COMPOSITE_STAGE_COUNT + " " + CompositeAttackName(hexa.CompositeCurrentAttack)
+                            + " · " + compositeState + " · 전체 완료 " + hexa.CompositeCompletionCount + "회";
+                        break;
+                    }
                     if (hexa.HasStartedSpray)
                     {
                         string sprayState = hexa.IsCancelled ? "취소" : hexa.DelayTicks > 0 ? "대기"

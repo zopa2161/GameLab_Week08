@@ -335,6 +335,7 @@ namespace RuneCode
         private double _behaviorRemaining;
         private bool _isStopping;
         private int _carrierOwnerId;
+        private readonly int _summonerId;
         private double _shieldHp;
         private int _spawnCursor;
         private int _spawnRemaining;
@@ -378,6 +379,10 @@ namespace RuneCode
         public double AimUntil => _aimUntil;
         public bool IsStopping => _isStopping;
         public int CarrierOwnerId => _carrierOwnerId;
+
+        /// <summary>이 적을 소환한 Hexa 보스의 개체 ID다. 직접 소환된 적이 아니면 0이다.</summary>
+        public int SummonerId => _summonerId;
+
         public double ShieldHp => _shieldHp;
         public bool HasCircleShield => IsAlive && _shieldHp > 0;
         internal EnemyMovementType MovementType => _movementType;
@@ -405,9 +410,9 @@ namespace RuneCode
         internal double SpawnRemainingSeconds { get => _spawnRemainingSeconds; set => _spawnRemainingSeconds = value; }
         internal int OrbitSign => (_id & 1) == 0 ? 1 : -1;
 
-        /// <summary>공유 적 설정과 보스 설정을 변경하지 않고 이동 종류, 위치, 개별 체력·피해·이동 속도 배율, 보상, 무반격, 엘리트 여부와 엘리트 정의, 목표 처치 수 집계 대상 여부로 실행 상태를 생성한다. 보스가 아니면 보스 설정은 null이다.</summary>
-        internal SimulationEnemy(int id, EnemyDefinition definition, EnemyMovementType movementType, BossDefinition boss, SimVector position, bool isDummy, double hp, double hitFlashSeconds, double hpMultiplier = 1, double damageMultiplier = 1, int reward = -1, bool isElite = false, double speedMultiplier = 1, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0)
-        { _id = id; _definition = definition; _movementType = movementType; _boss = boss; _position = position; _isDummy = isDummy; _isElite = isElite; _isKillTarget = isKillTarget; _speedMultiplier = speedMultiplier; _hitFlashSeconds = hitFlashSeconds; _maxHp = hp > 0 ? hp : definition.Hp * hpMultiplier; _hp = _maxHp; _damageMultiplier = damageMultiplier; _damage = definition.Damage * damageMultiplier; _reward = reward >= 0 ? reward : definition.Reward; _attackAt = definition.AttackInterval; _elite = elite; _carrierOwnerId = carrierOwnerId; _behaviorRemaining = definition.MoveSeconds; _shieldHp = definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD) ? _maxHp * CIRCLE_SHIELD_HP_MULTIPLIER : 0; }
+        /// <summary>공유 적 설정과 보스 설정을 변경하지 않고 이동 종류, 위치, 개별 체력·피해·이동 속도 배율, 보상, 무반격, 엘리트 여부와 엘리트 정의, 목표 처치 수 집계 대상 여부, 캐리어 소유자와 소환한 Hexa ID로 실행 상태를 생성한다. 보스가 아니면 보스 설정은 null이다.</summary>
+        internal SimulationEnemy(int id, EnemyDefinition definition, EnemyMovementType movementType, BossDefinition boss, SimVector position, bool isDummy, double hp, double hitFlashSeconds, double hpMultiplier = 1, double damageMultiplier = 1, int reward = -1, bool isElite = false, double speedMultiplier = 1, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0, int summonerId = 0)
+        { _id = id; _definition = definition; _movementType = movementType; _boss = boss; _position = position; _isDummy = isDummy; _isElite = isElite; _isKillTarget = isKillTarget; _speedMultiplier = speedMultiplier; _hitFlashSeconds = hitFlashSeconds; _maxHp = hp > 0 ? hp : definition.Hp * hpMultiplier; _hp = _maxHp; _damageMultiplier = damageMultiplier; _damage = definition.Damage * damageMultiplier; _reward = reward >= 0 ? reward : definition.Reward; _attackAt = definition.AttackInterval; _elite = elite; _carrierOwnerId = carrierOwnerId; _summonerId = summonerId; _behaviorRemaining = definition.MoveSeconds; _shieldHp = definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD) ? _maxHp * CIRCLE_SHIELD_HP_MULTIPLIER : 0; }
 
         /// <summary>예고, 패치 및 피격 표시 판정에 사용할 관측 시각을 갱신한다.</summary>
         internal void Observe(double time) { _observedTime = time; }
@@ -519,12 +524,13 @@ namespace RuneCode
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
             _hydra?.WriteState(state);
             _hexa?.WriteState(state);
-            if (_hexa != null && _hexa.HasStartedSniper)
+            if (_hexa != null && (_hexa.HasStartedSniper || _hexa.HasStartedComposite))
                 state.Append(FormattableString.Invariant($"|hexaAim:{_attackOrigin.X:R}:{_attackOrigin.Y:R}:{_attackDirection.X:R}:{_attackDirection.Y:R}:{_aimUntil:R}:{_warningUntil:R}"));
             if (_boss != null && _boss.IsMiniBoss) state.Append('|').Append(_isNextBossBurst);
             if (_pendingDisplacementTick >= 0 || _displacementRemaining > 0)
                 state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));
             state.Append(FormattableString.Invariant($"|{_damage:R}|{_damageMultiplier:R}|{_reward}"));
+            if (_summonerId != 0) state.Append("|summoner:").Append(_summonerId);
             state.Append('|').Append(_lastDamageElement).Append('|').Append(_lastDamageForm);
             state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_facing.X:R}|{_facing.Y:R}|{_hp:R}|{_maxHp:R}|{_shieldHp:R}|{_attackAt:R}|{_warningUntil:R}|{_contactGraceUntil:R}|{_dashUntil:R}|{_attackDirection.X:R}|{_attackDirection.Y:R}|{_flashUntil:R}|{_phase}|{_patchUntil:R}|{_reinforcementAt:R}|{_hazardAt:R}|{_observedTime:R}"));
             if (_definition.Attack == EnemyDefinition.ATTACK_SNIPER || _definition.Attack == EnemyDefinition.ATTACK_INTERCEPTOR || _definition.HasTrait(EnemyDefinition.TRAIT_CARRIER) || _carrierOwnerId != 0)

@@ -18,6 +18,11 @@ namespace RuneCode
         public const int HOMING_SHOT_COUNT = 5;
         public const double HOMING_TURN_DEGREES_PER_SECOND = 20;
         public const double HOMING_SECONDS = 2;
+        public const int COMPOSITE_STAGE_COUNT = 2;
+        public const int COMPOSITE_SUB_ATTACK_COUNT = 3;
+        public const int SUMMON_BUNDLE_COUNT = 3;
+        public const int SUMMON_COUNT = 6;
+        public const int SUMMON_INTERVAL_TICKS = RuneSimulation.TICK_RATE;
 
         /// <summary>적 정의가 Hexa의 ID와 고정형 접촉 공격 규칙을 만족하는지 검증한다.</summary>
         internal static void Validate(EnemyDefinition enemy)

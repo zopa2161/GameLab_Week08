@@ -17,6 +17,8 @@ namespace RuneCode
         private readonly SpellExecutor _executor;
         private readonly RuneSimulation _simulation;
         private readonly List<PendingEnemyShot> _pendingEnemyShots = new List<PendingEnemyShot>();
+        private readonly List<SimulationEnemy> _hexaOwners = new List<SimulationEnemy>();
+        private readonly List<int> _hexaCleanupIds = new List<int>();
         private readonly EnemySeparation _separation = new EnemySeparation();
         private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
         private readonly Action<double> _hurtPlayer;
@@ -71,6 +73,7 @@ namespace RuneCode
         /// </summary>
         internal void AdvanceEnemies()
         {
+            CleanupDeadHexaOwners();
             int initialCount = _world.Enemies.Count;
             for (int i = 0; i < initialCount; i++)
             {
@@ -98,6 +101,9 @@ namespace RuneCode
                     if (!enemy.Hexa.IsCancelled)
                     {
                         enemy.Hexa.Advance(enemy, _world);
+                        if (enemy.Hexa.IsSummonDue(_world.Tick))
+                            enemy.Hexa.CompleteSummonBundle(_world.Tick,
+                                _spawn.SpawnHexaSummonBundle(enemy) == HexaDefinition.SUMMON_COUNT);
                         HurtByContact(enemy);
                     }
                     continue;
@@ -388,20 +394,56 @@ namespace RuneCode
             boss.AttackAt = _world.Time + pattern.PatchSeconds + boss.Definition.WarningSeconds;
         }
 
-        /// <summary>Hexa의 실행을 취소하고 해당 개체가 생성한 탄환만 제거한다. 다른 적의 공격은 유지한다.</summary>
-        internal void CancelHexaAttack(SimulationEnemy enemy)
+        /// <summary>
+        /// Hexa 한 기의 실행을 취소하고 그 보스가 소환한 적만 월드에서 제거한다. 제거한 소환물의 탄환·예약 사격·상태 이상과
+        /// 보스 자신의 탄환도 함께 지우며 처치 보상·폭발·분열·통계는 만들지 않는다. 다른 소유자의 소환물과 일반 적은 유지한다.
+        /// 여러 번 호출해도 이미 제거된 개체를 다시 처리하지 않는다.
+        /// </summary>
+        internal void CleanupHexaOwner(SimulationEnemy owner)
         {
-            if (enemy.Hexa == null) return;
-            enemy.Hexa.Cancel(enemy);
+            if (owner == null) return;
+            owner.Hexa?.Cancel(owner);
+            _hexaCleanupIds.Clear();
+            _hexaCleanupIds.Add(owner.Id);
+            for (int i = _world.Enemies.Count - 1; i >= 0; i--)
+            {
+                SimulationEnemy summon = _world.Enemies[i];
+                if (summon.SummonerId != owner.Id) continue;
+                _hexaCleanupIds.Add(summon.Id);
+                _statuses.RemoveEnemyStatuses(summon.Id);
+                _world.Enemies.RemoveAt(i);
+            }
+            for (int i = _pendingEnemyShots.Count - 1; i >= 0; i--)
+                if (_hexaCleanupIds.Contains(_pendingEnemyShots[i].Owner.Id)) _pendingEnemyShots.RemoveAt(i);
             for (int i = _world.EnemyProjectiles.Count - 1; i >= 0; i--)
-                if (_world.EnemyProjectiles[i].SourceEnemyId == enemy.Id) _world.EnemyProjectiles.RemoveAt(i);
+                if (_hexaCleanupIds.Contains(_world.EnemyProjectiles[i].SourceEnemyId)) _world.EnemyProjectiles.RemoveAt(i);
+            _hexaCleanupIds.Clear();
         }
 
-        /// <summary>적 탄환과 위험 장판의 수명, 벽 충돌 및 플레이어 피격을 처리하며 유도 탄환은 이동 전에 플레이어 방향으로 보정하고 죽은 Hexa의 탄환은 피해 처리 전에 제거한다.</summary>
+        /// <summary>전투 종료 시 모든 Hexa 소유자의 소환물과 공격을 정리한다. 정리 목록을 먼저 모아 컬렉션을 순회 중 수정하지 않는다.</summary>
+        internal void CleanupAllHexaOwners()
+        {
+            _hexaOwners.Clear();
+            foreach (SimulationEnemy enemy in _world.Enemies)
+                if (enemy.Hexa != null) _hexaOwners.Add(enemy);
+            foreach (SimulationEnemy owner in _hexaOwners) CleanupHexaOwner(owner);
+            _hexaOwners.Clear();
+        }
+
+        /// <summary>이번 틱에 죽은 Hexa 소유자의 소환물을 적 행동과 탄환 피해 처리 전에 정리한다.</summary>
+        private void CleanupDeadHexaOwners()
+        {
+            _hexaOwners.Clear();
+            foreach (SimulationEnemy enemy in _world.Enemies)
+                if (enemy.Hexa != null && !enemy.IsAlive) _hexaOwners.Add(enemy);
+            foreach (SimulationEnemy owner in _hexaOwners) CleanupHexaOwner(owner);
+            _hexaOwners.Clear();
+        }
+
+        /// <summary>적 탄환과 위험 장판의 수명, 벽 충돌 및 플레이어 피격을 처리하며 유도 탄환은 이동 전에 플레이어 방향으로 보정하고 죽은 Hexa의 탄환·소환물은 피해 처리 전에 제거한다.</summary>
         internal void AdvanceHostileProjectiles()
         {
-            foreach (SimulationEnemy enemy in _world.Enemies)
-                if (enemy.Hexa != null && !enemy.IsAlive) CancelHexaAttack(enemy);
+            CleanupDeadHexaOwners();
             for (int i = _world.EnemyProjectiles.Count - 1; i >= 0; i--)
             {
                 SimulationProjectile projectile = _world.EnemyProjectiles[i];

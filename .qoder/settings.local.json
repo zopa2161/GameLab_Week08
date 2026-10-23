@@ -28,7 +28,13 @@
       "Bash(cd \"C:/Users/JUNGLE/Desktop/firstProject/week08\" && grep -rn \"DebugStartBossWave\\\\|DebugStartBoss\\(\" --include=*.cs --exclude-dir=Library --exclude-dir=.git .)",
       "Bash(cd \"C:/Users/JUNGLE/Desktop/firstProject/week08\" && grep -rn \"new SimulationProjectile\" --include=*.cs --exclude-dir=Library --exclude-dir=.git . | wc -l && grep -rn \"new SimulationProjectile\" --include=*.cs --exclude-dir=Library --exclude-dir=.git .)",
       "Bash(git check-ignore -v \"Assets/Docs~/05_PLAN_BOSS_HEXA.md\"; git status --short --ignored -- \"Assets/Docs~\" | head -5)",
-      "Bash(git status --short -- \"Assets/Docs~\" && git check-ignore -v \"Assets/Docs~/05_PLAN_BOSS_HEXA.md\" || true)"
+      "Bash(git status --short -- \"Assets/Docs~\" && git check-ignore -v \"Assets/Docs~/05_PLAN_BOSS_HEXA.md\" || true)",
+      "Bash(ls \"Assets/RuneCode/Resources/RuneCode/UI\" | head -50; grep -rl \"MissionDebugPopup\" Assets/RuneCode/Resources --include=*.prefab | head -10)",
+      "Bash(grep -rl \"hexa\" Assets/RuneCode/Resources --include=*.asset | head -20; grep -rl \"governor\" Assets/RuneCode/Resources --include=*.asset | head -20)",
+      "Bash(grep -rl \"_bosses:\" Assets --include=*.asset | head -20; echo ---; grep -rl \"mini_governor\" Assets --include=*.asset --include=*.json --include=*.csv | head -20)",
+      "Bash(grep -n \"MaxEnemies\" Assets/RuneCode/Resources/RuneCode/*.json | head -10; grep -rn \"MaxEnemies\" Assets/RuneCode/Resources/RuneCode -r | head -10)",
+      "Bash(grep -n -A 20 '\"surround\"' Assets/RuneCode/Resources/RuneCode/formations.json 2>/dev/null || ls Assets/RuneCode/Resources/RuneCode | head -40)",
+      "Bash(rg -n \"reinforcement|surround|governor|mini\" Assets/RuneCode/Resources/RuneCode --glob \"*.json\" | head -80)"
     ]
   }
 }

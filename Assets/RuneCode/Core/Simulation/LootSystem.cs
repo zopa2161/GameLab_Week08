@@ -115,7 +115,7 @@ namespace RuneCode
             while (_deadEnemies.Count > 0)
             {
                 SimulationEnemy enemy = _deadEnemies.Dequeue();
-                _enemy.CancelHexaAttack(enemy);
+                if (enemy.Hexa != null) _enemy.CleanupHexaOwner(enemy);
                 _stats.RecordEnemyEnd(enemy, _world.Time, "killed");
                 int droppedCredits = 0;
                 if (_world.IsMission)

@@ -236,10 +236,12 @@ namespace RuneCode
 
         /// <summary>
         /// 디버그 라운드 대기 중 지정 스테이지의 미니 보스 또는 최종 보스 라운드 마지막 웨이브로 전환한다. 기본값은 최종 보스다.
-        /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고, isHexaSprayPreview·isHexaHomingPreview·isHexaSniperPreview 중 하나일 때 해당 단독 공격을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
+        /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고, 단독 공격 미리보기 또는 isHexaCompositePreview와 지정한 순서(없으면 SimRandom)의 복합 공격을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
         /// </summary>
         public bool DebugStartBossWave(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT, bool isHexaPreview = false,
-            bool isHexaSprayPreview = false, bool isHexaHomingPreview = false, bool isHexaSniperPreview = false)
+            bool isHexaSprayPreview = false, bool isHexaHomingPreview = false, bool isHexaSniperPreview = false,
+            bool isHexaCompositePreview = false, HexaSubAttack compositeFirst = HexaSubAttack.None,
+            HexaSubAttack compositeSecond = HexaSubAttack.None)
         {
             if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak
                 || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT
@@ -248,7 +250,11 @@ namespace RuneCode
                 || (isHexaSprayPreview && !isHexaPreview)
                 || (isHexaHomingPreview && !isHexaPreview)
                 || (isHexaSniperPreview && !isHexaPreview)
-                || ((isHexaSprayPreview ? 1 : 0) + (isHexaHomingPreview ? 1 : 0) + (isHexaSniperPreview ? 1 : 0) > 1)) return false;
+                || (isHexaCompositePreview && !isHexaPreview)
+                || (isHexaCompositePreview && (compositeFirst == HexaSubAttack.None) != (compositeSecond == HexaSubAttack.None))
+                || (isHexaCompositePreview && compositeFirst != HexaSubAttack.None && compositeFirst == compositeSecond)
+                || ((isHexaSprayPreview ? 1 : 0) + (isHexaHomingPreview ? 1 : 0) + (isHexaSniperPreview ? 1 : 0)
+                    + (isHexaCompositePreview ? 1 : 0) > 1)) return false;
             _loot.ClearClearFeedback();
             _world.StageNumber = stage;
             _world.RoundNumber = round;
@@ -256,19 +262,68 @@ namespace RuneCode
             _world.Player.SetHp(_world.Player.MaxHp);
             _world.Stage = MissionStage.Combat;
             StartProgressionWave(isHexaPreview);
-            if (isHexaSprayPreview || isHexaHomingPreview || isHexaSniperPreview)
+            if (isHexaSprayPreview || isHexaHomingPreview || isHexaSniperPreview || isHexaCompositePreview)
             {
-                EnemyDefinition source = _world.EnemyCatalog.Get(isHexaSniperPreview
-                    ? HexaDefinition.SNIPER_SOURCE_ID : HexaDefinition.PROJECTILE_SOURCE_ID);
+                EnemyDefinition projectile = _world.EnemyCatalog.Get(HexaDefinition.PROJECTILE_SOURCE_ID);
+                EnemyDefinition sniper = isHexaSniperPreview || isHexaCompositePreview
+                    ? _world.EnemyCatalog.Get(HexaDefinition.SNIPER_SOURCE_ID) : null;
                 foreach (SimulationEnemy enemy in _world.Enemies)
                 {
                     if (enemy.Hexa == null) continue;
-                    if (isHexaSprayPreview) enemy.Hexa.BeginSpray(source);
-                    else if (isHexaHomingPreview) enemy.Hexa.BeginHoming(source);
-                    else enemy.Hexa.BeginSniper(source);
+                    if (isHexaSprayPreview) enemy.Hexa.BeginSpray(projectile);
+                    else if (isHexaHomingPreview) enemy.Hexa.BeginHoming(projectile);
+                    else if (isHexaSniperPreview) enemy.Hexa.BeginSniper(sniper);
+                    else enemy.Hexa.BeginComposite(projectile, sniper, _world.Random, compositeFirst, compositeSecond);
                 }
             }
             return true;
+        }
+
+        /// <summary>
+        /// 디버그 라운드 대기 중 지정 스테이지·라운드의 첫 일반 웨이브로 전환한다. Hexa 두 기와 소환 소유권 시험에 쓸
+        /// 보스가 없는 전투 구간을 만들며 유효하지 않은 요청에는 false를 반환한다.
+        /// </summary>
+        public bool DebugStartNormalWave(int stage = 1, int round = 1)
+        {
+            if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak
+                || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT
+                || round < 1 || round > StageCatalog.PROGRESSION_ROUND_COUNT) return false;
+            _loot.ClearClearFeedback();
+            _world.StageNumber = stage;
+            _world.RoundNumber = round;
+            _world.WaveNumber = 1;
+            _world.Player.SetHp(_world.Player.MaxHp);
+            _world.Stage = MissionStage.Combat;
+            StartProgressionWave();
+            return true;
+        }
+
+        /// <summary>디버그 소환 시험에서 지정한 개체 ID의 살아 있는 Hexa만 소환 모드를 시작하고, 시작했거나 이미 진행 중이면 true를 반환한다.</summary>
+        public bool DebugStartHexaSummon(int entityId)
+        {
+            if (_world.IsMission && _world.Stage != MissionStage.Combat) return false;
+            foreach (SimulationEnemy enemy in _world.Enemies)
+            {
+                if (enemy.Id != entityId) continue;
+                if (!enemy.IsAlive || enemy.Hexa == null || enemy.Hexa.IsCancelled) return false;
+                enemy.Hexa.BeginSummon();
+                return enemy.Hexa.IsSummoning;
+            }
+            return false;
+        }
+
+        /// <summary>디버그 소환 시험에서 지정한 개체 ID의 살아 있는 Hexa 한 기에만 치명 피해를 적용하고, 정상 사망 정리 경로로 넘긴다. 선택 ID가 없으면 false를 반환한다.</summary>
+        public bool DebugKillHexa(int entityId)
+        {
+            if (_world.IsMission && _world.Stage != MissionStage.Combat) return false;
+            foreach (SimulationEnemy enemy in _world.Enemies)
+            {
+                if (enemy.Id != entityId) continue;
+                if (!enemy.IsAlive || enemy.Hexa == null) return false;
+                if (enemy.Hurt(enemy.Hp, Time) > 0) _stats.EnemyDamageEventCount++;
+                return true;
+            }
+            return false;
         }
 
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
@@ -523,7 +578,7 @@ namespace RuneCode
         public SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0)
             => _spawn.SpawnEnemy(id, position, isDummy, hp, elite, isKillTarget, carrierOwnerId);
 
-        /// <summary>사망, 클리어 및 시간 초과 시 지속 개체, 예약 실행과 분열 대기를 취소한다.</summary>
+        /// <summary>사망, 클리어 및 시간 초과 시 지속 개체, 예약 실행과 분열 대기를 취소하고 Hexa 소환물과 그 공격을 처치 부작용 없이 정리한다.</summary>
         private void CancelCombat()
         {
             _feedback.CancelBeamFlashes();
@@ -532,8 +587,8 @@ namespace RuneCode
             {
                 enemy.CancelDisplacement();
                 enemy.Hydra?.Cancel();
-                enemy.Hexa?.Cancel(enemy);
             }
+            _enemy.CleanupAllHexaOwners();
             _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _executor.ClearScheduled(); _enemy.PendingEnemyShots.Clear(); _spawn.PendingSplits.Clear(); _loot.ClearDeadEnemies();
             _spawn.PendingSpawns.Clear(); _feedback.ClearSpawnWarnings();
             if (_world.Player != null) _world.Player.CancelSpellExecutions();

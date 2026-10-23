@@ -271,16 +271,19 @@ namespace RuneCode
 
         /// <summary>
         /// 디버그 라운드 대기 중 지정 스테이지·라운드의 마지막 웨이브로 진입한다. 기본 라운드는 최종 보스이며 고르지 않은 보상은 버린다.
-        /// isHexaPreview이면 이번 진입만 Hexa 한 기로 대체하고 isHexaSprayPreview·isHexaHomingPreview·isHexaSniperPreview 중 하나일 때 해당 단독 공격을 준비한다. 진입 성공 여부를 반환한다.
+        /// isHexaPreview이면 이번 진입만 Hexa 한 기로 대체하고 단독 공격 또는 복합 패턴을 준비한다. 진입 성공 여부를 반환한다.
         /// </summary>
         public bool DebugStartBoss(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT, bool isHexaPreview = false,
-            bool isHexaSprayPreview = false, bool isHexaHomingPreview = false, bool isHexaSniperPreview = false)
+            bool isHexaSprayPreview = false, bool isHexaHomingPreview = false, bool isHexaSniperPreview = false,
+            bool isHexaCompositePreview = false, HexaSubAttack compositeFirst = HexaSubAttack.None,
+            HexaSubAttack compositeSecond = HexaSubAttack.None)
         {
             if (!_session.IsDebugEnabled || _settled || _isPaused || !_simulation.IsWaitingForNextRound) return false;
             ResetRoundInput();
             int completedStage = _simulation.StageNumber;
             int completedRound = _simulation.RoundNumber;
-            if (!_simulation.DebugStartBossWave(stage, round, isHexaPreview, isHexaSprayPreview, isHexaHomingPreview, isHexaSniperPreview)) return false;
+            if (!_simulation.DebugStartBossWave(stage, round, isHexaPreview, isHexaSprayPreview, isHexaHomingPreview,
+                isHexaSniperPreview, isHexaCompositePreview, compositeFirst, compositeSecond)) return false;
             EndRoundBreak(completedStage, completedRound, "debug_boss_clicked");
             return true;
         }
@@ -595,6 +598,40 @@ namespace RuneCode
         {
             if (!_session.IsDebugEnabled) return;
             _simulation.DebugSpawn(kind, isElite);
+        }
+
+        /// <summary>디버그 라운드 대기 중 지정 스테이지·라운드의 첫 일반 웨이브로 진입해 Hexa 소환 시험 구간을 시작하고 성공 여부를 반환한다.</summary>
+        public bool DebugStartNormalWave(int stage = 1, int round = 1)
+        {
+            if (!_session.IsDebugEnabled || _settled || _isPaused || !_simulation.IsWaitingForNextRound) return false;
+            ResetRoundInput();
+            int completedStage = _simulation.StageNumber;
+            int completedRound = _simulation.RoundNumber;
+            if (!_simulation.DebugStartNormalWave(stage, round)) return false;
+            EndRoundBreak(completedStage, completedRound, "debug_normal_wave_clicked");
+            return true;
+        }
+
+        /// <summary>디버그 실행에서만 현재 전투에 Hexa 두 기를 생성하고 실제로 생성된 수를 반환한다.</summary>
+        public int DebugSpawnHexaPair()
+        {
+            if (!_session.IsDebugEnabled) return 0;
+            int count = 0;
+            if (_simulation.DebugSpawn(HexaDefinition.ID) != null) count++;
+            if (_simulation.DebugSpawn(HexaDefinition.ID) != null) count++;
+            return count;
+        }
+
+        /// <summary>디버그 실행에서만 지정한 개체 ID의 살아 있는 Hexa에 소환 모드를 시작하고 성공 여부를 반환한다.</summary>
+        public bool DebugStartHexaSummon(int entityId)
+        {
+            return _session.IsDebugEnabled && _simulation.DebugStartHexaSummon(entityId);
+        }
+
+        /// <summary>디버그 실행에서만 지정한 개체 ID의 살아 있는 Hexa 한 기에 치명 피해를 적용하고 성공 여부를 반환한다.</summary>
+        public bool DebugKillHexa(int entityId)
+        {
+            return _session.IsDebugEnabled && _simulation.DebugKillHexa(entityId);
         }
 
         /// <summary>새 노드 실행을 로컬 로그에 기록하고 Core 실행을 성공 시전 수에 더한다.</summary>
