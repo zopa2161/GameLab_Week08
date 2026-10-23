@@ -25,7 +25,7 @@ namespace RuneCode
     }
 
     /// <summary>
-    /// 웨이브 하나의 유닛을 시작 틱부터 진형 주기 간격으로 한 번씩 배출한다. 시작 시 예약 목록을 만들지 않고
+    /// 배율로 늘어난 웨이브를 원본 편성 크기의 무리로 나누고, 무리 간격과 무리 안 진형 주기에 맞춰 배출한다. 시작 시 예약 목록을 만들지 않고
     /// TryPeek가 현재 틱까지 도달한 다음 스폰을 순서대로 내준다. 위치 계산과 적 생성은 시뮬레이션이 한다.
     /// </summary>
     internal sealed class SpawnDirector
@@ -34,40 +34,66 @@ namespace RuneCode
         private readonly WaveDefinition _wave;
         private readonly FormationSettings _settings;
         private readonly int _startTick;
+        private readonly int[] _unitCounts;
+        private readonly int _unitCount;
+        private readonly int _batchGapTicks;
         private int _unitIndex;
+        private int _batchIndex;
+        private int _batchUnitIndex;
+        private int _batchStartTick;
         private bool _isStarted;
         private double _startAngle;
         private int _anchor;
         private SimVector _anchorPoint;
 
-        /// <summary>웨이브의 진형 재정의를 적용한 설정을 읽고 startTick부터 유닛을 배출하는 스폰 진행기를 만든다.</summary>
-        public SpawnDirector(WaveDefinition wave, FormationCatalog formations, int tickRate, int startTick)
+        /// <summary>웨이브의 진형·일반 적 수 배율·무리 간격으로 진행기를 만든다. 보스 카탈로그에 등록된 적은 첫 무리에서 원래 수만 배출한다.</summary>
+        public SpawnDirector(WaveDefinition wave, FormationCatalog formations, int tickRate, int startTick,
+            double countMultiplier = 1, BossCatalog bosses = null, double batchIntervalSeconds = 0)
         {
             _tickRate = tickRate;
             _wave = wave;
             _settings = wave.Formation.ApplyTo(formations.Get(wave.Formation.Id).ToSettings());
             _startTick = startTick;
+            _batchStartTick = startTick;
+            _batchGapTicks = Math.Max(0, (int)Math.Ceiling(batchIntervalSeconds * tickRate));
+            _unitCounts = new int[wave.Units.Count];
+            for (int index = 0; index < wave.Units.Count; index++)
+            {
+                WaveUnit unit = wave.Units[index];
+                bool isBoss = bosses != null && bosses.TryGet(unit.EnemyId, out _);
+                int count = isBoss ? unit.Count : checked((int)Math.Max(1,
+                    Math.Round(unit.Count * countMultiplier, MidpointRounding.AwayFromZero)));
+                _unitCounts[index] = count;
+                _unitCount = checked(_unitCount + count);
+            }
         }
 
-        internal bool IsFinished => _unitIndex >= _wave.UnitCount;
+        internal bool IsFinished => _unitIndex >= _unitCount;
 
         /// <summary>웨이브에서 아직 배출하지 않은 편성 수를 반환한다.</summary>
-        internal int RemainingWaveSpawns => _wave.UnitCount - _unitIndex;
+        internal int RemainingWaveSpawns => _unitCount - _unitIndex;
 
         /// <summary>현재 틱까지 도달한 다음 스폰이 있으면 꺼내지 않고 반환한다.</summary>
         public bool TryPeek(int tick, out SpawnOrder order)
         {
-            int nextTick = _startTick + (int)Math.Round(_unitIndex * _settings.Interval * _tickRate);
+            int nextTick = _batchStartTick + (int)Math.Round(_batchUnitIndex * _settings.Interval * _tickRate);
             if (IsFinished || nextTick > tick) { order = default; return false; }
-            WaveUnit unit = GetWaveUnit(_unitIndex);
-            order = new SpawnOrder(nextTick, _unitIndex, _wave.UnitCount, unit.EnemyId, unit.IsElite);
+            WaveUnit unit = GetWaveUnit(_batchUnitIndex);
+            order = new SpawnOrder(nextTick, _batchUnitIndex, GetBatchUnitCount(), unit.EnemyId, unit.IsElite);
             return true;
         }
 
-        /// <summary>TryPeek로 확인한 스폰을 처리 완료로 표시한다.</summary>
+        /// <summary>배출한 스폰을 집계하고, 새 무리의 배치를 초기화하거나 무리 완료 시 실제 배출 틱부터 다음 무리 간격을 예약한다.</summary>
         public void Consume(int tick)
         {
-            if (TryPeek(tick, out _)) _unitIndex++;
+            if (!TryPeek(tick, out SpawnOrder order)) return;
+            if (_batchUnitIndex == 0) _isStarted = false;
+            _unitIndex++;
+            _batchUnitIndex++;
+            if (_batchUnitIndex < order.Count) return;
+            _batchIndex++;
+            _batchUnitIndex = 0;
+            _batchStartTick = tick + _batchGapTicks;
         }
 
         /// <summary>웨이브의 진형 설정(재정의 적용 후)을 반환한다.</summary>
@@ -95,22 +121,42 @@ namespace RuneCode
         public void WriteState(StringBuilder state)
         {
             state.Append(_startTick).Append(':').Append(_unitIndex).Append('|');
+            state.Append("batch:").Append(_batchIndex).Append(':').Append(_batchUnitIndex)
+                .Append(':').Append(_batchStartTick).Append(':').Append(_batchGapTicks).Append('|');
+            foreach (int count in _unitCounts) state.Append("spawnCount:").Append(count).Append('|');
             if (!_isStarted) return;
             state.Append(_startAngle.ToString("R", CultureInfo.InvariantCulture)).Append(':').Append(_anchor)
                 .Append(':').Append(_anchorPoint.X.ToString("R", CultureInfo.InvariantCulture))
                 .Append(':').Append(_anchorPoint.Y.ToString("R", CultureInfo.InvariantCulture)).Append('|');
         }
 
-        /// <summary>웨이브 안 유닛 순번의 웨이브 유닛을 편성에서 찾아 반환한다. 편성 수와 UnitCount가 같으므로 끝에 도달하지 않는다.</summary>
+        /// <summary>확대된 편성 수에서 배출 순번이 속한 원본 웨이브 유닛을 찾아 반환한다.</summary>
         private WaveUnit GetWaveUnit(int unitIndex)
         {
             int remaining = unitIndex;
-            foreach (WaveUnit unit in _wave.Units)
+            for (int index = 0; index < _wave.Units.Count; index++)
             {
-                if (remaining < unit.Count) return unit;
-                remaining -= unit.Count;
+                int count = GetUnitBatchCount(index);
+                if (remaining < count) return _wave.Units[index];
+                remaining -= count;
             }
             return _wave.Units[_wave.Units.Count - 1];
+        }
+
+        /// <summary>현재 무리에서 특정 원본 유닛이 배출할 수를 반환한다. 원본 편성 수만큼씩 나누고 마지막 무리에는 나머지만 배출한다.</summary>
+        private int GetUnitBatchCount(int index)
+        {
+            int originalCount = _wave.Units[index].Count;
+            long remaining = _unitCounts[index] - (long)_batchIndex * originalCount;
+            return (int)Math.Max(0, Math.Min(originalCount, remaining));
+        }
+
+        /// <summary>현재 무리에서 배출할 일반·엘리트·보스의 총수를 반환한다.</summary>
+        private int GetBatchUnitCount()
+        {
+            int total = 0;
+            for (int index = 0; index < _unitCounts.Length; index++) total += GetUnitBatchCount(index);
+            return total;
         }
     }
 }

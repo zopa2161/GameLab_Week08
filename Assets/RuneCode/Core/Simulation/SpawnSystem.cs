@@ -37,7 +37,7 @@ namespace RuneCode
         /// <summary>현재 유한 웨이브의 미배출 편성·스폰 예고·분열 예약과 살아 있는 적 수를 합산한다.</summary>
         internal int RemainingWaveEnemyCount => _director.RemainingWaveSpawns + _pendingSpawns.Count + _pendingSplits.Count + _world.Enemies.Count;
 
-        /// <summary>현재 편성의 웨이브만 시작하고 첫 틱 스폰과 예고 표시를 준비한다.</summary>
+        /// <summary>원본 웨이브 편성 수량으로 진행기를 만들고 첫 틱 스폰과 예고 표시를 준비한다.</summary>
         internal void StartWave(WaveDefinition wave)
         {
             _director = new SpawnDirector(wave, _world.Formations, RuneSimulation.TICK_RATE, _world.Tick);
@@ -296,6 +296,8 @@ namespace RuneCode
             if (_world.IsMission && _world.Stage != MissionStage.Combat || _world.Enemies.Count >= _world.EnemyLimit) return null;
             EnemyDefinition definition = _world.EnemyCatalog.Get(id);
             double hpMultiplier = _world.IsMission ? _world.Stages.GetHpMultiplier(_world.StageNumber) : 1;
+            if (_world.IsProgressionMission)
+                hpMultiplier = _world.Stages.Growth.GetActHpMultiplier(_world.StageNumber, _world.RoundNumber);
             if (elite != null) hpMultiplier *= elite.HpMultiplier;
             double damageMultiplier = _world.IsMission ? _world.Stages.Growth.GetDamageMultiplier(_world.StageNumber) : 1;
             int reward = _world.IsMission ? _world.Stages.GetReward(id, definition.Reward) : definition.Reward;
