@@ -133,6 +133,7 @@ namespace RuneCode
                 damage *= GradeNumber(modifierGrades, modifier.Id, grade, ModifierGradeTable.EFFECT_MULTIPLIER_EFFECT, stats.DamageMultiplier);
                 radius *= GradeNumber(modifierGrades, modifier.Id, grade, ModifierGradeTable.RADIUS_MULTIPLIER_EFFECT, stats.RadiusMultiplier);
                 speed *= GradeNumber(modifierGrades, modifier.Id, grade, ModifierGradeTable.SPEED_MULTIPLIER_EFFECT, stats.SpeedMultiplier);
+                speed *= modifierGrades?.GetAmplifySpeedMultiplier(modifier.Id, grade) ?? 1f;
                 duration *= GradeNumber(modifierGrades, modifier.Id, grade, ModifierGradeTable.DURATION_MULTIPLIER_EFFECT, stats.DurationMultiplier);
                 int pierceCount = modifierGrades != null && modifierGrades.GetEffectType(modifier.Id) == ModifierGradeTable.PIERCE_COUNT_EFFECT
                     ? modifierGrades.GetPierceCount(modifier.Id, grade, stats.Pierce) : stats.Pierce;
@@ -317,6 +318,7 @@ namespace RuneCode
                 damageMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.EFFECT_MULTIPLIER_EFFECT, stats.DamageMultiplier);
                 radiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.RADIUS_MULTIPLIER_EFFECT, stats.RadiusMultiplier);
                 speedMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.SPEED_MULTIPLIER_EFFECT, stats.SpeedMultiplier);
+                speedMult *= modifierGrades?.GetAmplifySpeedMultiplier(mod.Id, grade) ?? 1f;
                 durationMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.DURATION_MULTIPLIER_EFFECT, stats.DurationMultiplier);
                 // 관통·유도 수치는 장착 가능 여부(_modifierTargets, 모드 규칙 CanAttachTo)가 허용한 행동에만 들어온다.
                 int pierceCount = modifierGrades != null && modifierGrades.GetEffectType(mod.Id) == ModifierGradeTable.PIERCE_COUNT_EFFECT

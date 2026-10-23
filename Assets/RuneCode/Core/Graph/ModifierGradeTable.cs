@@ -26,6 +26,7 @@ namespace RuneCode
         private const string ENERGY_MULT_BY_GRADE_KEY = "_energyMultByGrade";
         private const string BEAM_MANA_MULT_BY_GRADE_KEY = "_beamEmpowerManaMultByGrade";
         private const string BEAM_SIZE_MULT_BY_GRADE_KEY = "_beamEmpowerSizeMultByGrade";
+        private const string AMPLIFY_SPEED_MULT_BY_GRADE_KEY = "_amplifySpeedMultByGrade";
         private const string PIERCE_DAMAGE_MULTIPLIER_KEY = "_pierceDamageMultiplierByGrade";
         private const string SLOT_GRADE_CHANCES_KEY = "_slotGradeChancesPercent";
         private const string ELITE_GRADE_CHANCES_KEY = "_eliteModifierGradeChancesPercent";
@@ -152,6 +153,12 @@ namespace RuneCode
             => _effects.TryGetValue(modifierId, out ModifierGradeEffect effect)
                 && effect.BeamEmpowerSizeMultipliers != null && grade != null
                 && effect.BeamEmpowerSizeMultipliers.TryGetValue(grade, out float value) ? value : 1f;
+
+        /// <summary>효과 증폭 모드와 등급의 보조 속도 배율을 반환하고 정의가 없으면 1을 반환한다.</summary>
+        public float GetAmplifySpeedMultiplier(string modifierId, string grade)
+            => !string.IsNullOrEmpty(modifierId) && _effects.TryGetValue(modifierId, out ModifierGradeEffect effect)
+                && effect.AmplifySpeedMultipliers != null && grade != null
+                && effect.AmplifySpeedMultipliers.TryGetValue(grade, out float value) ? value : 1f;
 
         /// <summary>숫자 등급 효과를 읽으며 타입이 다르거나 값이 없으면 false를 반환한다.</summary>
         public bool TryGetNumberValue(string modifierId, string grade, out float value)
@@ -342,8 +349,11 @@ namespace RuneCode
                     beamManaMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log, BEAM_MANA_MULT_BY_GRADE_KEY);
                     beamSizeMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log, BEAM_SIZE_MULT_BY_GRADE_KEY);
                 }
+                Dictionary<string, float> amplifySpeedMultipliers = null;
+                if (effectType == EFFECT_MULTIPLIER_EFFECT && row.ContainsKey(AMPLIFY_SPEED_MULT_BY_GRADE_KEY))
+                    amplifySpeedMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log, AMPLIFY_SPEED_MULT_BY_GRADE_KEY);
                 result.Add(modifierId, new ModifierGradeEffect(name, effectType, values, energyMultipliers, launchValues, spreadAngles,
-                    pierceMultipliers, beamManaMultipliers, beamSizeMultipliers));
+                    pierceMultipliers, beamManaMultipliers, beamSizeMultipliers, amplifySpeedMultipliers));
                 modifierOrder.Add(modifierId);
             }
             return result;
@@ -699,6 +709,7 @@ namespace RuneCode
         public IReadOnlyDictionary<string, object> PierceDamageMultipliers { get; }
         public IReadOnlyDictionary<string, float> BeamEmpowerManaMultipliers { get; }
         public IReadOnlyDictionary<string, float> BeamEmpowerSizeMultipliers { get; }
+        public IReadOnlyDictionary<string, float> AmplifySpeedMultipliers { get; }
 
         /// <summary>발사 Behavior에만 쓰는 등급값이다. 없으면 null이며 발사도 GradeValues를 쓴다.</summary>
         public IReadOnlyDictionary<string, object> LaunchGradeValues { get; }
@@ -712,7 +723,8 @@ namespace RuneCode
             IReadOnlyDictionary<string, object> launchGradeValues = null, IReadOnlyDictionary<string, object> launchSpreadAngles = null,
             IReadOnlyDictionary<string, object> pierceDamageMultipliers = null,
             IReadOnlyDictionary<string, float> beamEmpowerManaMultipliers = null,
-            IReadOnlyDictionary<string, float> beamEmpowerSizeMultipliers = null)
+            IReadOnlyDictionary<string, float> beamEmpowerSizeMultipliers = null,
+            IReadOnlyDictionary<string, float> amplifySpeedMultipliers = null)
         {
             Name = name;
             EffectType = effectType;
@@ -721,6 +733,7 @@ namespace RuneCode
             PierceDamageMultipliers = pierceDamageMultipliers;
             BeamEmpowerManaMultipliers = beamEmpowerManaMultipliers;
             BeamEmpowerSizeMultipliers = beamEmpowerSizeMultipliers;
+            AmplifySpeedMultipliers = amplifySpeedMultipliers;
             LaunchGradeValues = launchGradeValues;
             LaunchSpreadAngles = launchSpreadAngles;
         }

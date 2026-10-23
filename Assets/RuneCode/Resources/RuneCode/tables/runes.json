@@ -597,6 +597,7 @@
     },
     {
       "_id": "mod.beamEmpower",
+      "_hiddenFromRewards": true,
       "_name": "과충전",
       "_category": "modifier",
       "_ram": 1,
@@ -788,6 +789,7 @@
     },
     {
       "_id": "mod.speed",
+      "_hiddenFromRewards": true,
       "_name": "속도",
       "_category": "modifier",
       "_ram": 1,

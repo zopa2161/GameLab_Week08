@@ -597,8 +597,8 @@ namespace RuneCode
                     names.Add(ModifierGradeText.Colorize(rune.Name, grade));
                     string description = rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
                         ? RuneDescriptionBuilder.GetDescription(rune)
-                        : string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false));
-                    descriptions.Add(ModifierGradeText.Colorize(description, grade));
+                        : string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false, true));
+                    descriptions.Add(description);
                 }
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions,
                     _run.ClearModifierGrades, _run.ClearModifierChoices);

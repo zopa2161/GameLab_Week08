@@ -260,6 +260,7 @@ namespace RuneCode
         private readonly string _name;
         private readonly string _category;
         private readonly bool _isDisabled;
+        private readonly bool _isHiddenFromRewards;
         private readonly int _ram;
         private readonly float _energy;
         private readonly float _executionSeconds;
@@ -281,6 +282,9 @@ namespace RuneCode
 
         /// <summary>팔레트·획득·컴파일에서 제외되는 비활성 룬인지 반환한다.</summary>
         public bool IsDisabled => _isDisabled;
+
+        /// <summary>기존 장착·합성 동작을 유지하면서 보상 추첨에서만 제외할 룬인지 반환한다.</summary>
+        public bool IsHiddenFromRewards => _isHiddenFromRewards;
 
         public int Ram => _ram;
         public float Energy => _energy;
@@ -307,6 +311,7 @@ namespace RuneCode
             _name = row._name ?? "";
             _category = row._category ?? "";
             _isDisabled = row._disabled;
+            _isHiddenFromRewards = row._hiddenFromRewards;
             _ram = row._ram;
             _costs = costs;
             _energy = (float)costs.GetAmount("mana");

@@ -1165,7 +1165,7 @@
     },
     {
       "_key": "ui.mod.amplifyHint",
-      "_value": "등급에 따라 행동의 피해 배율이 높아집니다."
+      "_value": "등급에 따라 행동의 피해 배율과 속도 배율이 높아집니다."
     },
     {
       "_key": "ui.mod.multiHint",
@@ -1626,7 +1626,7 @@
     {"_key": "rune.element.lightning.desc", "_value": "전격 피해와 EMP 효과를 부여합니다."},
     {"_key": "rune.mod.knockback.desc", "_value": "실제로 준 직접 피해에 비례해 적을 밀어냅니다."},
     {"_key": "rune.mod.saving.desc", "_value": "장착한 행동의 기본 전력 소비를 줄입니다."},
-    {"_key": "rune.mod.amplify.desc", "_value": "행동의 피해를 높입니다."},
+    {"_key": "rune.mod.amplify.desc", "_value": "행동의 피해와 속도를 높입니다."},
     {"_key": "rune.mod.multi.desc", "_value": "생성 개수를 늘립니다. 발사는 전용 개수와 퍼짐을 사용합니다."},
     {"_key": "rune.mod.beamEmpower.desc", "_value": "빔을 오래 유지할수록 피해·마나 소비·빔 폭이 커집니다."},
     {"_key": "rune.mod.pierce.desc", "_value": "적을 관통해 뒤쪽 대상도 타격합니다."},
