@@ -27,13 +27,17 @@ namespace RuneCode
         [SerializeField] private double _neckDamage;
         [SerializeField] private double _stretchWarning;
         [SerializeField] private double _stretchSeconds;
-        [SerializeField] private double _stretchHold;
+        [SerializeField, Tooltip("목을 최대로 뻗은 뒤 설정한 회전각만큼 회전하는 시간입니다.")] private double _stretchHold;
+        [SerializeField] private double _stretchRotationDegrees;
+        [SerializeField] private double _stretchRetractSeconds;
         [SerializeField] private double _retractSeconds;
         public double NeckWidth => _neckWidth;
         public double NeckDamage => _neckDamage;
         public double StretchWarning => _stretchWarning;
         public double StretchSeconds => _stretchSeconds;
         public double StretchHold => _stretchHold;
+        public double StretchRotationDegrees => _stretchRotationDegrees;
+        public double StretchRetractSeconds => _stretchRetractSeconds;
         public double RetractSeconds => _retractSeconds;
 
         [Header("독 공격")]
@@ -86,8 +90,8 @@ namespace RuneCode
         internal void Validate()
         {
             double[] values = { _initialDelay, _attackCooldown, _burnMultiplier, _dpsHealthRatio, _dpsWindow,
-                _excessDamageMultiplier, _neckWidth, _neckDamage, _stretchWarning, _stretchSeconds, _stretchHold,
-                _retractSeconds, _poisonTrack, _poisonLock, _poisonFlight, _poisonGap, _poisonRadius, _poisonDamage,
+                _excessDamageMultiplier, _neckWidth, _neckDamage, _stretchWarning, _stretchSeconds, _stretchHold, _stretchRotationDegrees,
+                _stretchRetractSeconds, _retractSeconds, _poisonTrack, _poisonLock, _poisonFlight, _poisonGap, _poisonRadius, _poisonDamage,
                 _poisonLifetime, _poisonTickDamage, _poisonTickInterval, _stompInterval, _stompWindup, _stompApproachSeconds,
                 _stompSpeed, _waveRadius, _waveSeconds, _waveWidth, _waveDamage, _spinWarning, _spinLength, _spinSeconds };
             foreach (double value in values)

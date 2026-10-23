@@ -170,8 +170,12 @@ namespace RuneCode
             switch (_attack)
             {
                 case HydraAttack.Stretch:
+                    double stretchAngle = _angle + GetStretchRotation(_elapsed);
+                    enemy.Move(enemy.Position, new SimVector(Math.Cos(stretchAngle), Math.Sin(stretchAngle)));
+                    if (_elapsed >= _settings.StretchWarning + _settings.StretchSeconds)
+                        RefreshStretchLengths(enemy, world, simulation);
                     if (IsNeckActive) HitNecks(enemy, world, hurt);
-                    if (_elapsed >= _settings.StretchWarning + _settings.StretchSeconds + _settings.StretchHold + _settings.RetractSeconds) FinishAttack(world.Time);
+                    if (_elapsed >= _settings.StretchWarning + _settings.StretchSeconds + _settings.StretchHold + _settings.StretchRetractSeconds) FinishAttack(world.Time);
                     break;
                 case HydraAttack.Poison: AdvancePoison(enemy, world); break;
                 case HydraAttack.Stomp: AdvanceStomp(enemy, world, simulation); break;
@@ -197,14 +201,28 @@ namespace RuneCode
             SimVector offset = world.Player.Position - enemy.Position;
             _angle = Math.Atan2(offset.Y, offset.X);
             if (_attack != HydraAttack.Stretch) return;
+            RefreshStretchLengths(enemy, world, simulation);
+        }
+
+        /// <summary>현재 목 뻗기 회전각에서 각 목이 벽까지 뻗을 수 있는 길이를 갱신해 판정과 표시에 공유한다.</summary>
+        private void RefreshStretchLengths(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation)
+        {
             double reach = world.Map.Width + world.Map.Height;
             for (int index = 0; index < HEAD_COUNT; index++)
             {
-                double angle = _angle + index * FULL_TURN / HEAD_COUNT;
+                double angle = _angle + GetStretchRotation(_elapsed) + index * FULL_TURN / HEAD_COUNT;
                 SimVector end = enemy.Position + new SimVector(Math.Cos(angle), Math.Sin(angle)) * reach;
                 double fraction = simulation.FirstWallFraction(enemy.Position, end, _settings.NeckWidth * 0.5);
                 _stretchLengths[index] = double.IsPositiveInfinity(fraction) ? reach : Math.Max(enemy.Radius, reach * fraction);
             }
+        }
+
+        /// <summary>지정 경과 시간에서 확장 후 회전 구간의 진행률과 설정 회전각으로 회전량을 라디안으로 반환하며 회수 중에는 최종 각도를 유지한다.</summary>
+        private double GetStretchRotation(double elapsed)
+        {
+            double rotationTime = elapsed - _settings.StretchWarning - _settings.StretchSeconds;
+            return Math.Max(0, Math.Min(1, rotationTime / _settings.StretchHold))
+                * _settings.StretchRotationDegrees * RuneSimulation.DEGREES_TO_RADIANS;
         }
 
         /// <summary>공격을 종료하고 추적 가능한 공통 쿨타임을 시작한다. 잔류 독 지대는 유지한다.</summary>
@@ -288,7 +306,7 @@ namespace RuneCode
         public SimVector GetNeckEnd(SimulationEnemy enemy, int index, bool isPreview = false)
             => GetNeckEnd(enemy, index, _elapsed, isPreview);
 
-        /// <summary>指定経過時間で頭の配置・伸縮・回転角を求め、判定と表示が共有する終点を返す。</summary>
+        /// <summary>지정 경과 시간에서 목의 배치·신축·회전각을 계산해 판정과 표시가 공유하는 끝점을 반환한다.</summary>
         private SimVector GetNeckEnd(SimulationEnemy enemy, int index, double elapsed, bool isPreview)
         {
             double rest = enemy.Radius + REST_NECK_LENGTH;
@@ -298,8 +316,9 @@ namespace RuneCode
             {
                 double time = elapsed - _settings.StretchWarning;
                 double progress = time < 0 ? 0 : time < _settings.StretchSeconds ? time / _settings.StretchSeconds
-                    : 1 - Math.Max(0, time - _settings.StretchSeconds - _settings.StretchHold) / _settings.RetractSeconds;
+                    : 1 - Math.Max(0, time - _settings.StretchSeconds - _settings.StretchHold) / _settings.StretchRetractSeconds;
                 length = isPreview ? _stretchLengths[index] : rest + (_stretchLengths[index] - rest) * Math.Max(0, Math.Min(1, progress));
+                angle += GetStretchRotation(elapsed);
             }
             else if (_attack == HydraAttack.Spin && index < SPIN_HEAD_COUNT)
             {
