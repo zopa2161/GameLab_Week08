@@ -860,6 +860,9 @@ namespace RuneCode
         }
     }
 
+    /// <summary>적 탄환의 표시 색상 구분이다. 기본은 기존 탄환 색이며 Hexa의 유도·Sniper 탄환만 별도 색을 사용한다.</summary>
+    public enum HostileProjectileStyle { Default, Homing, Sniper }
+
     public sealed class SimulationProjectile
     {
         private readonly int _sourceEnemyId;
@@ -872,6 +875,7 @@ namespace RuneCode
         private readonly double _warning;
         private readonly double _homingTurnRadiansPerSecond;
         private readonly double _homingSeconds;
+        private readonly HostileProjectileStyle _style;
         private SimVector _direction;
         private SimVector _position;
         private double _age;
@@ -887,10 +891,11 @@ namespace RuneCode
         internal double Damage => _damage;
         internal double Lifetime => _lifetime;
         internal bool IsHoming => _homingTurnRadiansPerSecond > 0 && _homingSeconds > 0;
+        public HostileProjectileStyle Style => _style;
 
-        /// <summary>위치·공격 설정으로 적 탄환 또는 예고 장판을 생성하고 피해 귀속용 원래 적 ID를 보관한다. 유도 회전 속도와 지속 시간을 지정하면 생성 직후부터 해당 시간 동안 플레이어 방향 보정을 사용한다.</summary>
-        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0, double homingTurnDegreesPerSecond = 0, double homingSeconds = 0)
-        { _sourceEnemyId = sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; _homingTurnRadiansPerSecond = homingTurnDegreesPerSecond * RuneSimulation.DEGREES_TO_RADIANS; _homingSeconds = Math.Max(0, homingSeconds); }
+        /// <summary>위치·공격 설정으로 적 탄환 또는 예고 장판을 생성하고 피해 귀속용 원래 적 ID를 보관한다. 유도 회전 속도와 지속 시간을 지정하면 생성 직후부터 해당 시간 동안 플레이어 방향 보정을 사용하며, 표시 스타일은 렌더링 색상만 구분한다.</summary>
+        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0, double homingTurnDegreesPerSecond = 0, double homingSeconds = 0, HostileProjectileStyle style = HostileProjectileStyle.Default)
+        { _sourceEnemyId = sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; _homingTurnRadiansPerSecond = homingTurnDegreesPerSecond * RuneSimulation.DEGREES_TO_RADIANS; _homingSeconds = Math.Max(0, homingSeconds); _style = style; }
 
         /// <summary>유도 탄환이면 유도 시간 안에서 목표 방향으로 최대 회전량만큼 최단 호로 방향을 보정한 뒤 위치와 수명을 고정 시간만큼 진행한다.</summary>
         internal void Advance(double dt, SimVector? homingTarget = null)

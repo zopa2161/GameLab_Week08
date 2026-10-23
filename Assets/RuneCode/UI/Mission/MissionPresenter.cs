@@ -333,6 +333,20 @@ namespace RuneCode
                 : attack == HexaSubAttack.Homing ? "유도"
                 : attack == HexaSubAttack.Sniper ? "Sniper" : "-";
 
+        /// <summary>복합에서 동시에 진행 중인 하위 공격의 발사 진행을 표시용 문자열로 반환하고, 진행 중인 공격이 없으면 시작 전·전환·완료·취소를 구분해 반환한다.</summary>
+        private static string CompositeProgressLabel(HexaBossState hexa)
+        {
+            if (hexa.IsCancelled) return "취소";
+            string label = "";
+            if (hexa.IsSpraying) label = "난사 " + hexa.SprayShotCount + "/" + HexaDefinition.SPRAY_SHOT_COUNT;
+            if (hexa.IsHoming)
+                label += (label.Length > 0 ? " + " : "") + "유도 " + hexa.HomingShotCount + "/" + HexaDefinition.HOMING_SHOT_COUNT;
+            if (hexa.IsSniperAttacking)
+                label += (label.Length > 0 ? " + " : "") + "Sniper " + hexa.SniperShotCount + "/" + HexaDefinition.SNIPER_SHOT_COUNT;
+            if (label.Length > 0) return label;
+            return hexa.IsCompositeComplete ? "완료" : hexa.CompositeStage == 0 ? "시작 전" : "전환";
+        }
+
         /// <summary>지정 라운드의 마지막 웨이브에 bossId가 처음 나오는 스테이지 번호를 반환하고 없으면 0을 반환한다.</summary>
         private static int FindBossStage(string bossId, int round)
         {
@@ -836,8 +850,8 @@ namespace RuneCode
                         else
                             autoState = "복합 " + CompositeAttackName(hexa.CompositeFirstAttack) + "→"
                                 + CompositeAttackName(hexa.CompositeSecondAttack) + " · "
-                                + (hexa.IsCompositeComplete ? 2 : hexa.CompositeStage + 1) + "/" + HexaDefinition.COMPOSITE_STAGE_COUNT
-                                + " " + CompositeAttackName(hexa.CompositeCurrentAttack);
+                                + hexa.CompositeStage + "/" + HexaDefinition.COMPOSITE_STAGE_COUNT
+                                + " " + CompositeProgressLabel(hexa);
                         objective = "Hexa 자동 " + autoPattern + " · 소환 " + hexa.SummonCooldown + " · 나선 " + hexa.SpiralCooldown
                             + " · 완료 " + hexa.AutoCompletionCount + "회 · " + autoState;
                         break;
@@ -870,8 +884,8 @@ namespace RuneCode
                             : hexa.IsSpraying || hexa.IsHoming || hexa.IsSniperAttacking ? "진행" : "전환";
                         objective = "Hexa 복합 " + CompositeAttackName(hexa.CompositeFirstAttack)
                             + "→" + CompositeAttackName(hexa.CompositeSecondAttack)
-                            + " · " + (hexa.IsCompositeComplete ? 2 : hexa.CompositeStage + 1)
-                            + "/" + HexaDefinition.COMPOSITE_STAGE_COUNT + " " + CompositeAttackName(hexa.CompositeCurrentAttack)
+                            + " · " + hexa.CompositeStage + "/" + HexaDefinition.COMPOSITE_STAGE_COUNT
+                            + " " + CompositeProgressLabel(hexa)
                             + " · " + compositeState + " · 전체 완료 " + hexa.CompositeCompletionCount + "회";
                         break;
                     }

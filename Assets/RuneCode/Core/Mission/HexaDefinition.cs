@@ -8,18 +8,24 @@ namespace RuneCode
         public const string ID = "hexa";
         public const string PROJECTILE_SOURCE_ID = "enemy.sentry";
         public const string SNIPER_SOURCE_ID = "enemy.clock_sniper";
-        public const int SNIPER_SHOT_COUNT = 1;
+        public const int SNIPER_SHOT_COUNT = 5;
+        public const double SNIPER_AIM_SECONDS = 1;
+        public const double SNIPER_LOCK_SECONDS = 0;
         public const int INITIAL_DELAY_TICKS = 3 * RuneSimulation.TICK_RATE;
-        public const int SPRAY_INTERVAL_TICKS = RuneSimulation.TICK_RATE / 10;
-        public const int SPRAY_DURATION_TICKS = 3 * RuneSimulation.TICK_RATE;
-        public const int SPRAY_SHOT_COUNT = 30;
-        public const double SPRAY_HALF_SPREAD_DEGREES = 15;
-        public const int HOMING_SHOT_INTERVAL_TICKS = RuneSimulation.TICK_RATE;
-        public const int HOMING_SHOT_COUNT = 5;
-        public const double HOMING_TURN_DEGREES_PER_SECOND = 20;
-        public const double HOMING_SECONDS = 2;
+        public const int SPRAY_INTERVAL_TICKS = RuneSimulation.TICK_RATE / 20;
+        public const int SPRAY_DURATION_TICKS = 5 * RuneSimulation.TICK_RATE;
+        public const int SPRAY_SHOT_COUNT = SPRAY_DURATION_TICKS / SPRAY_INTERVAL_TICKS;
+        public const double SPRAY_HALF_SPREAD_DEGREES = 30;
+        public const double SPRAY_SPEED_MULTIPLIER = 2;
+        public const int HOMING_SHOT_INTERVAL_TICKS = RuneSimulation.TICK_RATE / 2;
+        public const int HOMING_SHOT_COUNT = 10;
+        // mod.homing C 등급은 유도 단계가 없어, 실제 최저 단계인 하급(100도/초)을 기준으로 삼는다.
+        public const double HOMING_TURN_DEGREES_PER_SECOND = 100;
+        public const double HOMING_SECONDS = 5;
+        public const double HOMING_SPEED_MULTIPLIER = 1.5;
         public const int COMPOSITE_STAGE_COUNT = 2;
         public const int COMPOSITE_SUB_ATTACK_COUNT = 3;
+        public const int COMPOSITE_SECOND_START_TICKS = 3 * RuneSimulation.TICK_RATE;
         public const int SUMMON_BUNDLE_COUNT = 3;
         public const int SUMMON_COUNT = 6;
         public const int SUMMON_INTERVAL_TICKS = RuneSimulation.TICK_RATE;
@@ -32,7 +38,9 @@ namespace RuneCode
         public const double SPIRAL_ROTATION_DEGREES_PER_BUNDLE =
             SPIRAL_ROTATION_DEGREES_PER_SECOND * SPIRAL_INTERVAL_TICKS / RuneSimulation.TICK_RATE;
         public const int AUTO_SUMMON_COOLDOWN = 3;
-        public const int AUTO_SPIRAL_COOLDOWN = 5;
+        public const int AUTO_SPIRAL_COOLDOWN = 2;
+        public const int AUTO_INITIAL_SUMMON_COOLDOWN = 2;
+        public const int AUTO_INITIAL_SPIRAL_COOLDOWN = 0;
         public const int AUTO_INTERVAL_TICKS = 3 * RuneSimulation.TICK_RATE;
 
         /// <summary>적 정의가 Hexa의 ID와 고정형 접촉 공격 규칙을 만족하는지 검증한다.</summary>

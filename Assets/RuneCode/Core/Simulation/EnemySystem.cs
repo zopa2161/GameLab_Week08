@@ -196,12 +196,20 @@ namespace RuneCode
         /// 조준 중에는 현재 위치와 방향을 저장하고, 고정 중에는 저장값을 유지하며 isLocked로 고정 구간을 알린다.
         /// </summary>
         internal static bool AdvanceSniperAim(SimulationEnemy enemy, EnemyDefinition definition, SimVector direction, double time, out bool isLocked)
+            => AdvanceSniperAim(enemy, direction, time, definition.AimSeconds, definition.LockSeconds, out isLocked);
+
+        /// <summary>
+        /// 지정한 조준·고정 시간으로 저격 조준을 한 틱 진행하고 발사 시점이면 true를 반환한다.
+        /// 조준 중에는 현재 위치와 방향을 저장하고, 고정 중에는 저장값을 유지하며 isLocked로 고정 구간을 알린다.
+        /// </summary>
+        internal static bool AdvanceSniperAim(SimulationEnemy enemy, SimVector direction, double time,
+            double aimSeconds, double lockSeconds, out bool isLocked)
         {
             isLocked = false;
             if (!enemy.IsAiming)
             {
-                enemy.AimEndsAt = time + definition.AimSeconds;
-                enemy.WarningUntil = enemy.AimEndsAt + definition.LockSeconds;
+                enemy.AimEndsAt = time + aimSeconds;
+                enemy.WarningUntil = enemy.AimEndsAt + lockSeconds;
                 enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction;
                 return false;
             }

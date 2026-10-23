@@ -30,6 +30,7 @@ namespace RuneCode
         private double _sniperRemainingLockSeconds;
         private bool _hasStartedComposite;
         private int _compositeStage;
+        private int _compositeElapsedTicks;
         private int _compositeCompletionCount;
         private HexaSubAttack _compositeFirst;
         private HexaSubAttack _compositeSecond;
@@ -68,10 +69,9 @@ namespace RuneCode
         public double SniperAttackRange => _sniperDefinition != null ? _sniperDefinition.AttackRange : 0;
         public bool HasStartedComposite => _hasStartedComposite;
         public int CompositeStage => _compositeStage;
-        public bool IsCompositeComplete => _compositeStage >= HexaDefinition.COMPOSITE_STAGE_COUNT;
+        public bool IsCompositeComplete => _compositeStage >= HexaDefinition.COMPOSITE_STAGE_COUNT && !HasActiveSubAttack();
         public HexaSubAttack CompositeFirstAttack => _compositeFirst;
         public HexaSubAttack CompositeSecondAttack => _compositeSecond;
-        public HexaSubAttack CompositeCurrentAttack => _compositeStage == 0 ? _compositeFirst : _compositeSecond;
         public int CompositeCompletionCount => _compositeCompletionCount;
         public bool HasStartedSummon => _hasStartedSummon;
         public bool IsSummoning => _isSummoning;
@@ -98,7 +98,7 @@ namespace RuneCode
             _delayTicks = HexaDefinition.INITIAL_DELAY_TICKS;
         }
 
-        /// <summary>원본 탄환 정의를 저장하고 첫 공격 전 대기부터 단독 유도 5발을 준비한다. 취소되거나 이미 시작한 개체는 무시한다.</summary>
+        /// <summary>원본 탄환 정의를 저장하고 첫 공격 전 대기부터 단독 유도 10발을 준비한다. 취소되거나 이미 시작한 개체는 무시한다.</summary>
         internal void BeginHoming(EnemyDefinition projectileDefinition)
         {
             if (_isCancelled || _hasAutoOperation || _hasStartedSpray || _hasStartedHoming || _hasStartedSniper
@@ -109,7 +109,7 @@ namespace RuneCode
             _delayTicks = HexaDefinition.INITIAL_DELAY_TICKS;
         }
 
-        /// <summary>원본 저격 정의를 저장하고 첫 공격 전 대기부터 단독 저격 한 발을 준비한다. 취소되거나 이미 시작한 개체는 무시한다.</summary>
+        /// <summary>원본 저격 정의를 저장하고 첫 공격 전 대기부터 1초 예고의 단독 저격 5발을 준비한다. 취소되거나 이미 시작한 개체는 무시한다.</summary>
         internal void BeginSniper(EnemyDefinition sniperDefinition)
         {
             if (_isCancelled || _hasAutoOperation || _hasStartedSpray || _hasStartedHoming || _hasStartedSniper
@@ -122,7 +122,8 @@ namespace RuneCode
 
         /// <summary>
         /// 원본 탄환·저격 정의를 저장하고 지정된 순서 또는 SimRandom으로 고른 서로 다른 두 하위 공격을
-        /// 첫 3초 대기 뒤 순차 실행하도록 준비한다. 취소되거나 이미 시작한 개체는 무시한다.
+        /// 첫 3초 대기 뒤 첫 공격부터 시작하고, 첫 공격 시작 3초 뒤 두 번째를 시작하도록 준비한다.
+        /// 취소되거나 이미 시작한 개체는 무시한다.
         /// </summary>
         internal void BeginComposite(EnemyDefinition projectileDefinition, EnemyDefinition sniperDefinition, SimRandom random,
             HexaSubAttack first = HexaSubAttack.None, HexaSubAttack second = HexaSubAttack.None)
@@ -137,6 +138,7 @@ namespace RuneCode
             _compositeSecond = second;
             _hasStartedComposite = true;
             _compositeStage = 0;
+            _compositeElapsedTicks = 0;
             _compositeCompletionCount = 0;
             _delayTicks = HexaDefinition.INITIAL_DELAY_TICKS;
         }
@@ -165,7 +167,7 @@ namespace RuneCode
 
         /// <summary>
         /// 원본 탄환·저격 정의를 저장하고 첫 3초 대기 뒤 소환·나선·복합을 우선순위와 횟수 쿨타임으로 자동 선택하는 운영을 준비한다.
-        /// 초기 카운터는 소환 3, 나선 5이며 복합은 항상 사용할 수 있고, 취소되거나 이미 시작한 개체는 무시한다.
+        /// 초기 카운터는 소환 2, 나선 0이며 복합은 항상 사용할 수 있고, 취소되거나 이미 시작한 개체는 무시한다.
         /// </summary>
         internal void BeginAutoOperation(EnemyDefinition projectileDefinition, EnemyDefinition sniperDefinition)
         {
@@ -175,8 +177,8 @@ namespace RuneCode
             _sniperDefinition = sniperDefinition;
             _hasAutoOperation = true;
             _autoPattern = HexaTopPattern.None;
-            _summonCooldown = HexaDefinition.AUTO_SUMMON_COOLDOWN;
-            _spiralCooldown = HexaDefinition.AUTO_SPIRAL_COOLDOWN;
+            _summonCooldown = HexaDefinition.AUTO_INITIAL_SUMMON_COOLDOWN;
+            _spiralCooldown = HexaDefinition.AUTO_INITIAL_SPIRAL_COOLDOWN;
             _autoCompletionCount = 0;
             _delayTicks = HexaDefinition.INITIAL_DELAY_TICKS;
         }
@@ -214,7 +216,7 @@ namespace RuneCode
 
         /// <summary>
         /// 빙결이 아닌 틱마다 첫 대기와 선택된 공격을 진행한다. 자동 운영은 대기 후 우선순위로 다음 상위 패턴을 선택하고,
-        /// 수동 모드의 복합은 두 하위 공격을 다음 틱에 이어 실행한다.
+        /// 수동 모드의 복합은 첫 공격 시작 3초 뒤 두 번째 공격을 시작해 동시 진행할 수 있다.
         /// </summary>
         internal void Advance(SimulationEnemy owner, SimulationWorld world)
         {
@@ -265,12 +267,13 @@ namespace RuneCode
             _spiralShotCount = 0;
         }
 
-        /// <summary>자동 운영에서 SimRandom으로 서로 다른 두 하위 공격을 새로 골라 복합 패턴을 첫 단계부터 시작한다.</summary>
+        /// <summary>자동 운영에서 SimRandom으로 서로 다른 두 하위 공격을 새로 골라 복합 경과를 초기화하고 첫 단계부터 시작한다.</summary>
         private void BeginAutoComposite(SimulationWorld world)
         {
             _autoPattern = HexaTopPattern.Composite;
             _hasStartedComposite = true;
             _compositeStage = 0;
+            _compositeElapsedTicks = 0;
             _isSpraying = false;
             _isHoming = false;
             _isSniperAttacking = false;
@@ -308,7 +311,7 @@ namespace RuneCode
             _delayTicks = HexaDefinition.AUTO_INTERVAL_TICKS;
         }
 
-        /// <summary>매 발사 시 현재 플레이어 방향에 독립 편차를 더한 탄환을 6틱 간격으로 30발 발사하고 180틱에 완료한다.</summary>
+        /// <summary>매 발사 시 현재 플레이어 방향에 독립 편차를 더한 탄환을 3틱 간격으로 100발 발사하고 300틱에 완료한다. 난사 탄환은 원본 속도의 2배로 발사한다.</summary>
         private void AdvanceSpray(SimulationEnemy owner, SimulationWorld world)
         {
             if (_sprayElapsedTicks >= HexaDefinition.SPRAY_DURATION_TICKS)
@@ -322,20 +325,20 @@ namespace RuneCode
                 SimVector direction = (world.Player.Position - owner.Position).Normalized();
                 double spread = (world.Random.Next() * 2 - 1) * HexaDefinition.SPRAY_HALF_SPREAD_DEGREES
                     * RuneSimulation.DEGREES_TO_RADIANS;
-                Shoot(owner, world, direction.Rotated(spread));
+                Shoot(owner, world, direction.Rotated(spread), false, HexaDefinition.SPRAY_SPEED_MULTIPLIER);
                 _sprayShotCount++;
             }
             _sprayElapsedTicks++;
         }
 
-        /// <summary>매 발사 시 현재 플레이어 방향으로 유도 탄환을 60틱 간격으로 5발 발사하며 5번째 발사와 함께 완료한다.</summary>
+        /// <summary>매 발사 시 현재 플레이어 방향으로 유도 탄환을 30틱 간격으로 10발 발사하며 마지막 발사와 함께 완료한다.</summary>
         private void AdvanceHoming(SimulationEnemy owner, SimulationWorld world)
         {
             if (_homingShotCount < HexaDefinition.HOMING_SHOT_COUNT
                 && _homingElapsedTicks % HexaDefinition.HOMING_SHOT_INTERVAL_TICKS == 0)
             {
                 SimVector direction = (world.Player.Position - owner.Position).Normalized();
-                Shoot(owner, world, direction, true);
+                Shoot(owner, world, direction, true, HexaDefinition.HOMING_SPEED_MULTIPLIER);
                 _homingShotCount++;
                 if (_homingShotCount >= HexaDefinition.HOMING_SHOT_COUNT) { _isHoming = false; return; }
             }
@@ -370,59 +373,61 @@ namespace RuneCode
             _spiralElapsedTicks++;
         }
 
-        /// <summary>원본 저격 정의의 조준 시간 동안 플레이어 방향을 추적하고 고정 시간 뒤 저장된 원점·방향으로 단발을 발사해 하위 공격을 완료한다.</summary>
+        /// <summary>원본 저격 정의로 각 사격마다 1초 동안 플레이어 방향을 추적한 뒤 원점과 방향으로 탄환을 발사하며, 5발을 모두 쏘면 하위 공격을 완료한다.</summary>
         private void AdvanceSniper(SimulationEnemy owner, SimulationWorld world)
         {
             if (_sniperDefinition == null) { _isSniperAttacking = false; return; }
             if (_isSniperPaused) ResumeSniper(owner, world.Time);
             bool isBeginning = !owner.IsAiming;
             SimVector direction = (world.Player.Position - owner.Position).Normalized();
-            bool isReady = EnemySystem.AdvanceSniperAim(owner, _sniperDefinition, direction, world.Time, out bool isLocked);
+            bool isReady = EnemySystem.AdvanceSniperAim(owner, direction, world.Time,
+                HexaDefinition.SNIPER_AIM_SECONDS, HexaDefinition.SNIPER_LOCK_SECONDS, out bool isLocked);
             if (isBeginning) { _isSniperLocked = false; return; }
             _sniperElapsedTicks++;
             _isSniperLocked = isLocked && !isReady;
             if (!isReady) return;
             world.EnemyProjectiles.Add(new SimulationProjectile(owner.AttackOrigin, owner.AimedDirection,
                 _sniperDefinition.ProjectileSpeed, _sniperDefinition.Damage * owner.DamageMultiplier,
-                _sniperDefinition.ProjectileRadius, _sniperDefinition.ProjectileLifetime, sourceEnemyId: owner.Id));
+                _sniperDefinition.ProjectileRadius, _sniperDefinition.ProjectileLifetime, sourceEnemyId: owner.Id,
+                style: HostileProjectileStyle.Sniper));
             owner.AimEndsAt = 0; owner.WarningUntil = 0;
-            _isSniperAttacking = false; _isSniperLocked = false; _sniperShotCount = 1;
+            _sniperShotCount++;
+            _isSniperLocked = false;
+            if (_sniperShotCount >= HexaDefinition.SNIPER_SHOT_COUNT) _isSniperAttacking = false;
         }
 
         /// <summary>
-        /// 현재 단계의 하위 공격을 시작하거나 한 틱 진행하고, 해당 공격이 끝난 틱에 다음 단계로 넘긴다.
-        /// 두 번째까지 끝나면 전체 완료 횟수를 한 번만 증가시키고 이후에는 아무 공격도 시작하지 않는다.
+        /// 복합 첫 하위 공격을 시작하고 경과 틱을 세며, 첫 공격 시작 180틱 뒤 두 번째 하위 공격을 시작한다.
+        /// 진행 중인 하위 공격을 각각 한 틱씩 갱신하고 둘 다 끝난 틱에 완료 횟수를 한 번만 증가시킨다.
+        /// 이후에는 같은 복합을 다시 시작하지 않는다.
         /// </summary>
         private void AdvanceComposite(SimulationEnemy owner, SimulationWorld world)
         {
-            if (!_isSpraying && !_isHoming && !_isSniperAttacking)
+            if (_compositeStage >= HexaDefinition.COMPOSITE_STAGE_COUNT && !HasActiveSubAttack()) return;
+            if (_compositeStage == 0)
             {
-                if (_compositeStage >= HexaDefinition.COMPOSITE_STAGE_COUNT) return;
-                BeginCompositeStage(owner);
+                BeginCompositeAttack(owner, _compositeFirst);
+                _compositeStage = 1;
             }
-            if (_isSpraying)
+            if (_compositeStage == 1 && _compositeElapsedTicks >= HexaDefinition.COMPOSITE_SECOND_START_TICKS)
             {
-                AdvanceSpray(owner, world);
-                if (!_isSpraying) FinishCompositeStage();
-                return;
+                BeginCompositeAttack(owner, _compositeSecond);
+                _compositeStage = HexaDefinition.COMPOSITE_STAGE_COUNT;
             }
-            if (_isHoming)
+            if (_isSpraying) AdvanceSpray(owner, world);
+            if (_isHoming) AdvanceHoming(owner, world);
+            if (_isSniperAttacking) AdvanceSniper(owner, world);
+            _compositeElapsedTicks++;
+            if (_compositeStage >= HexaDefinition.COMPOSITE_STAGE_COUNT && !HasActiveSubAttack())
             {
-                AdvanceHoming(owner, world);
-                if (!_isHoming) FinishCompositeStage();
-                return;
-            }
-            if (_isSniperAttacking)
-            {
-                AdvanceSniper(owner, world);
-                if (!_isSniperAttacking) FinishCompositeStage();
+                _compositeCompletionCount++;
+                if (_autoPattern == HexaTopPattern.Composite) CompleteAutoPattern();
             }
         }
 
-        /// <summary>현재 단계에 배정된 하위 공격의 진행 틱·발사 수와 저격 일시정지 상태를 초기화하고 실행을 시작한다.</summary>
-        private void BeginCompositeStage(SimulationEnemy owner)
+        /// <summary>복합에서 지정한 하위 공격의 진행 틱·발사 수와 저격 일시정지 상태를 초기화하고 실행을 시작한다.</summary>
+        private void BeginCompositeAttack(SimulationEnemy owner, HexaSubAttack attack)
         {
-            HexaSubAttack attack = _compositeStage == 0 ? _compositeFirst : _compositeSecond;
             switch (attack)
             {
                 case HexaSubAttack.Spray:
@@ -437,14 +442,8 @@ namespace RuneCode
             }
         }
 
-        /// <summary>끝난 하위 공격 단계를 다음으로 넘기고, 두 번째 공격 완료일 때만 전체 완료 횟수를 한 번 증가시키며 자동 운영에는 상위 1회 완료로 알린다.</summary>
-        private void FinishCompositeStage()
-        {
-            _compositeStage++;
-            if (_compositeStage < HexaDefinition.COMPOSITE_STAGE_COUNT) return;
-            _compositeCompletionCount++;
-            if (_autoPattern == HexaTopPattern.Composite) CompleteAutoPattern();
-        }
+        /// <summary>복합 하위 공격 중 하나라도 진행 중인지 반환한다.</summary>
+        private bool HasActiveSubAttack() => _isSpraying || _isHoming || _isSniperAttacking;
 
         /// <summary>빙결 시작 시 저격 예고선을 숨기고 남은 조준·고정 시간을 보존한다. 저격 중이 아니면 아무것도 바꾸지 않는다.</summary>
         internal void PauseSniper(SimulationEnemy owner, double time)
@@ -467,14 +466,15 @@ namespace RuneCode
             _isSniperPaused = false;
         }
 
-        /// <summary>소유자의 중앙에서 원본 적 탄환의 속도·피해·반경·수명과 소유자 피해 배율을 사용해 한 발 생성한다. 유도 발사는 같은 탄환에 유도 시간과 초당 회전 상한을 설정한다.</summary>
-        private void Shoot(SimulationEnemy owner, SimulationWorld world, SimVector direction, bool isHoming = false)
+        /// <summary>소유자의 중앙에서 원본 적 탄환의 속도·피해·반경·수명과 소유자 피해 배율을 사용해 한 발 생성한다. speedMultiplier는 원본 속도에 곱하고, 유도 발사는 같은 탄환에 유도 시간과 초당 회전 상한 및 보라색 표시 스타일을 설정한다.</summary>
+        private void Shoot(SimulationEnemy owner, SimulationWorld world, SimVector direction, bool isHoming = false, double speedMultiplier = 1)
         {
-            world.EnemyProjectiles.Add(new SimulationProjectile(owner.Position, direction, _projectileDefinition.ProjectileSpeed,
+            world.EnemyProjectiles.Add(new SimulationProjectile(owner.Position, direction, _projectileDefinition.ProjectileSpeed * speedMultiplier,
                 _projectileDefinition.Damage * owner.DamageMultiplier, _projectileDefinition.ProjectileRadius,
                 _projectileDefinition.ProjectileLifetime, sourceEnemyId: owner.Id,
                 homingTurnDegreesPerSecond: isHoming ? HexaDefinition.HOMING_TURN_DEGREES_PER_SECOND : 0,
-                homingSeconds: isHoming ? HexaDefinition.HOMING_SECONDS : 0));
+                homingSeconds: isHoming ? HexaDefinition.HOMING_SECONDS : 0,
+                style: isHoming ? HostileProjectileStyle.Homing : HostileProjectileStyle.Default));
         }
 
         /// <summary>사망 또는 전투 종료 시 이 개체의 보스 실행 상태와 진행 중인 공격·소환·저격 예고선을 취소하며, 복합의 남은 하위 공격과 완료 집계는 진행하지 않는다.</summary>
@@ -486,7 +486,7 @@ namespace RuneCode
             owner.AimEndsAt = 0; owner.WarningUntil = 0;
         }
 
-        /// <summary>난사·유도·저격·복합·소환·나선 선택, 자동 운영의 현재 패턴·쿨타임·완료 횟수, 취소, 진행 틱·횟수, 복합 순서·완료 횟수, 소환 묶음·다음 틱, 나선 묶음·발사 수, 보존한 저격 시간과 원본 탄환·저격 ID를 결정성 상태 버퍼에 추가한다.</summary>
+        /// <summary>난사·유도·저격·복합·소환·나선 선택, 자동 운영의 현재 패턴·쿨타임·완료 횟수, 취소, 진행 틱·횟수, 복합 순서·경과·완료 횟수, 소환 묶음·다음 틱, 나선 묶음·발사 수, 보존한 저격 시간과 원본 탄환·저격 ID를 결정성 상태 버퍼에 추가한다.</summary>
         internal void WriteState(StringBuilder state)
         {
             state.Append("|hexa:").Append(_isCancelled).Append(':').Append(_hasStartedSpray).Append(':').Append(_isSpraying)
@@ -497,6 +497,7 @@ namespace RuneCode
                 .Append(':').Append(_isSniperLocked).Append(':').Append(_sniperElapsedTicks).Append(':').Append(_sniperShotCount)
                 .Append(':').Append(_sniperDefinition?.Id)
                 .Append(':').Append(_hasStartedComposite).Append(':').Append(_compositeStage)
+                .Append(':').Append(_compositeElapsedTicks)
                 .Append(':').Append((int)_compositeFirst).Append(':').Append((int)_compositeSecond)
                 .Append(':').Append(_compositeCompletionCount)
                 .Append(':').Append(_hasStartedSummon).Append(':').Append(_isSummoning)
