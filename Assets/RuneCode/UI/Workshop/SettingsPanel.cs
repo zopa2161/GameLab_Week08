@@ -7,15 +7,17 @@ using UnityEngine.UI;
 
 namespace RuneCode
 {
-    /// <summary>공통 설정과 음량 초안을 표시하고 저장·타이틀 복귀·게임 종료·디버그 입력을 알린다.</summary>
+    /// <summary>공통 설정과 즉시 저장되는 음량을 표시하고 저장·타이틀 복귀·게임 종료·디버그 입력을 알린다.</summary>
     public sealed class SettingsPanel : MonoBehaviour
     {
-        private const float LOWER_CONTROLS_TOP = 370f;
+        private const float LOWER_CONTROLS_TOP = 314f;
         private const float CONTROL_ROW_STEP = 54f;
         private const float CONTROL_GROUP_GAP = 12f;
 
-        private static readonly Vector2 BASIC_PANEL_SIZE = new Vector2(494, 470);
-        private static readonly Vector2 WORKSHOP_PANEL_SIZE = new Vector2(1000, 700);
+        private static readonly Vector2 BASIC_PANEL_SIZE = new Vector2(494, 414);
+        private static readonly Vector2 WORKSHOP_PANEL_SIZE = new Vector2(1000, 644);
+        private static readonly Color FEEDBACK_ON_COLOR = new Color(0.6f, 1f, 1f, 1f);
+        private static readonly Color FEEDBACK_OFF_COLOR = new Color(0.65f, 0.7f, 0.77f, 1f);
 
         [Header("설정")]
         [SerializeField] private RectTransform _card;
@@ -32,7 +34,6 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _masterVolumeLabel;
         [SerializeField] private TextMeshProUGUI _bgmVolumeLabel;
         [SerializeField] private TextMeshProUGUI _sfxVolumeLabel;
-        [SerializeField] private Button _applyVolumeButton;
 
         [Header("작업실 안내")]
         [SerializeField] private GameObject _workshopControls;
@@ -83,10 +84,9 @@ namespace RuneCode
         {
             _screenShakeButton.onClick.AddListener(() => ScreenShakeClicked?.Invoke());
             _hitStopButton.onClick.AddListener(() => HitStopClicked?.Invoke());
-            _applyVolumeButton.onClick.AddListener(ApplyVolumes);
-            _masterVolumeSlider.onValueChanged.AddListener(_ => RefreshVolumeLabels());
-            _bgmVolumeSlider.onValueChanged.AddListener(_ => RefreshVolumeLabels());
-            _sfxVolumeSlider.onValueChanged.AddListener(_ => RefreshVolumeLabels());
+            _masterVolumeSlider.onValueChanged.AddListener(_ => ApplyVolumes());
+            _bgmVolumeSlider.onValueChanged.AddListener(_ => ApplyVolumes());
+            _sfxVolumeSlider.onValueChanged.AddListener(_ => ApplyVolumes());
             _resetSaveButton.onClick.AddListener(() => ResetSaveClicked?.Invoke());
             _debugGrantButton.onClick.AddListener(() => DebugGrantClicked?.Invoke());
             _debugUnlockButton.onClick.AddListener(() => DebugUnlockClicked?.Invoke());
@@ -118,14 +118,16 @@ namespace RuneCode
             LayoutLowerControls(isDebugGroupVisible, isSaveRowVisible);
         }
 
-        /// <summary>화면 흔들림·히트스톱 설정의 켜짐 여부를 버튼 문구에 표시한다.</summary>
+        /// <summary>화면 흔들림·히트스톱 문구는 흰색으로 유지하고 남색 버튼을 켜짐은 청록색·꺼짐은 회색 계열로 표시한다.</summary>
         public void SetFeedback(bool isScreenShake, bool isHitStop)
         {
             _screenShakeLabel.text = GameData.L("ui.shake") + "  " + GameData.L(isScreenShake ? "ui.on" : "ui.off");
             _hitStopLabel.text = GameData.L("ui.hitstop") + "  " + GameData.L(isHitStop ? "ui.on" : "ui.off");
+            _screenShakeButton.targetGraphic.color = isScreenShake ? FEEDBACK_ON_COLOR : FEEDBACK_OFF_COLOR;
+            _hitStopButton.targetGraphic.color = isHitStop ? FEEDBACK_ON_COLOR : FEEDBACK_OFF_COLOR;
         }
 
-        /// <summary>설정창을 열 때 현재 런타임 음량으로 초안과 퍼센트 표시를 초기화한다.</summary>
+        /// <summary>설정창을 열 때 현재 런타임 음량을 읽어 슬라이더와 퍼센트 표시를 초기화하며 변경 이벤트는 발생시키지 않는다.</summary>
         public void ResetVolumeDraft()
         {
             _masterVolumeSlider.SetValueWithoutNotify(SoundManager.Instance.MasterVolume);
@@ -134,7 +136,7 @@ namespace RuneCode
             RefreshVolumeLabels();
         }
 
-        /// <summary>각 슬라이더의 현재 음량 초안을 정수 퍼센트로 표시한다.</summary>
+        /// <summary>각 슬라이더의 현재 음량을 정수 퍼센트로 표시한다.</summary>
         private void RefreshVolumeLabels()
         {
             _masterVolumeLabel.text = Mathf.RoundToInt(_masterVolumeSlider.value * 100f) + "%";
@@ -142,7 +144,7 @@ namespace RuneCode
             _sfxVolumeLabel.text = Mathf.RoundToInt(_sfxVolumeSlider.value * 100f) + "%";
         }
 
-        /// <summary>음량 초안을 사운드 버스와 기기 공통 설정에 적용하고 기존 적용음을 재생한다.</summary>
+        /// <summary>슬라이더가 변경될 때 현재 음량을 사운드 버스와 기기 공통 설정에 즉시 저장하고 퍼센트를 갱신한다.</summary>
         private void ApplyVolumes()
         {
             float masterVolume = _masterVolumeSlider.value;
@@ -150,7 +152,7 @@ namespace RuneCode
             float sfxVolume = _sfxVolumeSlider.value;
             SoundManager.Instance.SetVolumes(masterVolume, bgmVolume, sfxVolume);
             SaveStore.SetVolumes(masterVolume, bgmVolume, sfxVolume);
-            SoundManager.Instance.PlayUnlockSkillTree();
+            RefreshVolumeLabels();
         }
 
         /// <summary>미저장 여부를 표시하고 저장·불러오기 가능 상태를 갱신한다.</summary>
