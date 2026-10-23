@@ -159,8 +159,6 @@ namespace RuneCode
                 if (stats.SpreadAngle > 0f) AddDetail(lines, "spread", Number(stats.SpreadAngle, ANGLE_FORMAT));
                 if (grades.TryGetLaunchSpreadAngle(rune.Id, grade, out float launchSpread))
                     AddDetail(lines, "launchSpread", Number(launchSpread, ANGLE_FORMAT));
-                if (stats.WaveDamageMultiplier != 1f)
-                    AddDetail(lines, "waveDamage", Number(stats.WaveDamageMultiplier, NUMBER_FORMAT));
             }
             if (stats.WaveInterval > 0f) AddDetail(lines, "waveInterval", Number(stats.WaveInterval, NUMBER_FORMAT));
             if (grades.TryGetPierceDamageMultiplier(rune.Id, grade, out float pierceMultiplier))

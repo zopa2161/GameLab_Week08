@@ -315,7 +315,7 @@ namespace RuneCode
                 if (mod.Id == OrbitModifierRules.RUNE_ID) orbitRadius = stats.OrbitRadius;
                 orbitRadiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.ORBIT_PATH_EFFECT, 1f);
                 damageMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.EFFECT_MULTIPLIER_EFFECT,
-                    mod.Id == MultiModifierRules.RUNE_ID && _isExpandingRing ? stats.WaveDamageMultiplier : stats.DamageMultiplier);
+                    stats.DamageMultiplier);
                 radiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.RADIUS_MULTIPLIER_EFFECT, stats.RadiusMultiplier);
                 speedMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.SPEED_MULTIPLIER_EFFECT, stats.SpeedMultiplier);
                 durationMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.DURATION_MULTIPLIER_EFFECT, stats.DurationMultiplier);

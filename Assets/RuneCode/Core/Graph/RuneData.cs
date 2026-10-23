@@ -106,7 +106,6 @@ namespace RuneCode
         private readonly float _beamLength;
         private readonly int _waveCount;
         private readonly float _waveInterval;
-        private readonly float _waveDamageMultiplier;
 
         public float Damage => _damage;
         public float Speed => _speed;
@@ -168,9 +167,6 @@ namespace RuneCode
         /// <summary>회차를 만드는 모드의 회차 사이 간격(초)이다. 데이터가 없으면 0이다.</summary>
         public float WaveInterval => _waveInterval;
 
-        /// <summary>폭발에 장착한 다중이 회차마다 적용하는 피해 배율이며 데이터가 없으면 1이다.</summary>
-        public float WaveDamageMultiplier => _waveDamageMultiplier;
-
         /// <summary>룬 데이터의 수치 항목으로 효과 수치를 만든다. JSON에 없는 필드는 배율이면 1, 그 외는 0이다.</summary>
         internal RuneStats(RuneStatsData row)
         {
@@ -213,7 +209,6 @@ namespace RuneCode
             _beamLength = row._beamLength;
             _waveCount = row._waveCount;
             _waveInterval = row._waveInterval;
-            _waveDamageMultiplier = row._waveDamageMultiplier;
         }
     }
 
@@ -980,8 +975,7 @@ namespace RuneCode
                 stats.AngularSpeed, stats.StationaryAngularSpeed, stats.EntrySpeed, stats.MovingLifetimeBonus, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
                 stats.LearningMultiplier, stats.SpreadAngle, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
-                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds, stats.WaveInterval,
-                stats.WaveDamageMultiplier };
+                stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds, stats.WaveInterval };
             foreach (float value in numbers)
             {
                 if (value < 0f)

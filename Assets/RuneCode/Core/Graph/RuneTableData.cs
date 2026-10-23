@@ -109,7 +109,6 @@ namespace RuneCode
         public float _beamLength;
         public int _waveCount;
         public float _waveInterval;
-        public float _waveDamageMultiplier = 1f;
     }
 
     /// <summary>유도 Modifier의 하위 유도 단계와 적용 수치다.</summary>

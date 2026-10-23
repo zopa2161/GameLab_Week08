@@ -155,7 +155,7 @@ flowchart LR
 |---|---|---|
 | `mod.saving` 절약 | `energyCostMultiplier` | 비용 배율 0.95 / 0.9 / 0.8 / 0.7 |
 | `mod.amplify` 효과 증폭 | `effectMultiplier` | 1.5 / 1.95 / 2.8 / 4.5 |
-| `mod.multi` 다중 | `multipleCount` | 발사·빔·참격: 생성 개수 2 / 3 / 4 / 5, 피해 ×0.7. 폭발: 생성 개수 1, 회차 2 / 2 / 3 / 4·0.2초, 피해 ×0.8. 잔류는 장착 불가 |
+| `mod.multi` 다중 | `multipleCount` | 발사·빔·참격: 생성 개수 2 / 3 / 4 / 5, 피해 ×0.3. 폭발: 생성 개수 1, 회차 2 / 2 / 3 / 4·0.2초, 피해 ×0.3. 잔류는 장착 불가 |
 | `mod.pierce` 관통 | `pierceCount` | 1 / 3 / 7 / 999(무제한) |
 | `mod.expand` 확장 | `radiusMultiplier` (면적 배율) | 1.5 / 2 / 2.7 / 4 |
 | `mod.duration` 지속시간 | `durationMultiplier` | 1.5 / 2 / 2.5 / 3 |

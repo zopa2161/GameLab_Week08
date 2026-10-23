@@ -10,6 +10,7 @@ namespace RuneCode
 
         public const string SITUATION_SINGLE = "single";
         public const string SITUATION_SWARM = "swarm";
+        public const string SITUATION_PENTAGON = "pentagon";
 
         public const string INPUT_HOLD_ATTACK = "holdAttack";
 
@@ -26,7 +27,7 @@ namespace RuneCode
         public const string WARNING_REPEAT_VARIANCE = "repeatVariance";
 
         /// <summary>상황 코드가 정의된 값인지 반환한다.</summary>
-        public static bool IsSituation(string value) => value == SITUATION_SINGLE || value == SITUATION_SWARM;
+        public static bool IsSituation(string value) => value == SITUATION_SINGLE || value == SITUATION_SWARM || value == SITUATION_PENTAGON;
 
         /// <summary>입력 방식 코드가 정의된 값인지 반환한다.</summary>
         public static bool IsInputMode(string value) => value == INPUT_HOLD_ATTACK;

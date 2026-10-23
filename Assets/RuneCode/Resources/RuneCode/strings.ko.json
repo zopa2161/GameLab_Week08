@@ -1648,7 +1648,6 @@
     {"_key": "rune.detail.angularSpeed", "_value": "회전 속도 <b>{value}°/s</b>"},
     {"_key": "rune.detail.entrySpeed", "_value": "진입 속도 <b>{value}px/s</b>"},
     {"_key": "rune.detail.damage", "_value": "피해 <b>×{value}</b>"},
-    {"_key": "rune.detail.waveDamage", "_value": "폭발 피해 <b>×{value}</b>"},
     {"_key": "rune.detail.spread", "_value": "확산 각도 <b>{value}°</b>"},
     {"_key": "rune.detail.launchSpread", "_value": "발사 행동 퍼짐 <b>{value}°</b>"},
     {"_key": "rune.detail.waveInterval", "_value": "폭발 회차 간격 <b>{value}s</b>"},

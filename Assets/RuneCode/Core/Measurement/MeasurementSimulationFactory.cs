@@ -13,6 +13,7 @@ namespace RuneCode
         {
             if (situation == MeasurementCodes.SITUATION_SINGLE) return BenchScenario.MEASURE_SINGLE;
             if (situation == MeasurementCodes.SITUATION_SWARM) return BenchScenario.MEASURE_SWARM;
+            if (situation == MeasurementCodes.SITUATION_PENTAGON) return BenchScenario.MEASURE_PENTAGON;
             throw new ArgumentException("알 수 없는 측정 상황입니다.", nameof(situation));
         }
 

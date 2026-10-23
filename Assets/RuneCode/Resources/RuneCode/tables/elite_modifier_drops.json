@@ -353,7 +353,7 @@
     "multipleCount의 _launchSpreadAngles는 지팡이 앞에서 생성되는 행동(발사·빔·참격)의 다중 탄 퍼짐 각도(도)입니다. 생략하면 runes.json mod.multi의 _spreadAngle을 씁니다.",
     "공전 모드와 다중을 함께 장착하면 궤도를 개수만큼 등각으로 나눕니다. 개수는 지팡이 앞에서 생성되는 행동이 _launchGradeValues를 씁니다.",
     "multipleCount의 _waveGradeValues는 폭발에 장착한 다중의 회차 수입니다. multipleCount 효과에만 허용되고, 값이 있는 등급은 _gradeValues와 같아야 하며 1 이상의 정수입니다.",
-    "폭발에 다중을 장착하면 생성 개수를 늘리지 않고 회차로 반복합니다. 회차마다 runes.json mod.multi의 _waveDamageMultiplier(0.8)를 적용합니다.",
+    "폭발에 다중을 장착하면 생성 개수를 늘리지 않고 회차로 반복합니다. 다중의 피해는 runes.json mod.multi의 _damageMultiplier(0.3)를 모든 행동과 회차에 동일하게 적용합니다.",
     "_behaviorGradeChancesPercent는 행동 처치 드롭·매 클리어 보장 룬·속성 조합의 행동 등급 판정에 사용합니다. 일반 스테이지는 필수이고 보스 스테이지에는 두지 않습니다. 1스테이지 C80/B15/A4/S1에서 시작해 후반으로 갈수록 상위 등급을 조금씩 올렸습니다."
   ]
 }

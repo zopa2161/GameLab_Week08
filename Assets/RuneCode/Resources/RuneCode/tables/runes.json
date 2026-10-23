@@ -221,12 +221,12 @@
       "_id": "form.burst",
       "_name": "폭발 수치",
       "_category": "internal",
-      "_ram": 1,
-      "_energy": 10,
+      "_ram": 2,
+      "_energy": 15,
       "_energyMult": 1,
       "_unlockType": "start",
       "_stats": {
-        "_damage": 10,
+        "_damage": 5,
         "_speed": 280,
         "_radius": 6,
         "_lifetime": 0.5,
@@ -574,13 +574,12 @@
       "_unlockCost": 0,
       "_stats": {
         "_count": 3,
-        "_damageMultiplier": 0.7,
+        "_damageMultiplier": 0.3,
         "_radiusMultiplier": 1,
         "_learningMultiplier": 1,
         "_spreadAngle": 12,
         "_waveCount": 2,
-        "_waveInterval": 0.2,
-        "_waveDamageMultiplier": 0.8
+        "_waveInterval": 0.2
       },
       "_ports": [
         {
@@ -1309,7 +1308,7 @@
       "_name": "폭발",
       "_category": "behavior",
       "_shape": "cone",
-      "_ram": 1,
+      "_ram": 2,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,

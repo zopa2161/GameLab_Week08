@@ -22,6 +22,8 @@
   --cat-2: #eb6834;
   --cat-3: #1baf7a;
   --cat-4: #eda100;
+  --cat-5: #e87ba4;
+  --cat-6: #008300;
   --seq-0: #cde2fb;
   --seq-1: #9ec5f4;
   --seq-2: #6da7ec;
@@ -55,6 +57,8 @@
     --cat-2: #d95926;
     --cat-3: #199e70;
     --cat-4: #c98500;
+    --cat-5: #d55181;
+    --cat-6: #008300;
     --slope-line: rgba(240, 239, 236, 0.16);
     --box-fill: #1c5cab;
     --accent: #3987e5;
@@ -74,6 +78,8 @@
   --cat-2: #eb6834;
   --cat-3: #1baf7a;
   --cat-4: #eda100;
+  --cat-5: #e87ba4;
+  --cat-6: #008300;
   --slope-line: rgba(11, 11, 11, 0.14);
   --box-fill: #9ec5f4;
   --accent: #2a78d6;
@@ -92,6 +98,8 @@
   --cat-2: #d95926;
   --cat-3: #199e70;
   --cat-4: #c98500;
+  --cat-5: #d55181;
+  --cat-6: #008300;
   --slope-line: rgba(240, 239, 236, 0.16);
   --box-fill: #1c5cab;
   --accent: #3987e5;
@@ -347,12 +355,14 @@ table.heatmap td { cursor: default; }
 /* ============================================================
  * 1. 코드 상수 (표시 이름)
  * ============================================================ */
-const CONDITIONS = ['single_near', 'single_mid', 'swarm_near', 'swarm_mid'];
+const CONDITIONS = ['single_near', 'single_mid', 'swarm_near', 'swarm_mid', 'pentagon_near', 'pentagon_mid'];
 const CONDITION_LABELS = {
   single_near: '단일·근거리(140)',
   single_mid: '단일·중거리(480)',
   swarm_near: '무리·근거리(140)',
-  swarm_mid: '무리·중거리(480)'
+  swarm_mid: '무리·중거리(480)',
+  pentagon_near: '오각형·근거리(140)',
+  pentagon_mid: '오각형·중거리(480)'
 };
 const BEHAVIOR_LABELS = {
   'behavior.launch': '발사',
@@ -383,7 +393,7 @@ const BOTTLENECK_LABELS = { energy: '전력', cooldown: '쿨다운', none: '없�
 const COMPARE_STATUS_LABELS = { changed: '변경', new: '신규', removed: '제거' };
 const GRADES = ['B', 'A', 'S'];
 const CHAIN_KEYS = ['2', '3'];
-const CONDITION_COLOR_VAR = { single_near: '--cat-1', single_mid: '--cat-2', swarm_near: '--cat-3', swarm_mid: '--cat-4' };
+const CONDITION_COLOR_VAR = { single_near: '--cat-1', single_mid: '--cat-2', swarm_near: '--cat-3', swarm_mid: '--cat-4', pentagon_near: '--cat-5', pentagon_mid: '--cat-6' };
 const SEQ_VARS = ['--seq-0', '--seq-1', '--seq-2', '--seq-3', '--seq-4', '--seq-5', '--seq-6'];
 
 /* ============================================================
