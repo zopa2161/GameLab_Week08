@@ -1,0 +1,1976 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DPS 측정 결과 뷰어</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+/* ===== 테마 변수 ===== */
+:root {
+  --is-dark: 0;
+  --surface: #fcfcfb;
+  --page: #f9f9f7;
+  --text-1: #0b0b0b;
+  --text-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --cat-1: #2a78d6;
+  --cat-2: #eb6834;
+  --cat-3: #1baf7a;
+  --cat-4: #eda100;
+  --seq-0: #cde2fb;
+  --seq-1: #9ec5f4;
+  --seq-2: #6da7ec;
+  --seq-3: #3987e5;
+  --seq-4: #2a78d6;
+  --seq-5: #1c5cab;
+  --seq-6: #104281;
+  --div-pos: #2a78d6;
+  --div-neg: #e34948;
+  --zero-line: #c3c2b7;
+  --warn-entity: #fab219;
+  --warn-execution: #ec835a;
+  --warn-out: #d03b3b;
+  --slope-line: rgba(11, 11, 11, 0.14);
+  --box-fill: #9ec5f4;
+  --box-fill-dark: #1c5cab;
+  --accent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --is-dark: 1;
+    --surface: #1a1a19;
+    --page: #0d0d0d;
+    --text-1: #f0efec;
+    --text-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --cat-1: #3987e5;
+    --cat-2: #d95926;
+    --cat-3: #199e70;
+    --cat-4: #c98500;
+    --slope-line: rgba(240, 239, 236, 0.16);
+    --box-fill: #1c5cab;
+    --accent: #3987e5;
+  }
+}
+:root[data-theme="light"] {
+  --is-dark: 0;
+  --surface: #fcfcfb;
+  --page: #f9f9f7;
+  --text-1: #0b0b0b;
+  --text-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --cat-1: #2a78d6;
+  --cat-2: #eb6834;
+  --cat-3: #1baf7a;
+  --cat-4: #eda100;
+  --slope-line: rgba(11, 11, 11, 0.14);
+  --box-fill: #9ec5f4;
+  --accent: #2a78d6;
+}
+:root[data-theme="dark"] {
+  --is-dark: 1;
+  --surface: #1a1a19;
+  --page: #0d0d0d;
+  --text-1: #f0efec;
+  --text-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --cat-1: #3987e5;
+  --cat-2: #d95926;
+  --cat-3: #199e70;
+  --cat-4: #c98500;
+  --slope-line: rgba(240, 239, 236, 0.16);
+  --box-fill: #1c5cab;
+  --accent: #3987e5;
+}
+
+/* ===== 기본 레이아웃 ===== */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-1);
+  font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.wrap { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.topbar { border-bottom: 1px solid var(--border); background: var(--surface); }
+.topbar-inner {
+  max-width: 1400px; margin: 0 auto; padding: 10px 16px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.topbar-inner h1 { font-size: 16px; margin: 0 auto 0 0; }
+.topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ===== 버튼·칩 ===== */
+.btn {
+  font: inherit; color: var(--text-1); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; cursor: pointer;
+}
+.btn:hover { border-color: var(--axis); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+.btn-ghost { background: transparent; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 1px 10px; font-size: 12px; color: var(--text-2); background: var(--surface);
+}
+.chip b { color: var(--text-1); font-weight: 600; }
+.warn-chip {
+  display: inline-block; border-radius: 4px; padding: 0 6px;
+  font-size: 11px; color: #0b0b0b; margin-right: 4px; white-space: nowrap;
+}
+
+/* ===== 드롭존 ===== */
+.drop-section { margin-bottom: 14px; }
+.dropzone {
+  border: 2px dashed var(--axis); border-radius: 10px;
+  background: var(--surface); text-align: center; padding: 28px 16px;
+}
+.dropzone.drag { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.drop-title { margin: 0 0 4px; font-weight: 600; }
+.drop-hint { margin: 0 0 12px; color: var(--text-2); font-size: 12px; }
+
+/* ===== 필터 ===== */
+.filter-section { margin-bottom: 14px; }
+.filter-row {
+  display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px;
+}
+.fgroup { border: none; margin: 0; padding: 0; min-width: 0; }
+.fgroup legend { font-size: 11px; color: var(--muted); padding: 0 2px; }
+.fgroup .opts { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.fgroup label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; }
+.fgroup input[type="checkbox"] { margin: 0; }
+.fgroup input[type="search"] {
+  font: inherit; color: var(--text-1); background: var(--page);
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; width: 200px;
+}
+.grade-toggle {
+  font: inherit; border: 1px solid var(--border); background: var(--page); color: var(--text-2);
+  border-radius: 6px; padding: 3px 12px; cursor: pointer; min-width: 38px;
+}
+.grade-toggle[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+.preset-group { max-width: 460px; }
+.filter-count { margin-left: auto; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.filter-note { margin: 6px 2px 0; font-size: 12px; color: var(--muted); }
+.cond-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+
+/* ===== 탭 ===== */
+.tab-nav { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.tab-btn {
+  font: inherit; background: transparent; color: var(--text-2); border: none;
+  border-bottom: 2px solid transparent; padding: 8px 14px; cursor: pointer;
+}
+.tab-btn:hover { color: var(--text-1); }
+.tab-btn.active { color: var(--text-1); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* ===== 패널·카드 ===== */
+.guide {
+  background: var(--surface); border: 1px dashed var(--axis); border-radius: 10px;
+  padding: 40px 20px; text-align: center; color: var(--text-2);
+}
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 14px;
+}
+.card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.card-head h3 { margin: 0; font-size: 14px; }
+.card-head .spacer { margin-left: auto; }
+.card-note { font-size: 12px; color: var(--text-2); margin: 6px 0 0; }
+.controls-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.controls-row label { font-size: 12px; color: var(--text-2); }
+.controls-row select, .controls-row input[type="search"] {
+  font: inherit; color: var(--text-1); background: var(--page);
+  border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px;
+}
+.chart-box { position: relative; }
+
+/* ===== 표 ===== */
+.table-wrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+table.data th, table.data td { padding: 5px 10px; border-bottom: 1px solid var(--grid); text-align: left; white-space: nowrap; }
+table.data th { color: var(--text-2); font-weight: 600; font-size: 12px; border-bottom: 1px solid var(--axis); }
+table.data th.sortable { cursor: pointer; user-select: none; }
+table.data th.num, table.data td.num { text-align: right; }
+table.data tr.clickable { cursor: pointer; }
+table.data tr.clickable:hover td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+table.data tr.has-warning td { color: var(--muted); }
+
+/* ===== 히트맵 ===== */
+table.heatmap { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+table.heatmap th, table.heatmap td { padding: 8px 14px; border: 1px solid var(--grid); text-align: right; }
+table.heatmap th { background: var(--surface); color: var(--text-2); font-weight: 600; }
+table.heatmap td { cursor: default; }
+.seq-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-2); }
+.seq-legend i { width: 18px; height: 10px; display: inline-block; border-radius: 2px; }
+
+/* ===== 경고 막대 ===== */
+.warn-block { margin-bottom: 12px; }
+.warn-block-title { font-weight: 600; margin-bottom: 4px; }
+.warn-line { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.warn-line-label { width: 130px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
+.warn-track { flex: 1; height: 14px; background: var(--page); border: 1px solid var(--grid); border-radius: 4px; position: relative; overflow: hidden; }
+.warn-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+.warn-pct { width: 52px; text-align: right; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* ===== 박스 플롯(SVG) ===== */
+.bp-svg text { fill: var(--text-2); font-size: 12px; font-family: inherit; }
+.bp-svg .bp-name { fill: var(--text-1); font-weight: 600; }
+.bp-svg .bp-sub { fill: var(--muted); font-size: 11px; }
+
+/* ===== 기여도 ===== */
+.contrib-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.contrib-panel { border: 1px solid var(--grid); border-radius: 8px; padding: 10px 12px; }
+.contrib-panel h4 { margin: 0 0 8px; font-size: 13px; }
+.contrib-group { margin-bottom: 10px; }
+.contrib-glabel { font-size: 12px; font-weight: 600; color: var(--text-1); margin-bottom: 2px; }
+.contrib-brow { display: flex; align-items: center; gap: 8px; height: 20px; }
+.contrib-grade { width: 14px; font-size: 11px; color: var(--muted); }
+.contrib-track { flex: 1; position: relative; height: 12px; margin: 0 58px; }
+.contrib-track::before {
+  content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px;
+  width: 1px; background: var(--zero-line);
+}
+.contrib-bar { position: absolute; top: 0; height: 12px; border-radius: 4px; cursor: default; }
+.contrib-bar.pos { left: 50%; background: var(--div-pos); }
+.contrib-bar.neg { right: 50%; background: var(--div-neg); }
+.contrib-vlabel { position: absolute; top: -1px; font-size: 11px; color: var(--text-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ===== 조합 상세 ===== */
+.detail-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+.detail-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.detail-card h4 { margin: 0 0 6px; font-size: 12px; color: var(--text-2); }
+.detail-dps { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.detail-sub { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.detail-rows { margin-top: 8px; font-size: 12px; }
+.detail-rows div { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; font-variant-numeric: tabular-nums; }
+.detail-rows span:first-child { color: var(--text-2); }
+.stackbar { display: flex; height: 26px; border-radius: 4px; overflow: hidden; border: 1px solid var(--grid); }
+.stackbar .seg { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; color: #ffffff; font-size: 11px; white-space: nowrap; cursor: default; }
+.preset-chip { display: inline-block; border: 1px solid var(--grid); border-radius: 5px; padding: 1px 7px; font-size: 11px; color: var(--text-2); margin: 0 4px 4px 0; }
+.grade-links { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.grade-link { font: inherit; font-size: 12px; border: 1px solid var(--border); background: var(--page); color: var(--text-1); border-radius: 5px; padding: 2px 9px; cursor: pointer; }
+.grade-link.current { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+/* ===== 툴팁 ===== */
+.tooltip {
+  position: fixed; z-index: 1000; pointer-events: none;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; max-width: 320px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+.tooltip .tip-title { font-weight: 600; margin-bottom: 3px; }
+.tooltip .tip-row { display: flex; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+.tooltip .tip-row span:first-child { color: var(--text-2); }
+
+.more-row { text-align: center; padding: 8px 0; }
+
+@media (max-width: 700px) {
+  .contrib-grid, .detail-cards { grid-template-columns: 1fr; }
+  .filter-count { margin-left: 0; width: 100%; }
+  .fgroup input[type="search"] { width: 150px; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <h1>DPS 측정 결과 뷰어</h1>
+    <div class="topbar-right">
+      <span id="fileChips" class="chips"></span>
+      <button id="themeBtn" type="button" class="btn btn-ghost">테마: 시스템</button>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <section id="dropSection" class="drop-section">
+    <div id="dropzone" class="dropzone">
+      <p class="drop-title">CSV 또는 suite JSON 파일을 여기에 끌어다 놓으세요</p>
+      <p class="drop-hint">results.csv · summary.csv · comparison.csv · excluded.csv · dps_suite.json · 여러 파일 동시 선택 가능 · 같은 종류를 다시 넣으면 교체됩니다</p>
+      <button id="fileBtn" type="button" class="btn btn-primary">파일 선택</button>
+      <input id="fileInput" type="file" multiple accept=".csv,.json,text/csv,application/json" hidden>
+    </div>
+  </section>
+  <section id="filterSection" class="filter-section" hidden>
+    <div class="filter-row">
+      <fieldset class="fgroup"><legend>조건</legend><div class="opts" id="fConditions"></div></fieldset>
+      <fieldset class="fgroup"><legend>등급</legend><div class="opts" id="fGrades"></div></fieldset>
+      <fieldset class="fgroup"><legend>첫 행동</legend><div class="opts" id="fBehaviors"></div></fieldset>
+      <fieldset class="fgroup"><legend>체인 길이</legend><div class="opts" id="fChains"></div></fieldset>
+      <fieldset class="fgroup"><legend>포함 프리셋</legend><div class="opts preset-group" id="fPresets"></div></fieldset>
+      <fieldset class="fgroup"><legend>경고 제외</legend><div class="opts" id="fWarnings"></div></fieldset>
+      <fieldset class="fgroup"><legend>buildId 검색</legend><input id="fQuery" type="search" placeholder="부분 일치"></fieldset>
+      <div id="filterCount" class="filter-count"></div>
+    </div>
+    <p class="filter-note">선택하지 않은 그룹은 전체로 취급합니다. 필터 상태는 URL에 저장되어 새로 고침해도 유지됩니다.</p>
+  </section>
+  <nav id="tabNav" class="tab-nav"></nav>
+  <section id="tabPanels"></section>
+</main>
+<div id="tooltip" class="tooltip" hidden></div>
+
+<script>
+'use strict';
+
+/* ============================================================
+ * 1. 코드 상수 (표시 이름)
+ * ============================================================ */
+const CONDITIONS = ['single_near', 'single_mid', 'swarm_near', 'swarm_mid'];
+const CONDITION_LABELS = {
+  single_near: '단일·근거리(140)',
+  single_mid: '단일·중거리(480)',
+  swarm_near: '무리·근거리(140)',
+  swarm_mid: '무리·중거리(480)'
+};
+const BEHAVIOR_LABELS = {
+  'behavior.launch': '발사',
+  'behavior.beam': '빔',
+  'behavior.burst': '폭발',
+  'behavior.slash': '참격',
+  'behavior.persist': '잔류'
+};
+const MOD_LABELS = {
+  'mod.multi': '다중',
+  'mod.homing': '유도',
+  'mod.sequence': '연속',
+  'mod.pierce': '관통',
+  'mod.expand': '확장',
+  'mod.duration': '지속시간'
+};
+const WARNING_LABELS = {
+  entityLimit: '개체 상한 도달',
+  executionLimit: '실행 상한 도달',
+  outOfRange: '사거리 밖'
+};
+const WARNING_COLOR_VARS = {
+  entityLimit: '--warn-entity',
+  executionLimit: '--warn-execution',
+  outOfRange: '--warn-out'
+};
+const BOTTLENECK_LABELS = { energy: '전력', cooldown: '쿨다운', none: '없음' };
+const COMPARE_STATUS_LABELS = { changed: '변경', new: '신규', removed: '제거' };
+const GRADES = ['B', 'A', 'S'];
+const CHAIN_KEYS = ['2', '3'];
+const CONDITION_COLOR_VAR = { single_near: '--cat-1', single_mid: '--cat-2', swarm_near: '--cat-3', swarm_mid: '--cat-4' };
+const SEQ_VARS = ['--seq-0', '--seq-1', '--seq-2', '--seq-3', '--seq-4', '--seq-5', '--seq-6'];
+
+/* ============================================================
+ * 2. 상태
+ * ============================================================ */
+const state = {
+  files: { results: null, summary: null, comparison: null, excluded: null, suite: null },
+  filter: {
+    conditions: new Set(CONDITIONS),
+    grades: new Set(GRADES),
+    behaviors: new Set(),
+    chains: new Set(),
+    presets: new Set(),
+    excludeWarnings: new Set(),
+    query: ''
+  },
+  tab: 'overview',
+  theme: 'system',
+  overview: { metric: 'meanDps' },
+  dist: { groupBy: 'firstBehavior', condition: 'single_near' },
+  slope: { condition: 'single_near', search: '', reversalOnly: false },
+  detail: { buildId: '' },
+  rank: { sortKey: 'dps', sortDir: -1, limit: 200 },
+  filteredRows: [],
+  totalRows: 0
+};
+let activeCharts = [];
+
+/* ============================================================
+ * 3. 공용 유틸
+ * ============================================================ */
+function el(tag, attrs) {
+  const e = document.createElement(tag);
+  if (attrs) {
+    for (const k in attrs) {
+      if (k === 'class') e.className = attrs[k];
+      else if (k === 'dataset') Object.assign(e.dataset, attrs.dataset);
+      else e.setAttribute(k, attrs[k]);
+    }
+  }
+  for (let i = 2; i < arguments.length; i++) {
+    const c = arguments[i];
+    if (c == null) continue;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  }
+  return e;
+}
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs) {
+  const e = document.createElementNS(SVG_NS, tag);
+  if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function isDark() { return cssVar('--is-dark') === '1'; }
+function conditionColor(conditionId) { return cssVar(CONDITION_COLOR_VAR[conditionId] || '--cat-1'); }
+function warningColor(code) { return cssVar(WARNING_COLOR_VARS[code] || '--axis'); }
+function num(v) {
+  if (v == null || v === '') return NaN;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+function fmtInt(v) { return Number.isFinite(v) ? Math.round(v).toLocaleString('ko-KR') : '-'; }
+function fmt1(v) { return Number.isFinite(v) ? v.toFixed(1) : '-'; }
+function fmt2(v) { return Number.isFinite(v) ? v.toFixed(2) : '-'; }
+function fmt3(v) { return Number.isFinite(v) ? v.toFixed(3) : '-'; }
+function fmtPctRatio(v) { return Number.isFinite(v) ? (v * 100).toFixed(1) + '%' : '-'; }
+function fmtPctNum(v) { return Number.isFinite(v) ? v.toFixed(1) + '%' : '-'; }
+function label(map, code) { return (code != null && map[code]) || code || ''; }
+function mean(arr) {
+  if (!arr.length) return NaN;
+  let s = 0;
+  for (const v of arr) s += v;
+  return s / arr.length;
+}
+function median(arr) { return quantile(arr, 0.5); }
+function quantile(sorted, p) {
+  const n = sorted.length;
+  if (!n) return NaN;
+  const pos = (n - 1) * p;
+  const lo = Math.floor(pos), hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+function splitWarnings(w) { return w ? String(w).split('|').filter(x => x !== '') : []; }
+function failRate(row) {
+  const a = num(row.castAttempts), f = num(row.castFailures);
+  if (!Number.isFinite(a) || a <= 0) return NaN;
+  return (f / a) * 100;
+}
+function csvEscape(v) {
+  const s = String(v == null ? '' : v);
+  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function downloadText(filename, text, mime) {
+  const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = el('a', { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/* ============================================================
+ * 4. 툴팁 (데이터 문자열은 textContent로만 넣는다)
+ * ============================================================ */
+const tipEl = document.getElementById('tooltip');
+function showTipAt(ev, title, pairs) {
+  tipEl.replaceChildren();
+  if (title) tipEl.appendChild(el('div', { class: 'tip-title' }, title));
+  for (const p of pairs) {
+    tipEl.appendChild(el('div', { class: 'tip-row' }, el('span', null, p[0]), el('span', null, p[1])));
+  }
+  tipEl.hidden = false;
+  const pad = 14;
+  const x = ev.clientX + pad, y = ev.clientY + pad;
+  const rect = tipEl.getBoundingClientRect();
+  const flipX = x + rect.width > window.innerWidth - 8;
+  const flipY = y + rect.height > window.innerHeight - 8;
+  tipEl.style.left = (flipX ? ev.clientX - rect.width - pad : x) + 'px';
+  tipEl.style.top = (flipY ? ev.clientY - rect.height - pad : y) + 'px';
+}
+function hideTip() { tipEl.hidden = true; }
+function bindTip(root, finder) {
+  root.addEventListener('mousemove', ev => {
+    const data = finder(ev);
+    if (data) showTipAt(ev, data[0], data[1]);
+    else hideTip();
+  });
+  root.addEventListener('mouseleave', hideTip);
+}
+
+/* ============================================================
+ * 5. 파일 판별·불러오기
+ * ============================================================ */
+// 헤더 열 이름으로 파일 종류를 판별한다. 반환값: results/summary/comparison/excluded/null
+function detectFileKind(fields) {
+  const has = name => fields.indexOf(name) !== -1;
+  if (has('section')) return 'summary';
+  if (has('situation')) return 'results';
+  if (has('previousDps') && has('status')) return 'comparison';
+  if (has('reason')) return 'excluded';
+  return null;
+}
+function loadFiles(fileList) {
+  const files = Array.from(fileList || []);
+  let pending = files.length;
+  if (!pending) return;
+  const done = () => { pending--; if (pending === 0) afterFilesLoaded(); };
+  for (const file of files) {
+    const isJson = /\.json$/i.test(file.name);
+    if (isJson) {
+      file.text().then(text => {
+        try {
+          const obj = JSON.parse(text);
+          if (obj && Array.isArray(obj._presets)) {
+            const map = {};
+            for (const p of obj._presets) map[p._presetId] = p;
+            state.files.suite = { name: file.name, presets: obj._presets, map: map };
+          }
+        } catch (e) { /* 파싱 실패 파일은 무시한다 */ }
+        done();
+      });
+    } else {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: 'greedy',
+        complete: res => {
+          const kind = detectFileKind(res.meta.fields || []);
+          if (kind) {
+            state.files[kind] = { name: file.name, fields: res.meta.fields, rows: res.data };
+          }
+          done();
+        },
+        error: () => done()
+      });
+    }
+  }
+}
+function afterFilesLoaded() {
+  computeFiltered();
+  buildFilterControls();
+  renderFileChips();
+  renderTabNav();
+  renderActiveTab();
+}
+
+/* ============================================================
+ * 6. 필터
+ * ============================================================ */
+function firstBehaviorOf(row) {
+  const suite = state.files.suite;
+  if (suite && suite.map[row.behavior0Preset]) return suite.map[row.behavior0Preset]._behaviorId;
+  return row.behavior0Preset || '';
+}
+function behaviorOptions() {
+  const suite = state.files.suite;
+  if (suite) {
+    const set = new Set();
+    for (const p of suite.presets) set.add(p._behaviorId);
+    return Array.from(set).sort();
+  }
+  const summary = state.files.summary;
+  if (summary) {
+    const set = new Set();
+    for (const r of summary.rows) if (r.section === 'firstBehavior') set.add(r.key);
+    return Array.from(set).sort();
+  }
+  const results = state.files.results;
+  if (results) {
+    const set = new Set();
+    for (const r of results.rows) if (r.behavior0Preset) set.add(r.behavior0Preset);
+    return Array.from(set).sort();
+  }
+  return [];
+}
+function presetOptions() {
+  const results = state.files.results;
+  if (results) {
+    const set = new Set();
+    for (const r of results.rows) {
+      const ps = String(r.presets || '').split('>');
+      for (const p of ps) if (p) set.add(p);
+    }
+    return Array.from(set).sort();
+  }
+  const suite = state.files.suite;
+  if (suite) return suite.presets.map(p => p._presetId).sort();
+  return [];
+}
+// 공통 필터를 results 행에 적용한다.
+function passesCommonFilter(row) {
+  const f = state.filter;
+  if (f.conditions.size && !f.conditions.has(row.conditionId)) return false;
+  if (f.grades.size && !f.grades.has(row.grade)) return false;
+  if (f.chains.size && !f.chains.has(String(row.chainLength))) return false;
+  if (f.behaviors.size && !f.behaviors.has(firstBehaviorOf(row))) return false;
+  if (f.presets.size) {
+    const ps = String(row.presets || '').split('>');
+    let ok = false;
+    for (const p of ps) if (f.presets.has(p)) { ok = true; break; }
+    if (!ok) return false;
+  }
+  if (f.excludeWarnings.size && row.warnings) {
+    for (const w of splitWarnings(row.warnings)) {
+      if (f.excludeWarnings.has(w)) return false;
+    }
+  }
+  const q = f.query.trim().toLowerCase();
+  if (q && String(row.buildId || '').toLowerCase().indexOf(q) === -1) return false;
+  return true;
+}
+function computeFiltered() {
+  const rows = state.files.results ? state.files.results.rows : [];
+  state.totalRows = rows.length;
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (passesCommonFilter(rows[i])) out.push(rows[i]);
+  }
+  state.filteredRows = out;
+  // 분포·등급 비교 탭의 단일 조건이 필터에서 빠지면 첫 조건으로 맞춘다.
+  for (const key of ['dist', 'slope']) {
+    const sel = state[key].condition;
+    if (state.filter.conditions.size && !state.filter.conditions.has(sel)) {
+      state[key].condition = CONDITIONS.find(c => state.filter.conditions.has(c)) || sel;
+    }
+  }
+}
+
+/* ============================================================
+ * 7. URL hash (필터 상태 저장, localStorage 사용 금지)
+ * ============================================================ */
+function writeHash() {
+  const p = new URLSearchParams();
+  if (state.tab !== 'overview') p.set('t', state.tab);
+  const f = state.filter;
+  if (f.conditions.size && f.conditions.size < CONDITIONS.length) p.set('c', Array.from(f.conditions).join(','));
+  if (f.grades.size && f.grades.size < GRADES.length) p.set('g', Array.from(f.grades).join(','));
+  if (f.behaviors.size) p.set('b', Array.from(f.behaviors).join(','));
+  if (f.chains.size) p.set('l', Array.from(f.chains).join(','));
+  if (f.presets.size) p.set('p', Array.from(f.presets).join(','));
+  if (f.excludeWarnings.size) p.set('w', Array.from(f.excludeWarnings).join(','));
+  if (f.query) p.set('q', f.query);
+  if (state.overview.metric !== 'meanDps') p.set('mt', state.overview.metric);
+  if (state.dist.groupBy !== 'firstBehavior') p.set('dg', state.dist.groupBy);
+  if (state.dist.condition !== 'single_near') p.set('dc', state.dist.condition);
+  if (state.slope.condition !== 'single_near') p.set('sc', state.slope.condition);
+  if (state.slope.search) p.set('sq', state.slope.search);
+  if (state.slope.reversalOnly) p.set('sr', '1');
+  if (state.detail.buildId) p.set('db', state.detail.buildId);
+  history.replaceState(null, '', '#' + p.toString());
+}
+function readHash() {
+  try {
+    const p = new URLSearchParams(location.hash.slice(1));
+    const setOf = key => new Set((p.get(key) || '').split(',').filter(x => x !== ''));
+    const t = p.get('t');
+    if (t && TABS.some(tab => tab.id === t)) state.tab = t;
+    if (p.get('c')) { state.filter.conditions = setOf('c'); }
+    if (p.get('g')) { state.filter.grades = setOf('g'); }
+    if (p.get('b')) { state.filter.behaviors = setOf('b'); }
+    if (p.get('l')) { state.filter.chains = setOf('l'); }
+    if (p.get('p')) { state.filter.presets = setOf('p'); }
+    if (p.get('w')) { state.filter.excludeWarnings = setOf('w'); }
+    if (p.get('q') != null) state.filter.query = p.get('q');
+    if (p.get('mt')) state.overview.metric = p.get('mt');
+    if (p.get('dg')) state.dist.groupBy = p.get('dg');
+    if (p.get('dc') && CONDITIONS.indexOf(p.get('dc')) !== -1) state.dist.condition = p.get('dc');
+    if (p.get('sc') && CONDITIONS.indexOf(p.get('sc')) !== -1) state.slope.condition = p.get('sc');
+    if (p.get('sq') != null) state.slope.search = p.get('sq');
+    if (p.get('sr') === '1') state.slope.reversalOnly = true;
+    if (p.get('db')) state.detail.buildId = p.get('db');
+  } catch (e) { /* 손상된 hash는 무시한다 */ }
+}
+
+/* ============================================================
+ * 8. 상단 UI (칩·필터·탭)
+ * ============================================================ */
+const KIND_LABELS = { results: 'results', summary: 'summary', comparison: 'comparison', excluded: 'excluded', suite: 'suite' };
+function renderFileChips() {
+  const wrap = document.getElementById('fileChips');
+  wrap.replaceChildren();
+  let any = false;
+  for (const kind of ['results', 'summary', 'comparison', 'excluded', 'suite']) {
+    const f = state.files[kind];
+    if (!f) continue;
+    any = true;
+    const count = kind === 'suite' ? f.presets.length + '개 프리셋' : f.rows.length.toLocaleString('ko-KR') + '행';
+    wrap.appendChild(el('span', { class: 'chip', title: f.name }, el('b', null, KIND_LABELS[kind]), count));
+  }
+  document.getElementById('filterSection').hidden = !(state.files.results || state.files.summary || state.files.comparison || state.files.excluded || state.files.suite);
+}
+function checkboxOpt(value, text, checked, onChange) {
+  const cb = el('input', { type: 'checkbox' });
+  cb.value = value;
+  cb.checked = checked;
+  cb.addEventListener('change', () => onChange(cb.checked, cb.value));
+  return el('label', null, cb, text);
+}
+function buildFilterControls() {
+  const f = state.filter;
+  const condBox = document.getElementById('fConditions');
+  condBox.replaceChildren();
+  for (const c of CONDITIONS) {
+    const dot = el('i', { class: 'cond-dot' });
+    dot.style.background = conditionColor(c);
+    const cb = el('input', { type: 'checkbox' });
+    cb.checked = f.conditions.has(c);
+    cb.addEventListener('change', () => {
+      if (cb.checked) f.conditions.add(c); else f.conditions.delete(c);
+      updateAll();
+    });
+    condBox.appendChild(el('label', null, cb, dot, label(CONDITION_LABELS, c)));
+  }
+  const gradeBox = document.getElementById('fGrades');
+  gradeBox.replaceChildren();
+  for (const g of GRADES) {
+    const btn = el('button', { class: 'grade-toggle', type: 'button', 'aria-pressed': f.grades.has(g) ? 'true' : 'false' }, g);
+    btn.addEventListener('click', () => {
+      if (f.grades.has(g)) f.grades.delete(g); else f.grades.add(g);
+      updateAll();
+    });
+    gradeBox.appendChild(btn);
+  }
+  const behBox = document.getElementById('fBehaviors');
+  behBox.replaceChildren();
+  const behaviors = behaviorOptions();
+  if (!behaviors.length) behBox.appendChild(el('span', { class: 'chip' }, '불러오면 표시'));
+  for (const b of behaviors) {
+    behBox.appendChild(checkboxOpt(b, label(BEHAVIOR_LABELS, b), f.behaviors.has(b), (on, v) => {
+      if (on) f.behaviors.add(v); else f.behaviors.delete(v);
+      updateAll();
+    }));
+  }
+  const chainBox = document.getElementById('fChains');
+  chainBox.replaceChildren();
+  for (const c of CHAIN_KEYS) {
+    chainBox.appendChild(checkboxOpt(c, c, f.chains.has(c), (on, v) => {
+      if (on) f.chains.add(v); else f.chains.delete(v);
+      updateAll();
+    }));
+  }
+  const presetBox = document.getElementById('fPresets');
+  presetBox.replaceChildren();
+  const presets = presetOptions();
+  if (!presets.length) presetBox.appendChild(el('span', { class: 'chip' }, '불러오면 표시'));
+  for (const p of presets) {
+    presetBox.appendChild(checkboxOpt(p, p, f.presets.has(p), (on, v) => {
+      if (on) f.presets.add(v); else f.presets.delete(v);
+      updateAll();
+    }));
+  }
+  const warnBox = document.getElementById('fWarnings');
+  warnBox.replaceChildren();
+  for (const w of Object.keys(WARNING_LABELS)) {
+    warnBox.appendChild(checkboxOpt(w, '제외: ' + WARNING_LABELS[w], f.excludeWarnings.has(w), (on, v) => {
+      if (on) f.excludeWarnings.add(v); else f.excludeWarnings.delete(v);
+      updateAll();
+    }));
+  }
+  const queryInput = document.getElementById('fQuery');
+  if (queryInput.value !== f.query) queryInput.value = f.query;
+  updateFilterCount();
+}
+function updateFilterCount() {
+  const elc = document.getElementById('filterCount');
+  elc.replaceChildren();
+  elc.appendChild(document.createTextNode(
+    '필터 결과 ' + state.filteredRows.length.toLocaleString('ko-KR') + '행 / 전체 ' + state.totalRows.toLocaleString('ko-KR') + '행'
+  ));
+}
+const TABS = [
+  { id: 'overview', label: '개요' },
+  { id: 'rank', label: '순위표' },
+  { id: 'dist', label: '분포' },
+  { id: 'slope', label: '등급 비교' },
+  { id: 'contrib', label: '모드 기여도' },
+  { id: 'detail', label: '조합 상세' },
+  { id: 'compare', label: '비교' }
+];
+function renderTabNav() {
+  const nav = document.getElementById('tabNav');
+  nav.replaceChildren();
+  for (const t of TABS) {
+    const btn = el('button', { class: 'tab-btn' + (state.tab === t.id ? ' active' : ''), type: 'button' }, t.label);
+    btn.addEventListener('click', () => {
+      state.tab = t.id;
+      updateAll();
+    });
+    nav.appendChild(btn);
+  }
+}
+function destroyCharts() {
+  for (const c of activeCharts) { try { c.destroy(); } catch (e) { /* 이미 파괴된 차트 */ } }
+  activeCharts = [];
+}
+function updateAll() {
+  state.rank.limit = 200;
+  computeFiltered();
+  writeHash();
+  renderTabNav();
+  updateFilterCount();
+  renderActiveTab();
+}
+
+/* ============================================================
+ * 9. 차트 카드 공통 (제목 + 표로 보기 토글)
+ * ============================================================ */
+function makeChartCard(title, controlsEl) {
+  const chartBody = el('div', { class: 'chart-box' });
+  const tableBody = el('div', { class: 'table-wrap', hidden: '' });
+  const toggleBtn = el('button', { class: 'btn', type: 'button' }, '표로 보기');
+  const head = el('div', { class: 'card-head' }, el('h3', null, title), controlsEl || '', el('span', { class: 'spacer' }), toggleBtn);
+  toggleBtn.addEventListener('click', () => {
+    const showTable = !chartBody.hidden;
+    chartBody.hidden = showTable;
+    tableBody.hidden = !showTable;
+    toggleBtn.textContent = showTable ? '차트로 보기' : '표로 보기';
+  });
+  const card = el('div', { class: 'card' }, head, chartBody, tableBody);
+  card.chartBody = chartBody;
+  card.tableBody = tableBody;
+  return card;
+}
+// 표 헤더 + 행(문자열 또는 {text, num, cls})로 table 요소를 만든다.
+function makeTable(headers, rows) {
+  const thead = el('thead');
+  const hr = el('tr');
+  for (const h of headers) {
+    hr.appendChild(el('th', h.num != null && h.num ? { class: 'num' } : null, h.text != null ? h.text : h));
+  }
+  thead.appendChild(hr);
+  const tbody = el('tbody');
+  const trs = [];
+  for (const r of rows) {
+    const tr = el('tr');
+    for (const c of r) {
+      const spec = (c != null && typeof c === 'object') ? c : { text: c == null ? '-' : String(c) };
+      tr.appendChild(el('td', spec.num ? { class: 'num' } : (spec.cls ? { class: spec.cls } : null), spec.text == null ? '-' : String(spec.text)));
+    }
+    tbody.appendChild(tr);
+    trs.push(tr);
+  }
+  return { table: el('table', { class: 'data' }, thead, tbody), tbody: tbody };
+}
+// 행이 많은 표: 200행씩 그리고 더 보기 버튼로 늘린다.
+function makeIncrementalTable(headers, rows, buildCells, step) {
+  step = step || 200;
+  const base = makeTable(headers, []);
+  const moreBtn = el('button', { class: 'btn', type: 'button' }, '더 보기');
+  const moreRow = el('div', { class: 'more-row' }, moreBtn);
+  let shown = 0;
+  const append = () => {
+    const frag = document.createDocumentFragment();
+    const end = Math.min(shown + step, rows.length);
+    for (; shown < end; shown++) {
+      const tr = el('tr');
+      for (const c of buildCells(rows[shown], shown)) {
+        const spec = (c != null && typeof c === 'object') ? c : { text: c == null ? '-' : String(c) };
+        tr.appendChild(el('td', spec.num ? { class: 'num' } : (spec.cls ? { class: spec.cls } : null), spec.text == null ? '-' : String(spec.text)));
+      }
+      frag.appendChild(tr);
+    }
+    base.tbody.appendChild(frag);
+    if (shown >= rows.length) moreRow.hidden = true;
+    else moreBtn.textContent = '더 보기 (남은 ' + (rows.length - shown).toLocaleString('ko-KR') + '행)';
+  };
+  moreBtn.addEventListener('click', append);
+  append();
+  return el('div', { class: 'table-wrap' }, base.table, moreRow);
+}
+function guidePanel(message) {
+  return el('div', { class: 'guide' }, message);
+}
+
+/* ============================================================
+ * 10. 개요 탭
+ * ============================================================ */
+const OVERVIEW_METRICS = [
+  { id: 'meanDps', label: '평균 DPS', field: 'dps', needsResults: false, summaryField: 'meanDps', int: true },
+  { id: 'medianDps', label: '중앙값 DPS', field: 'dps', needsResults: true, int: true },
+  { id: 'meanBurst', label: '평균 burst', field: 'burstDps', needsResults: false, summaryField: 'meanBurstDps', int: true },
+  { id: 'meanSustained', label: '평균 sustained', field: 'sustainedDps', needsResults: false, summaryField: 'meanSustainedDps', int: true },
+  { id: 'meanDpe', label: '평균 damagePerEnergy', field: 'damagePerEnergy', needsResults: true, int: false }
+];
+function renderOverview(panel) {
+  const results = state.files.results;
+  const summary = state.files.summary;
+  if (!results && !summary) {
+    panel.appendChild(guidePanel('개요를 표시하려면 results.csv 또는 summary.csv를 불러오세요.'));
+    return;
+  }
+  const useResults = !!results;
+  const available = OVERVIEW_METRICS.filter(m => useResults || !m.needsResults);
+  if (!available.some(m => m.id === state.overview.metric)) state.overview.metric = 'meanDps';
+  const metricDef = available.find(m => m.id === state.overview.metric);
+
+  const shownConditions = state.filter.conditions.size ? CONDITIONS.filter(c => state.filter.conditions.has(c)) : CONDITIONS;
+  const shownGrades = state.filter.grades.size ? GRADES.filter(g => state.filter.grades.has(g)) : GRADES;
+
+  // 칸 값 계산
+  const cells = {};
+  const counts = {};
+  if (useResults) {
+    const buckets = {};
+    for (const c of shownConditions) buckets[c] = {};
+    for (const row of state.filteredRows) {
+      if (!buckets[row.conditionId]) continue;
+      const g = row.grade;
+      if (shownGrades.indexOf(g) === -1) continue;
+      let b = buckets[row.conditionId][g];
+      if (!b) b = buckets[row.conditionId][g] = { dps: [], burstDps: [], sustainedDps: [], damagePerEnergy: [] };
+      for (const k in b) {
+        const v = num(row[k]);
+        if (Number.isFinite(v)) b[k].push(v);
+      }
+    }
+    for (const c of shownConditions) {
+      cells[c] = {};
+      counts[c] = {};
+      for (const g of shownGrades) {
+        const b = buckets[c][g];
+        if (!b) continue;
+        counts[c][g] = b.dps.length;
+        const arr = b[metricDef.field];
+        if (!arr.length) continue;
+        cells[c][g] = metricDef.id === 'medianDps' ? median(arr.slice().sort((x, y) => x - y)) : mean(arr);
+      }
+    }
+  } else {
+    for (const r of summary.rows) {
+      if (r.section !== 'grade') continue;
+      if (shownConditions.indexOf(r.conditionId) === -1 || shownGrades.indexOf(r.key) === -1) continue;
+      cells[r.conditionId] = cells[r.conditionId] || {};
+      counts[r.conditionId] = counts[r.conditionId] || {};
+      counts[r.conditionId][r.key] = num(r.count);
+      cells[r.conditionId][r.key] = num(r[metricDef.summaryField]);
+    }
+  }
+
+  // 히트맵
+  const metricSel = el('select');
+  for (const m of available) metricSel.appendChild(el('option', { value: m.id }, m.label));
+  metricSel.value = metricDef.id;
+  metricSel.addEventListener('change', () => { state.overview.metric = metricSel.value; updateAll(); return false; });
+  const heatCard = makeChartCard('조건 × 등급 ' + metricDef.label, el('label', null, '지표 ', metricSel));
+  const fmtCell = v => metricDef.int ? fmtInt(v) : fmt2(v);
+  const values = [];
+  for (const c of shownConditions) for (const g of shownGrades) if (Number.isFinite(cells[c] && cells[c][g])) values.push(cells[c][g]);
+  const minV = values.length ? Math.min.apply(null, values) : 0;
+  const maxV = values.length ? Math.max.apply(null, values) : 0;
+  const binOf = v => {
+    if (!Number.isFinite(v) || maxV <= minV) return 0;
+    return Math.max(0, Math.min(6, Math.floor(((v - minV) / (maxV - minV)) * 7)));
+  };
+  const htable = el('table', { class: 'heatmap' });
+  const hthead = el('thead');
+  const hhr = el('tr', null, el('th', null, '조건 / 등급'));
+  for (const g of shownGrades) hhr.appendChild(el('th', null, g));
+  hthead.appendChild(hhr);
+  const htbody = el('tbody');
+  for (const c of shownConditions) {
+    const tr = el('tr', null, el('th', { style: 'text-align:left' }, label(CONDITION_LABELS, c)));
+    for (const g of shownGrades) {
+      const v = cells[c] ? cells[c][g] : NaN;
+      const td = el('td', { class: 'num' }, Number.isFinite(v) ? fmtCell(v) : '-');
+      if (Number.isFinite(v)) {
+        const bin = binOf(v);
+        td.style.background = cssVar(SEQ_VARS[bin]);
+        td.style.color = bin >= 3 ? '#ffffff' : 'var(--text-1)';
+        td.dataset.cond = c;
+        td.dataset.grade = g;
+      }
+      tr.appendChild(td);
+    }
+    htbody.appendChild(tr);
+  }
+  htable.appendChild(hthead);
+  htable.appendChild(htbody);
+  const legend = el('div', { class: 'seq-legend', style: 'margin-top:8px' }, '낮음');
+  for (let i = 0; i < 7; i++) {
+    const sw = el('i');
+    sw.style.background = cssVar(SEQ_VARS[i]);
+    legend.appendChild(sw);
+  }
+  legend.appendChild(document.createTextNode('높음'));
+  heatCard.chartBody.appendChild(el('div', { class: 'table-wrap' }, htable), legend);
+  if (!useResults) {
+    heatCard.chartBody.appendChild(el('p', { class: 'card-note' }, 'results.csv가 없어 summary.csv의 grade 섹션으로 표시 중입니다. 중앙값·damagePerEnergy는 results.csv가 필요합니다. summary 모드에서는 필터가 적용되지 않습니다.'));
+  }
+  bindTip(htable, ev => {
+    const td = ev.target.closest('td[data-cond]');
+    if (!td) return null;
+    const v = cells[td.dataset.cond] ? cells[td.dataset.cond][td.dataset.grade] : NaN;
+    const n = counts[td.dataset.cond] ? counts[td.dataset.cond][td.dataset.grade] : NaN;
+    return [label(CONDITION_LABELS, td.dataset.cond) + ' · 등급 ' + td.dataset.grade,
+      [metricDef.label, Number.isFinite(v) ? fmtCell(v) : '-'], ['개수', Number.isFinite(n) ? fmtInt(n) : '-']];
+  });
+  const plainRows = [];
+  for (const c of shownConditions) {
+    for (const g of shownGrades) {
+      const v = cells[c] ? cells[c][g] : NaN;
+      const n = counts[c] ? counts[c][g] : NaN;
+      plainRows.push([{ text: label(CONDITION_LABELS, c) }, g,
+        { text: Number.isFinite(v) ? fmtCell(v) : '-', num: true },
+        { text: Number.isFinite(n) ? fmtInt(n) : '-', num: true }]);
+    }
+  }
+  heatCard.tableBody.appendChild(makeTable(
+    ['조건', '등급', metricDef.label, '개수'].map((t, i) => ({ text: t, num: i >= 2 })), plainRows).table);
+
+  // 조건별 경고 비율
+  const warnCard = makeChartCard('조건별 경고 비율', null);
+  const warnStats = {}; // cond -> { total, byWarn: {code: count} }
+  if (useResults) {
+    for (const row of state.filteredRows) {
+      const c = row.conditionId;
+      if (shownConditions.indexOf(c) === -1) continue;
+      const s = warnStats[c] || (warnStats[c] = { total: 0, byWarn: {} });
+      s.total++;
+      for (const w of splitWarnings(row.warnings)) s.byWarn[w] = (s.byWarn[w] || 0) + 1;
+    }
+  } else if (summary) {
+    const totals = {};
+    for (const r of summary.rows) {
+      if (r.section !== 'grade') continue;
+      totals[r.conditionId] = (totals[r.conditionId] || 0) + num(r.count);
+    }
+    for (const r of summary.rows) {
+      if (r.section !== 'warning') continue;
+      const s = warnStats[r.conditionId] || (warnStats[r.conditionId] = { total: totals[r.conditionId] || 0, byWarn: {} });
+      s.byWarn[r.key] = num(r.count);
+    }
+  }
+  const warnBody = el('div');
+  for (const c of shownConditions) {
+    const s = warnStats[c];
+    if (!s) continue;
+    const block = el('div', { class: 'warn-block' });
+    block.appendChild(el('div', { class: 'warn-block-title' }, label(CONDITION_LABELS, c)));
+    const codes = Object.keys(WARNING_LABELS).filter(w => s.byWarn[w]);
+    if (!codes.length) block.appendChild(el('div', { class: 'card-note' }, '경고 없음'));
+    for (const w of codes) {
+      const ratio = s.total ? s.byWarn[w] / s.total : 0;
+      const line = el('div', { class: 'warn-line' });
+      const dot = el('i', { class: 'cond-dot' });
+      dot.style.background = warningColor(w);
+      line.appendChild(el('span', { class: 'warn-line-label' }, dot, WARNING_LABELS[w]));
+      const track = el('div', { class: 'warn-track' });
+      const fill = el('div', { class: 'warn-fill' });
+      fill.style.width = Math.min(100, ratio * 100).toFixed(2) + '%';
+      fill.style.background = warningColor(w);
+      track.appendChild(fill);
+      line.appendChild(track);
+      line.appendChild(el('span', { class: 'warn-pct' }, fmtPctNum(ratio * 100)));
+      line.dataset.cond = c;
+      line.dataset.warn = w;
+      block.appendChild(line);
+    }
+    warnBody.appendChild(block);
+  }
+  warnCard.chartBody.appendChild(warnBody);
+  warnCard.chartBody.appendChild(el('p', { class: 'card-note' }, '경고 비율이 높은 조건은 개체·실행 상한이나 사거리 제약으로 측정이 왜곡되었을 수 있어 그 조건의 수치를 믿기 어렵습니다.'));
+  if (!useResults && summary) {
+    warnCard.chartBody.appendChild(el('p', { class: 'card-note' }, 'summary 모드에서는 필터가 적용되지 않습니다.'));
+  }
+  bindTip(warnBody, ev => {
+    const line = ev.target.closest('.warn-line');
+    if (!line) return null;
+    const s = warnStats[line.dataset.cond];
+    const w = line.dataset.warn;
+    return [label(CONDITION_LABELS, line.dataset.cond) + ' · ' + WARNING_LABELS[w],
+      ['경고 있는 결과', fmtInt(s.byWarn[w]) + '행'], ['조건 결과', fmtInt(s.total) + '행'],
+      ['비율', fmtPctNum(s.total ? (s.byWarn[w] / s.total) * 100 : NaN)]];
+  });
+  const warnTableRows = [];
+  for (const c of shownConditions) {
+    const s = warnStats[c];
+    if (!s) continue;
+    for (const w of Object.keys(WARNING_LABELS)) {
+      if (!s.byWarn[w]) continue;
+      warnTableRows.push([label(CONDITION_LABELS, c), WARNING_LABELS[w],
+        { text: fmtInt(s.byWarn[w]), num: true }, { text: fmtInt(s.total), num: true },
+        { text: fmtPctNum(s.total ? (s.byWarn[w] / s.total) * 100 : NaN), num: true }]);
+    }
+  }
+  warnCard.tableBody.appendChild(makeTable(
+    ['조건', '경고', '경고 있는 결과', '조건 결과', '비율'].map((t, i) => ({ text: t, num: i >= 2 })), warnTableRows).table);
+
+  panel.appendChild(heatCard);
+  panel.appendChild(warnCard);
+}
+
+/* ============================================================
+ * 11. 순위표 탭
+ * ============================================================ */
+const RANK_COLS = [
+  { key: 'buildId', label: 'buildId', get: r => String(r.buildId || '') },
+  { key: 'conditionId', label: '조건', get: r => label(CONDITION_LABELS, r.conditionId) },
+  { key: 'dps', label: 'DPS', num: true, get: r => num(r.dps) },
+  { key: 'burstDps', label: 'burst', num: true, get: r => num(r.burstDps) },
+  { key: 'sustainedDps', label: 'sustained', num: true, get: r => num(r.sustainedDps) },
+  { key: 'damagePerEnergy', label: '전력당 피해', num: true, get: r => num(r.damagePerEnergy) },
+  { key: 'failRate', label: '실패/시도(%)', num: true, get: r => failRate(r) },
+  { key: 'bottleneck', label: '병목', get: r => label(BOTTLENECK_LABELS, r.bottleneck) },
+  { key: 'ramUsed', label: 'RAM', num: true, get: r => num(r.ramUsed) },
+  { key: 'castCost', label: '비용', num: true, get: r => num(r.castCost) }
+];
+function renderRank(panel) {
+  if (!state.files.results) {
+    panel.appendChild(guidePanel('results.csv를 불러오세요.'));
+    return;
+  }
+  const rows = state.filteredRows.slice().sort((a, b) => {
+    const col = RANK_COLS.find(c => c.key === state.rank.sortKey);
+    const va = col.get(a), vb = col.get(b);
+    if (typeof va === 'number' || typeof vb === 'number') {
+      const na = Number.isFinite(va) ? va : -Infinity;
+      const nb = Number.isFinite(vb) ? vb : -Infinity;
+      return (na - nb) * state.rank.sortDir;
+    }
+    return String(va).localeCompare(String(vb)) * state.rank.sortDir;
+  });
+  const card = el('div', { class: 'card' });
+  const exportBtn = el('button', { class: 'btn', type: 'button' }, 'CSV로 내보내기');
+  exportBtn.addEventListener('click', () => exportRankCsv(rows));
+  card.appendChild(el('div', { class: 'card-head' }, el('h3', null, '순위표'),
+    el('span', { class: 'spacer' }),
+    el('span', { class: 'chip' }, rows.length.toLocaleString('ko-KR') + '행'),
+    exportBtn));
+
+  const headers = ['순위'].concat(RANK_COLS.map(c => ({ text: c.label + (state.rank.sortKey === c.key ? (state.rank.sortDir === -1 ? ' ▼' : ' ▲') : ''), num: !!c.num, sortable: c.key })), [{ text: '경고' }]);
+  const base = makeTable(headers, []);
+  // 열 머리 정렬 바인딩
+  const ths = base.table.querySelectorAll('th');
+  ths.forEach((th, idx) => {
+    if (idx === 0 || idx === headers.length - 1) return;
+    th.classList.add('sortable');
+    th.addEventListener('click', () => {
+      const key = headers[idx].sortable;
+      if (state.rank.sortKey === key) state.rank.sortDir *= -1;
+      else { state.rank.sortKey = key; state.rank.sortDir = RANK_COLS.find(c => c.key === key).num ? -1 : 1; }
+      state.rank.limit = 200;
+      renderActiveTab();
+    });
+  });
+  const buildTr = (row, idx) => {
+    const tr = el('tr', { class: 'clickable' + (splitWarnings(row.warnings).length ? ' has-warning' : '') });
+    tr.appendChild(el('td', { class: 'num' }, String(idx + 1)));
+    const cost = num(row.castCost);
+    for (const c of RANK_COLS) {
+      let text;
+      if (c.key === 'castCost') text = cost === -1 ? '제한 없음' : fmt2(cost);
+      else if (c.num) text = c.key === 'damagePerEnergy' || c.key === 'failRate' ? fmt1(c.get(row)) : fmtInt(c.get(row));
+      else text = c.get(row);
+      tr.appendChild(el('td', c.num ? { class: 'num' } : null, text));
+    }
+    const warnTd = el('td');
+    for (const w of splitWarnings(row.warnings)) {
+      const chip = el('span', { class: 'warn-chip' }, WARNING_LABELS[w] || w);
+      chip.style.background = warningColor(w);
+      warnTd.appendChild(chip);
+    }
+    if (!warnTd.childNodes.length) warnTd.appendChild(document.createTextNode('-'));
+    tr.appendChild(warnTd);
+    tr.addEventListener('click', () => openDetail(row.buildId));
+    return tr;
+  };
+  const moreBtn = el('button', { class: 'btn', type: 'button' }, '더 보기');
+  const moreRow = el('div', { class: 'more-row' }, moreBtn);
+  const appendRows = () => {
+    const frag = document.createDocumentFragment();
+    const end = Math.min(state.rank.limit, rows.length);
+    let i = base.tbody.childElementCount;
+    for (; i < end; i++) frag.appendChild(buildTr(rows[i], i));
+    base.tbody.appendChild(frag);
+    if (end >= rows.length) moreRow.hidden = true;
+    else moreBtn.textContent = '더 보기 (남은 ' + (rows.length - end).toLocaleString('ko-KR') + '행)';
+  };
+  moreBtn.addEventListener('click', () => { state.rank.limit += 200; appendRows(); });
+  appendRows();
+  card.appendChild(el('div', { class: 'table-wrap' }, base.table, moreRow));
+  panel.appendChild(card);
+}
+function exportRankCsv(rows) {
+  const header = ['순위', 'buildId', 'conditionId', 'DPS', 'burst', 'sustained', '전력당 피해', '실패/시도(%)', '병목', 'RAM', '비용', '경고'];
+  const lines = [header.map(csvEscape).join(',')];
+  rows.forEach((r, i) => {
+    const cost = num(r.castCost);
+    lines.push([
+      String(i + 1), r.buildId, r.conditionId, r.dps, r.burstDps, r.sustainedDps, r.damagePerEnergy,
+      Number.isFinite(failRate(r)) ? failRate(r).toFixed(2) : '',
+      r.bottleneck, r.ramUsed, cost === -1 ? '제한 없음' : r.castCost, r.warnings || ''
+    ].map(csvEscape).join(','));
+  });
+  downloadText('dps_rank_export.csv', '\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+}
+function openDetail(buildId) {
+  state.detail.buildId = buildId;
+  state.tab = 'detail';
+  updateAll();
+}
+
+/* ============================================================
+ * 12. 분포 탭 (박스 플롯, SVG)
+ * ============================================================ */
+function renderDist(panel) {
+  if (!state.files.results) {
+    panel.appendChild(guidePanel('results.csv를 불러오세요.'));
+    return;
+  }
+  const groupSel = el('select');
+  const groupsDef = [
+    { id: 'firstBehavior', label: '첫 행동' },
+    { id: 'preset', label: '포함 프리셋' },
+    { id: 'chainLength', label: '체인 길이' },
+    { id: 'grade', label: '등급' }
+  ];
+  for (const g of groupsDef) groupSel.appendChild(el('option', { value: g.id }, g.label));
+  groupSel.value = state.dist.groupBy;
+  groupSel.addEventListener('change', () => { state.dist.groupBy = groupSel.value; updateAll(); });
+  const condSel = el('select');
+  for (const c of CONDITIONS) condSel.appendChild(el('option', { value: c }, label(CONDITION_LABELS, c)));
+  condSel.value = state.dist.condition;
+  condSel.addEventListener('change', () => { state.dist.condition = condSel.value; updateAll(); });
+
+  const rows = state.filteredRows.filter(r => r.conditionId === state.dist.condition);
+  // 그룹별 값 수집 (포함 프리셋 기준에서는 한 행이 여러 그룹에 들어간다)
+  const buckets = new Map();
+  const zeroCounts = new Map();
+  const addTo = (key, row) => {
+    const v = num(row.dps);
+    if (!Number.isFinite(v)) return;
+    if (v === 0) { zeroCounts.set(key, (zeroCounts.get(key) || 0) + 1); return; }
+    let arr = buckets.get(key);
+    if (!arr) buckets.set(key, arr = []);
+    arr.push(v);
+  };
+  for (const r of rows) {
+    if (state.dist.groupBy === 'firstBehavior') {
+      const b = firstBehaviorOf(r);
+      addTo(b, r);
+    } else if (state.dist.groupBy === 'preset') {
+      for (const p of String(r.presets || '').split('>')) if (p) addTo(p, r);
+    } else if (state.dist.groupBy === 'chainLength') {
+      addTo(String(r.chainLength), r);
+    } else {
+      addTo(r.grade, r);
+    }
+  }
+  const labelOf = key => {
+    if (state.dist.groupBy === 'firstBehavior') return label(BEHAVIOR_LABELS, key);
+    if (state.dist.groupBy === 'chainLength') return '체인 ' + key;
+    return key;
+  };
+  const stats = [];
+  for (const key of Array.from(buckets.keys()).sort()) {
+    const arr = buckets.get(key).slice().sort((a, b) => a - b);
+    stats.push({
+      key: key,
+      label: labelOf(key),
+      n: arr.length,
+      zeros: zeroCounts.get(key) || 0,
+      min: arr[0], q1: quantile(arr, 0.25), med: quantile(arr, 0.5), q3: quantile(arr, 0.75), max: arr[arr.length - 1]
+    });
+  }
+  for (const key of Array.from(zeroCounts.keys())) {
+    if (!buckets.has(key)) {
+      stats.push({ key: key, label: labelOf(key), n: 0, zeros: zeroCounts.get(key), min: NaN, q1: NaN, med: NaN, q3: NaN, max: NaN });
+    }
+  }
+  stats.sort((a, b) => (Number.isFinite(b.med) ? b.med : -Infinity) - (Number.isFinite(a.med) ? a.med : -Infinity));
+
+  const totalZeros = rows.reduce((acc, r) => acc + (num(r.dps) === 0 ? 1 : 0), 0);
+  const card = makeChartCard('그룹별 DPS 분포 (조건: ' + label(CONDITION_LABELS, state.dist.condition) + ')',
+    el('div', { class: 'controls-row' }, el('label', null, '그룹 기준 ', groupSel), el('label', null, '조건 ', condSel)));
+
+  // SVG 박스 플롯
+  const W = 940, rowH = 52, top = 16, bottom = 34;
+  const H = top + Math.max(1, stats.length) * rowH + bottom;
+  const plotX0 = 210, plotX1 = W - 24;
+  let gMin = Infinity, gMax = -Infinity;
+  for (const s of stats) {
+    if (!Number.isFinite(s.min)) continue;
+    gMin = Math.min(gMin, s.min); gMax = Math.max(gMax, s.max);
+  }
+  if (!Number.isFinite(gMin)) { gMin = 0; gMax = 1; }
+  if (gMax <= gMin) gMax = gMin + 1;
+  const xOf = v => plotX0 + ((v - gMin) / (gMax - gMin)) * (plotX1 - plotX0);
+  const svg = svgEl('svg', { class: 'bp-svg', viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img' });
+  // 축
+  svg.appendChild(svgEl('line', { x1: plotX0, y1: H - bottom + 8, x2: plotX1, y2: H - bottom + 8, stroke: cssVar('--axis'), 'stroke-width': 1 }));
+  const tickN = 6;
+  for (let i = 0; i <= tickN; i++) {
+    const v = gMin + ((gMax - gMin) * i) / tickN;
+    const x = xOf(v);
+    svg.appendChild(svgEl('line', { x1: x, y1: H - bottom + 8, x2: x, y2: H - bottom + 13, stroke: cssVar('--axis'), 'stroke-width': 1 }));
+    const t = svgEl('text', { x: x, y: H - bottom + 27, 'text-anchor': 'middle' });
+    t.textContent = fmtInt(v);
+    svg.appendChild(t);
+  }
+  stats.forEach((s, i) => {
+    const cy = top + i * rowH + rowH / 2 - 4;
+    const g = svgEl('g', { 'data-g': String(i) });
+    const name = svgEl('text', { x: 8, y: cy - 2, class: 'bp-name' });
+    name.textContent = s.label;
+    g.appendChild(name);
+    const sub = svgEl('text', { x: 8, y: cy + 13, class: 'bp-sub' });
+    sub.textContent = 'n=' + s.n + (s.zeros ? ' · 0인 결과 ' + s.zeros + '개' : '');
+    g.appendChild(sub);
+    if (Number.isFinite(s.min)) {
+      const xMin = xOf(s.min), xQ1 = xOf(s.q1), xMed = xOf(s.med), xQ3 = xOf(s.q3), xMax = xOf(s.max);
+      g.appendChild(svgEl('line', { x1: xMin, y1: cy, x2: xMax, y2: cy, stroke: cssVar('--axis'), 'stroke-width': 1 }));
+      g.appendChild(svgEl('line', { x1: xMin, y1: cy - 7, x2: xMin, y2: cy + 7, stroke: cssVar('--axis'), 'stroke-width': 1 }));
+      g.appendChild(svgEl('line', { x1: xMax, y1: cy - 7, x2: xMax, y2: cy + 7, stroke: cssVar('--axis'), 'stroke-width': 1 }));
+      g.appendChild(svgEl('rect', { x: xQ1, y: cy - 11, width: Math.max(1, xQ3 - xQ1), height: 22, rx: 3, fill: cssVar(isDark() ? '--box-fill-dark' : '--box-fill'), stroke: cssVar('--axis'), 'stroke-width': 1 }));
+      g.appendChild(svgEl('line', { x1: xMed, y1: cy - 11, x2: xMed, y2: cy + 11, stroke: cssVar('--text-1'), 'stroke-width': 2 }));
+    }
+    svg.appendChild(g);
+  });
+  card.chartBody.appendChild(svg);
+  card.chartBody.appendChild(el('p', { class: 'card-note' },
+    'DPS가 0인 결과는 박스 계산에서 제외했습니다. 이 조건에서 0인 결과는 총 ' + totalZeros.toLocaleString('ko-KR') + '개입니다. 박스에 마우스를 올리면 최소·Q1·중앙값·Q3·최대를 볼 수 있습니다.'));
+  bindTip(svg, ev => {
+    const g = ev.target.closest('[data-g]');
+    if (!g) return null;
+    const s = stats[+g.dataset.g];
+    return [s.label,
+      ['개수 n', fmtInt(s.n)], ['0인 결과', fmtInt(s.zeros) + '개'],
+      ['최소', fmt1(s.min)], ['Q1', fmt1(s.q1)], ['중앙값', fmt1(s.med)], ['Q3', fmt1(s.q3)], ['최대', fmt1(s.max)]];
+  });
+  card.tableBody.appendChild(makeTable(
+    ['그룹', 'n', '최소', 'Q1', '중앙값', 'Q3', '최대', '0인 결과'].map((t, i) => ({ text: t, num: i >= 1 })),
+    stats.map(s => [s.label, { text: fmtInt(s.n), num: true }, { text: fmt1(s.min), num: true },
+      { text: fmt1(s.q1), num: true }, { text: fmt1(s.med), num: true }, { text: fmt1(s.q3), num: true },
+      { text: fmt1(s.max), num: true }, { text: fmtInt(s.zeros), num: true }])).table);
+  panel.appendChild(card);
+}
+
+/* ============================================================
+ * 13. 등급 비교 탭 (기울기 차트, Chart.js)
+ * ============================================================ */
+function renderSlope(panel) {
+  if (!state.files.results) {
+    panel.appendChild(guidePanel('results.csv를 불러오세요.'));
+    return;
+  }
+  const condSel = el('select');
+  for (const c of CONDITIONS) condSel.appendChild(el('option', { value: c }, label(CONDITION_LABELS, c)));
+  condSel.value = state.slope.condition;
+  condSel.addEventListener('change', () => { state.slope.condition = condSel.value; updateAll(); });
+  const searchInput = el('input', { type: 'search', placeholder: 'buildId 검색(부분 일치) · 하이라이트' });
+  searchInput.value = state.slope.search;
+  let searchTimer = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { state.slope.search = searchInput.value; updateAll(); }, 250);
+  });
+  const revToggle = el('input', { type: 'checkbox' });
+  revToggle.checked = state.slope.reversalOnly;
+  revToggle.addEventListener('change', () => { state.slope.reversalOnly = revToggle.checked; updateAll(); });
+
+  // 같은 경로 + 같은 조건에서 B·A·S 세 결과를 모두 가진 그룹만 사용한다.
+  const rows = state.filteredRows.filter(r => r.conditionId === state.slope.condition);
+  const groups = new Map();
+  for (const r of rows) {
+    const path = String(r.presets || '');
+    let g = groups.get(path);
+    if (!g) groups.set(path, g = {});
+    g[r.grade] = r;
+  }
+  const full = [];
+  for (const path of Array.from(groups.keys()).sort()) {
+    const g = groups.get(path);
+    if (g.B && g.A && g.S) full.push({ path: path, g: g });
+  }
+  const q = state.slope.search.trim().toLowerCase();
+  const enriched = full.map(item => {
+    const b = num(item.g.B.dps), a = num(item.g.A.dps), s = num(item.g.S.dps);
+    return {
+      path: item.path, B: item.g.B, A: item.g.A, S: item.g.S,
+      b: b, a: a, s: s,
+      ratio: Number.isFinite(b) && b !== 0 && Number.isFinite(s) ? s / b : NaN,
+      highlight: q !== '' && (item.path.toLowerCase().indexOf(q) !== -1 || (item.g.S.buildId || '').toLowerCase().indexOf(q) !== -1)
+    };
+  });
+  const shown = state.slope.reversalOnly ? enriched.filter(x => x.s < x.b) : enriched;
+
+  const card = makeChartCard('등급별 DPS 변화 (기울기 차트)');
+  const headControls = el('div', { class: 'controls-row' },
+    el('label', null, '조건 ', condSel), el('label', null, '하이라이트 ', searchInput),
+    el('label', null, revToggle, ' 역전만 보기 (S의 DPS < B의 DPS)'));
+  card.querySelector('.card-head').appendChild(headControls);
+
+  const condColor = conditionColor(state.slope.condition);
+  const massColor = cssVar('--slope-line');
+  const datasets = shown.map(x => x.highlight
+    ? { label: x.path, data: [x.b, x.a, x.s], borderColor: condColor, borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: condColor, fill: false, tension: 0 }
+    : { label: x.path, data: [x.b, x.a, x.s], borderColor: massColor, borderWidth: 1, pointRadius: 0, fill: false, tension: 0 });
+  const canvas = el('canvas');
+  card.chartBody.appendChild(el('div', { class: 'chart-box', style: 'position:relative;height:420px' }, canvas));
+  const chart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { labels: ['B', 'A', 'S'], datasets: datasets },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false }
+      },
+      scales: {
+        x: { ticks: { color: cssVar('--text-2') }, grid: { color: cssVar('--grid') }, border: { color: cssVar('--axis') } },
+        y: { ticks: { color: cssVar('--text-2') }, grid: { color: cssVar('--grid') }, border: { color: cssVar('--axis') } }
+      }
+    }
+  });
+  activeCharts.push(chart);
+  // 선이 많아 Chart.js 기본 툴팁이 느리므로 직접 근접 선 검색으로 툴팁을 만든다.
+  const meta = shown;
+  canvas.addEventListener('mousemove', ev => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = ev.clientX - rect.left;
+    const my = ev.clientY - rect.top;
+    let best = null, bestD = 9;
+    for (let i = 0; i < meta.length; i++) {
+      let m;
+      try { m = chart.getDatasetMeta(i); } catch (e) { continue; }
+      if (!m || m.hidden || !m.data || m.data.length < 3) continue;
+      for (let j = 0; j < 2; j++) {
+        const p1 = m.data[j], p2 = m.data[j + 1];
+        if (!p1 || !p2) continue;
+        const dx = p2.x - p1.x, dy = p2.y - p1.y;
+        const len2 = dx * dx + dy * dy;
+        let t = len2 ? ((mx - p1.x) * dx + (my - p1.y) * dy) / len2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        const px = p1.x + t * dx, py = p1.y + t * dy;
+        const d = Math.hypot(mx - px, my - py);
+        if (d < bestD) { bestD = d; best = meta[i]; }
+      }
+    }
+    if (best) {
+      showTipAt(ev, best.path + ' · ' + label(CONDITION_LABELS, state.slope.condition),
+        [['B DPS', fmt1(best.b)], ['A DPS', fmt1(best.a)], ['S DPS', fmt1(best.s)], ['S/B 비율', fmtPctRatio(best.ratio)]]);
+    } else hideTip();
+  });
+  canvas.addEventListener('mouseleave', hideTip);
+  if (shown.length > 800) {
+    card.chartBody.appendChild(el('p', { class: 'card-note' }, '선이 ' + shown.length.toLocaleString('ko-KR') + '개로 많아 렌더링이 느릴 수 있습니다.'));
+  }
+  card.tableBody.appendChild(makeIncrementalTable(
+    ['경로', 'B DPS', 'A DPS', 'S DPS', 'S/B 비율'].map((t, i) => ({ text: t, num: i >= 1 })),
+    shown,
+    x => [x.path, { text: fmt1(x.b), num: true }, { text: fmt1(x.a), num: true }, { text: fmt1(x.s), num: true }, { text: fmtPctRatio(x.ratio), num: true }]));
+
+  // 역전 목록 표
+  const reversals = enriched.filter(x => x.s < x.b);
+  const revCard = el('div', { class: 'card' });
+  revCard.appendChild(el('div', { class: 'card-head' }, el('h3', null, '역전 목록 (S의 DPS < B의 DPS, ' + reversals.length.toLocaleString('ko-KR') + '개 경로)')));
+  const revTable = makeIncrementalTable(
+    ['경로', '조건', 'B DPS', 'A DPS', 'S DPS', 'S/B 비율', 'S 실패/시도(%)'].map((t, i) => ({ text: t, num: i >= 2 })),
+    reversals,
+    x => [x.path, label(CONDITION_LABELS, state.slope.condition),
+      { text: fmt1(x.b), num: true }, { text: fmt1(x.a), num: true }, { text: fmt1(x.s), num: true },
+      { text: fmtPctRatio(x.ratio), num: true }, { text: fmt1(failRate(x.S)), num: true }]);
+  revCard.appendChild(revTable);
+  panel.appendChild(card);
+  panel.appendChild(revCard);
+}
+
+/* ============================================================
+ * 14. 모드 기여도 탭 (summary)
+ * ============================================================ */
+function renderContrib(panel) {
+  const summary = state.files.summary;
+  if (!summary) {
+    panel.appendChild(guidePanel('모드 기여도를 표시하려면 summary.csv를 불러오세요.'));
+    return;
+  }
+  panel.appendChild(el('p', { class: 'card-note', style: 'margin:0 0 12px' },
+    '같은 위치에 모드 하나만 더한 조합과 짝지어 DPS 변화율을 평균한 값. 사거리 밖·0 DPS 짝은 제외. 이 탭에는 조건·등급 필터만 적용됩니다.'));
+
+  const entries = [];
+  for (const r of summary.rows) {
+    if (r.section !== 'modifierContribution') continue;
+    const parts = String(r.key || '').split(':');
+    if (parts.length < 3) continue;
+    entries.push({
+      conditionId: r.conditionId,
+      behavior: parts[0], mod: parts[1], grade: parts[2],
+      count: num(r.count), meanDps: num(r.meanDps), value: num(r.value)
+    });
+  }
+  const shownConditions = state.filter.conditions.size ? CONDITIONS.filter(c => state.filter.conditions.has(c)) : CONDITIONS;
+  const shownGrades = state.filter.grades.size ? GRADES.slice().filter(g => state.filter.grades.has(g)) : GRADES;
+  let maxAbs = 0;
+  for (const e of entries) {
+    if (shownConditions.indexOf(e.conditionId) === -1 || shownGrades.indexOf(e.grade) === -1) continue;
+    maxAbs = Math.max(maxAbs, Math.abs(e.value));
+  }
+  const pad = maxAbs > 0 ? maxAbs * 1.15 : 1;
+
+  const grid = el('div', { class: 'contrib-grid' });
+  const tableRows = [];
+  for (const c of shownConditions) {
+    const panelBox = el('div', { class: 'contrib-panel' });
+    panelBox.appendChild(el('h4', null, label(CONDITION_LABELS, c)));
+    // (행동, 모드) 그룹화
+    const gmap = new Map();
+    for (const e of entries) {
+      if (e.conditionId !== c || shownGrades.indexOf(e.grade) === -1) continue;
+      const k = e.behavior + '|' + e.mod;
+      let g = gmap.get(k);
+      if (!g) gmap.set(k, g = { behavior: e.behavior, mod: e.mod, grades: {} });
+      g.grades[e.grade] = e;
+    }
+    // 패널끼리 같은 행을 비교할 수 있도록 행동·모드 순서를 고정한다.
+    const glist = Array.from(gmap.values()).sort((x, y) =>
+      (x.behavior + '|' + x.mod).localeCompare(y.behavior + '|' + y.mod));
+    if (!glist.length) panelBox.appendChild(el('p', { class: 'card-note' }, '데이터 없음'));
+    for (const g of glist) {
+      const groupBox = el('div', { class: 'contrib-group' });
+      groupBox.appendChild(el('div', { class: 'contrib-glabel' }, label(BEHAVIOR_LABELS, g.behavior) + '·' + label(MOD_LABELS, g.mod)));
+      for (const gr of GRADES) {
+        const e = g.grades[gr];
+        if (!e) continue;
+        tableRows.push([label(CONDITION_LABELS, c), label(BEHAVIOR_LABELS, g.behavior), label(MOD_LABELS, g.mod), gr,
+          { text: fmtInt(e.count), num: true }, { text: fmt1(e.meanDps), num: true }, { text: fmtPctRatio(e.value), num: true }]);
+        const rowEl = el('div', { class: 'contrib-brow' }, el('span', { class: 'contrib-grade' }, gr));
+        const track = el('div', { class: 'contrib-track' });
+        const bar = el('div', { class: 'contrib-bar ' + (e.value >= 0 ? 'pos' : 'neg') });
+        const wPct = Math.min(50, (Math.abs(e.value) / pad) * 50);
+        bar.style.width = wPct.toFixed(2) + '%';
+        track.appendChild(bar);
+        const vlabel = el('span', { class: 'contrib-vlabel' }, (e.value >= 0 ? '+' : '') + fmtPctRatio(e.value));
+        if (e.value >= 0) {
+          vlabel.style.left = 'calc(50% + ' + wPct.toFixed(2) + '% + 5px)';
+        } else {
+          vlabel.style.left = 'calc(50% - ' + wPct.toFixed(2) + '% - 5px)';
+          vlabel.style.transform = 'translateX(-100%)';
+        }
+        track.appendChild(vlabel);
+        rowEl.appendChild(track);
+        bindTip(track, () => [label(BEHAVIOR_LABELS, g.behavior) + '·' + label(MOD_LABELS, g.mod) + ' · 등급 ' + gr,
+          ['짝 수', fmtInt(e.count) + '개'], ['B 쪽 평균 DPS', fmt1(e.meanDps)], ['기여율', (e.value >= 0 ? '+' : '') + fmtPctRatio(e.value)]]);
+        groupBox.appendChild(rowEl);
+      }
+      panelBox.appendChild(groupBox);
+    }
+    grid.appendChild(panelBox);
+  }
+  const card = makeChartCard('모드 기여도 (x축 범위는 4개 패널이 동일, 최대 ±' + fmtPctRatio(pad) + ')');
+  card.chartBody.appendChild(grid);
+  card.tableBody.appendChild(makeIncrementalTable(
+    ['조건', '행동', '모드', '등급', '짝 수', '평균 DPS', '기여율'].map((t, i) => ({ text: t, num: i >= 4 })),
+    tableRows, r => r));
+  panel.appendChild(card);
+}
+
+/* ============================================================
+ * 15. 조합 상세 탭
+ * ============================================================ */
+function renderDetail(panel) {
+  const results = state.files.results;
+  if (!results) {
+    panel.appendChild(guidePanel('results.csv를 불러오세요.'));
+    return;
+  }
+  const allRows = results.rows;
+  // buildId 자동 완성 입력
+  const input = el('input', { type: 'search', list: 'buildIdList', placeholder: '예: S:P2>L2>L2' });
+  input.value = state.detail.buildId;
+  let timer = null;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { state.detail.buildId = input.value.trim(); writeHash(); renderDetailInner(panel); }, 250);
+  });
+  const dataList = el('datalist', { id: 'buildIdList' });
+  const buildIds = new Set();
+  for (const r of allRows) buildIds.add(r.buildId);
+  const sortedIds = Array.from(buildIds).sort();
+  const dlWrap = el('div', { hidden: '' }, dataList);
+  panel.appendChild(dlWrap);
+  for (let i = 0; i < sortedIds.length; i++) {
+    dataList.appendChild(el('option', { value: sortedIds[i] }));
+  }
+  const controls = el('div', { class: 'card' });
+  controls.appendChild(el('div', { class: 'controls-row' }, el('label', null, 'buildId 검색 ', input)));
+  panel.appendChild(controls);
+  renderDetailInner(panel);
+
+  function renderDetailInner(panel) {
+    // 컨트롤(datalist·검색 카드) 외의 기존 내용을 지운다
+    while (panel.childNodes.length > 2) panel.removeChild(panel.lastChild);
+    const buildId = state.detail.buildId;
+    if (!buildId) {
+      panel.appendChild(guidePanel('buildId를 검색하거나 순위표에서 행을 눌러 선택하세요.'));
+      return;
+    }
+    const rowsFor = {};
+    for (const r of allRows) if (r.buildId === buildId) rowsFor[r.conditionId] = r;
+    const found = Object.keys(rowsFor).length;
+    if (!found) {
+      panel.appendChild(guidePanel('일치하는 buildId가 없습니다: ' + buildId));
+      return;
+    }
+    // 같은 경로의 다른 등급 링크
+    const currentGrade = buildId.split(':')[0];
+    const path = buildId.split(':').slice(1).join(':');
+    const gradeLinks = el('div', { class: 'grade-links' }, el('span', { class: 'card-note' }, '같은 경로의 다른 등급: '));
+    for (const g of GRADES) {
+      const otherId = g + ':' + path;
+      const exists = allRows.some(r => r.buildId === otherId);
+      if (!exists && g !== currentGrade) continue;
+      if (g === currentGrade) {
+        gradeLinks.appendChild(el('span', { class: 'grade-link current' }, g + ' (현재)'));
+      } else {
+        const btn = el('button', { class: 'grade-link', type: 'button' }, g);
+        btn.addEventListener('click', () => { state.detail.buildId = otherId; updateAll(); });
+        gradeLinks.appendChild(btn);
+      }
+    }
+    const linkCard = el('div', { class: 'card' }, gradeLinks);
+    panel.appendChild(linkCard);
+
+    // 프리셋 구성 (suite)
+    const suite = state.files.suite;
+    const suiteBox = el('div', { class: 'card' });
+    suiteBox.appendChild(el('div', { class: 'card-head' }, el('h3', null, '프리셋 구성')));
+    const presetPath = String(rowsFor[CONDITIONS.find(c => rowsFor[c])] ? rowsFor[CONDITIONS.find(c => rowsFor[c])].presets : path).split('>');
+    if (suite) {
+      const chipRow = el('div');
+      for (const pid of presetPath) {
+        const def = suite.map[pid];
+        let text = pid;
+        if (def) {
+          const mods = (def._modifierIds || []).map(m => label(MOD_LABELS, m)).join('·');
+          text = pid + ': ' + label(BEHAVIOR_LABELS, def._behaviorId) + (mods ? '·' + mods : '');
+        }
+        chipRow.appendChild(el('span', { class: 'preset-chip' }, text));
+      }
+      suiteBox.appendChild(chipRow);
+    } else {
+      suiteBox.appendChild(el('p', { class: 'card-note' }, 'dps_suite.json을 불러오면 각 프리셋의 행동·모드 구성을 한국어로 표시합니다.'));
+    }
+    panel.appendChild(suiteBox);
+
+    // 조건 카드 + 행동 비율 막대
+    const cardsWrap = el('div', { class: 'detail-cards' });
+    const stackData = [];
+    for (const c of CONDITIONS) {
+      const r = rowsFor[c];
+      const cardBox = el('div', { class: 'detail-card' }, el('h4', null, label(CONDITION_LABELS, c)));
+      if (!r) {
+        cardBox.appendChild(el('p', { class: 'card-note' }, '결과 없음'));
+        cardsWrap.appendChild(cardBox);
+        continue;
+      }
+      cardBox.appendChild(el('div', { class: 'detail-dps' }, fmtInt(num(r.dps)) + ' DPS'));
+      cardBox.appendChild(el('div', { class: 'detail-sub' }, 'burst ' + fmt1(num(r.burstDps)) + ' · sustained ' + fmt1(num(r.sustainedDps))));
+      cardBox.appendChild(el('div', { class: 'detail-sub' }, '피해 합 ' + fmtInt(num(r.totalDamage)) + ' · 적중 수 ' + fmtInt(num(r.hitCount))));
+      const rowsEl = el('div', { class: 'detail-rows' });
+      rowsEl.appendChild(el('div', null, el('span', null, '피해 입은 적 수'), el('span', null, fmtInt(num(r.damagedEnemyCount)))));
+      rowsEl.appendChild(el('div', null, el('span', null, '적별 최소~최대'), el('span', null, fmtInt(num(r.enemyDamageMin)) + ' ~ ' + fmtInt(num(r.enemyDamageMax)))));
+      rowsEl.appendChild(el('div', null, el('span', null, '최대 개체 수'), el('span', null, fmtInt(num(r.peakSpellEntities)))));
+      rowsEl.appendChild(el('div', null, el('span', null, '소모 전력'), el('span', null, fmt1(num(r.energySpent)))));
+      rowsEl.appendChild(el('div', null, el('span', null, '전력당 피해'), el('span', null, fmt2(num(r.damagePerEnergy)))));
+      const att = num(r.castAttempts), suc = num(r.castSuccesses), fai = num(r.castFailures);
+      rowsEl.appendChild(el('div', null, el('span', null, '시도/성공/실패'), el('span', null, fmtInt(att) + ' / ' + fmtInt(suc) + ' / ' + fmtInt(fai))));
+      const ffs = num(r.firstFailureSeconds);
+      rowsEl.appendChild(el('div', null, el('span', null, '첫 실패 시각'), el('span', null, ffs === -1 ? '없음' : fmt3(ffs) + '초')));
+      rowsEl.appendChild(el('div', null, el('span', null, '병목'), el('span', null, label(BOTTLENECK_LABELS, r.bottleneck))));
+      const cost = num(r.castCost), range = num(r.castRange);
+      rowsEl.appendChild(el('div', null, el('span', null, 'RAM · 비용 · 쿨다운'), el('span', null, fmtInt(num(r.ramUsed)) + ' · ' + (cost === -1 ? '제한 없음' : fmt2(cost)) + ' · ' + fmt3(num(r.cooldownSeconds)) + '초')));
+      rowsEl.appendChild(el('div', null, el('span', null, '사거리'), el('span', null, range === -1 ? '제한 없음' : fmtInt(range))));
+      cardBox.appendChild(rowsEl);
+      const warns = splitWarnings(r.warnings);
+      if (warns.length) {
+        const warnRow = el('div', { style: 'margin-top:8px' });
+        for (const w of warns) {
+          const chip = el('span', { class: 'warn-chip' }, WARNING_LABELS[w] || w);
+          chip.style.background = warningColor(w);
+          warnRow.appendChild(chip);
+        }
+        cardBox.appendChild(warnRow);
+      }
+      cardsWrap.appendChild(cardBox);
+      // 행동 위치별 누적 막대 데이터
+      stackData.push({
+        condition: c,
+        segments: [0, 1, 2].map(i => ({
+          preset: r['behavior' + i + 'Preset'] || '',
+          damage: num(r['behavior' + i + 'Damage']),
+          ratio: num(r['behavior' + i + 'Ratio'])
+        })).filter(s => s.preset)
+      });
+    }
+    panel.appendChild(cardsWrap);
+
+    // 행동 위치별 피해 비율 누적 막대
+    const stackCard = makeChartCard('행동 위치별 피해 비율');
+    const stackWrap = el('div');
+    const stackTableRows = [];
+    for (const d of stackData) {
+      if (!d.segments.length) continue;
+      const block = el('div', { class: 'warn-block' });
+      block.appendChild(el('div', { class: 'warn-block-title' }, label(CONDITION_LABELS, d.condition)));
+      const bar = el('div', { class: 'stackbar' });
+      d.segments.forEach((s, i) => {
+        const seg = el('div', { class: 'seg' });
+        const pct = Number.isFinite(s.ratio) ? s.ratio * 100 : 0;
+        seg.style.width = pct.toFixed(2) + '%';
+        seg.style.background = cssVar('--cat-' + (i + 1));
+        if (pct >= 12) seg.appendChild(document.createTextNode(s.preset + ' ' + pct.toFixed(1) + '%'));
+        seg.dataset.i = String(i);
+        bindTip(seg, () => [label(CONDITION_LABELS, d.condition) + ' · 위치 ' + i + ' (' + s.preset + ')',
+          ['피해', fmtInt(s.damage)], ['비율', fmtPctRatio(s.ratio)]]);
+        bar.appendChild(seg);
+        stackTableRows.push([label(CONDITION_LABELS, d.condition), '위치 ' + i, s.preset,
+          { text: fmtInt(s.damage), num: true }, { text: fmtPctRatio(s.ratio), num: true }]);
+      });
+      block.appendChild(bar);
+      stackWrap.appendChild(block);
+    }
+    stackCard.chartBody.appendChild(stackWrap);
+    stackCard.chartBody.appendChild(el('p', { class: 'card-note' }, '색은 위치 순서(1~3번 범주 색)로 고정됩니다. 좁은 칸은 마우스를 올려 값을 확인하세요.'));
+    stackCard.tableBody.appendChild(makeTable(
+      ['조건', '위치', '프리셋', '피해', '비율'].map((t, i) => ({ text: t, num: i >= 3 })), stackTableRows).table);
+    panel.appendChild(stackCard);
+  }
+}
+
+/* ============================================================
+ * 16. 비교 탭
+ * ============================================================ */
+function comparisonSource() {
+  if (state.files.comparison) return { kind: 'comparison', rows: state.files.comparison.rows };
+  const res = state.files.results;
+  if (res && res.fields && res.fields.indexOf('previousDps') !== -1) {
+    const rows = res.rows.filter(r => r.previousDps != null && r.previousDps !== '');
+    if (rows.length) return { kind: 'results', rows: rows };
+  }
+  return null;
+}
+// 비교 탭에는 공통 필터 중 적용 가능한 항목(조건·등급·체인·프리셋·검색, suite가 있으면 첫 행동)만 적용한다.
+function passesCompareFilter(row) {
+  const f = state.filter;
+  if (f.conditions.size && !f.conditions.has(row.conditionId)) return false;
+  const buildId = String(row.buildId || '');
+  const colon = buildId.indexOf(':');
+  const grade = colon === -1 ? '' : buildId.slice(0, colon);
+  const path = colon === -1 ? '' : buildId.slice(colon + 1);
+  if (f.grades.size && !f.grades.has(grade)) return false;
+  if (f.chains.size && !f.chains.has(String(path.split('>').length))) return false;
+  if (f.presets.size) {
+    const ps = path.split('>');
+    let ok = false;
+    for (const p of ps) if (f.presets.has(p)) { ok = true; break; }
+    if (!ok) return false;
+  }
+  if (f.behaviors.size && state.files.suite) {
+    const first = path.split('>')[0];
+    const def = state.files.suite.map[first];
+    const beh = def ? def._behaviorId : first;
+    if (!f.behaviors.has(beh)) return false;
+  }
+  const q = f.query.trim().toLowerCase();
+  if (q && buildId.toLowerCase().indexOf(q) === -1) return false;
+  return true;
+}
+function renderCompare(panel) {
+  const src = comparisonSource();
+  if (!src) {
+    panel.appendChild(guidePanel('비교 탭을 표시하려면 comparison.csv 또는 previousDps 열이 있는 results.csv를 불러오세요.'));
+    return;
+  }
+  const rows = src.rows.filter(passesCompareFilter);
+  const changed = rows.filter(r => {
+    const prev = num(r.previousDps), curr = num(r.dps);
+    return Number.isFinite(prev) && Number.isFinite(curr);
+  });
+  const newList = rows.filter(r => (r.status === 'new'));
+  const removedList = rows.filter(r => (r.status === 'removed'));
+  const overPct = changed.filter(r => Math.abs(num(r.dpsChangeRatio)) > 0.01).length;
+
+  // 요약 칩
+  const sumCard = el('div', { class: 'card' });
+  sumCard.appendChild(el('div', { class: 'card-head' }, el('h3', null, '요약'),
+    el('span', { class: 'chip' }, '출처: ' + (src.kind === 'comparison' ? 'comparison.csv' : 'results.csv의 previousDps 열'))));
+  const chipRow = el('div', { class: 'controls-row' });
+  chipRow.appendChild(el('span', { class: 'chip' }, el('b', null, '변경'), fmtInt(changed.length) + '행'));
+  chipRow.appendChild(el('span', { class: 'chip' }, el('b', null, '신규'), fmtInt(newList.length) + '행'));
+  chipRow.appendChild(el('span', { class: 'chip' }, el('b', null, '제거'), fmtInt(removedList.length) + '행'));
+  chipRow.appendChild(el('span', { class: 'chip' }, el('b', null, '변화율 절댓값 1% 초과'), fmtInt(overPct) + '행'));
+  sumCard.appendChild(chipRow);
+  panel.appendChild(sumCard);
+
+  // 산점도
+  const chartCard = makeChartCard('이전 DPS vs 현재 DPS');
+  const byCond = {};
+  for (const r of changed) {
+    (byCond[r.conditionId] || (byCond[r.conditionId] = [])).push(r);
+  }
+  let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+  for (const r of changed) {
+    const p = num(r.previousDps), c = num(r.dps);
+    xMin = Math.min(xMin, p); xMax = Math.max(xMax, p);
+    yMin = Math.min(yMin, c); yMax = Math.max(yMax, c);
+  }
+  if (!Number.isFinite(xMin)) { xMin = 0; xMax = 1; yMin = 0; yMax = 1; }
+  const lo = Math.min(xMin, yMin), hi = Math.max(xMax, yMax);
+  const datasets = [{
+    type: 'line', label: 'y=x', data: [{ x: lo, y: lo }, { x: hi, y: hi }],
+    borderColor: cssVar('--axis'), borderDash: [6, 6], borderWidth: 2, pointRadius: 0, fill: false
+  }];
+  const condColorMap = {};
+  for (const c of CONDITIONS.filter(id => byCond[id])) {
+    const color = conditionColor(c);
+    condColorMap[c] = color;
+    datasets.push({
+      type: 'scatter', label: label(CONDITION_LABELS, c),
+      data: byCond[c].map(r => ({ x: num(r.previousDps), y: num(r.dps), _row: r })),
+      backgroundColor: color, pointRadius: 4, pointHoverRadius: 5
+    });
+  }
+  const canvas = el('canvas');
+  chartCard.chartBody.appendChild(el('div', { class: 'chart-box', style: 'position:relative;height:400px' }, canvas));
+  const chart = new Chart(canvas.getContext('2d'), {
+    type: 'scatter',
+    data: { datasets: datasets },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: true },
+      plugins: {
+        legend: {
+          display: true, position: 'bottom',
+          labels: { color: cssVar('--text-2') }
+        },
+        tooltip: {
+          backgroundColor: cssVar('--surface'), titleColor: cssVar('--text-1'), bodyColor: cssVar('--text-2'),
+          borderColor: cssVar('--border'), borderWidth: 1, padding: 10,
+          callbacks: {
+            title: items => {
+              const pt = items[0] && items[0].raw;
+              return pt && pt._row ? pt._row.buildId : '';
+            },
+            label: item => {
+              const pt = item.raw;
+              if (!pt || !pt._row) return '';
+              const r = pt._row;
+              return ['이전 DPS ' + fmt1(num(r.previousDps)), '현재 DPS ' + fmt1(num(r.dps)),
+                '변화율 ' + fmtPctRatio(num(r.dpsChangeRatio))];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { type: 'linear', title: { display: true, text: '이전 DPS', color: cssVar('--text-2') }, ticks: { color: cssVar('--text-2') }, grid: { color: cssVar('--grid') }, border: { color: cssVar('--axis') } },
+        y: { title: { display: true, text: '현재 DPS', color: cssVar('--text-2') }, ticks: { color: cssVar('--text-2') }, grid: { color: cssVar('--grid') }, border: { color: cssVar('--axis') } }
+      }
+    }
+  });
+  activeCharts.push(chart);
+  chartCard.tableBody.appendChild(makeIncrementalTable(
+    ['buildId', '조건', '이전 DPS', '현재 DPS', '변화율', '상태'].map((t, i) => ({ text: t, num: i === 2 || i === 3 || i === 4 })),
+    changed.slice().sort((a, b) => Math.abs(num(b.dpsChangeRatio)) - Math.abs(num(a.dpsChangeRatio))),
+    r => [r.buildId, label(CONDITION_LABELS, r.conditionId),
+      { text: fmt1(num(r.previousDps)), num: true }, { text: fmt1(num(r.dps)), num: true },
+      { text: fmtPctRatio(num(r.dpsChangeRatio)), num: true },
+      src.kind === 'comparison' ? (COMPARE_STATUS_LABELS[r.status] || r.status || '') : '변경']));
+  panel.appendChild(chartCard);
+
+  // 신규·제거 목록 (comparison.csv에만 존재)
+  if (src.kind === 'comparison' && (newList.length || removedList.length)) {
+    const nrCard = el('div', { class: 'card' });
+    nrCard.appendChild(el('div', { class: 'card-head' }, el('h3', null, '신규 / 제거 목록')));
+    const nrRows = [];
+    for (const r of newList) nrRows.push([r.buildId, label(CONDITION_LABELS, r.conditionId), '-', { text: fmt1(num(r.dps)), num: true }, '신규']);
+    for (const r of removedList) nrRows.push([r.buildId, label(CONDITION_LABELS, r.conditionId), { text: fmt1(num(r.previousDps)), num: true }, '-', '제거']);
+    nrCard.appendChild(makeIncrementalTable(
+      ['buildId', '조건', '이전 DPS', '현재 DPS', '상태'].map((t, i) => ({ text: t, num: i === 2 || i === 3 })), nrRows, r => r));
+    panel.appendChild(nrCard);
+  }
+}
+
+/* ============================================================
+ * 17. 탭 전환·테마
+ * ============================================================ */
+function renderActiveTab() {
+  destroyCharts();
+  hideTip();
+  const panels = document.getElementById('tabPanels');
+  panels.replaceChildren();
+  const panel = el('div', { class: 'tab-panel' });
+  panels.appendChild(panel);
+  if (state.tab === 'overview') renderOverview(panel);
+  else if (state.tab === 'rank') renderRank(panel);
+  else if (state.tab === 'dist') renderDist(panel);
+  else if (state.tab === 'slope') renderSlope(panel);
+  else if (state.tab === 'contrib') renderContrib(panel);
+  else if (state.tab === 'detail') renderDetail(panel);
+  else if (state.tab === 'compare') renderCompare(panel);
+}
+function applyTheme() {
+  const btn = document.getElementById('themeBtn');
+  const t = state.theme;
+  if (t === 'system') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  btn.textContent = '테마: ' + ({ system: '시스템', light: '라이트', dark: '다크' })[t];
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif';
+  }
+  buildFilterControls();
+  renderActiveTab();
+}
+
+/* ============================================================
+ * 18. 시작
+ * ============================================================ */
+(function boot() {
+  readHash();
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  document.getElementById('fileBtn').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { loadFiles(fileInput.files); fileInput.value = ''; });
+  ['dragenter', 'dragover'].forEach(evName => dropzone.addEventListener(evName, e => {
+    e.preventDefault();
+    dropzone.classList.add('drag');
+  }));
+  ['dragleave', 'drop'].forEach(evName => dropzone.addEventListener(evName, e => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+  }));
+  dropzone.addEventListener('drop', e => loadFiles(e.dataTransfer.files));
+  // 드롭존 밖에서 놓아도 받는다
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+
+  let queryTimer = null;
+  document.getElementById('fQuery').addEventListener('input', e => {
+    clearTimeout(queryTimer);
+    const v = e.target.value;
+    queryTimer = setTimeout(() => { state.filter.query = v; state.rank.limit = 200; updateAll(); }, 150);
+  });
+
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    const order = ['system', 'light', 'dark'];
+    state.theme = order[(order.indexOf(state.theme) + 1) % order.length];
+    applyTheme();
+  });
+
+  buildFilterControls();
+  renderTabNav();
+  renderFileChips();
+  applyTheme();
+})();
+</script>
+</body>
+</html>
