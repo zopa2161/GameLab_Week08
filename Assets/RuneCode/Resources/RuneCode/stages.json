@@ -923,7 +923,7 @@
                             },
                             "_units": [
                                 {
-                                    "_enemyId": "boss.governor",
+                                    "_enemyId": "boss.hydra",
                                     "_count": 1,
                                     "_isElite": false
                                 },

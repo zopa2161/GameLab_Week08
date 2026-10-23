@@ -224,7 +224,7 @@ flowchart LR
 | 웨이브 | `_formation` | 진형 ID와 덮어쓰기(`_angle`·`_spacing`·`_interval`·`_slots`, 빈 값·0은 원본 유지) |
 | 웨이브 | `_units[]` | 적 ID·수량·엘리트 여부 |
 
-3라운드 마지막 웨이브에는 미니 보스 1기, 6라운드 마지막 웨이브에는 보스 1기가 있어야 한다. 1·3스테이지에는 미니 거버너, 2스테이지에는 레골라스를 배치하며 동반 적·엘리트·진형은 기존 편성을 유지한다. 메뉴 `Rune Code/Stage Table Editor`(`Editor/StageTableEditorWindow`)로 이 파일을 폼 형태로 편집할 수 있다.
+3라운드 마지막 웨이브에는 미니 보스 1기, 6라운드 마지막 웨이브에는 보스 1기가 있어야 한다. 3라운드에는 1·3스테이지 미니 거버너, 2스테이지 레골라스를 배치한다. 6라운드에는 1·3스테이지 거버너, 2스테이지 히드라를 배치한다. 2스테이지 히드라는 기존 전투 설정을 사용하며 정찰병 15기와 `halfSurround` 진형을 유지한다. 메뉴 `Rune Code/Stage Table Editor`(`Editor/StageTableEditorWindow`)로 이 파일을 폼 형태로 편집할 수 있다.
 
 라운드가 끝나면 `_rewardDropTable`의 드롭 테이블에서 서로 다른 룬 3개를 추첨해 1개를 고르게 한다. 6라운드(스테이지 종료)는 스테이지마다 다른 테이블(`drop.stageClear.N`)을 쓰며 6라운드 라운드 보상을 대체한다. 현재 기본 연결은 1·2·4·5라운드 `drop.round.modifier`, 3라운드 `drop.round.behavior.1~3`, 6라운드 `drop.stageClear.1~3`이다. 3라운드는 스테이지별 C/B, B/A, A/S를 각각 75%/25%로 추첨하며, 6라운드 테이블은 C 30%·B 40%·A 20%·S 10%를 유지한다. 두 보상의 행동 후보 5종과 3개 중 1개 선택 방식은 같다. 3스테이지는 라운드 대기 없이 바로 완료되므로 `drop.stageClear.3`은 아직 쓰이지 않는다.
 
