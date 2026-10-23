@@ -12,14 +12,16 @@ namespace RuneCode.Editor
 {
     /// <summary>
     /// DPS 측정 일괄 실행의 진입점이다. 배치 명령행(-executeMethod RuneCode.Editor.DpsMeasurementCli.Run)과
-    /// 에디터 메뉴가 같은 내부 실행 흐름을 공유하고 출력 폴더에 결과 파일을 쓴다. 에디터 종료(Exit)는 배치에서만 호출한다.
+    /// 에디터 메뉴가 같은 내부 실행 흐름을 공유하고 결과를 프로젝트 안 Results~ 폴더에 쓴 뒤 뷰어 데이터를 갱신한다.
+    /// RebuildViewerData는 저장된 측정 폴더의 뷰어 데이터를 다시 만드는 배치 진입점이다. 에디터 종료(Exit)는 배치에서만 호출한다.
     /// </summary>
     public static class DpsMeasurementCli
     {
         private const string LOG_PREFIX = "[DpsMeasurement]";
         private const string SUITE_PATH_DEFAULT = "Assets/RuneCode/Editor/DpsMeasurement/Data/dps_suite.json";
         private const string EXCLUSIONS_PATH_DEFAULT = "Assets/RuneCode/Editor/DpsMeasurement/Data/dps_exclusions.json";
-        private const string OUTPUT_ROOT_FOLDER = "DpsMeasurement";
+        private const string RESULTS_ROOT = "Assets/RuneCode/Editor/DpsMeasurement/Results~";
+        private const string VIEWER_PATH = "Assets/RuneCode/Editor/DpsMeasurement/Viewer~/dps_viewer.html";
         private const string TIMESTAMP_FORMAT = "yyyyMMdd-HHmmss";
         private const string RESULTS_JSON_FILE_NAME = "results.json";
         private const string RESULTS_CSV_FILE_NAME = "results.csv";
@@ -32,9 +34,12 @@ namespace RuneCode.Editor
         private const string ARG_RESUME = "-dpsResume";
         private const string ARG_FILTER = "-dpsFilter";
         private const string ARG_LIMIT = "-dpsLimit";
+        private const string ARG_FORCE = "-dpsForce";
         private const string MENU_RUN_ALL = "Tools/RuneCode/DPS Measurement/Run All";
         private const string MENU_RUN_SAMPLE = "Tools/RuneCode/DPS Measurement/Run Sample (20 builds)";
         private const string MENU_RESUME = "Tools/RuneCode/DPS Measurement/Resume...";
+        private const string MENU_OPEN_VIEWER = "Tools/RuneCode/DPS Measurement/Open Viewer";
+        private const string MENU_REBUILD_VIEWER_DATA = "Tools/RuneCode/DPS Measurement/Rebuild Viewer Data";
         private const int SAMPLE_BUILD_COUNT = 20;
         private const int PROGRESS_LOG_INTERVAL = 100;
         private const double ESTIMATED_SECONDS_PER_JOB = 0.3;
@@ -72,7 +77,25 @@ namespace RuneCode.Editor
             }
         }
 
-        /// <summary>전체 조합을 측정하는 에디터 메뉴다. 확인 대화상자를 통과하면 취소 가능한 진행 바로 실행하고 끝나면 출력 폴더를 연다.</summary>
+        /// <summary>
+        /// 뷰어 데이터 재생성 배치 진입점이다. 명령행에 -dpsForce가 있으면 viewer_data.js가 이미 있는 측정 폴더도 다시 만들고
+        /// 끝나면 Exit(0), 예외가 나면 LogException 후 Exit(1)로 에디터를 종료한다.
+        /// </summary>
+        public static void RebuildViewerData()
+        {
+            try
+            {
+                RebuildViewerData(Array.IndexOf(Environment.GetCommandLineArgs(), ARG_FORCE) >= 0);
+                EditorApplication.Exit(0);
+            }
+            catch (Exception exception)
+            {
+                UnityEngine.Debug.LogException(exception);
+                EditorApplication.Exit(1);
+            }
+        }
+
+        /// <summary>전체 조합을 측정하는 에디터 메뉴다. 확인 대화상자를 통과하면 취소 가능한 진행 바로 실행하고 끝나면 뷰어를 연다.</summary>
         [MenuItem(MENU_RUN_ALL)]
         public static void RunAllFromMenu()
         {
@@ -86,18 +109,32 @@ namespace RuneCode.Editor
             RunFromMenu(SAMPLE_BUILD_COUNT, null);
         }
 
-        /// <summary>이전 출력 폴더를 골라 측정을 이어서 진행하는 에디터 메뉴다. 폴더를 고르지 않으면 아무 것도 하지 않는다.</summary>
+        /// <summary>이전 측정 폴더를 Results~에서 골라 측정을 이어서 진행하는 에디터 메뉴다. 폴더를 고르지 않으면 아무 것도 하지 않는다.</summary>
         [MenuItem(MENU_RESUME)]
         public static void ResumeFromMenu()
         {
-            string resumeFolder = EditorUtility.OpenFolderPanel("DPS 측정 출력 폴더 선택", Path.Combine(Application.persistentDataPath, OUTPUT_ROOT_FOLDER), "");
+            string resumeFolder = EditorUtility.OpenFolderPanel("DPS 측정 출력 폴더 선택", ProjectPath(RESULTS_ROOT), "");
             if (string.IsNullOrEmpty(resumeFolder)) return;
             RunFromMenu(0, resumeFolder);
         }
 
+        /// <summary>측정 결과 뷰어를 시스템 기본 브라우저로 여는 에디터 메뉴다.</summary>
+        [MenuItem(MENU_OPEN_VIEWER)]
+        public static void OpenViewerFromMenu()
+        {
+            OpenViewer();
+        }
+
+        /// <summary>저장된 측정 폴더의 뷰어 데이터를 다시 만드는 에디터 메뉴다. viewer_data.js가 이미 있는 폴더는 건너뛴다.</summary>
+        [MenuItem(MENU_REBUILD_VIEWER_DATA)]
+        public static void RebuildViewerDataFromMenu()
+        {
+            RebuildViewerData(false);
+        }
+
         /// <summary>
         /// 에디터 메뉴 공용 실행 흐름이다. 조합을 준비하고 확인 대화상자를 통과하면 취소 가능한 진행 바로 측정해 그때까지의 결과를 쓴 뒤
-        /// 출력 폴더를 탐색기에서 연다. 진행 바는 실행을 중단하거나 예외가 나도 finally에서 정리한다.
+        /// 뷰어를 브라우저로 연다. 진행 바는 실행을 중단하거나 예외가 나도 finally에서 정리한다.
         /// </summary>
         private static void RunFromMenu(int limit, string resumeFolder)
         {
@@ -108,7 +145,7 @@ namespace RuneCode.Editor
                 RunPreparation preparation = PrepareBuilds(SUITE_PATH_DEFAULT, EXCLUSIONS_PATH_DEFAULT, null, limit);
                 if (!ConfirmRun(preparation, isResume)) return;
                 ExecuteRun(preparation, outputFolder, isResume, null, CreateCancelableProgress());
-                EditorUtility.RevealInFinder(outputFolder);
+                OpenViewer();
             }
             finally
             {
@@ -132,7 +169,7 @@ namespace RuneCode.Editor
         /// <summary>
         /// 조합 목록 파일을 출력 폴더에 쓰고 일괄 측정을 실행한 뒤 results.json, results.csv, summary.csv를 쓴다.
         /// comparePath가 있으면 이전 results.json에서 이전 DPS를 읽어 results.csv 비교 열에 넣고 comparison.csv도 쓴다.
-        /// isResume이면 출력 폴더의 부분 결과를 이어받는다.
+        /// isResume이면 출력 폴더의 부분 결과를 이어받는다. 끝에서 viewer_data.js를 만들고 출력 폴더가 Results~ 바로 아래면 index.js도 갱신한다.
         /// </summary>
         private static void ExecuteRun(RunPreparation preparation, string outputFolder, bool isResume, string comparePath, Func<int, int, bool> onProgress)
         {
@@ -143,6 +180,8 @@ namespace RuneCode.Editor
             DpsResultWriter.WriteCsv(results, Path.Combine(outputFolder, RESULTS_CSV_FILE_NAME), previousDps);
             DpsSummaryWriter.Write(results, Path.Combine(outputFolder, SUMMARY_CSV_FILE_NAME));
             if (comparePath != null) DpsResultComparer.WriteComparisonCsv(results, previousDps, Path.Combine(outputFolder, COMPARISON_CSV_FILE_NAME));
+            DpsViewerDataWriter.Write(results, outputFolder);
+            if (IsDirectChildOfResultsRoot(outputFolder)) DpsViewerDataWriter.RebuildIndex(ProjectPath(RESULTS_ROOT));
             UnityEngine.Debug.Log(LOG_PREFIX + " 출력 폴더: " + outputFolder);
         }
 
@@ -203,11 +242,49 @@ namespace RuneCode.Editor
             return index >= 0 && index + 1 < arguments.Length ? arguments[index + 1] : fallback;
         }
 
-        /// <summary>기본 출력 폴더를 persistentDataPath/DpsMeasurement/현재 로컬 시각 타임스탬프 경로로 만든다.</summary>
+        /// <summary>기본 출력 폴더를 프로젝트 안 Results~/현재 로컬 시각 타임스탬프 경로로 만든다.</summary>
         private static string DefaultOutputFolder()
         {
-            return Path.Combine(Application.persistentDataPath, OUTPUT_ROOT_FOLDER,
-                DateTime.Now.ToString(TIMESTAMP_FORMAT, CultureInfo.InvariantCulture));
+            return Path.Combine(ProjectPath(RESULTS_ROOT), DateTime.Now.ToString(TIMESTAMP_FORMAT, CultureInfo.InvariantCulture));
+        }
+
+        /// <summary>프로젝트 루트(Assets의 부모 폴더) 아래 상대 경로의 전체 경로를 만든다.</summary>
+        private static string ProjectPath(string relativePath)
+        {
+            return Path.Combine(Directory.GetParent(Application.dataPath).FullName, relativePath);
+        }
+
+        /// <summary>폴더가 Results~의 바로 아래 폴더인지 전체 경로끼리 대소문자 무시로 비교해 판별한다.</summary>
+        private static bool IsDirectChildOfResultsRoot(string folder)
+        {
+            string parent = Path.GetDirectoryName(Path.GetFullPath(folder));
+            return parent != null && string.Equals(parent, Path.GetFullPath(ProjectPath(RESULTS_ROOT)), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>뷰어 HTML을 file URI로 바꿔 시스템 기본 브라우저로 연다.</summary>
+        private static void OpenViewer()
+        {
+            Application.OpenURL(new Uri(ProjectPath(VIEWER_PATH)).AbsoluteUri);
+        }
+
+        /// <summary>
+        /// Results~의 하위 폴더 중 results.json이 있고 viewer_data.js가 없는 폴더에 뷰어 데이터를 만들고(isForced면 있는 폴더도 다시 만들고)
+        /// index.js를 다시 쓴다. 처리한 폴더 수를 로그로 남기고 Results~가 없으면 만든다.
+        /// </summary>
+        private static void RebuildViewerData(bool isForced)
+        {
+            string resultsRoot = ProjectPath(RESULTS_ROOT);
+            Directory.CreateDirectory(resultsRoot);
+            int processedCount = 0;
+            foreach (string folder in Directory.GetDirectories(resultsRoot))
+            {
+                if (!File.Exists(Path.Combine(folder, RESULTS_JSON_FILE_NAME))) continue;
+                if (!isForced && File.Exists(Path.Combine(folder, DpsViewerDataWriter.VIEWER_DATA_FILE_NAME))) continue;
+                DpsViewerDataWriter.WriteFromFolder(folder);
+                processedCount++;
+            }
+            DpsViewerDataWriter.RebuildIndex(resultsRoot);
+            UnityEngine.Debug.Log(LOG_PREFIX + " 뷰어 데이터를 만든 측정 폴더 수: " + processedCount);
         }
 
         /// <summary>측정 실행 준비 결과다. 측정 입력, 생성 결과 전체와 필터·한도가 적용된 측정 대상을 보관한다.</summary>
