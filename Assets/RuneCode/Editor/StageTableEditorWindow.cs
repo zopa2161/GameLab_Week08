@@ -319,6 +319,7 @@ namespace RuneCode.Editor
             if (_foldSpawn)
             {
                 SerializedProperty spawn = root.FindPropertyRelative("_spawn");
+                DrawDoubleFieldLayout(spawn.FindPropertyRelative("_batchIntervalSeconds"), new GUIContent("무리 스폰 간격(초)", "체력 배율로 늘어난 적을 원본 웨이브 수량씩 분할합니다. 한 무리의 마지막 적 배출 후 다음 무리가 나오기까지의 시간입니다."));
                 DrawIntFieldLayout(spawn.FindPropertyRelative("_ringSlots"), new GUIContent("링 슬롯 수"));
                 DrawDoubleFieldLayout(spawn.FindPropertyRelative("_ringMargin"), new GUIContent("링 여백"));
                 DrawDoubleFieldLayout(spawn.FindPropertyRelative("_jitterScale"), new GUIContent("지터 배율"));
@@ -348,7 +349,7 @@ namespace RuneCode.Editor
             SerializedProperty starts = growth.FindPropertyRelative("_actHpStartMultipliers");
             SerializedProperty ends = growth.FindPropertyRelative("_actHpEndMultipliers");
             SerializedProperty exponent = growth.FindPropertyRelative("_hpCurveExponent");
-            EditorGUILayout.HelpBox("3막 × 6라운드. 같은 라운드의 3개 웨이브는 같은 배율을 사용합니다. 엘리트 배율은 추가로 곱합니다.", MessageType.Info);
+            EditorGUILayout.HelpBox("3막 × 6라운드. 같은 라운드의 3개 웨이브는 같은 배율을 사용합니다. 현재 일반·엘리트 편성 수에도 이 배율을 적용합니다(반올림). 보스 수는 유지하고 엘리트 체력 배율은 추가로 곱합니다.", MessageType.Info);
             if (starts.arraySize != StageCatalog.PROGRESSION_STAGE_COUNT || ends.arraySize != StageCatalog.PROGRESSION_STAGE_COUNT)
             {
                 EditorGUILayout.HelpBox("stages.json의 막별 시작·종료 배율을 각각 3개 입력하세요.", MessageType.Error);

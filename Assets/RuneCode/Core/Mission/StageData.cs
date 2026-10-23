@@ -90,6 +90,8 @@ namespace RuneCode
         [SerializeField] private double _minPlayerDistance;
         [SerializeField] private double _maxPlayerDistance;
         [SerializeField] private double _spawnGraceSeconds;
+        [SerializeField, Min(0.01f)] private double _batchIntervalSeconds = 2;
+        public double BatchIntervalSeconds => _batchIntervalSeconds;
         public int RingSlots => _ringSlots;
         public double RingMargin => _ringMargin;
         public double JitterScale => _jitterScale;
@@ -532,6 +534,8 @@ namespace RuneCode
                 || !IsFinite(catalog._spawn.ReinforcementGap) || catalog._spawn.ReinforcementGap < 0)
                 throw new FormatException("스폰 설정 값이 유효하지 않습니다.");
             StageSpawnSettings spawn = catalog._spawn;
+            if (!IsFinite(spawn.BatchIntervalSeconds) || spawn.BatchIntervalSeconds <= 0)
+                throw new FormatException("무리 스폰 간격은 0보다 큰 유한한 초 단위 값이어야 합니다.");
             if (!IsFinite(spawn.WarningSeconds) || spawn.WarningSeconds < 0 || !IsFinite(spawn.SpawnGraceSeconds) || spawn.SpawnGraceSeconds < 0
                 || !IsFinite(spawn.MinPlayerDistance) || spawn.MinPlayerDistance < 0
                 || !IsFinite(spawn.MaxPlayerDistance) || spawn.MaxPlayerDistance < 0
