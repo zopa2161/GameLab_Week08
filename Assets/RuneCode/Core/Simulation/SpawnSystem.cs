@@ -23,6 +23,7 @@ namespace RuneCode
         private double _spawnRadius;
         private int _tickSpawnPositionsTick = -1;
         private int _spawnedEnemies;
+        private bool _hasHexaOmen;
 
         /// <summary>분열 대기 목록이다. 상태 해시와 전투 취소가 같은 인스턴스를 쓴다.</summary>
         internal List<PendingSplit> PendingSplits => _pendingSplits;
@@ -38,9 +39,10 @@ namespace RuneCode
         /// <summary>현재 유한 웨이브의 미배출 편성·스폰 예고·분열 예약과 살아 있는 적 수를 합산한다.</summary>
         internal int RemainingWaveEnemyCount => _director.RemainingWaveSpawns + _pendingSpawns.Count + _pendingSplits.Count + _world.Enemies.Count;
 
-        /// <summary>원본 웨이브 편성 수량으로 진행기를 만들고 첫 틱 스폰과 예고 표시를 준비한다.</summary>
-        internal void StartWave(WaveDefinition wave)
+        /// <summary>원본 웨이브 편성 수량으로 진행기를 만들고 첫 틱 스폰과 예고 표시를 준비한다. hasHexaOmen이면 Hexa를 생성 예고 뒤에 생성한다.</summary>
+        internal void StartWave(WaveDefinition wave, bool hasHexaOmen)
         {
+            _hasHexaOmen = hasHexaOmen;
             _director = new SpawnDirector(wave, _world.Formations, RuneSimulation.TICK_RATE, _world.Tick);
             AdvanceSpawns();
             RefreshSpawnWarnings();
@@ -112,13 +114,14 @@ namespace RuneCode
         /// 예약의 진형으로 플레이어 주변 원형 슬롯 중 위치를 정해 적을 생성한다. elite가 있으면 엘리트 배율로 생성하고,
         /// isKillTarget은 웨이브 스폰에 true로 받아 목표 처치 수 집계 대상으로 만든다.
         /// 웨이브의 첫 스폰에서 슬롯 시작 각도(무작위, 진행 방향 또는 고정 0도)와 기준 슬롯을 정하고, 위치는 스폰 순간의 플레이어 위치 기준으로 계산한다.
-        /// 맵형 진형은 원형 슬롯 대신 EnqueueArenaSpawn으로 예고 대기 스폰을 등록한다.
+        /// 맵형 진형은 원형 슬롯 대신 EnqueueArenaSpawn으로 예고 대기 스폰을 등록하며, Hexa는 맵 중앙에 예고를 띄운 뒤 생성한다.
         /// </summary>
         private void SpawnByFormation(SpawnOrder order, string enemyId, EliteSpawnDefinition elite, bool isKillTarget)
         {
             FormationSettings settings = _director.Settings;
             SpawnFormation formation = SpawnFormations.Get(settings.Shape);
             double radius = _world.EnemyCatalog.Get(enemyId).Radius * (elite != null ? elite.RadiusMultiplier : 1);
+            if (_hasHexaOmen && _world.Bosses.TryGet(enemyId, out BossDefinition boss) && boss.IsHexaPattern) { EnqueueHexaSpawn(enemyId, elite, isKillTarget, radius); return; }
             if (formation.IsArena) { EnqueueArenaSpawn(order, enemyId, elite, isKillTarget, formation, settings, radius); return; }
             int slotCount = settings.Slots > 0 ? settings.Slots : _world.Stages.Spawn.RingSlots;
             double spawnRadius = _spawnRadius * settings.RadiusScale;
@@ -160,6 +163,14 @@ namespace RuneCode
             }
             int warningTicks = (int)Math.Round(_world.Stages.Spawn.WarningSeconds * RuneSimulation.TICK_RATE);
             _pendingSpawns.Add(new PendingSpawn(_world.Tick + warningTicks, enemyId, position, elite, isKillTarget, warningCenter, warningRadius));
+        }
+
+        /// <summary>Hexa의 고정 생성 위치인 맵 중앙에 생성 예고를 등록하고 경고 시간이 지난 뒤 생성되도록 대기시킨다. 예고 반경은 Hexa의 반경을 쓴다.</summary>
+        private void EnqueueHexaSpawn(string enemyId, EliteSpawnDefinition elite, bool isKillTarget, double radius)
+        {
+            SimVector center = new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
+            int warningTicks = (int)Math.Round(_world.Stages.Spawn.WarningSeconds * RuneSimulation.TICK_RATE);
+            _pendingSpawns.Add(new PendingSpawn(_world.Tick + warningTicks, enemyId, center, elite, isKillTarget, center, radius));
         }
 
         /// <summary>
@@ -222,7 +233,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// Governor의 증원 대상과 보스 주변 원형 슬롯 배치를 재사용해 Hexa 소환 묶음 6마리를 한 번에 생성한다.
+        /// Hexa 자신의 증원 대상과 보스 주변 원형 슬롯 배치를 사용해 소환 묶음 6마리를 한 번에 생성한다.
         /// 적 상한이나 맵 안 유효 위치가 6마리를 모두 수용하지 못하면 아무것도 생성하지 않고 0을 반환해 다음 틱에 다시 시도하게 한다.
         /// 생성한 적에는 소환한 Hexa의 ID를 기록하고 일반 적 보상과 AI, 목표 집계 제외 상태를 유지한다.
         /// </summary>
@@ -230,7 +241,7 @@ namespace RuneCode
         {
             int count = HexaDefinition.SUMMON_COUNT;
             if (owner == null || !owner.IsAlive || !_world.IsMission || _world.Stage != MissionStage.Combat) return 0;
-            BossReinforcement reinforcement = GetHexaSummonReinforcement();
+            BossReinforcement reinforcement = owner.Boss.Reinforcement;
             if (_world.Enemies.Count + _pendingSpawns.Count + count > _world.EnemyLimit) return 0;
             EnemyDefinition definition = _world.EnemyCatalog.Get(reinforcement.EnemyId);
             SpawnFormation formation = SpawnFormations.Get(_world.Formations.Get(reinforcement.Formation).Shape);
@@ -253,14 +264,6 @@ namespace RuneCode
                     return 0;
                 }
             return _summonPositions.Count;
-        }
-
-        /// <summary>Hexa 소환이 재사용할 Governor 보스 정의의 증원 설정을 반환하고 없으면 설정 오류를 발생시킨다.</summary>
-        private BossReinforcement GetHexaSummonReinforcement()
-        {
-            foreach (BossDefinition boss in _world.Bosses.Bosses)
-                if (boss.Pattern == BossDefinition.GOVERNOR_PATTERN && boss.Reinforcement != null) return boss.Reinforcement;
-            throw new FormatException("Hexa 소환에 사용할 Governor 증원 설정이 없습니다.");
         }
 
         /// <summary>원형 슬롯 배치의 호·바깥 오프셋을 적용한 위치가 맵 안인지 확인하고 위치를 반환한다. 쓸 슬롯이 없거나 맵 밖이면 false를 반환한다.</summary>

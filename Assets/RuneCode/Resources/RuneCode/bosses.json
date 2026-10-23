@@ -76,6 +76,7 @@
     {
       "_enemyId": "hexa",
       "_pattern": "hexa",
+      "_reinforcement": { "_enemyId": "enemy.hunter", "_formation": "surround" },
       "_dropTable": ""
     },
     {

@@ -85,7 +85,17 @@
       "Bash(git diff --check; echo \"diff-check=$?\"; echo '---'; git diff --stat -- Assets/RuneCode/Core/Simulation/SimulationTypes.cs Assets/RuneCode/Core/Simulation/SpawnSystem.cs Assets/RuneCode/Resources/RuneCode/bosses.json Assets/RuneCode/Resources/RuneCode/enemies.json Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs)",
       "Bash(git diff --name-only 521a8d7 HEAD > /tmp/ours.txt; git diff --name-only 521a8d7 MERGE_HEAD > /tmp/theirs.txt; comm -12 <\\(sort /tmp/ours.txt\\) <\\(sort /tmp/theirs.txt\\))",
       "Bash(grep -n -E '\"\\(hexa|boss\\\\.legolas|legolas\\)\"' Assets/RuneCode/Resources/RuneCode/strings.ko.json | head -20; echo '---'; git show HEAD:Assets/RuneCode/Core/Simulation/EnemySystem.cs | grep -n CleanupDeadHexaOwners)",
-      "Bash(git add -- Assets/RuneCode/Core/Simulation/SimulationTypes.cs Assets/RuneCode/Core/Simulation/SpawnSystem.cs Assets/RuneCode/Resources/RuneCode/bosses.json Assets/RuneCode/Resources/RuneCode/enemies.json Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs && git status --short && echo '---' && git diff --cached --check; echo \"check=$?\")"
+      "Bash(git add -- Assets/RuneCode/Core/Simulation/SimulationTypes.cs Assets/RuneCode/Core/Simulation/SpawnSystem.cs Assets/RuneCode/Resources/RuneCode/bosses.json Assets/RuneCode/Resources/RuneCode/enemies.json Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs && git status --short && echo '---' && git diff --cached --check; echo \"check=$?\")",
+      "Bash(grep -n -A6 '_appearances:' Assets/RuneCode/Prefabs/Mission/MissionEnemy.prefab | head -60; echo '--- tint ---'; grep -n -A3 '_defaultTint' Assets/RuneCode/Prefabs/Mission/MissionEnemy.prefab)",
+      "Bash(git diff -- Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs Assets/RuneCode/UI/Mission/World/MissionWorldView.cs | head -120; echo '---'; git diff --check; echo \"check=$?\")",
+      "Bash(git diff --check; echo \"check=$?\"; echo '---'; git status --short -- Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs Assets/RuneCode/UI/Mission/World/MissionWorldView.cs; echo '---'; git diff --stat -- Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs Assets/RuneCode/UI/Mission/World/MissionWorldView.cs)",
+      "Bash(git diff --check; echo \"check=$?\"; echo '---'; git diff --stat -- Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs Assets/RuneCode/UI/Mission/World/MissionWorldView.cs; echo '---'; git status --short -- Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs Assets/RuneCode/UI/Mission/World/MissionWorldView.cs)",
+      "Bash(dotnet build Assembly-CSharp.csproj -v q --nologo 2>&1 | tail -40)",
+      "Bash(ls \"/c/Program Files/Unity/Hub/Editor\" 2>/dev/null || ls \"/c/Program Files/Unity\" 2>/dev/null)",
+      "Read(//c/Program Files/Unity/Hub/**)",
+      "Bash",
+      "Bash(rm -rf \"$TEMP/jsonprobe\" && \"/c/Program Files/Unity/Hub/Editor/6000.3.22f1/Editor/Unity.exe\" -batchmode -quit -createProject \"C:/Users/JUNGLE/AppData/Local/Temp/jsonprobe\" -logFile \"C:/Users/JUNGLE/AppData/Local/Temp/jsonprobe-create.log\"; echo \"exit=$?\"; tail -5 \"C:/Users/JUNGLE/AppData/Local/Temp/jsonprobe-create.log\")",
+      "Bash(rm -rf \"$TEMP/jsonprobe\" \"$TEMP/jsonprobe-\"*.log; echo cleaned)"
     ]
   }
 }

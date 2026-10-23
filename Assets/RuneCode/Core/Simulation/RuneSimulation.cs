@@ -538,7 +538,7 @@ namespace RuneCode
             _rules.ResetForWave();
             WaveDefinition wave = _world.Stages.GetProgressionStage(_world.StageNumber).Rounds[_world.RoundNumber - 1].Waves[_world.WaveNumber - 1];
             if (isHexaPreview) wave = wave.WithBoss(HexaDefinition.ID);
-            _spawn.StartWave(wave);
+            _spawn.StartWave(wave, !isHexaPreview);
         }
 
         /// <summary>

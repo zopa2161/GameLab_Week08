@@ -324,6 +324,7 @@ namespace RuneCode
             if (IsHexaPattern)
             {
                 HexaDefinition.Validate(enemies.Get(_enemyId));
+                ValidateReinforcementTarget(enemies, formations);
                 return;
             }
             if (IsMiniGovernorPattern)
@@ -354,6 +355,15 @@ namespace RuneCode
             _hazardPhaseTwo.Validate(_enemyId);
             _hazardPhaseThree.Validate(_enemyId);
             if (_reinforcement == null || _reinforcement.Count < 1 || _reinforcement.Interval <= 0) throw new FormatException("보스 증원 설정 오류입니다: " + _enemyId);
+            ValidateReinforcementTarget(enemies, formations);
+        }
+
+        /// <summary>증원 대상 적·진형이 지정되어 있고 대상 적이 등록되어 있는지, 진형이 보스 주변 즉시 생성에 쓸 수 있는지 검증한다.</summary>
+        private void ValidateReinforcementTarget(EnemyCatalog enemies, FormationCatalog formations)
+        {
+            // JsonUtility는 JSON에 증원 항목이 없어도 빈 인스턴스를 만들므로 필드 값까지 확인한다.
+            if (_reinforcement == null || string.IsNullOrEmpty(_reinforcement.EnemyId) || string.IsNullOrEmpty(_reinforcement.Formation))
+                throw new FormatException("보스 증원 대상 적 또는 진형이 비어 있습니다: " + _enemyId);
             enemies.Get(_reinforcement.EnemyId);
             // 증원은 보스 주변 원형 슬롯에 즉시 생성하므로 예고를 거치는 맵형 진형은 쓸 수 없다.
             if (SpawnFormations.Get(formations.Get(_reinforcement.Formation).Shape).IsArena)
