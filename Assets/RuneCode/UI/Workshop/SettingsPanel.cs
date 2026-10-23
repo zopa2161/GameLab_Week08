@@ -7,20 +7,36 @@ using UnityEngine.UI;
 
 namespace RuneCode
 {
-    /// <summary>설정 팝업의 내용 View다. 설정·저장·타이틀 복귀·게임 종료·디버그 입력을 알린다.</summary>
+    /// <summary>공통 설정과 음량 초안을 표시하고 저장·타이틀 복귀·게임 종료·디버그 입력을 알린다.</summary>
     public sealed class SettingsPanel : MonoBehaviour
     {
-        private const float LOWER_CONTROLS_TOP = 210f;
-        private const float CONTROL_ROW_STEP = 70f;
+        private const float LOWER_CONTROLS_TOP = 370f;
+        private const float CONTROL_ROW_STEP = 54f;
         private const float CONTROL_GROUP_GAP = 12f;
 
+        private static readonly Vector2 BASIC_PANEL_SIZE = new Vector2(494, 470);
+        private static readonly Vector2 WORKSHOP_PANEL_SIZE = new Vector2(1000, 700);
+
         [Header("설정")]
+        [SerializeField] private RectTransform _card;
         [SerializeField] private Button _screenShakeButton;
         [SerializeField] private TextMeshProUGUI _screenShakeLabel;
         [SerializeField] private Button _hitStopButton;
         [SerializeField] private TextMeshProUGUI _hitStopLabel;
-        [SerializeField] private Button _soundSettingsButton;
         [SerializeField] private Button _resetSaveButton;
+
+        [Header("음량")]
+        [SerializeField] private Slider _masterVolumeSlider;
+        [SerializeField] private Slider _bgmVolumeSlider;
+        [SerializeField] private Slider _sfxVolumeSlider;
+        [SerializeField] private TextMeshProUGUI _masterVolumeLabel;
+        [SerializeField] private TextMeshProUGUI _bgmVolumeLabel;
+        [SerializeField] private TextMeshProUGUI _sfxVolumeLabel;
+        [SerializeField] private Button _applyVolumeButton;
+
+        [Header("작업실 안내")]
+        [SerializeField] private GameObject _workshopControls;
+        [SerializeField] private GameObject _workshopDivider;
 
         [Header("디버그")]
         [SerializeField] private GameObject _debugGroup;
@@ -37,9 +53,6 @@ namespace RuneCode
 
         /// <summary>히트스톱 버튼을 눌렀을 때 알린다.</summary>
         public event Action HitStopClicked;
-
-        /// <summary>소리 설정 버튼을 눌렀을 때 알린다.</summary>
-        public event Action SoundSettingsClicked;
 
         /// <summary>저장 초기화 버튼을 눌렀을 때 알린다.</summary>
         public event Action ResetSaveClicked;
@@ -70,7 +83,10 @@ namespace RuneCode
         {
             _screenShakeButton.onClick.AddListener(() => ScreenShakeClicked?.Invoke());
             _hitStopButton.onClick.AddListener(() => HitStopClicked?.Invoke());
-            _soundSettingsButton.onClick.AddListener(() => SoundSettingsClicked?.Invoke());
+            _applyVolumeButton.onClick.AddListener(ApplyVolumes);
+            _masterVolumeSlider.onValueChanged.AddListener(_ => RefreshVolumeLabels());
+            _bgmVolumeSlider.onValueChanged.AddListener(_ => RefreshVolumeLabels());
+            _sfxVolumeSlider.onValueChanged.AddListener(_ => RefreshVolumeLabels());
             _resetSaveButton.onClick.AddListener(() => ResetSaveClicked?.Invoke());
             _debugGrantButton.onClick.AddListener(() => DebugGrantClicked?.Invoke());
             _debugUnlockButton.onClick.AddListener(() => DebugUnlockClicked?.Invoke());
@@ -89,6 +105,12 @@ namespace RuneCode
             bool isSaveRowVisible = !isTitle && isSaveVisible;
             _resetSaveButton.GetComponentInChildren<TextMeshProUGUI>(true).text = GameData.L(resetLabelKey);
             _debugGroup.SetActive(isDebugGroupVisible);
+            _workshopControls.SetActive(!isTitle);
+            _workshopDivider.SetActive(!isTitle);
+            Vector2 panelSize = isTitle ? BASIC_PANEL_SIZE : WORKSHOP_PANEL_SIZE;
+            _card.sizeDelta = panelSize;
+            _card.anchoredPosition = new Vector2((UiTheme.SCREEN_WIDTH - panelSize.x) * 0.5f,
+                -(UiTheme.SCREEN_HEIGHT - panelSize.y) * 0.5f);
             _resetSaveButton.gameObject.SetActive(!isTitle);
             _returnToTitleButton.gameObject.SetActive(!isTitle);
             _manualSaveButton.gameObject.SetActive(isSaveRowVisible);
@@ -101,6 +123,34 @@ namespace RuneCode
         {
             _screenShakeLabel.text = GameData.L("ui.shake") + "  " + GameData.L(isScreenShake ? "ui.on" : "ui.off");
             _hitStopLabel.text = GameData.L("ui.hitstop") + "  " + GameData.L(isHitStop ? "ui.on" : "ui.off");
+        }
+
+        /// <summary>설정창을 열 때 현재 런타임 음량으로 초안과 퍼센트 표시를 초기화한다.</summary>
+        public void ResetVolumeDraft()
+        {
+            _masterVolumeSlider.SetValueWithoutNotify(SoundManager.Instance.MasterVolume);
+            _bgmVolumeSlider.SetValueWithoutNotify(SoundManager.Instance.BGMVolume);
+            _sfxVolumeSlider.SetValueWithoutNotify(SoundManager.Instance.SFXVolume);
+            RefreshVolumeLabels();
+        }
+
+        /// <summary>각 슬라이더의 현재 음량 초안을 정수 퍼센트로 표시한다.</summary>
+        private void RefreshVolumeLabels()
+        {
+            _masterVolumeLabel.text = Mathf.RoundToInt(_masterVolumeSlider.value * 100f) + "%";
+            _bgmVolumeLabel.text = Mathf.RoundToInt(_bgmVolumeSlider.value * 100f) + "%";
+            _sfxVolumeLabel.text = Mathf.RoundToInt(_sfxVolumeSlider.value * 100f) + "%";
+        }
+
+        /// <summary>음량 초안을 사운드 버스와 기기 공통 설정에 적용하고 기존 적용음을 재생한다.</summary>
+        private void ApplyVolumes()
+        {
+            float masterVolume = _masterVolumeSlider.value;
+            float bgmVolume = _bgmVolumeSlider.value;
+            float sfxVolume = _sfxVolumeSlider.value;
+            SoundManager.Instance.SetVolumes(masterVolume, bgmVolume, sfxVolume);
+            SaveStore.SetVolumes(masterVolume, bgmVolume, sfxVolume);
+            SoundManager.Instance.PlayUnlockSkillTree();
         }
 
         /// <summary>미저장 여부를 표시하고 저장·불러오기 가능 상태를 갱신한다.</summary>

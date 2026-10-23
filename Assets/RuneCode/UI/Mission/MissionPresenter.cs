@@ -344,9 +344,6 @@ namespace RuneCode
             PausePopup popup = _ui.OpenPopup<PausePopup>();
             _pausePopup = popup;
             popup.Bind();
-            popup.SetFeedback(_session.ScreenShake, _session.HitStop);
-            popup.ShakeClicked += ToggleScreenShake;
-            popup.HitStopClicked += ToggleHitStop;
             popup.SoundSettingsClicked += OpenSoundSettings;
             popup.TitleClicked += ReturnToTitle;
             popup.Closed += () => OnPauseClosed(popup);
@@ -355,31 +352,16 @@ namespace RuneCode
         /// <summary>일시정지 팝업이 닫히면 이벤트 구독을 풀고, 미션이 아직 일시정지 중이면 재개한다.</summary>
         private void OnPauseClosed(PausePopup popup)
         {
-            popup.ShakeClicked -= ToggleScreenShake;
-            popup.HitStopClicked -= ToggleHitStop;
             popup.SoundSettingsClicked -= OpenSoundSettings;
             popup.TitleClicked -= ReturnToTitle;
             if (_run != null && _run.IsPaused) _run.TogglePause();
         }
 
-        /// <summary>화면 흔들림 설정을 반대로 저장하고 열린 일시정지 팝업 문구를 갱신한다.</summary>
-        private void ToggleScreenShake()
-        {
-            _session.SetSetting("screenShake", !_session.ScreenShake);
-            _ui.GetView<PausePopup>(UiLayer.Popup).SetFeedback(_session.ScreenShake, _session.HitStop);
-        }
-
-        /// <summary>히트스톱 설정을 반대로 저장하고 열린 일시정지 팝업 문구를 갱신한다.</summary>
-        private void ToggleHitStop()
-        {
-            _session.SetSetting("hitStop", !_session.HitStop);
-            _ui.GetView<PausePopup>(UiLayer.Popup).SetFeedback(_session.ScreenShake, _session.HitStop);
-        }
-
-        /// <summary>현재 일시정지 팝업 위에 마스터 음량 설정 팝업을 연다.</summary>
+        /// <summary>일시정지를 유지한 채 화면 피드백과 음량을 조정하는 공통 기본 설정을 연다.</summary>
         private void OpenSoundSettings()
         {
-            _ui.OpenPopup<SoundSettingsPopup>();
+            SettingsPopup popup = _ui.OpenPopup<SettingsPopup>();
+            popup.Configure(_session, _ui, isTitle: true);
         }
 
         /// <summary>세션의 저장·로그 종료 정책을 적용해 타이틀로 돌아가고 화면 종료 흐름으로 미션을 정리한다.</summary>
