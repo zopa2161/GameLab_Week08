@@ -132,7 +132,7 @@ flowchart LR
 | 시작 조건 | `core.cast` | 그래프마다 정확히 1개, 삭제 불가 |
 | 행동(플레이어가 배치) | `behavior.launch`(발사), `behavior.burst`(폭발), `behavior.persist`(잔류), `behavior.beam`(빔), `behavior.slash`(참격) | 노드로 배치하는 유일한 룬 종류 |
 | 속성(슬롯 장착) | `element.neutral`, `element.fire`, `element.ice`, `element.lightning` | 각 행의 `_element` 필드가 `ElementDefinition`을 만든다 |
-| 모드(슬롯 장착) | `mod.knockback`, `mod.saving`, `mod.amplify`, `mod.multi`, `mod.beamEmpower`, `mod.pierce`, `mod.sequence`, `mod.homing`, `mod.orbit`, `mod.expand`, `mod.speed`, `mod.duration` | 장착 대상은 `_modifierTargets` |
+| 모드(슬롯 장착) | `mod.knockback`, `mod.saving`, `mod.amplify`, `mod.multi`, `mod.beamEmpower`, `mod.pierce`, `mod.homing`, `mod.orbit`, `mod.expand`, `mod.speed`, `mod.duration` | 장착 대상은 `_modifierTargets` |
 | 내부 수치 | `form.bolt`, `form.burst`, `form.zone`, `form.beam`, `form.slash`, `elem.fire`, `elem.ice`, `elem.arc` | 행동·속성의 실제 수치·비용. 행동 규칙의 `StatsRuneId`(`form.{Kind}`)가 가리킨다 |
 | 내부 표현 | `magic.inline`, `shape.sphere`, `shape.box`, `shape.cone` | 컴파일러 내부의 Inline Magic 표현과 형태 프리셋 |
 
@@ -155,14 +155,13 @@ flowchart LR
 |---|---|---|
 | `mod.saving` 절약 | `energyCostMultiplier` | 비용 배율 0.95 / 0.9 / 0.8 / 0.7 |
 | `mod.amplify` 효과 증폭 | `effectMultiplier` | 1.5 / 1.95 / 2.8 / 4.5 |
-| `mod.multi` 다중 | `multipleCount` | 2 / 3 / 4 / 5 개 |
+| `mod.multi` 다중 | `multipleCount` | 발사·빔·참격: 생성 개수 2 / 3 / 4 / 5, 피해 ×0.7. 폭발: 생성 개수 1, 회차 2 / 2 / 3 / 4·0.2초, 피해 ×0.8. 잔류는 장착 불가 |
 | `mod.pierce` 관통 | `pierceCount` | 1 / 3 / 7 / 999(무제한) |
 | `mod.expand` 확장 | `radiusMultiplier` (면적 배율) | 1.5 / 2 / 2.7 / 4 |
 | `mod.duration` 지속시간 | `durationMultiplier` | 1.5 / 2 / 2.5 / 3 |
 | `mod.speed` 속도 | `speedMultiplier` | 1.5 / 2 / 2.7 / 4 |
 | `mod.homing` 유도 | `homingTier` | 없음 / 하급 / 중급 / 상급 |
 | `mod.orbit` 공전 | `orbitPath` | 1 / 2 / 3 / 4 |
-| `mod.sequence` 연속 | `waveCount` | 2 / 2 / 3 / 4 회 |
 | `mod.knockback` 밀어내기 | `knockbackDistance` | 30 / 45 / 60 / 90 |
 | `mod.beamEmpower` 과충전 | `beamEmpowerMultiplier` | 2 / 2.67 / 3.33 / 4 (+전력·크기 배율) |
 

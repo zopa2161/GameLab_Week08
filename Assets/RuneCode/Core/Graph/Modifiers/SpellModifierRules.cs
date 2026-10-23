@@ -34,7 +34,7 @@ namespace RuneCode
             => count;
 
         /// <summary>
-        /// 연속 모드가 실행 명령의 회차 수를 정한다. waveCount는 현재 회차 수(기본 1), behavior는 행동 규칙,
+        /// 회차를 만드는 모드가 실행 명령의 회차 수를 정한다. waveCount는 현재 회차 수(기본 1), behavior는 행동 규칙,
         /// grade는 장착 등급이다. 기본은 회차 수를 바꾸지 않는다.
         /// </summary>
         public virtual int ModifyWaveCount(int waveCount, SpellBehaviorRules behavior, string grade, RuneStats modifierStats,

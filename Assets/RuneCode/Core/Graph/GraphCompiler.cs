@@ -611,7 +611,7 @@ namespace RuneCode
         private static ResourceCostSet UnboundedCost(ResourceCostSet chainCost)
             => HasCosts(chainCost) ? chainCost.MarkUnbounded() : ResourceCostSet.Empty;
 
-        /// <summary>연속 모드 회차를 포함한 spawn 동작의 총 생성 수를 반환한다. 호출·적용 동작은 쓰지 않는다.</summary>
+        /// <summary>다중의 폭발 회차를 포함한 spawn 동작의 총 생성 수를 반환한다. 호출·적용 동작은 쓰지 않는다.</summary>
         private static long SpawnInstanceCount(SpellAction action)
             => (long)action.Count * action.WaveCount;
 

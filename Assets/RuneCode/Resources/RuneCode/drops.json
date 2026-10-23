@@ -41,8 +41,7 @@
         { "_type": "modifier", "_id": "mod.duration", "_weight": 1 },
         { "_type": "modifier", "_id": "mod.speed", "_weight": 1 },
         { "_type": "modifier", "_id": "mod.homing", "_weight": 1 },
-        { "_type": "modifier", "_id": "mod.orbit", "_weight": 1 },
-        { "_type": "modifier", "_id": "mod.sequence", "_weight": 1 }
+        { "_type": "modifier", "_id": "mod.orbit", "_weight": 1 }
       ]
     },
     {

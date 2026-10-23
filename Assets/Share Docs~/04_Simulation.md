@@ -185,7 +185,7 @@ sequenceDiagram
 
 ### 4.2 `SpawnForm`: 개체 생성 세부
 
-1. 첫 회차(`wave == 0`)이면 부착 노드 실행 기록, 연속 모드의 남은 회차를 `WaveInterval` 간격으로 예약.
+1. 첫 회차(`wave == 0`)이면 부착 노드 실행 기록, 폭발에 장착한 다중의 남은 회차를 `WaveInterval` 간격으로 예약.
 2. 속성 결정: 노이즈면 해금 속성 중 결정적 난수로 하나(같은 루트 시전에서 공유), 아니면 `action.Element`.
 3. `SpellStats` 적용, 행동 런타임·동작 모드 런타임 조회.
 4. 빔이면 `BeamChannel`을 만들어 `BeamChannelController`에 등록.
@@ -202,7 +202,7 @@ sequenceDiagram
 | `SpellContext` (struct) | 원점, 방향, 대상 적, 이벤트 유래 여부, 노이즈 속성, 수치 배율, 비용 배율, 시전자, 이벤트 원본 개체 ID, onHit 선결제 여부. 예약 시 그대로 복사돼 보관된다 |
 | `RootSpellExecution` | 슬롯·마법·슬롯 주기·시전 시점 플레이어 위치·조준·포인터. 빔 구간 비용 보관 |
 | `ExecutionTracker` | 분기·예약 대기 수 카운터와 완료 콜백 |
-| `ScheduledExecution` (struct) | 목표 틱, 행동, 문맥, 추적기, 루트 분기 시작 여부, 연속 회차 번호 |
+| `ScheduledExecution` (struct) | 목표 틱, 행동, 문맥, 추적기, 루트 분기 시작 여부, 폭발에 장착한 다중의 회차 번호 |
 | `SpellRandomState` | 같은 루트 시전 안에서 노이즈 속성 공유 |
 
 ### 4.4 이벤트 연쇄 (onHit)
@@ -263,7 +263,6 @@ for each entity (이번 틱 시작 시점의 개수만큼):
 | `HomingModifierRuntime` | 이동 (우선) | 발사: 범위 안 가장 가까운 미적중 적으로 회전각만큼 회전. 잔류: 예고 후 가까운 적으로 이동. 빔: 경로 칸마다 대상 쪽으로 굴절. 공전 위에서는 진입 후 대상에 직선 돌진 |
 | `OrbitModifierRuntime` | 이동 | 기준점(직접 시전은 시전자, 이벤트는 이벤트 위치) 주위를 반시계로 공전. 진입·궤도 중 벽 무시 |
 | `PierceModifierRuntime` | 적중 | 적중마다 피해에 유지 배율을 곱하고 관통 수까지 소멸하지 않음 |
-| `SequenceModifierRuntime` | (없음) | 등록만 한다. 회차 재실행은 `SpellExecutor.ScheduleSequenceWaves`가 맡음 |
 | `BeamEmpowerModifierRuntime` | 적중 | 빔 과충전 |
 
 ### 5.5 `SpellRuntimeContext`

@@ -175,7 +175,7 @@ namespace RuneCode
             for (int slot = 0; slot < _loadout.Length; slot++) TryCastTriggered(_loadout[slot], trigger, slot);
         }
 
-        /// <summary>현재 틱에 도달한 노드 완료와 연속 회차 예약을 등록 순서대로 적용한다.</summary>
+        /// <summary>현재 틱에 도달한 노드 완료와 폭발 회차 예약을 등록 순서대로 적용한다.</summary>
         internal void RunScheduled()
         {
             for (int i = 0; i < _scheduled.Count;)
@@ -193,7 +193,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>연속 회차 예약을 위치·조준 재계산과 함께 비용 없이 실행하고 완료 추적을 해제한다.</summary>
+        /// <summary>폭발 회차 예약을 위치·조준 재계산과 함께 비용 없이 실행하고 완료 추적을 해제한다.</summary>
         private void RunSequenceWave(ScheduledExecution pending)
         {
             pending.Tracker.BeginDispatch();
@@ -429,14 +429,14 @@ namespace RuneCode
         /// <summary>
         /// 행동 실행 동작에 따라 개체 수만큼 배치·예열 시간을 정해 마법 개체를 생성하고 생성 직후 처리를 실행한다.
         /// 배치는 배치 모드(행동 배치 전) → 행동 PlaceSpawn → 배치 모드(행동 배치 후) 순서다. 이벤트 앵커와 노이즈 속성을 반영한다.
-        /// wave가 0이면 첫 회차로 부착 노드를 기록하고 연속의 남은 회차를 예약하며, 0보다 크면 기록·재예약 없이 개체만 다시 만든다.
+        /// wave가 0이면 첫 회차로 부착 노드를 기록하고 폭발에 장착한 다중의 남은 회차를 예약하며, 0보다 크면 기록·재예약 없이 개체만 다시 만든다.
         /// </summary>
         private void SpawnForm(SpellAction action, SpellContext context, ExecutionTracker tracker, int wave = 0)
         {
             if (wave == 0)
             {
                 foreach (string attachedNodeId in action.AttachedNodeIds) RecordNode(attachedNodeId);
-                ScheduleSequenceWaves(action, context, tracker);
+                ScheduleWaves(action, context, tracker);
             }
             string element = action.Noise ? ChooseNoiseElement(context) : action.Element;
             SpellStats stats = action.Stats.Apply(context.Modifiers);
@@ -490,10 +490,10 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 연속 모드가 붙은 spawn의 남은 회차를 회차 간격 뒤로 예약한다. 빔에는 적용하지 않으며,
+        /// 폭발에 장착한 다중이 붙은 spawn의 남은 회차를 회차 간격 뒤로 예약한다. 빔에는 적용하지 않으며,
         /// 예약 상한을 넘은 회차는 추적을 걸지 않고 버리고 dropped 실행 수만 센다.
         /// </summary>
-        private void ScheduleSequenceWaves(SpellAction action, SpellContext context, ExecutionTracker tracker)
+        private void ScheduleWaves(SpellAction action, SpellContext context, ExecutionTracker tracker)
         {
             if (action.WaveCount <= 1 || action.Form == BeamBehaviorRules.BEAM_KIND) return;
             int waveTicks = Math.Max(1, GetExecutionDelayTicks(action.WaveInterval * _world.Balance.Sim.ExecutionTimeScale));

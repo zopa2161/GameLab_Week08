@@ -200,7 +200,7 @@ flowchart TD
 | 묶음 | 속성 |
 |---|---|
 | 식별 | `Kind`(현재 실행 경로는 `spawn`), `NodeId`, `Form`(런타임 종류: `bolt`/`burst`/`zone`/`beam`/`slash`), `MagicType`, `Element`, `Noise` |
-| 수치 | `Stats`(`SpellStats`: 피해·반경·속도·수명·간격 등, 수치 모드가 이미 반영됨), `Count`(생성 개수), `WaveCount`/`WaveInterval`(연속) |
+| 수치 | `Stats`(`SpellStats`: 피해·반경·속도·수명·간격 등, 수치 모드가 이미 반영됨), `Count`(생성 개수), `WaveCount`/`WaveInterval`(폭발에 장착한 다중의 회차 수·회차 간격) |
 | 모드 | `Mods`(장착 모드 ID), `ModifierRules`(동작 모드 규칙, 등록 순서), 과충전 배율들 |
 | 비용 | `OwnCosts`, `NodeCosts`, `GetExecutionCosts(modifiers, costMultiplier, isManaPrepaid)`, `ExecutionSeconds` |
 | 규칙 | `Rules`(행동 규칙 `SpellBehaviorRules`) |
@@ -216,7 +216,7 @@ flowchart TD
 | 종류 | 모드 | 처리 위치 |
 |---|---|---|
 | **수치 모드** (클래스 없음) | 증폭, 확장, 속도, 지속시간, 절약, 밀어내기 | 컴파일 시 `SpellModifierValues` / `SpellStats`에 곱해져 `SpellAction.Stats`와 비용에 반영 |
-| **동작 모드** (규칙 + 런타임 클래스) | 다중, 유도, 관통, 공전, 연속, 과충전 | `SpellModifierRules`(컴파일)와 `SpellModifierRuntime`(실행) 쌍으로 등록 |
+| **동작 모드** (규칙 + 런타임 클래스) | 다중, 유도, 관통, 공전, 과충전 | `SpellModifierRules`(컴파일)와 `SpellModifierRuntime`(실행) 쌍으로 등록 |
 
 ---
 
@@ -244,11 +244,10 @@ flowchart TD
 
 | 규칙 클래스 | RuneId | 분류 | 하는 일 |
 |---|---|---|---|
-| `MultiModifierRules` | `mod.multi` | Placement | 등급표 개수로 생성 개수 결정. 발사는 발사 전용 개수 사용 |
+| `MultiModifierRules` | `mod.multi` | Placement | 등급표 개수로 생성 개수 결정. 지팡이 앞 행동은 발사 전용 개수 사용. 폭발은 개수를 1로 두고 등급표 회차 수를 결정 |
 | `HomingModifierRules` | `mod.homing` | Motion (공전보다 우선) | 유도 범위 안 대상이 있으면 이동을 맡음 |
 | `PierceModifierRules` | `mod.pierce` | Hit | 최대 OnHit 수에 관통 수 추가 |
 | `OrbitModifierRules` | `mod.orbit` | Motion (유도보다 낮음) | 경로를 원 궤도로 대체. 폭발에는 장착 불가 |
-| `SequenceModifierRules` | `mod.sequence` | Placement | 실행 회차 수 결정 |
 | `BeamEmpowerModifierRules` | `mod.beamEmpower` | Hit | 빔 과충전 |
 
 `SpellModifierRules`의 가상 멤버: `MotionPriority`, `CanAttachTo(behavior)`, `ModifyCount`, `ModifyWaveCount`, `TryModifyMaxHitEvents`, `ModifySpawnOrigin`, `ModifyLifetime`, `ModifyReach`. 레지스트리 등록 순서가 같은 우선순위 이동 모드의 실행 순서이자 개체가 보관하는 모드 상태 순서다.
@@ -259,7 +258,7 @@ flowchart TD
 |---|---|---|---|
 | `SpellBehaviorRuleRegistry` | Grammar | RuneId / FormValue / Kind | 행동 규칙 5개 |
 | `SpellBehaviorRuntimeRegistry` | Core | Kind | 행동 실행 5개. 미등록 종류는 기본 동작 |
-| `SpellModifierRuleRegistry` | Grammar | RuneId | 동작 모드 규칙 6개 |
-| `SpellModifierRuntimeRegistry` | Core | RuneId | 동작 모드 실행 6개 |
+| `SpellModifierRuleRegistry` | Grammar | RuneId | 동작 모드 규칙 5개 |
+| `SpellModifierRuntimeRegistry` | Core | RuneId | 동작 모드 실행 5개 |
 
 `GameData.Load`의 `ValidateBehaviorRegistries` / `ValidateModifierRegistries`가 부팅 시 짝을 검사한다. 활성 행동 룬에 규칙이 없거나, 규칙에 실행이 없거나, 모드 규칙과 실행이 어긋나면 부팅이 실패한다. 덕분에 등록 누락은 플레이 중이 아니라 시작 시점에 드러난다. 새 행동·모드를 추가하는 절차는 [06_Flows_and_Extension.md](06_Flows_and_Extension.md) 3절에 있다.

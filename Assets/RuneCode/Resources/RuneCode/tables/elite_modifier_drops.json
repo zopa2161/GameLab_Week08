@@ -64,7 +64,8 @@
         "B": 12,
         "A": 40,
         "S": 85
-      }
+      },
+      "_waveGradeValues": { "C": 2, "B": 2, "A": 3, "S": 4 }
     },
     {
       "_modifierId": "mod.pierce",
@@ -138,13 +139,6 @@
         "A": 3,
         "S": 4
       }
-    },
-    {
-      "_modifierId": "mod.sequence",
-      "_name": "연속",
-      "_effectType": "waveCount",
-      "_energyMultByGrade": { "C": 1.2, "B": 1.3, "A": 1.4, "S": 1.5 },
-      "_gradeValues": { "C": 2, "B": 2, "A": 3, "S": 4 }
     }
   ],
   "_stageDropTables": [
@@ -355,9 +349,11 @@
     "특정 MODIFIER의 등급 값이 null이면 해당 등급 후보에서 제외합니다. 보스 보상은 후보 3개를 제시하고 플레이어가 1개를 선택합니다. 후보마다 _slotGradeChancesPercent로 등급을 따로 굴린 뒤(현재 A 90%, S 10%), 그 등급 값이 null이 아닌 MODIFIER 중에서 균등 무작위로 뽑으며 같은 MODIFIER는 중복되지 않습니다. _slotGradeChancesPercent가 없으면 모든 후보가 _grade 등급을 씁니다.",
     "1~4스테이지와 6~9스테이지는 지정된 시작·끝 확률 사이를 선형 보간했습니다. 정수 확률 합계는 100으로 맞추고, 소수점 잔여가 같으면 높은 등급에 우선 배분했습니다.",
     "5·10스테이지는 보스 및 잡몹의 처치 드롭 없이, 클리어 보장 룬 1개에 더해 기존 MODIFIER 후보 3종 중 1종을 선택합니다. 선택 후보 등급은 A 90%, S 10%입니다. 보장 룬과 속성 조합에는 각각 4·9스테이지 확률을 사용합니다.",
-    "multipleCount의 _launchGradeValues는 발사 Behavior에만 쓰는 개수입니다. 생략하면 발사도 _gradeValues를 쓰며, 값이 있는 등급은 _gradeValues와 같아야 합니다.",
-    "multipleCount의 _launchSpreadAngles는 발사 Behavior 다중 탄의 좌우 최대 퍼짐 각도(도)입니다. 생략하면 runes.json mod.multi의 _spreadAngle을 씁니다.",
-    "공전 모드와 다중을 함께 장착하면 궤도를 개수만큼 등각으로 나눕니다. 개수는 발사가 _launchGradeValues, 잔류가 _gradeValues를 씁니다.",
+    "multipleCount의 _launchGradeValues는 지팡이 앞에서 생성되는 행동(발사·빔·참격)의 개수입니다. 생략하면 해당 행동도 _gradeValues를 쓰며, 값이 있는 등급은 _gradeValues와 같아야 합니다.",
+    "multipleCount의 _launchSpreadAngles는 지팡이 앞에서 생성되는 행동(발사·빔·참격)의 다중 탄 퍼짐 각도(도)입니다. 생략하면 runes.json mod.multi의 _spreadAngle을 씁니다.",
+    "공전 모드와 다중을 함께 장착하면 궤도를 개수만큼 등각으로 나눕니다. 개수는 지팡이 앞에서 생성되는 행동이 _launchGradeValues를 씁니다.",
+    "multipleCount의 _waveGradeValues는 폭발에 장착한 다중의 회차 수입니다. multipleCount 효과에만 허용되고, 값이 있는 등급은 _gradeValues와 같아야 하며 1 이상의 정수입니다.",
+    "폭발에 다중을 장착하면 생성 개수를 늘리지 않고 회차로 반복합니다. 회차마다 runes.json mod.multi의 _waveDamageMultiplier(0.8)를 적용합니다.",
     "_behaviorGradeChancesPercent는 행동 처치 드롭·매 클리어 보장 룬·속성 조합의 행동 등급 판정에 사용합니다. 일반 스테이지는 필수이고 보스 스테이지에는 두지 않습니다. 1스테이지 C80/B15/A4/S1에서 시작해 후반으로 갈수록 상위 등급을 조금씩 올렸습니다."
   ]
 }
