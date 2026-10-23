@@ -20,7 +20,7 @@ namespace RuneCode
         private readonly EnemySeparation _separation = new EnemySeparation();
         private readonly Func<SimulationEnemy, bool> _isSeparationFixed;
         private readonly Action<double> _hurtPlayer;
-        private int _hydraSourceEnemyId;
+        private int _bossSourceEnemyId;
 
         /// <summary>예약 사격 목록이다. 상태 해시와 전투 취소가 같은 인스턴스를 쓴다.</summary>
         internal List<PendingEnemyShot> PendingEnemyShots => _pendingEnemyShots;
@@ -80,10 +80,11 @@ namespace RuneCode
                 if (enemy.IsDummy) continue;
                 if (enemy.Hydra != null)
                 {
-                    _hydraSourceEnemyId = enemy.Id;
+                    bool wasSpin = enemy.Hydra.Attack == HydraAttack.Spin;
+                    _bossSourceEnemyId = enemy.Id;
                     enemy.Hydra.Advance(enemy, _world, _simulation, _hurtPlayer);
-                    _hydraSourceEnemyId = 0;
-                    if (!enemy.Hydra.IsAirborne) HurtByContact(enemy);
+                    _bossSourceEnemyId = 0;
+                    if (!wasSpin && enemy.Hydra.Attack != HydraAttack.Spin && !enemy.Hydra.IsAirborne) HurtByContact(enemy);
                     continue;
                 }
                 if (_statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze))
@@ -93,6 +94,14 @@ namespace RuneCode
                     continue;
                 }
                 SimVector offset = _world.Player.Position - enemy.Position; SimVector direction = offset.Normalized();
+                if (enemy.Legolas != null)
+                {
+                    _bossSourceEnemyId = enemy.Id;
+                    enemy.Legolas.Advance(enemy, _world, _simulation, _hurtPlayer);
+                    _bossSourceEnemyId = 0;
+                    if (!enemy.Legolas.IsAirborne) HurtByContact(enemy);
+                    continue;
+                }
                 BossDefinition bossPattern = enemy.Boss;
                 bool isBoss = bossPattern != null && bossPattern.IsGovernorPattern;
                 if (isBoss) { CheckBossPatch(enemy, bossPattern); if (enemy.IsPatching) continue; }
@@ -231,7 +240,7 @@ namespace RuneCode
         }
 
         /// <summary>플레이어 피해에 디버그 무적과 기본 피격 무적을 반영한다.</summary>
-        internal void HurtPlayer(double damage) => HurtPlayer(damage, _hydraSourceEnemyId);
+        internal void HurtPlayer(double damage) => HurtPlayer(damage, _bossSourceEnemyId);
 
         /// <summary>피해량과 공격한 적 ID로 피격을 처리하고 실제 HP 피해·보호막 흡수를 해당 적에게 귀속한다.</summary>
         private void HurtPlayer(double damage, int sourceEnemyId)
@@ -369,6 +378,7 @@ namespace RuneCode
             for (int i = _world.EnemyProjectiles.Count - 1; i >= 0; i--)
             {
                 SimulationProjectile projectile = _world.EnemyProjectiles[i];
+                if (projectile.HasDeadOwner) { _world.EnemyProjectiles.RemoveAt(i); continue; }
                 SimVector previous = projectile.Position;
                 projectile.Advance(Math.Min(RuneSimulation.STEP_SECONDS, Math.Max(0, projectile.Lifetime - projectile.Age)));
                 if (!projectile.IsHazard)

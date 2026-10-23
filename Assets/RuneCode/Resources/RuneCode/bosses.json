@@ -30,12 +30,18 @@
         "_neckDamage": 18,
         "_stretchWarning": 0.75,
         "_stretchSeconds": 0.25,
-        "_stretchHold": 0.3,
+        "_stretchHold": 1.9,
+        "_stretchRotationDegrees": 90,
+        "_stretchRetractSeconds": 0.1,
         "_retractSeconds": 0.25,
-        "_poisonTrack": 1.1,
-        "_poisonLock": 0.4,
-        "_poisonFlight": 0.35,
-        "_poisonGap": 0.2,
+        "_poisonTrack": 0.5,
+        "_poisonLock": 0.5,
+        "_poisonOrbSpeed": 900,
+        "_poisonOrbRadius": 36,
+        "_poisonOrbLifetime": 5,
+        "_poisonBounceMissChance": 0.7,
+        "_poisonBounceMinOffsetDegrees": 0,
+        "_poisonBounceMaxOffsetDegrees": 15,
         "_poisonRadius": 85,
         "_poisonDamage": 14,
         "_poisonLifetime": 6,
@@ -45,13 +51,15 @@
         "_stompWindup": 0.25,
         "_stompApproachSeconds": 0.55,
         "_stompSpeed": 500,
-        "_waveRadius": 330,
+        "_waveRadius": 247.5,
         "_waveSeconds": 0.55,
         "_waveWidth": 24,
         "_waveDamage": 18,
         "_spinWarning": 0.9,
         "_spinLength": 230,
-        "_spinSeconds": 0.9
+        "_spinSeconds": 0.1,
+        "_spinDashBodyLengths": 5,
+        "_spinDashSeconds": 0.6
       }
     },
     {
@@ -64,6 +72,26 @@
       "_aimInterval": 1.8,
       "_preferredDistance": 200,
       "_dropTable": ""
+    },
+    {
+      "_enemyId": "boss.legolas",
+      "_pattern": "legolas",
+      "_legolas": {
+        "_initialDelay": 1.2,
+        "_attackCooldown": 1.1,
+        "_jumpWindup": 0.3,
+        "_jumpDistance": 220,
+        "_jumpSeconds": 0.45,
+        "_wallEscapeMargin": 500,
+        "_escapeJumpDistance": 360,
+        "_playerClearance": 24,
+        "_areaWarning": 0.55,
+        "_areaFlight": 0.5,
+        "_areaRadius": 75,
+        "_areaDamage": 8,
+        "_scatterRadius": 140,
+        "_minimumTargetDistance": 90
+      }
     }
   ]
 }

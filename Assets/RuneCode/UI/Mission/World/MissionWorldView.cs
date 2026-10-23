@@ -172,7 +172,14 @@ namespace RuneCode
             foreach (SimulationSpellEntity spell in sim.SpellEntities) GetView(_spellViews, _spellPrefab, count++).Apply(spell, origin);
             HideFrom(_spellViews, count);
             count = 0;
-            foreach (SimulationProjectile projectile in sim.EnemyProjectiles) GetView(_projectileViews, _projectilePrefab, count++).Apply(projectile, origin);
+            foreach (SimulationProjectile projectile in sim.EnemyProjectiles)
+            {
+                Color? sourceTint = null;
+                if (projectile.OwnerBoss != null && projectile.OwnerBoss.IsLegolasPattern
+                    && _additionalEnemyPrefabs.TryGetValue(projectile.OwnerBoss.EnemyId, out EnemyView sourcePrefab))
+                    sourceTint = sourcePrefab.DefaultTint;
+                GetView(_projectileViews, _projectilePrefab, count++).Apply(projectile, origin, sourceTint);
+            }
             HideFrom(_projectileViews, count);
             count = 0;
             foreach (FragmentOrb orb in sim.Orbs) GetView(_orbViews, _orbPrefab, count++).Apply(orb, origin);

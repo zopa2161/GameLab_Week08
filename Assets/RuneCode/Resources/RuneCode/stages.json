@@ -261,7 +261,7 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior"
+                    "_rewardDropTable": "drop.round.behavior.1"
                 },
                 {
                     "_waves": [
@@ -718,14 +718,14 @@
                                     "_isElite": true
                                 },
                                 {
-                                    "_enemyId": "boss.mini_governor",
+                                    "_enemyId": "boss.legolas",
                                     "_count": 1,
                                     "_isElite": false
                                 }
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior"
+                    "_rewardDropTable": "drop.round.behavior.2"
                 },
                 {
                     "_waves": [
@@ -927,7 +927,7 @@
                             },
                             "_units": [
                                 {
-                                    "_enemyId": "boss.governor",
+                                    "_enemyId": "boss.hydra",
                                     "_count": 1,
                                     "_isElite": false
                                 },
@@ -1179,7 +1179,7 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior"
+                    "_rewardDropTable": "drop.round.behavior.3"
                 },
                 {
                     "_waves": [
