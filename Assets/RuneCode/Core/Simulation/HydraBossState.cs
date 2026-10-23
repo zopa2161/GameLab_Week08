@@ -6,48 +6,102 @@ namespace RuneCode
 {
     public enum HydraAttack { Idle, Stretch, Poison, Stomp, Spin }
 
-    /// <summary>독 구체의 비행·착탄·잔류와 다음 피해 시각을 관리한다.</summary>
+    /// <summary>반사 독 구체의 위치·방향·수명과 명중 후 독 장판의 다음 피해 시각을 관리한다.</summary>
     public sealed class HydraPoison
     {
-        private readonly SimVector _origin;
-        private readonly SimVector _target;
+        private const int MAX_BOUNCES_PER_TICK = 8;
+        private const double WALL_SEPARATION = 0.001;
+
         private readonly double _startedAt;
+        private SimVector _position;
+        private SimVector _direction;
         private double _age;
         private bool _hasLanded;
+        private double _landedAt;
         private double _nextDamageAt;
-        public SimVector Origin => _origin;
-        public SimVector Target => _target;
-        public double Age => _age;
+        public SimVector Position => _position;
         public bool HasLanded => _hasLanded;
 
-        /// <summary>고정 출발·목표 위치와 비행 시작 시각을 저장한다.</summary>
-        internal HydraPoison(SimVector origin, SimVector target, double time)
-        { _origin = origin; _target = target; _startedAt = time; }
+        /// <summary>발사 위치·직선 방향과 발사 시각으로 반사 구체 상태를 초기화한다.</summary>
+        internal HydraPoison(SimVector origin, SimVector direction, double time)
+        { _position = origin; _direction = direction.Normalized(); _startedAt = time; }
 
-        /// <summary>시각으로 비행·독 지대를 진행하고 착탄 및 주기 피해를 적용하며 수명 종료 여부를 반환한다.</summary>
-        internal bool Advance(SimulationWorld world, HydraDefinition settings, double damageMultiplier, Action<double> hurt)
+        /// <summary>구체 이동·반사·명중 또는 장판의 주기 피해를 진행하고 해당 상태의 수명이 끝났는지 반환한다.</summary>
+        internal bool Advance(SimulationWorld world, HydraDefinition settings, double damageMultiplier, RuneSimulation simulation, Action<double> hurt)
         {
-            _age = world.Time - _startedAt;
-            if (_age + RuneSimulation.COLLISION_EPSILON < settings.PoisonFlight) return false;
-            bool isInside = SimVector.Distance(_target, world.Player.Position) <= settings.PoisonRadius + world.Sector.PlayerRadius;
             if (!_hasLanded)
             {
-                _hasLanded = true;
-                _nextDamageAt = world.Time + settings.PoisonTickInterval;
-                if (isInside) hurt(settings.PoisonDamage * damageMultiplier);
+                double previousAge = _age;
+                _age = Math.Max(0, world.Time - _startedAt);
+                double moveSeconds = Math.Max(0, Math.Min(_age, settings.PoisonOrbLifetime) - previousAge);
+                AdvanceOrb(world, settings, damageMultiplier, simulation, hurt, moveSeconds);
+                return !_hasLanded && _age + RuneSimulation.COLLISION_EPSILON >= settings.PoisonOrbLifetime;
             }
-            if (_age >= settings.PoisonFlight + settings.PoisonLifetime) return true;
+            if (world.Time + RuneSimulation.COLLISION_EPSILON >= _landedAt + settings.PoisonLifetime) return true;
             if (world.Time + RuneSimulation.COLLISION_EPSILON >= _nextDamageAt)
             {
                 _nextDamageAt += settings.PoisonTickInterval;
-                if (isInside) hurt(settings.PoisonTickDamage * damageMultiplier);
+                if (SimVector.Distance(_position, world.Player.Position) <= settings.PoisonRadius + world.Sector.PlayerRadius)
+                    hurt(settings.PoisonTickDamage * damageMultiplier);
             }
             return false;
         }
 
-        /// <summary>비행·착탄·주기 피해 상태를 결정성 버퍼에 기록한다.</summary>
+        /// <summary>남은 이동 시간을 벽 반사마다 나누어 연속 충돌을 검사하고 무적이 아닌 플레이어와 접촉하면 독 장판으로 전환한다.</summary>
+        private void AdvanceOrb(SimulationWorld world, HydraDefinition settings, double damageMultiplier, RuneSimulation simulation, Action<double> hurt, double moveSeconds)
+        {
+            double remaining = moveSeconds;
+            for (int bounce = 0; bounce < MAX_BOUNCES_PER_TICK && remaining > RuneSimulation.COLLISION_EPSILON; bounce++)
+            {
+                SimVector displacement = _direction * (settings.PoisonOrbSpeed * remaining);
+                SimVector end = _position + displacement;
+                double wall = simulation.FirstWallFraction(_position, end, settings.PoisonOrbRadius);
+                bool canHitPlayer = world.IsMission && !world.DebugInvulnerable && !world.Player.IsInvulnerable(world.Time);
+                double hit = canHitPlayer ? SpellGeometry.CircleContactFraction(_position, end, world.Player.Position,
+                    settings.PoisonOrbRadius + world.Sector.PlayerRadius) : double.PositiveInfinity;
+                if (!double.IsPositiveInfinity(hit) && hit <= wall)
+                {
+                    _position += displacement * hit;
+                    hurt(settings.PoisonDamage * damageMultiplier);
+                    _hasLanded = true;
+                    _landedAt = world.Time;
+                    _nextDamageAt = world.Time + settings.PoisonTickInterval;
+                    return;
+                }
+                if (double.IsPositiveInfinity(wall)) { _position = end; return; }
+                SimVector contact = _position + displacement * wall;
+                SimVector normal = world.Map.GetWallContactNormal(contact, settings.PoisonOrbRadius, _direction);
+                _position += displacement * Math.Max(0, wall - WALL_SEPARATION / displacement.Length);
+                SimVector reflected = (_direction - normal * (2 * SimVector.Dot(_direction, normal))).Normalized();
+                _direction = GetBounceDirection(world, settings, normal, reflected);
+                remaining *= Math.Max(0, 1 - wall);
+            }
+        }
+
+        /// <summary>반사 위치에서 플레이어를 향한 방향에 확률적 좌우 각도 오차를 더하고 벽 밖으로 나가는 유효 방향을 반환한다.</summary>
+        private SimVector GetBounceDirection(SimulationWorld world, HydraDefinition settings, SimVector normal, SimVector reflected)
+        {
+            SimVector offset = world.Player.Position - _position;
+            if (offset.LengthSquared <= RuneSimulation.COLLISION_EPSILON) return reflected;
+            SimVector direction = offset.Normalized();
+            if (world.Random.Next() < settings.PoisonBounceMissChance)
+            {
+                double degrees = settings.PoisonBounceMinOffsetDegrees
+                    + world.Random.Next() * (settings.PoisonBounceMaxOffsetDegrees - settings.PoisonBounceMinOffsetDegrees);
+                double sign = world.Random.Next() < 0.5 ? -1 : 1;
+                direction = direction.Rotated(sign * degrees * RuneSimulation.DEGREES_TO_RADIANS);
+            }
+            double projection = SimVector.Dot(direction, normal);
+            if (Math.Abs(projection) <= RuneSimulation.COLLISION_EPSILON) return reflected;
+            if (projection < 0) direction -= normal * (2 * projection);
+            direction = direction.Normalized();
+            if (!world.Map.CanOccupy(_position + direction * (WALL_SEPARATION * 2), settings.PoisonOrbRadius)) return reflected;
+            return direction;
+        }
+
+        /// <summary>구체 위치·방향·수명과 장판 전환·주기 피해 상태를 결정성 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
-        { state.Append(FormattableString.Invariant($"|poison:{_origin.X:R}:{_origin.Y:R}:{_target.X:R}:{_target.Y:R}:{_startedAt:R}:{_age:R}:{_hasLanded}:{_nextDamageAt:R}")); }
+        { state.Append(FormattableString.Invariant($"|poison:{_position.X:R}:{_position.Y:R}:{_direction.X:R}:{_direction.Y:R}:{_startedAt:R}:{_age:R}:{_hasLanded}:{_landedAt:R}:{_nextDamageAt:R}")); }
     }
 
     /// <summary>착지 위치에 고정된 확장 고리와 한 번의 통과 피해 상태다.</summary>
@@ -107,6 +161,7 @@ namespace RuneCode
         private double _angle;
         private int _repeat;
         private SimVector _poisonTarget;
+        private SimVector _poisonOrigin;
         private SimVector _jumpOrigin;
         private SimVector _jumpTarget;
         private bool _hasJumpStarted;
@@ -117,20 +172,21 @@ namespace RuneCode
         public double Elapsed => _elapsed;
         public HydraDefinition Settings => _settings;
         public SimVector PoisonTarget => _poisonTarget;
+        public SimVector PoisonOrigin => _poisonOrigin;
+        public double PoisonChargeProgress => Math.Max(0, Math.Min(1, _elapsed / (_settings.PoisonTrack + _settings.PoisonLock)));
         public IReadOnlyList<HydraPoison> Poisons => _poisons;
         public IReadOnlyList<HydraWave> Waves => _waves;
         public bool IsNeckWarning => _attack == HydraAttack.Stretch && _elapsed < _settings.StretchWarning
             || _attack == HydraAttack.Spin && _elapsed < _settings.SpinWarning;
         public bool IsNeckActive => _attack == HydraAttack.Stretch && _elapsed >= _settings.StretchWarning
             || _attack == HydraAttack.Spin && _elapsed >= _settings.SpinWarning && _elapsed < _settings.SpinWarning + _settings.SpinSeconds;
-        public bool IsPoisonWarning => _attack == HydraAttack.Poison && _elapsed % PoisonCycle < _settings.PoisonTrack + _settings.PoisonLock;
+        public bool IsPoisonWarning => _attack == HydraAttack.Poison;
         public bool IsStompWarning => _attack == HydraAttack.Stomp && StompLocalTime < _settings.StompWindup + _settings.StompApproachSeconds;
         public bool IsAirborne => _attack == HydraAttack.Stomp && _hasJumpStarted
             && StompLocalTime >= _settings.StompWindup && StompLocalTime < _settings.StompWindup + _settings.StompApproachSeconds;
         public double JumpProgress => IsAirborne ? Math.Max(0, Math.Min(1, (StompLocalTime - _settings.StompWindup) / _settings.StompApproachSeconds)) : 0;
         public SimVector JumpTarget => _jumpTarget;
         public double StompLocalTime => _elapsed % _settings.StompInterval;
-        private double PoisonCycle => _settings.PoisonTrack + _settings.PoisonLock + _settings.PoisonFlight + _settings.PoisonGap;
 
         /// <summary>공유 설정과 생성 시각·최대 체력으로 개별 공격 대기와 1구간 피해 예산을 초기화한다.</summary>
         internal HydraBossState(HydraDefinition settings, double time, double maxHp)
@@ -157,7 +213,7 @@ namespace RuneCode
         internal void Advance(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double> hurt)
         {
             for (int index = _poisons.Count - 1; index >= 0; index--)
-                if (_poisons[index].Advance(world, _settings, enemy.DamageMultiplier, hurt)) _poisons.RemoveAt(index);
+                if (_poisons[index].Advance(world, _settings, enemy.DamageMultiplier, simulation, hurt)) _poisons.RemoveAt(index);
             for (int index = _waves.Count - 1; index >= 0; index--)
                 if (_waves[index].Advance(world, _settings, enemy.Radius, enemy.DamageMultiplier, hurt)) _waves.RemoveAt(index);
             if (_attack == HydraAttack.Idle)
@@ -177,7 +233,7 @@ namespace RuneCode
                     if (IsNeckActive) HitNecks(enemy, world, hurt);
                     if (_elapsed >= _settings.StretchWarning + _settings.StretchSeconds + _settings.StretchHold + _settings.StretchRetractSeconds) FinishAttack(world.Time);
                     break;
-                case HydraAttack.Poison: AdvancePoison(enemy, world); break;
+                case HydraAttack.Poison: AdvancePoison(enemy, world, simulation); break;
                 case HydraAttack.Stomp: AdvanceStomp(enemy, world, simulation); break;
                 case HydraAttack.Spin:
                     if (IsNeckActive) HitNecks(enemy, world, hurt);
@@ -228,19 +284,25 @@ namespace RuneCode
         /// <summary>공격을 종료하고 추적 가능한 공통 쿨타임을 시작한다. 잔류 독 지대는 유지한다.</summary>
         private void FinishAttack(double time) { _attack = HydraAttack.Idle; _elapsed = 0; _cooldownUntil = time + _settings.AttackCooldown; }
 
-        /// <summary>매 발마다 추적·위치 고정·비행을 실행하고 세 번째 발의 종료 뒤 쿨타임으로 전환한다.</summary>
-        private void AdvancePoison(SimulationEnemy enemy, SimulationWorld world)
+        /// <summary>준비 전반에는 조준을 추적하고 후반에는 고정하며 준비가 끝나면 반사 구체 한 발을 발사하고 공통 쿨타임으로 전환한다.</summary>
+        private void AdvancePoison(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation)
         {
-            double local = _elapsed - _repeat * PoisonCycle;
-            if (_repeat < REPEAT_COUNT && local >= 0 && local < _settings.PoisonTrack) _poisonTarget = world.Player.Position;
-            if (_repeat < REPEAT_COUNT && local + RuneSimulation.COLLISION_EPSILON >= _settings.PoisonTrack + _settings.PoisonLock)
+            if (_elapsed <= _settings.PoisonTrack + RuneSimulation.COLLISION_EPSILON)
             {
-                double angle = _angle + _repeat * FULL_TURN / HEAD_COUNT;
-                SimVector origin = enemy.Position + new SimVector(Math.Cos(angle), Math.Sin(angle)) * (enemy.Radius + REST_NECK_LENGTH);
-                _poisons.Add(new HydraPoison(origin, _poisonTarget, world.Time));
-                _repeat++;
+                SimVector offset = world.Player.Position - enemy.Position;
+                if (offset.LengthSquared > RuneSimulation.COLLISION_EPSILON) _angle = Math.Atan2(offset.Y, offset.X);
+                SimVector direction = new SimVector(Math.Cos(_angle), Math.Sin(_angle));
+                enemy.Move(enemy.Position, direction);
+                SimVector displacement = direction * (enemy.Radius + _settings.PoisonOrbRadius);
+                double wall = simulation.FirstWallFraction(enemy.Position, enemy.Position + displacement, _settings.PoisonOrbRadius);
+                _poisonOrigin = enemy.Position + displacement * (double.IsPositiveInfinity(wall) ? 1 : Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON));
+                SimVector end = _poisonOrigin + direction * (_settings.PoisonOrbSpeed * _settings.PoisonOrbLifetime);
+                wall = simulation.FirstWallFraction(_poisonOrigin, end, _settings.PoisonOrbRadius);
+                _poisonTarget = double.IsPositiveInfinity(wall) ? end : _poisonOrigin + (end - _poisonOrigin) * wall;
             }
-            if (_elapsed >= REPEAT_COUNT * PoisonCycle) FinishAttack(world.Time);
+            if (_elapsed + RuneSimulation.COLLISION_EPSILON < _settings.PoisonTrack + _settings.PoisonLock) return;
+            _poisons.Add(new HydraPoison(_poisonOrigin, new SimVector(Math.Cos(_angle), Math.Sin(_angle)), world.Time));
+            FinishAttack(world.Time);
         }
 
         /// <summary>회차마다 준비 중 착지점을 예고하고 이륙 때 고정한 지점으로 도약한 뒤 착지 파동을 생성한다.</summary>
@@ -339,6 +401,7 @@ namespace RuneCode
         {
             state.Append(FormattableString.Invariant($"|hydra:{_attack}:{_lastAttack}:{_startedAt:R}:{_elapsed:R}:{_cooldownUntil:R}:{_angle:R}:{_repeat}:{_poisonTarget.X:R}:{_poisonTarget.Y:R}:{_damageBudget:R}:{_lastDamageAt:R}"));
             state.Append(FormattableString.Invariant($"|jump:{_jumpOrigin.X:R}:{_jumpOrigin.Y:R}:{_jumpTarget.X:R}:{_jumpTarget.Y:R}:{_hasJumpStarted}"));
+            state.Append(FormattableString.Invariant($"|poisonOrigin:{_poisonOrigin.X:R}:{_poisonOrigin.Y:R}"));
             foreach (double length in _stretchLengths) SimHash.AppendNumber(state, length);
             foreach (HydraPoison poison in _poisons) poison.WriteState(state);
             foreach (HydraWave wave in _waves) wave.WriteState(state);

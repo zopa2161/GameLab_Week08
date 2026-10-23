@@ -467,6 +467,34 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>원형 개체의 벽 접촉 위치·반경과 입사 방향으로 가장 정면에 닿은 벽의 단위 법선을 반환한다.</summary>
+        internal SimVector GetWallContactNormal(SimVector position, double radius, SimVector direction)
+        {
+            const double CONTACT_TOLERANCE = 0.001;
+            double searchRadius = radius + CONTACT_TOLERANCE;
+            int left = (int)Math.Floor((position.X - searchRadius) / _tileSize);
+            int right = (int)Math.Floor((position.X + searchRadius) / _tileSize);
+            int top = (int)Math.Floor((position.Y - searchRadius) / _tileSize);
+            int bottom = (int)Math.Floor((position.Y + searchRadius) / _tileSize);
+            SimVector normal = direction * -1;
+            double bestApproach = 0;
+            for (int y = top; y <= bottom; y++)
+                for (int x = left; x <= right; x++)
+                {
+                    if (y >= 0 && x >= 0 && y < _tiles.Length && x < _tiles[0].Length && _tiles[y][x] != '#') continue;
+                    double nearestX = Math.Max(x * _tileSize, Math.Min(position.X, (x + 1) * _tileSize));
+                    double nearestY = Math.Max(y * _tileSize, Math.Min(position.Y, (y + 1) * _tileSize));
+                    SimVector offset = position - new SimVector(nearestX, nearestY);
+                    if (offset.LengthSquared > searchRadius * searchRadius || offset.LengthSquared <= RuneSimulation.COLLISION_EPSILON) continue;
+                    SimVector candidate = offset.Normalized();
+                    double approach = -SimVector.Dot(direction, candidate);
+                    if (approach <= bestApproach) continue;
+                    bestApproach = approach;
+                    normal = candidate;
+                }
+            return normal;
+        }
+
         /// <summary>이동 경로를 작은 구간으로 확인하고 벽을 따라 미끄러진 최종 이동 가능 좌표를 반환한다.</summary>
         public SimVector Move(SimVector origin, SimVector displacement, double radius)
         {

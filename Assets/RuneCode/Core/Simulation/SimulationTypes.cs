@@ -244,6 +244,9 @@ namespace RuneCode
             _invulnerableUntil = Math.Min(_invulnerableUntil, time);
         }
 
+        /// <summary>지정 시각에 대시 또는 피격 무적이 유지되는지 반환한다.</summary>
+        internal bool IsInvulnerable(double time) => time < _invulnerableUntil;
+
         /// <summary>무적을 확인하고 보호막과 체력에 피해를 적용하여 실제 체력 피해를 반환한다.</summary>
         internal double Hurt(double damage, double time, double invulnerability)
         { if (time < _invulnerableUntil) return 0; double absorbed = Math.Min(_shield, damage); _shield -= absorbed; _shieldAbsorbed += absorbed; double actual = Math.Min(_hp, damage - absorbed); _hp -= actual; _damageReceived += actual; _invulnerableUntil = time + invulnerability; return actual; }
