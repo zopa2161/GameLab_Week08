@@ -317,7 +317,7 @@ table.heatmap td { cursor: default; }
     <button id="dropToggle" class="btn btn-ghost drop-toggle" type="button" hidden>파일 직접 불러오기</button>
     <div id="dropzone" class="dropzone">
       <p class="drop-title">CSV 또는 suite JSON 파일을 여기에 끌어다 놓으세요</p>
-      <p class="drop-hint">results.csv · summary.csv · comparison.csv · excluded.csv · dps_suite.json · 여러 파일 동시 선택 가능 · 같은 종류를 다시 넣으면 교체됩니다</p>
+      <p class="drop-hint">results.csv · summary.csv · comparison.csv · excluded.csv · build_set.json · 여러 파일 동시 선택 가능 · 같은 종류를 다시 넣으면 교체됩니다</p>
       <p class="drop-hint" id="autoGuide" hidden>프로젝트에 저장된 측정 결과가 없습니다. Unity 메뉴 Tools/RuneCode/DPS Measurement에서 측정하세요.</p>
       <button id="fileBtn" type="button" class="btn btn-primary">파일 선택</button>
       <input id="fileInput" type="file" multiple accept=".csv,.json,text/csv,application/json" hidden>
@@ -543,7 +543,9 @@ function loadFiles(fileList) {
     if (isJson) {
       file.text().then(text => {
         try {
-          const obj = JSON.parse(text);
+          // 조합 셋 파일(build_set.json)은 측정 입력이 _suite 안에 있다.
+          const parsed = JSON.parse(text);
+          const obj = parsed && parsed._suite ? parsed._suite : parsed;
           if (obj && Array.isArray(obj._presets)) {
             const map = {};
             for (const p of obj._presets) map[p._presetId] = p;
@@ -1863,7 +1865,7 @@ function renderDetail(panel) {
       }
       suiteBox.appendChild(chipRow);
     } else {
-      suiteBox.appendChild(el('p', { class: 'card-note' }, 'dps_suite.json을 불러오면 각 프리셋의 행동·모드 구성을 한국어로 표시합니다.'));
+      suiteBox.appendChild(el('p', { class: 'card-note' }, 'build_set.json(측정 폴더의 조합 셋 사본)을 불러오면 각 프리셋의 행동·모드 구성을 한국어로 표시합니다.'));
     }
     panel.appendChild(suiteBox);
 

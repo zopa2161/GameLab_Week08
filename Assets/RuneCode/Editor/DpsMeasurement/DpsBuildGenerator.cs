@@ -69,13 +69,6 @@ namespace RuneCode.Editor
             return new DpsGenerationResult(builds, excludedBuilds, totalCount);
         }
 
-        /// <summary>dps_exclusions.json 파일을 읽어 반환한다. 파일이 없으면 규칙이 없는 빈 목록을 반환한다.</summary>
-        public static DpsExclusionList LoadExclusions(string path)
-        {
-            if (!File.Exists(path)) return new DpsExclusionList();
-            return JsonUtility.FromJson<DpsExclusionList>(File.ReadAllText(path));
-        }
-
         /// <summary>
         /// 측정 대상 조합을 folder의 builds.json으로, 제외 항목을 excluded.csv로 쓴다.
         /// builds.json은 DpsBuildList의 pretty JSON이고 excluded.csv는 buildId,reason 헤더 행을 둔다. 폴더가 없으면 만든다.

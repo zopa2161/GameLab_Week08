@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace RuneCode.Editor
 {
-    /// <summary>dps_exclusions.json 파일 하나의 내용이다. 조합 생성기가 쓰는 수동 제외 규칙 목록을 보관한다.</summary>
+    /// <summary>조합 셋에 들어 있는 수동 제외 규칙 목록이다. 조합 생성기가 패턴에 일치하는 조합을 측정에서 뺀다.</summary>
     [Serializable]
     public sealed class DpsExclusionList
     {

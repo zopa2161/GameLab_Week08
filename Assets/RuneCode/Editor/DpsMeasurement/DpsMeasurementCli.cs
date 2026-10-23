@@ -13,13 +13,12 @@ namespace RuneCode.Editor
     /// <summary>
     /// DPS 측정 일괄 실행의 진입점이다. 배치 명령행(-executeMethod RuneCode.Editor.DpsMeasurementCli.Run)과
     /// 에디터 메뉴가 같은 내부 실행 흐름을 공유하고 결과를 프로젝트 안 Results~ 폴더에 쓴 뒤 뷰어 데이터를 갱신한다.
+    /// 측정 조합은 Data/Sets의 조합 셋(DpsBuildSet)에서 만들고 메뉴는 기본 셋(full)을, 조합 셋 편집 창은 고른 셋을 쓴다.
     /// RebuildViewerData는 저장된 측정 폴더의 뷰어 데이터를 다시 만드는 배치 진입점이다. 에디터 종료(Exit)는 배치에서만 호출한다.
     /// </summary>
     public static class DpsMeasurementCli
     {
         private const string LOG_PREFIX = "[DpsMeasurement]";
-        private const string SUITE_PATH_DEFAULT = "Assets/RuneCode/Editor/DpsMeasurement/Data/dps_suite.json";
-        private const string EXCLUSIONS_PATH_DEFAULT = "Assets/RuneCode/Editor/DpsMeasurement/Data/dps_exclusions.json";
         private const string RESULTS_ROOT = "Assets/RuneCode/Editor/DpsMeasurement/Results~";
         private const string VIEWER_PATH = "Assets/RuneCode/Editor/DpsMeasurement/Viewer~/dps_viewer.html";
         private const string TIMESTAMP_FORMAT = "yyyyMMdd-HHmmss";
@@ -27,8 +26,7 @@ namespace RuneCode.Editor
         private const string RESULTS_CSV_FILE_NAME = "results.csv";
         private const string SUMMARY_CSV_FILE_NAME = "summary.csv";
         private const string COMPARISON_CSV_FILE_NAME = "comparison.csv";
-        private const string ARG_SUITE = "-dpsSuite";
-        private const string ARG_EXCLUSIONS = "-dpsExclusions";
+        private const string ARG_SET = "-dpsSet";
         private const string ARG_OUT = "-dpsOut";
         private const string ARG_COMPARE = "-dpsCompare";
         private const string ARG_RESUME = "-dpsResume";
@@ -45,29 +43,30 @@ namespace RuneCode.Editor
         private const double ESTIMATED_SECONDS_PER_JOB = 0.3;
 
         /// <summary>
-        /// 배치 진입점이다. 명령행 인수 -dpsSuite, -dpsExclusions, -dpsOut, -dpsCompare, -dpsResume, -dpsFilter, -dpsLimit으로
+        /// 배치 진입점이다. 명령행 인수 -dpsSet(조합 셋 이름, 기본 full), -dpsOut, -dpsCompare, -dpsResume, -dpsFilter, -dpsLimit으로
         /// 입력·출력을 바꿀 수 있고 끝나면 Exit(0), 예외가 나면 LogException 후 Exit(1)로 에디터를 종료한다.
+        /// -dpsResume이면 그 폴더의 셋 사본을 쓰고 -dpsSet은 무시한다.
         /// </summary>
         public static void Run()
         {
             try
             {
                 string[] arguments = Environment.GetCommandLineArgs();
-                string suitePath = Argument(arguments, ARG_SUITE, SUITE_PATH_DEFAULT);
-                string exclusionsPath = Argument(arguments, ARG_EXCLUSIONS, EXCLUSIONS_PATH_DEFAULT);
+                string setName = Argument(arguments, ARG_SET, DpsBuildSetStore.DEFAULT_SET_NAME);
                 string comparePath = Argument(arguments, ARG_COMPARE, null);
                 string filterPattern = Argument(arguments, ARG_FILTER, null);
                 int limit = ParseLimit(Argument(arguments, ARG_LIMIT, null));
                 string resumeFolder = Argument(arguments, ARG_RESUME, null);
                 bool isResume = resumeFolder != null;
-                string outputFolder = isResume ? resumeFolder : Argument(arguments, ARG_OUT, DefaultOutputFolder());
+                string outputFolder = isResume ? resumeFolder : Argument(arguments, ARG_OUT, DefaultOutputFolder(setName));
                 var timer = Stopwatch.StartNew();
                 Func<int, int, bool> onProgress = (done, total) =>
                 {
                     if (total > 0 && (done % PROGRESS_LOG_INTERVAL == 0 || done == total)) LogProgress(done, total, timer.Elapsed);
                     return true;
                 };
-                ExecuteRun(PrepareBuilds(suitePath, exclusionsPath, filterPattern, limit), outputFolder, isResume, comparePath, onProgress);
+                DpsBuildSet set = isResume ? LoadResumeSet(resumeFolder) : DpsBuildSetStore.Load(setName);
+                ExecuteRun(PrepareBuilds(set, filterPattern, limit), outputFolder, isResume, comparePath, onProgress);
                 EditorApplication.Exit(0);
             }
             catch (Exception exception)
@@ -95,27 +94,45 @@ namespace RuneCode.Editor
             }
         }
 
-        /// <summary>전체 조합을 측정하는 에디터 메뉴다. 확인 대화상자를 통과하면 취소 가능한 진행 바로 실행하고 끝나면 뷰어를 연다.</summary>
+        /// <summary>기본 조합 셋(full)의 전체 조합을 측정하는 에디터 메뉴다. 확인 대화상자를 통과하면 취소 가능한 진행 바로 실행하고 끝나면 뷰어를 연다.</summary>
         [MenuItem(MENU_RUN_ALL)]
         public static void RunAllFromMenu()
         {
-            RunFromMenu(0, null);
+            RunSetFromEditor(DpsBuildSetStore.DEFAULT_SET_NAME, 0);
         }
 
-        /// <summary>앞 20개 조합만 측정하는 에디터 메뉴다. 진행 방식은 Run All과 같다.</summary>
+        /// <summary>기본 조합 셋(full)의 앞 20개 조합만 측정하는 에디터 메뉴다. 진행 방식은 Run All과 같다.</summary>
         [MenuItem(MENU_RUN_SAMPLE)]
         public static void RunSampleFromMenu()
         {
-            RunFromMenu(SAMPLE_BUILD_COUNT, null);
+            RunSetFromEditor(DpsBuildSetStore.DEFAULT_SET_NAME, SAMPLE_BUILD_COUNT);
         }
 
-        /// <summary>이전 측정 폴더를 Results~에서 골라 측정을 이어서 진행하는 에디터 메뉴다. 폴더를 고르지 않으면 아무 것도 하지 않는다.</summary>
+        /// <summary>
+        /// 이전 측정 폴더를 Results~에서 골라 측정을 이어서 진행하는 에디터 메뉴다. 그 폴더의 셋 사본으로 조합을 다시 만들고
+        /// 사본이 없는 예전 측정이면 기본 셋을 쓴다. 폴더를 고르지 않으면 아무 것도 하지 않는다.
+        /// </summary>
         [MenuItem(MENU_RESUME)]
         public static void ResumeFromMenu()
         {
             string resumeFolder = EditorUtility.OpenFolderPanel("DPS 측정 출력 폴더 선택", ProjectPath(RESULTS_ROOT), "");
             if (string.IsNullOrEmpty(resumeFolder)) return;
-            RunFromMenu(0, resumeFolder);
+            RunFromMenu(LoadResumeSet(resumeFolder), 0, resumeFolder, true);
+        }
+
+        /// <summary>
+        /// 조합 셋 이름으로 새 측정을 실행한다. limit이 0보다 크면 앞에서부터 limit개 조합만 측정한다.
+        /// 결과는 Results~/시각-셋이름 폴더에 쓰고 끝나면 뷰어를 연다. 조합 셋 편집 창과 메뉴가 함께 쓴다.
+        /// </summary>
+        internal static void RunSetFromEditor(string setName, int limit)
+        {
+            RunFromMenu(DpsBuildSetStore.Load(setName), limit, DefaultOutputFolder(setName), false);
+        }
+
+        /// <summary>조합 셋 하나에 들어갈 측정 작업 수(조합 수 × 조건 수)로 예상 시간 문자열을 만든다. 편집 창 미리보기에서 쓴다.</summary>
+        internal static string EstimateDuration(int buildCount, int conditionCount)
+        {
+            return FormatDuration(TimeSpan.FromSeconds(buildCount * conditionCount * ESTIMATED_SECONDS_PER_JOB));
         }
 
         /// <summary>측정 결과 뷰어를 시스템 기본 브라우저로 여는 에디터 메뉴다.</summary>
@@ -133,16 +150,14 @@ namespace RuneCode.Editor
         }
 
         /// <summary>
-        /// 에디터 메뉴 공용 실행 흐름이다. 조합을 준비하고 확인 대화상자를 통과하면 취소 가능한 진행 바로 측정해 그때까지의 결과를 쓴 뒤
-        /// 뷰어를 브라우저로 연다. 진행 바는 실행을 중단하거나 예외가 나도 finally에서 정리한다.
+        /// 에디터 공용 실행 흐름이다. 조합 셋으로 조합을 준비하고 확인 대화상자를 통과하면 취소 가능한 진행 바로 측정해
+        /// 그때까지의 결과를 outputFolder에 쓴 뒤 뷰어를 브라우저로 연다. 진행 바는 실행을 중단하거나 예외가 나도 finally에서 정리한다.
         /// </summary>
-        private static void RunFromMenu(int limit, string resumeFolder)
+        private static void RunFromMenu(DpsBuildSet set, int limit, string outputFolder, bool isResume)
         {
             try
             {
-                bool isResume = resumeFolder != null;
-                string outputFolder = isResume ? resumeFolder : DefaultOutputFolder();
-                RunPreparation preparation = PrepareBuilds(SUITE_PATH_DEFAULT, EXCLUSIONS_PATH_DEFAULT, null, limit);
+                RunPreparation preparation = PrepareBuilds(set, null, limit);
                 if (!ConfirmRun(preparation, isResume)) return;
                 ExecuteRun(preparation, outputFolder, isResume, null, CreateCancelableProgress());
                 OpenViewer();
@@ -154,25 +169,30 @@ namespace RuneCode.Editor
         }
 
         /// <summary>
-        /// 게임 데이터를 읽고 측정 입력·제외 목록을 로드한 뒤 조합을 생성해 와일드카드 필터와 개수 한도를 적용한다.
-        /// 제외 목록 파일이 없으면 빈 규칙으로 진행한다.
+        /// 게임 데이터를 읽고 조합 셋의 생성 규칙·제외 규칙으로 조합을 생성해 와일드카드 필터와 개수 한도를 적용한다.
         /// </summary>
-        private static RunPreparation PrepareBuilds(string suitePath, string exclusionsPath, string filterPattern, int limit)
+        private static RunPreparation PrepareBuilds(DpsBuildSet set, string filterPattern, int limit)
         {
             GameData.Load();
-            MeasurementSuite suite = JsonUtility.FromJson<MeasurementSuite>(File.ReadAllText(suitePath));
-            DpsExclusionList exclusions = DpsBuildGenerator.LoadExclusions(exclusionsPath);
-            DpsGenerationResult generated = DpsBuildGenerator.Generate(suite, exclusions);
-            return new RunPreparation(suite, generated, ApplyFilterAndLimit(generated.Builds, filterPattern, limit));
+            DpsGenerationResult generated = DpsBuildGenerator.Generate(set.Suite, set.Exclusions);
+            return new RunPreparation(set, generated, ApplyFilterAndLimit(generated.Builds, filterPattern, limit));
+        }
+
+        /// <summary>재개할 측정 폴더의 셋 사본(build_set.json)을 읽는다. 사본이 없는 예전 측정 폴더면 기본 셋(full)을 읽는다.</summary>
+        private static DpsBuildSet LoadResumeSet(string resumeFolder)
+        {
+            string copyPath = Path.Combine(resumeFolder, DpsBuildSetStore.OUTPUT_COPY_FILE_NAME);
+            return File.Exists(copyPath) ? DpsBuildSetStore.LoadFile(copyPath) : DpsBuildSetStore.Load(DpsBuildSetStore.DEFAULT_SET_NAME);
         }
 
         /// <summary>
-        /// 조합 목록 파일을 출력 폴더에 쓰고 일괄 측정을 실행한 뒤 results.json, results.csv, summary.csv를 쓴다.
+        /// 셋 사본과 조합 목록 파일을 출력 폴더에 쓰고 일괄 측정을 실행한 뒤 results.json, results.csv, summary.csv를 쓴다.
         /// comparePath가 있으면 이전 results.json에서 이전 DPS를 읽어 results.csv 비교 열에 넣고 comparison.csv도 쓴다.
         /// isResume이면 출력 폴더의 부분 결과를 이어받는다. 끝에서 viewer_data.js를 만들고 출력 폴더가 Results~ 바로 아래면 index.js도 갱신한다.
         /// </summary>
         private static void ExecuteRun(RunPreparation preparation, string outputFolder, bool isResume, string comparePath, Func<int, int, bool> onProgress)
         {
+            DpsBuildSetStore.WriteOutputCopy(preparation.Set, outputFolder);
             DpsBuildGenerator.WriteFiles(preparation.Generated, outputFolder);
             MeasurementResultSet results = DpsBatchRunner.Run(preparation.Suite, preparation.Builds, outputFolder, isResume, onProgress);
             IReadOnlyDictionary<string, double> previousDps = comparePath == null ? null : DpsResultComparer.LoadPreviousDps(comparePath);
@@ -242,10 +262,10 @@ namespace RuneCode.Editor
             return index >= 0 && index + 1 < arguments.Length ? arguments[index + 1] : fallback;
         }
 
-        /// <summary>기본 출력 폴더를 프로젝트 안 Results~/현재 로컬 시각 타임스탬프 경로로 만든다.</summary>
-        private static string DefaultOutputFolder()
+        /// <summary>기본 출력 폴더를 프로젝트 안 Results~/현재 로컬 시각 타임스탬프-셋 이름 경로로 만든다.</summary>
+        private static string DefaultOutputFolder(string setName)
         {
-            return Path.Combine(ProjectPath(RESULTS_ROOT), DateTime.Now.ToString(TIMESTAMP_FORMAT, CultureInfo.InvariantCulture));
+            return Path.Combine(ProjectPath(RESULTS_ROOT), DateTime.Now.ToString(TIMESTAMP_FORMAT, CultureInfo.InvariantCulture) + "-" + setName);
         }
 
         /// <summary>프로젝트 루트(Assets의 부모 폴더) 아래 상대 경로의 전체 경로를 만든다.</summary>
@@ -287,21 +307,22 @@ namespace RuneCode.Editor
             UnityEngine.Debug.Log(LOG_PREFIX + " 뷰어 데이터를 만든 측정 폴더 수: " + processedCount);
         }
 
-        /// <summary>측정 실행 준비 결과다. 측정 입력, 생성 결과 전체와 필터·한도가 적용된 측정 대상을 보관한다.</summary>
+        /// <summary>측정 실행 준비 결과다. 조합 셋, 생성 결과 전체와 필터·한도가 적용된 측정 대상을 보관한다.</summary>
         private sealed class RunPreparation
         {
-            private readonly MeasurementSuite _suite;
+            private readonly DpsBuildSet _set;
             private readonly DpsGenerationResult _generated;
             private readonly List<SpellBuild> _builds;
 
-            public MeasurementSuite Suite => _suite;
+            public DpsBuildSet Set => _set;
+            public MeasurementSuite Suite => _set.Suite;
             public DpsGenerationResult Generated => _generated;
             public List<SpellBuild> Builds => _builds;
 
-            /// <summary>측정 입력, 생성 결과와 측정 대상 목록으로 준비 결과를 만든다.</summary>
-            public RunPreparation(MeasurementSuite suite, DpsGenerationResult generated, List<SpellBuild> builds)
+            /// <summary>조합 셋, 생성 결과와 측정 대상 목록으로 준비 결과를 만든다.</summary>
+            public RunPreparation(DpsBuildSet set, DpsGenerationResult generated, List<SpellBuild> builds)
             {
-                _suite = suite;
+                _set = set;
                 _generated = generated;
                 _builds = builds;
             }
