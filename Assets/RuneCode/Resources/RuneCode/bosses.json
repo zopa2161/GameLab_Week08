@@ -5,7 +5,7 @@
       "_pattern": "governor",
       "_phaseTwoThreshold": 0.67,
       "_phaseThreeThreshold": 0.34,
-      "_patchSeconds": 2.5,
+      "_patchSeconds": 0.5,
       "_radialInterval": 3,
       "_radialCount": 8,
       "_aimInterval": 2.4,
