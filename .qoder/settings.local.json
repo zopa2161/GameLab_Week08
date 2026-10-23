@@ -34,7 +34,27 @@
       "Bash(grep -rl \"_bosses:\" Assets --include=*.asset | head -20; echo ---; grep -rl \"mini_governor\" Assets --include=*.asset --include=*.json --include=*.csv | head -20)",
       "Bash(grep -n \"MaxEnemies\" Assets/RuneCode/Resources/RuneCode/*.json | head -10; grep -rn \"MaxEnemies\" Assets/RuneCode/Resources/RuneCode -r | head -10)",
       "Bash(grep -n -A 20 '\"surround\"' Assets/RuneCode/Resources/RuneCode/formations.json 2>/dev/null || ls Assets/RuneCode/Resources/RuneCode | head -40)",
-      "Bash(rg -n \"reinforcement|surround|governor|mini\" Assets/RuneCode/Resources/RuneCode --glob \"*.json\" | head -80)"
+      "Bash(rg -n \"reinforcement|surround|governor|mini\" Assets/RuneCode/Resources/RuneCode --glob \"*.json\" | head -80)",
+      "Bash(git diff --check; echo \"diff-check exit: $?\"; git status --short)",
+      "Bash(grep -n \"SPIRAL\\\\|Spiral\\\\|IsHexaSpiral\" Assets/Docs~/04_BOSS_HEXA.md Assets/Docs~/05_PLAN_BOSS_HEXA.md | head -40)",
+      "Bash(grep -n \"BuildDebugBosses\\\\|SetDebugBossMenu\\\\|DEBUG_BOSS\\\\|debugBoss\" Assets/RuneCode/UI/Mission/MissionHud.cs | head -30)",
+      "Bash(grep -n \"자동\\\\|우선순위\\\\|카운터\\\\|3/5/0\\\\|3초 간격\\\\|최초 8회\\\\|8회\" \"Assets/Docs~/04_BOSS_HEXA.md\" \"Assets/Docs~/05_PLAN_BOSS_HEXA.md\" | head -80)",
+      "Bash(grep -n \"Hexa\\\\|hexa\" Assets/RuneCode/Core/Simulation/EnemySystem.cs | head -80)",
+      "Bash(grep -rn \"new HexaBossState\\\\|Hexa =\\\\|Hexa\\\\b\" Assets/RuneCode/Core/Simulation/SimulationTypes.cs Assets/RuneCode/Core/Simulation/RuneSimulation.cs Assets/RuneCode/Core/Simulation/EnemySpawner.cs 2>/dev/null | head -60)",
+      "Bash(grep -n \"InitializeHexa\\\\|isHexaPreview\\\\|HexaPreview\\\\|IsHexaPattern\" Assets/RuneCode/Core/Simulation/*.cs Assets/RuneCode/Core/Mission/*.cs Assets/RuneCode/Features/Mission/*.cs Assets/RuneCode/UI/Mission/*.cs | head -80)",
+      "Bash(grep -n \"\\\\\"Id\\\\\"\\\\|_id\\\\|IsMiniBoss\\\\|isMiniBoss\" Assets/RuneCode/Resources/RuneCode/bosses.json | head -40; echo ---; sed -n '1,80p' Assets/RuneCode/Resources/RuneCode/bosses.json)",
+      "Bash(grep -rn \"DebugBossRoot\\\\|DebugBossButtonTemplate\" Assets --include=*.unity --include=*.prefab | head -20)",
+      "Bash(grep -rn \"sizeDelta\\\\|LayoutRebuilder\\\\|preferredHeight\\\\|SetDebugBoss\" Assets/RuneCode/UI/Mission/MissionHud.cs Assets/RuneCode/UI/Mission/MissionPresenter.cs | head -40)",
+      "Bash(grep -rl \"0c38440755903e6479644e3872006499\" Assets --include=*.meta | head -5)",
+      "Bash(grep -n \"m_SizeDelta\\\\|m_AnchorMin\\\\|m_AnchorMax\\\\|LayoutElement\\\\|m_MinHeight\\\\|m_PreferredHeight\\\\|m_Name\" Assets/RuneCode/Prefabs/UI/UiButton.prefab | head -40)",
+      "Bash(grep -n \"1349297368313960049\" Assets/RuneCode/Resources/RuneCode/UI/MissionScreen.prefab | head -10)",
+      "Bash(grep -n \"DebugStartBossWave\\\\|DebugStartBoss\\(\" Assets/RuneCode -r | head -20)",
+      "Bash(git diff --check; echo \"diff-check exit: $?\"; git diff --stat -- Assets/RuneCode)",
+      "Bash(grep -rn \"BeginAutoOperation\\\\|isHexaAutoPreview\\\\|HasAutoOperation\\\\|AutoCompletionCount\\\\|AUTO_INTERVAL\" Assets/RuneCode | head -40)",
+      "Bash(grep -n \"1~8단계\\\\|미착수다\\\\|^| 8 \\\\|^| 9 \\\\|- \\\\[ \\\\] 8\\\\.\" \"Assets/Docs~/05_PLAN_BOSS_HEXA.md\" | head -20)",
+      "Bash(ls Assets/Resources/RuneCode 2>/dev/null | head -40)",
+      "Bash(find Assets -maxdepth 4 -iname \"*.json\" | head -30)",
+      "Bash(for c in ID PROJECTILE_SOURCE_ID SNIPER_SOURCE_ID SNIPER_SHOT_COUNT INITIAL_DELAY_TICKS SPRAY_INTERVAL_TICKS SPRAY_DURATION_TICKS SPRAY_SHOT_COUNT SPRAY_HALF_SPREAD_DEGREES HOMING_SHOT_INTERVAL_TICKS HOMING_SHOT_COUNT HOMING_TURN_DEGREES_PER_SECOND HOMING_SECONDS COMPOSITE_STAGE_COUNT COMPOSITE_SUB_ATTACK_COUNT SUMMON_BUNDLE_COUNT SUMMON_COUNT SUMMON_INTERVAL_TICKS SPIRAL_STREAM_COUNT SPIRAL_INTERVAL_TICKS SPIRAL_ROTATION_DEGREES_PER_SECOND SPIRAL_DURATION_TICKS SPIRAL_BUNDLE_COUNT SPIRAL_SHOT_COUNT SPIRAL_ROTATION_DEGREES_PER_BUNDLE AUTO_SUMMON_COOLDOWN AUTO_SPIRAL_COOLDOWN AUTO_INTERVAL_TICKS; do n=$\\(grep -R \"HexaDefinition\\\\.$c\" -n Assets/RuneCode --include='*.cs' | wc -l\\); echo \"$c $n\"; done)"
     ]
   }
 }

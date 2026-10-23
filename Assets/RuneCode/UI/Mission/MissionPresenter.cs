@@ -38,8 +38,8 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private readonly Queue<string> _itemToasts = new Queue<string>();
-        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave)> _debugBossTargets
-            = new List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave)>();
+        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview)> _debugBossTargets
+            = new List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview)>();
         private readonly List<(HexaDebugActionKind Kind, int EntityId)> _hexaDebugActions
             = new List<(HexaDebugActionKind Kind, int EntityId)>();
         private readonly List<string> _hexaDebugActionLabels = new List<string>();
@@ -303,7 +303,7 @@ namespace RuneCode
             _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
         }
 
-        /// <summary>보스별 첫 배치와 디버그 진입을 구성하고, 일반 웨이브에서 Hexa 두 기 소환 소유권을 시험하는 항목을 추가한다.</summary>
+        /// <summary>보스별 첫 배치와 디버그 진입을 구성하고, Hexa 나선·자동 모드와 일반 웨이브 소환 소유권 시험 항목을 추가한다.</summary>
         private void BuildDebugBosses()
         {
             var labels = new List<string>();
@@ -314,11 +314,15 @@ namespace RuneCode
                 bool isHexaPreview = stage == 0 && boss.IsHexaPattern;
                 if (stage == 0 && !isHexaPreview) continue;
                 if (isHexaPreview) stage = 1;
-                _debugBossTargets.Add((stage, round, isHexaPreview, false));
+                _debugBossTargets.Add((stage, round, isHexaPreview, false, false, false));
                 labels.Add((boss.IsMiniBoss ? "" : "보스 ") + GameData.L(boss.EnemyId)
                     + (isHexaPreview ? " · 기본 모드" : " · 스테이지 " + stage));
             }
-            _debugBossTargets.Add((1, 1, false, true));
+            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, true, false));
+            labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 나선 모드");
+            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, false, true));
+            labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 자동 모드");
+            _debugBossTargets.Add((1, 1, false, true, false, false));
             labels.Add(GameData.L(HexaDefinition.ID) + " 소환 테스트 · 일반 웨이브");
             _hud.BuildDebugBosses(labels);
         }
@@ -346,13 +350,15 @@ namespace RuneCode
         {
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             if (index < 0 || index >= _debugBossTargets.Count) return;
-            (int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave) target = _debugBossTargets[index];
+            (int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview) target = _debugBossTargets[index];
             ResetHexaDebugActions();
             bool isStarted = target.StartsNormalWave
                 ? _run.DebugStartNormalWave(target.Stage, target.Round)
-                : _run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview);
+                : _run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview,
+                    isHexaSpiralPreview: target.StartsSpiralPreview, isHexaAutoPreview: target.StartsAutoPreview);
             if (!isStarted) return;
-            _isHexaSummonTestActive = target.StartsNormalWave || target.IsHexaPreview;
+            _isHexaSummonTestActive = target.StartsNormalWave
+                || (target.IsHexaPreview && !target.StartsSpiralPreview && !target.StartsAutoPreview);
             _isInitialDebugRoundBreak = false;
             _result.HideClearModifierChoices();
             _result.Hide();
@@ -813,6 +819,29 @@ namespace RuneCode
                 {
                     HexaBossState hexa = enemy.Hexa;
                     if (hexa == null) continue;
+                    if (hexa.HasAutoOperation)
+                    {
+                        string autoPattern = hexa.AutoPattern == HexaTopPattern.Summon ? "소환"
+                            : hexa.AutoPattern == HexaTopPattern.Spiral ? "나선"
+                            : hexa.AutoPattern == HexaTopPattern.Composite ? "복합" : "대기";
+                        string autoState;
+                        if (hexa.IsCancelled) autoState = "취소";
+                        else if (hexa.DelayTicks > 0)
+                            autoState = "다음 " + (hexa.DelayTicks / (double)RuneSimulation.TICK_RATE).ToString("0.0") + "s";
+                        else if (hexa.AutoPattern == HexaTopPattern.Summon)
+                            autoState = "소환 " + hexa.SummonBundlesSpawned + "/" + HexaDefinition.SUMMON_BUNDLE_COUNT + " 진행";
+                        else if (hexa.AutoPattern == HexaTopPattern.Spiral)
+                            autoState = "나선 " + hexa.SpiralBundleCount + "/" + HexaDefinition.SPIRAL_BUNDLE_COUNT + "묶음 · "
+                                + hexa.SpiralShotCount + "/" + HexaDefinition.SPIRAL_SHOT_COUNT + "발";
+                        else
+                            autoState = "복합 " + CompositeAttackName(hexa.CompositeFirstAttack) + "→"
+                                + CompositeAttackName(hexa.CompositeSecondAttack) + " · "
+                                + (hexa.IsCompositeComplete ? 2 : hexa.CompositeStage + 1) + "/" + HexaDefinition.COMPOSITE_STAGE_COUNT
+                                + " " + CompositeAttackName(hexa.CompositeCurrentAttack);
+                        objective = "Hexa 자동 " + autoPattern + " · 소환 " + hexa.SummonCooldown + " · 나선 " + hexa.SpiralCooldown
+                            + " · 완료 " + hexa.AutoCompletionCount + "회 · " + autoState;
+                        break;
+                    }
                     if (hexa.HasStartedSummon)
                     {
                         int summonCount = 0;
@@ -821,6 +850,16 @@ namespace RuneCode
                         objective = "Hexa #" + enemy.Id + " 소환 " + hexa.SummonBundlesSpawned + "/" + HexaDefinition.SUMMON_BUNDLE_COUNT
                             + " · 소환물 " + summonCount + " · "
                             + (hexa.IsCancelled ? "취소" : hexa.IsSummoning ? "진행" : "완료");
+                        break;
+                    }
+                    if (hexa.HasStartedSpiral)
+                    {
+                        string spiralState = hexa.IsCancelled ? "취소" : hexa.DelayTicks > 0 ? "대기"
+                            : hexa.IsSpiraling ? "진행" : "완료";
+                        objective = "Hexa 나선 " + hexa.SpiralBundleCount + "/" + HexaDefinition.SPIRAL_BUNDLE_COUNT
+                            + "묶음 · " + hexa.SpiralShotCount + "/" + HexaDefinition.SPIRAL_SHOT_COUNT + "발"
+                            + " · " + (hexa.SpiralElapsedTicks / (double)RuneSimulation.TICK_RATE).ToString("0.0")
+                            + "s · " + spiralState;
                         break;
                     }
                     if (hexa.HasStartedComposite)

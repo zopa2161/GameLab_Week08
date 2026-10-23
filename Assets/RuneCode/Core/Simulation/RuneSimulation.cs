@@ -236,12 +236,14 @@ namespace RuneCode
 
         /// <summary>
         /// 디버그 라운드 대기 중 지정 스테이지의 미니 보스 또는 최종 보스 라운드 마지막 웨이브로 전환한다. 기본값은 최종 보스다.
-        /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고, 단독 공격 미리보기 또는 isHexaCompositePreview와 지정한 순서(없으면 SimRandom)의 복합 공격을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
+        /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고, 단독 공격 미리보기 또는 isHexaCompositePreview와 지정한 순서(없으면 SimRandom)의 복합 공격을 준비한다.
+        /// isHexaSpiralPreview는 4방향 시계 회전 나선 공격을, isHexaAutoPreview는 우선순위·횟수 쿨타임 자동 운영을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
         /// </summary>
         public bool DebugStartBossWave(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT, bool isHexaPreview = false,
             bool isHexaSprayPreview = false, bool isHexaHomingPreview = false, bool isHexaSniperPreview = false,
             bool isHexaCompositePreview = false, HexaSubAttack compositeFirst = HexaSubAttack.None,
-            HexaSubAttack compositeSecond = HexaSubAttack.None)
+            HexaSubAttack compositeSecond = HexaSubAttack.None, bool isHexaSpiralPreview = false,
+            bool isHexaAutoPreview = false)
         {
             if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak
                 || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT
@@ -251,10 +253,13 @@ namespace RuneCode
                 || (isHexaHomingPreview && !isHexaPreview)
                 || (isHexaSniperPreview && !isHexaPreview)
                 || (isHexaCompositePreview && !isHexaPreview)
+                || (isHexaSpiralPreview && !isHexaPreview)
+                || (isHexaAutoPreview && !isHexaPreview)
                 || (isHexaCompositePreview && (compositeFirst == HexaSubAttack.None) != (compositeSecond == HexaSubAttack.None))
                 || (isHexaCompositePreview && compositeFirst != HexaSubAttack.None && compositeFirst == compositeSecond)
                 || ((isHexaSprayPreview ? 1 : 0) + (isHexaHomingPreview ? 1 : 0) + (isHexaSniperPreview ? 1 : 0)
-                    + (isHexaCompositePreview ? 1 : 0) > 1)) return false;
+                    + (isHexaCompositePreview ? 1 : 0) + (isHexaSpiralPreview ? 1 : 0)
+                    + (isHexaAutoPreview ? 1 : 0) > 1)) return false;
             _loot.ClearClearFeedback();
             _world.StageNumber = stage;
             _world.RoundNumber = round;
@@ -262,10 +267,11 @@ namespace RuneCode
             _world.Player.SetHp(_world.Player.MaxHp);
             _world.Stage = MissionStage.Combat;
             StartProgressionWave(isHexaPreview);
-            if (isHexaSprayPreview || isHexaHomingPreview || isHexaSniperPreview || isHexaCompositePreview)
+            if (isHexaSprayPreview || isHexaHomingPreview || isHexaSniperPreview || isHexaCompositePreview
+                || isHexaSpiralPreview || isHexaAutoPreview)
             {
                 EnemyDefinition projectile = _world.EnemyCatalog.Get(HexaDefinition.PROJECTILE_SOURCE_ID);
-                EnemyDefinition sniper = isHexaSniperPreview || isHexaCompositePreview
+                EnemyDefinition sniper = isHexaSniperPreview || isHexaCompositePreview || isHexaAutoPreview
                     ? _world.EnemyCatalog.Get(HexaDefinition.SNIPER_SOURCE_ID) : null;
                 foreach (SimulationEnemy enemy in _world.Enemies)
                 {
@@ -273,6 +279,8 @@ namespace RuneCode
                     if (isHexaSprayPreview) enemy.Hexa.BeginSpray(projectile);
                     else if (isHexaHomingPreview) enemy.Hexa.BeginHoming(projectile);
                     else if (isHexaSniperPreview) enemy.Hexa.BeginSniper(sniper);
+                    else if (isHexaSpiralPreview) enemy.Hexa.BeginSpiral(projectile);
+                    else if (isHexaAutoPreview) enemy.Hexa.BeginAutoOperation(projectile, sniper);
                     else enemy.Hexa.BeginComposite(projectile, sniper, _world.Random, compositeFirst, compositeSecond);
                 }
             }

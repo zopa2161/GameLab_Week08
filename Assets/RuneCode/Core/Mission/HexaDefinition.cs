@@ -23,6 +23,17 @@ namespace RuneCode
         public const int SUMMON_BUNDLE_COUNT = 3;
         public const int SUMMON_COUNT = 6;
         public const int SUMMON_INTERVAL_TICKS = RuneSimulation.TICK_RATE;
+        public const int SPIRAL_STREAM_COUNT = 4;
+        public const int SPIRAL_INTERVAL_TICKS = RuneSimulation.TICK_RATE / 10;
+        public const double SPIRAL_ROTATION_DEGREES_PER_SECOND = 60;
+        public const int SPIRAL_DURATION_TICKS = 6 * RuneSimulation.TICK_RATE;
+        public const int SPIRAL_BUNDLE_COUNT = SPIRAL_DURATION_TICKS / SPIRAL_INTERVAL_TICKS;
+        public const int SPIRAL_SHOT_COUNT = SPIRAL_BUNDLE_COUNT * SPIRAL_STREAM_COUNT;
+        public const double SPIRAL_ROTATION_DEGREES_PER_BUNDLE =
+            SPIRAL_ROTATION_DEGREES_PER_SECOND * SPIRAL_INTERVAL_TICKS / RuneSimulation.TICK_RATE;
+        public const int AUTO_SUMMON_COOLDOWN = 3;
+        public const int AUTO_SPIRAL_COOLDOWN = 5;
+        public const int AUTO_INTERVAL_TICKS = 3 * RuneSimulation.TICK_RATE;
 
         /// <summary>적 정의가 Hexa의 ID와 고정형 접촉 공격 규칙을 만족하는지 검증한다.</summary>
         internal static void Validate(EnemyDefinition enemy)
