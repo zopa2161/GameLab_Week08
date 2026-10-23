@@ -56,7 +56,8 @@ namespace RuneCode
             for (int index = 0; index < _heads.Length; index++)
             {
                 Vector2 end = LocalPoint(state.GetNeckEnd(enemy, index, simulation), enemy.Position);
-                bool isAttackNeck = state.Attack == HydraAttack.Stretch || isSpin && index < HydraBossState.SPIN_HEAD_COUNT;
+                bool isAttackNeck = state.Attack == HydraAttack.Stretch && index < HydraBossState.STRETCH_HEAD_COUNT
+                    || isSpin && index < HydraBossState.SPIN_HEAD_COUNT;
                 MissionWorldSpace.PlaceLine(_necks[index], lift, end + lift,
                     isAttackNeck ? (float)settings.NeckWidth : REST_NECK_WIDTH, enemy.IsFlashing ? Color.white : _tint);
                 MissionWorldSpace.Place(_heads[index], end + lift, HEAD_RADIUS * 2, enemy.IsFlashing ? Color.white : _tint);

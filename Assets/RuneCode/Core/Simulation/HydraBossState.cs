@@ -143,6 +143,7 @@ namespace RuneCode
     public sealed class HydraBossState
     {
         public const int HEAD_COUNT = 9;
+        public const int STRETCH_HEAD_COUNT = 6;
         public const int SPIN_HEAD_COUNT = 5;
         private const int REPEAT_COUNT = 3;
         private const int NECK_SWEEP_SAMPLES = 4;
@@ -285,9 +286,9 @@ namespace RuneCode
         private void RefreshStretchLengths(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation)
         {
             double reach = world.Map.Width + world.Map.Height;
-            for (int index = 0; index < HEAD_COUNT; index++)
+            for (int index = 0; index < STRETCH_HEAD_COUNT; index++)
             {
-                double angle = _angle + GetStretchRotation(_elapsed) + index * FULL_TURN / HEAD_COUNT;
+                double angle = _angle + GetStretchRotation(_elapsed) + index * FULL_TURN / STRETCH_HEAD_COUNT;
                 SimVector end = enemy.Position + new SimVector(Math.Cos(angle), Math.Sin(angle)) * reach;
                 double fraction = simulation.FirstWallFraction(enemy.Position, end, _settings.NeckWidth * 0.5);
                 _stretchLengths[index] = double.IsPositiveInfinity(fraction) ? reach : Math.Max(enemy.Radius, reach * fraction);
@@ -373,7 +374,7 @@ namespace RuneCode
         /// <summary>목 뻗기의 이전·현재 회전 경로를 여러 지점에서 검사해 빠른 회전 중 통과 누락을 막는다.</summary>
         private void HitNecks(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double, string> hurt)
         {
-            for (int index = 0; index < HEAD_COUNT; index++)
+            for (int index = 0; index < STRETCH_HEAD_COUNT; index++)
                 for (int sample = 0; sample <= NECK_SWEEP_SAMPLES; sample++)
                 {
                     double time = Math.Max(0, _elapsed - RuneSimulation.STEP_SECONDS * sample / NECK_SWEEP_SAMPLES);
@@ -425,8 +426,9 @@ namespace RuneCode
             double rest = enemy.Radius + REST_NECK_LENGTH;
             double length = rest;
             double angle = _angle + index * FULL_TURN / HEAD_COUNT;
-            if (_attack == HydraAttack.Stretch)
+            if (_attack == HydraAttack.Stretch && index < STRETCH_HEAD_COUNT)
             {
+                angle = _angle + index * FULL_TURN / STRETCH_HEAD_COUNT;
                 double time = elapsed - _settings.StretchWarning;
                 double progress = time < 0 ? 0 : time < _settings.StretchSeconds ? time / _settings.StretchSeconds
                     : 1 - Math.Max(0, time - _settings.StretchSeconds - _settings.StretchHold) / _settings.StretchRetractSeconds;
