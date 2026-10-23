@@ -42,7 +42,6 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _status;
 
         private WorkshopPresenter _presenter;
-        private readonly Vector3[] _graphCanvasCorners = new Vector3[4];
         private bool _showStageSelectionOnNextEntry;
         private TextMeshProUGUI _deployLabel;
         private string _deployDefaultText;
@@ -116,6 +115,7 @@ namespace RuneCode
         /// <summary>Esc로 합성·스테이지 선택을 먼저 닫고, 일반 작업실 화면에서는 설정을 열어 입력을 소비한다.</summary>
         public override bool HandleEscape()
         {
+            if (_spellEditor.GraphCanvas.CancelPickedModule()) return true;
             if (_spellEditor.IsSynthesisOpen) return _spellEditor.HandleSynthesisEscape();
             if (_deployRoot.gameObject.activeSelf) BackClicked?.Invoke();
             else SettingsClicked?.Invoke();
@@ -128,7 +128,7 @@ namespace RuneCode
         /// <summary>상태 토스트 문구를 표시한다.</summary>
         public void SetStatus(string text) => _status.text = text;
 
-        /// <summary>Screen Space Overlay 좌표의 토스트를 그래프 편집 영역 경계 안에 배치한다.</summary>
+        /// <summary>Screen Space Overlay 좌표의 토스트를 편집 영역과 무관하게 배치하고 게임 전체 화면 가장자리에서만 위치를 보정한다.</summary>
         public void SetStatusPosition(Vector2 screenPosition)
         {
             RectTransform screenRect = (RectTransform)transform;
@@ -143,21 +143,14 @@ namespace RuneCode
             }
 
             if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(screenRect, screenPosition, null, out Vector2 localPosition)) return;
-            RectTransform graphRect = _spellEditor.GraphCanvas.rectTransform;
-            graphRect.GetWorldCorners(_graphCanvasCorners);
-            Vector2 graphMinimum = screenRect.InverseTransformPoint(_graphCanvasCorners[0]);
-            Vector2 graphMaximum = graphMinimum;
-            for (int index = 1; index < _graphCanvasCorners.Length; index++)
-            {
-                Vector2 corner = screenRect.InverseTransformPoint(_graphCanvasCorners[index]);
-                graphMinimum = Vector2.Min(graphMinimum, corner);
-                graphMaximum = Vector2.Max(graphMaximum, corner);
-            }
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(screenRect, Vector2.zero, null, out Vector2 screenMinimum);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(screenRect, new Vector2(Screen.width, Screen.height), null,
+                out Vector2 screenMaximum);
             Rect statusBounds = statusRect.rect;
-            float minX = graphMinimum.x + statusBounds.width * statusRect.pivot.x + STATUS_TOAST_EDGE_PADDING;
-            float maxX = graphMaximum.x - statusBounds.width * (1f - statusRect.pivot.x) - STATUS_TOAST_EDGE_PADDING;
-            float minY = graphMinimum.y + statusBounds.height * statusRect.pivot.y + STATUS_TOAST_EDGE_PADDING;
-            float maxY = graphMaximum.y - statusBounds.height * (1f - statusRect.pivot.y) - STATUS_TOAST_EDGE_PADDING;
+            float minX = screenMinimum.x + statusBounds.width * statusRect.pivot.x + STATUS_TOAST_EDGE_PADDING;
+            float maxX = screenMaximum.x - statusBounds.width * (1f - statusRect.pivot.x) - STATUS_TOAST_EDGE_PADDING;
+            float minY = screenMinimum.y + statusBounds.height * statusRect.pivot.y + STATUS_TOAST_EDGE_PADDING;
+            float maxY = screenMaximum.y - statusBounds.height * (1f - statusRect.pivot.y) - STATUS_TOAST_EDGE_PADDING;
             float x = Mathf.Clamp(localPosition.x, minX, maxX);
             float y = Mathf.Clamp(localPosition.y, minY, maxY);
             statusRect.position = screenRect.TransformPoint(new Vector3(x, y, 0f));

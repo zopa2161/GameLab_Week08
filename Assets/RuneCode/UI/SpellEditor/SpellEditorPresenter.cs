@@ -72,7 +72,12 @@ namespace RuneCode
         /// <summary>팝업·문자 입력이 없으면 프레임마다 단축키를 처리한다.</summary>
         public void Tick()
         {
-            if (_synthesis.IsOpen || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (_synthesis.IsOpen || _ui.IsPopupOpen || UiFactory.IsTyping())
+            {
+                _view.GraphCanvas.CancelPickedModule();
+                return;
+            }
+            if (_view.GraphCanvas.HasPickedModule) return;
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null) HandleShortcuts(keyboard);
         }
