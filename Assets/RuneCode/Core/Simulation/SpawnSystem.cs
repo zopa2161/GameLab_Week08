@@ -37,13 +37,10 @@ namespace RuneCode
         /// <summary>현재 유한 웨이브의 미배출 편성·스폰 예고·분열 예약과 살아 있는 적 수를 합산한다.</summary>
         internal int RemainingWaveEnemyCount => _director.RemainingWaveSpawns + _pendingSpawns.Count + _pendingSplits.Count + _world.Enemies.Count;
 
-        /// <summary>진행 런은 체력 곡선 배율로 일반·엘리트 편성 수를 늘리고, 웨이브의 첫 틱 스폰과 예고 표시를 준비한다.</summary>
+        /// <summary>원본 웨이브 편성 수량으로 진행기를 만들고 첫 틱 스폰과 예고 표시를 준비한다.</summary>
         internal void StartWave(WaveDefinition wave)
         {
-            double countMultiplier = _world.IsProgressionMission
-                ? _world.Stages.Growth.GetActHpMultiplier(_world.StageNumber, _world.RoundNumber) : 1;
-            _director = new SpawnDirector(wave, _world.Formations, RuneSimulation.TICK_RATE, _world.Tick,
-                countMultiplier, _world.Bosses, _world.IsProgressionMission ? _world.Stages.Spawn.BatchIntervalSeconds : 0);
+            _director = new SpawnDirector(wave, _world.Formations, RuneSimulation.TICK_RATE, _world.Tick);
             AdvanceSpawns();
             RefreshSpawnWarnings();
         }
