@@ -15,12 +15,16 @@ namespace RuneCode
         private readonly SimVector _playerPosition;
         private readonly SimVector _aimDirection;
         private readonly SimVector? _aimPoint;
+        private int _firstActionPayment;
         public int Slot => _slot;
         public CompiledSpell Spell => _spell;
         public int CycleEndTick => _cycleEndTick;
         public SimVector PlayerPosition => _playerPosition;
         public SimVector AimDirection => _aimDirection;
         public SimVector? AimPoint => _aimPoint;
+
+        /// <summary>루트 첫 행동의 자원 지불 결과다. 0은 미결정, 1은 성공, -1은 자원 부족 실패다. 측정 통계에만 쓰인다.</summary>
+        public int FirstActionPayment => _firstActionPayment;
 
         /// <summary>슬롯·실행 루트·공통 주기와 종료 틱, 시전 시작 위치·조준 방향·포인터 좌표를 보관한다.</summary>
         public RootSpellExecution(int slot, CompiledSpell spell, int cycleTicks, int cycleEndTick,
@@ -33,6 +37,16 @@ namespace RuneCode
 
         /// <summary>명령이 슬롯 주기로 결제·연장할 직접 공격 빔인지 반환한다.</summary>
         public bool IsSlotCycleBeam(SpellAction action) => _spell.IsSlotCycleBeam(action);
+
+        /// <summary>행동 인스턴스가 이 루트의 첫 행동(actions[0])인지 반환한다.</summary>
+        public bool IsFirstRootAction(SpellAction action) => _actions.Count > 0 && ReferenceEquals(_actions[0], action);
+
+        /// <summary>루트 첫 행동의 자원 지불 결과를 첫 결정 한 번만 기록한다. 지불 지점 전에 상한으로 버려지면 기록되지 않는다.</summary>
+        public void RecordFirstActionPayment(bool isPaid)
+        {
+            if (_firstActionPayment != 0) return;
+            _firstActionPayment = isPaid ? 1 : -1;
+        }
 
         /// <summary>최초 생성 예약에 사용할 빔의 결제 완료 구간 비용을 저장한다.</summary>
         public void SetBeamCycleCosts(SpellAction action, ResourceCostSet costs) => _beamCycleCosts[action] = costs;

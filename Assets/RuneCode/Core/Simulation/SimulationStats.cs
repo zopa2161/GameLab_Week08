@@ -11,6 +11,8 @@ namespace RuneCode
         private readonly HashSet<int> _dirtyEnemyRows = new HashSet<int>();
 
         private readonly Queue<DamageSample> _damageWindow = new Queue<DamageSample>();
+        private readonly List<double> _damageBySecond = new List<double>();
+        private readonly Dictionary<int, double> _damageByEnemyId = new Dictionary<int, double>();
         private readonly Dictionary<string, double> _resourceCostsSpent = new Dictionary<string, double>(StringComparer.Ordinal);
         private readonly Dictionary<string, int> _killCounts = new Dictionary<string, int>();
         private readonly Dictionary<SpellAction, ActionCombatStats> _actionCombatStats = new Dictionary<SpellAction, ActionCombatStats>();
@@ -44,11 +46,23 @@ namespace RuneCode
         internal int ArcDamageEventCount { get; set; }
         /// <summary>빙결 부여 횟수다.</summary>
         internal int FreezeStartEventCount { get; set; }
+        /// <summary>루트 시전 시도 횟수다. 쿨다운을 시작해 true를 반환한 시전만 센다.</summary>
+        internal int RootCastAttempts { get; set; }
+        /// <summary>루트 첫 행동의 자원 지불에 성공한 시전 횟수다. 비용이 0이라 항상 성공하는 경우도 포함한다.</summary>
+        internal int RootCastSuccesses { get; set; }
+        /// <summary>루트 첫 행동의 자원 지불이 자원 부족으로 실패한 시전 횟수다.</summary>
+        internal int RootCastFailures { get; set; }
+        /// <summary>루트 첫 행동 지불이 처음 실패한 틱이다. 실패가 없으면 -1이다.</summary>
+        internal int FirstRootCastFailureTick { get; set; } = -1;
 
         /// <summary>처치한 적 종류별 횟수다. 처치 정리가 인덱스로 갱신하므로 같은 딕셔너리 인스턴스를 노출한다.</summary>
         internal Dictionary<string, int> KillCounts => _killCounts;
         /// <summary>자원별 소비 누계다. 같은 딕셔너리 인스턴스를 반환한다.</summary>
         internal IReadOnlyDictionary<string, double> ResourceCostsSpent => _resourceCostsSpent;
+        /// <summary>초 버킷별 실제 피해 누적값이다. 같은 리스트 인스턴스를 읽기 전용으로 노출한다.</summary>
+        internal IReadOnlyList<double> DamageBySecond => _damageBySecond;
+        /// <summary>적 ID별 실제 피해 누적값이다. 같은 딕셔너리 인스턴스를 읽기 전용으로 노출한다.</summary>
+        internal IReadOnlyDictionary<int, double> DamageByEnemyId => _damageByEnemyId;
         /// <summary>마나 자원의 소비 누계다. 기록이 없으면 0이다.</summary>
         internal double EnergySpent => _resourceCostsSpent.TryGetValue("mana", out double amount) ? amount : 0;
 
@@ -117,10 +131,15 @@ namespace RuneCode
             return result;
         }
 
-        /// <summary>실제 피해를 총 피해와 롤링 DPS 누적에 더하고 5초 창에 샘플을 넣는다.</summary>
-        internal void RecordEnemyDamage(double actual, int tick)
+        /// <summary>실제 피해를 총 피해와 롤링 DPS 누적, 초 버킷과 적별 누계에 더하고 5초 창에 샘플을 넣는다.</summary>
+        internal void RecordEnemyDamage(double actual, int tick, int enemyId)
         {
             TotalDamage += actual; RollingDamage += actual; _damageWindow.Enqueue(new DamageSample(tick, actual));
+            int second = tick / RuneSimulation.TICK_RATE;
+            while (_damageBySecond.Count <= second) _damageBySecond.Add(0d);
+            _damageBySecond[second] += actual;
+            _damageByEnemyId.TryGetValue(enemyId, out double byEnemy);
+            _damageByEnemyId[enemyId] = byEnemy + actual;
         }
 
         /// <summary>자원별 소비량을 기존 누계에 더한다.</summary>
@@ -142,6 +161,8 @@ namespace RuneCode
             _enemyLogRows.Clear();
             _dirtyEnemyRows.Clear();
             _damageWindow.Clear();
+            _damageBySecond.Clear();
+            _damageByEnemyId.Clear();
             _killCounts.Clear();
             TotalDamage = 0; StatusDamage = 0; PersistDamage = 0; RollingDamage = 0; _resourceCostsSpent.Clear(); PeakSpellEntities = 0;
             NodeExecutionCount = 0;
@@ -153,6 +174,10 @@ namespace RuneCode
             BurnTickDamageEventCount = 0;
             ArcDamageEventCount = 0;
             FreezeStartEventCount = 0;
+            RootCastAttempts = 0;
+            RootCastSuccesses = 0;
+            RootCastFailures = 0;
+            FirstRootCastFailureTick = -1;
         }
 
         /// <summary>장착된 행동을 순회하고 노드별 실제 피해와 OnHit 후속 생성 누계를 로그용 복사본으로 반환한다.</summary>
@@ -221,6 +246,15 @@ namespace RuneCode
                 _actionCombatStats.Add(action, stats);
             }
             return stats;
+        }
+
+        /// <summary>노드 ID별 실제 피해 합계(직접 및 상태이상)를 반환한다. 같은 노드 ID의 행동은 합산하고 기록이 없으면 0이다.</summary>
+        internal double GetNodeDamage(string nodeId)
+        {
+            double total = 0;
+            foreach (KeyValuePair<SpellAction, ActionCombatStats> entry in _actionCombatStats)
+                if (entry.Key.NodeId == nodeId) total += entry.Value.Damage;
+            return total;
         }
 
         /// <summary>실제로 생성된 개체만 세고 OnHit 문맥이면 원본 행동과 후속 행동의 연결 누계를 함께 갱신한다.</summary>

@@ -144,6 +144,7 @@ namespace RuneCode
                 caster: _world.Player, randomState: new SpellRandomState());
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
             ExecuteRootBranches(spell.Root, context, tracker);
+            RecordRootCastPayment(rootCast);
             return true;
         }
 
@@ -269,8 +270,10 @@ namespace RuneCode
             if (!_beam.TrySpendBeamCosts(costs))
             {
                 active?.Stop();
+                RecordRootFirstActionPayment(tracker, action, isPaid: false);
                 return;
             }
+            RecordRootFirstActionPayment(tracker, action, isPaid: true);
             RecordNode(action.NodeId);
             if (active != null)
             {
@@ -315,8 +318,10 @@ namespace RuneCode
                     }
                     if (!TrySpendFor(action, context))
                     {
+                        RecordRootFirstActionPayment(tracker, action, isPaid: false);
                         continue;
                     }
+                    RecordRootFirstActionPayment(tracker, action, isPaid: true);
                     RecordNode(action.NodeId);
                     tracker.Acquire();
                     if (durationTicks == 0) CompleteAction(action, context, tracker);
@@ -380,6 +385,28 @@ namespace RuneCode
             string element = _unlockedElements[index];
             context.RandomState.SetNoiseElement(element);
             return element;
+        }
+
+        /// <summary>
+        /// 루트 시전 시도와 첫 행동 자원 지불 결과를 통계에 기록한다. 지불 지점 전에 틱당·예약 상한으로 버려진 시전은 시도에만 포함한다.
+        /// 첫 실패 틱은 이 지점의 _world.Tick으로 확정한다.
+        /// </summary>
+        private void RecordRootCastPayment(RootSpellExecution rootCast)
+        {
+            _stats.RootCastAttempts++;
+            if (rootCast.FirstActionPayment > 0) _stats.RootCastSuccesses++;
+            else if (rootCast.FirstActionPayment < 0)
+            {
+                _stats.RootCastFailures++;
+                if (_stats.FirstRootCastFailureTick < 0) _stats.FirstRootCastFailureTick = _world.Tick;
+            }
+        }
+
+        /// <summary>루트 첫 행동의 자원 지불 결과를 루트 실행 플래그에 기록한다. 이벤트 후속과 루트의 예약 분기는 첫 행동이 아니므로 제외된다.</summary>
+        private static void RecordRootFirstActionPayment(ExecutionTracker tracker, SpellAction action, bool isPaid)
+        {
+            RootSpellExecution root = tracker.RootCast;
+            if (root != null && root.IsFirstRootAction(action)) root.RecordFirstActionPayment(isPaid);
         }
 
         /// <summary>
