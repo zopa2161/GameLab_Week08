@@ -86,13 +86,17 @@ namespace RuneCode
         public double WaveWidth => _waveWidth;
         public double WaveDamage => _waveDamage;
 
-        [Header("회전")]
+        [Header("회전 돌진")]
         [SerializeField] private double _spinWarning;
         [SerializeField] private double _spinLength;
-        [SerializeField] private double _spinSeconds;
+        [SerializeField, Tooltip("목이 한 바퀴 회전하는 데 걸리는 시간입니다.")] private double _spinSeconds;
+        [SerializeField] private double _spinDashBodyLengths;
+        [SerializeField] private double _spinDashSeconds;
         public double SpinWarning => _spinWarning;
         public double SpinLength => _spinLength;
         public double SpinSeconds => _spinSeconds;
+        public double SpinDashBodyLengths => _spinDashBodyLengths;
+        public double SpinDashSeconds => _spinDashSeconds;
 
         /// <summary>시간·범위·피해의 양수, 반사 조준의 확률·각도 범위와 피해 배율·도약 주기를 검증한다.</summary>
         internal void Validate()
@@ -102,7 +106,7 @@ namespace RuneCode
                 _stretchRetractSeconds, _retractSeconds, _poisonTrack, _poisonLock, _poisonOrbSpeed, _poisonOrbRadius, _poisonOrbLifetime, _poisonRadius, _poisonDamage,
                 _poisonLifetime, _poisonTickDamage, _poisonTickInterval, _stompInterval, _stompWindup, _stompApproachSeconds,
                 _stompSpeed, _waveRadius, _waveSeconds, _waveWidth, _waveDamage, _spinWarning, _spinLength, _spinSeconds,
-                _poisonBounceMaxOffsetDegrees };
+                _poisonBounceMaxOffsetDegrees, _spinDashBodyLengths, _spinDashSeconds };
             foreach (double value in values)
                 if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0)
                     throw new FormatException("Hydra 설정은 유한한 양수여야 합니다.");

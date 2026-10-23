@@ -80,10 +80,11 @@ namespace RuneCode
                 if (enemy.IsDummy) continue;
                 if (enemy.Hydra != null)
                 {
+                    bool wasSpin = enemy.Hydra.Attack == HydraAttack.Spin;
                     _bossSourceEnemyId = enemy.Id;
                     enemy.Hydra.Advance(enemy, _world, _simulation, _hurtPlayer);
                     _bossSourceEnemyId = 0;
-                    if (!enemy.Hydra.IsAirborne) HurtByContact(enemy);
+                    if (!wasSpin && enemy.Hydra.Attack != HydraAttack.Spin && !enemy.Hydra.IsAirborne) HurtByContact(enemy);
                     continue;
                 }
                 if (_statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze))

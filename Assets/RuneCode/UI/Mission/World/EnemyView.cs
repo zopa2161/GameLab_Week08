@@ -118,7 +118,7 @@ namespace RuneCode
             MissionWorldSpace.SetVisible(_hpFill, ratio > 0);
             if (ratio > 0) MissionWorldSpace.PlaceLine(_hpFill, new Vector2(-width * 0.5f, barY), new Vector2(-width * 0.5f + width * ratio, barY), HP_BAR_HEIGHT, tint);
             ApplyAdditionalIndicators(enemy, sim);
-            if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, _body, _rotator);
+            if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, sim, _body, _rotator);
             if (_legolasView != null && enemy.Legolas != null) _legolasView.Apply(enemy, _body, _rotator);
         }
 

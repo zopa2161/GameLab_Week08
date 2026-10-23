@@ -165,6 +165,10 @@ namespace RuneCode
         private SimVector _jumpOrigin;
         private SimVector _jumpTarget;
         private bool _hasJumpStarted;
+        private SimVector _spinOrigin;
+        private SimVector _spinTarget;
+        private double _spinDashDuration;
+        private bool _hasSpinHit;
         private double _damageBudget;
         private double _lastDamageAt;
 
@@ -176,10 +180,14 @@ namespace RuneCode
         public double PoisonChargeProgress => Math.Max(0, Math.Min(1, _elapsed / (_settings.PoisonTrack + _settings.PoisonLock)));
         public IReadOnlyList<HydraPoison> Poisons => _poisons;
         public IReadOnlyList<HydraWave> Waves => _waves;
+        public SimVector SpinOrigin => _spinOrigin;
+        public SimVector SpinTarget => _spinTarget;
+        public SimVector SpinDirection => new SimVector(Math.Cos(_angle), Math.Sin(_angle));
+        public double SpinDashDuration => _spinDashDuration;
         public bool IsNeckWarning => _attack == HydraAttack.Stretch && _elapsed < _settings.StretchWarning
             || _attack == HydraAttack.Spin && _elapsed < _settings.SpinWarning;
         public bool IsNeckActive => _attack == HydraAttack.Stretch && _elapsed >= _settings.StretchWarning
-            || _attack == HydraAttack.Spin && _elapsed >= _settings.SpinWarning && _elapsed < _settings.SpinWarning + _settings.SpinSeconds;
+            || _attack == HydraAttack.Spin && _elapsed >= _settings.SpinWarning && _elapsed < _settings.SpinWarning + _spinDashDuration;
         public bool IsPoisonWarning => _attack == HydraAttack.Poison;
         public bool IsStompWarning => _attack == HydraAttack.Stomp && StompLocalTime < _settings.StompWindup + _settings.StompApproachSeconds;
         public bool IsAirborne => _attack == HydraAttack.Stomp && _hasJumpStarted
@@ -230,14 +238,13 @@ namespace RuneCode
                     enemy.Move(enemy.Position, new SimVector(Math.Cos(stretchAngle), Math.Sin(stretchAngle)));
                     if (_elapsed >= _settings.StretchWarning + _settings.StretchSeconds)
                         RefreshStretchLengths(enemy, world, simulation);
-                    if (IsNeckActive) HitNecks(enemy, world, hurt);
+                    if (IsNeckActive) HitNecks(enemy, world, simulation, hurt);
                     if (_elapsed >= _settings.StretchWarning + _settings.StretchSeconds + _settings.StretchHold + _settings.StretchRetractSeconds) FinishAttack(world.Time);
                     break;
                 case HydraAttack.Poison: AdvancePoison(enemy, world, simulation); break;
                 case HydraAttack.Stomp: AdvanceStomp(enemy, world, simulation); break;
                 case HydraAttack.Spin:
-                    if (IsNeckActive) HitNecks(enemy, world, hurt);
-                    if (_elapsed >= _settings.SpinWarning + _settings.SpinSeconds + _settings.RetractSeconds) FinishAttack(world.Time);
+                    AdvanceSpin(enemy, world, hurt);
                     break;
             }
         }
@@ -256,6 +263,19 @@ namespace RuneCode
             _poisonTarget = world.Player.Position;
             SimVector offset = world.Player.Position - enemy.Position;
             _angle = Math.Atan2(offset.Y, offset.X);
+            if (_attack == HydraAttack.Spin)
+            {
+                _spinOrigin = enemy.Position;
+                _hasSpinHit = false;
+                SimVector direction = new SimVector(Math.Cos(_angle), Math.Sin(_angle));
+                double distance = enemy.Radius * 2 * _settings.SpinDashBodyLengths;
+                SimVector displacement = direction * distance;
+                double wall = simulation.FirstWallFraction(_spinOrigin, _spinOrigin + displacement, enemy.Radius);
+                double fraction = double.IsPositiveInfinity(wall) ? 1 : Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON);
+                _spinTarget = _spinOrigin + displacement * fraction;
+                _spinDashDuration = _settings.SpinDashSeconds * fraction;
+                enemy.Move(enemy.Position, direction);
+            }
             if (_attack != HydraAttack.Stretch) return;
             RefreshStretchLengths(enemy, world, simulation);
         }
@@ -349,28 +369,58 @@ namespace RuneCode
             enemy.Move(world.Map.Move(enemy.Position, direction * distance, enemy.Radius), direction);
         }
 
-        /// <summary>목의 이전·현재 회전 경로를 여러 지점에서 검사해 빠른 회전 중 통과 누락을 막는다.</summary>
-        private void HitNecks(SimulationEnemy enemy, SimulationWorld world, Action<double> hurt)
+        /// <summary>목 뻗기의 이전·현재 회전 경로를 여러 지점에서 검사해 빠른 회전 중 통과 누락을 막는다.</summary>
+        private void HitNecks(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double> hurt)
         {
-            int count = _attack == HydraAttack.Spin ? SPIN_HEAD_COUNT : HEAD_COUNT;
-            for (int index = 0; index < count; index++)
+            for (int index = 0; index < HEAD_COUNT; index++)
                 for (int sample = 0; sample <= NECK_SWEEP_SAMPLES; sample++)
                 {
                     double time = Math.Max(0, _elapsed - RuneSimulation.STEP_SECONDS * sample / NECK_SWEEP_SAMPLES);
-                    SimVector end = GetNeckEnd(enemy, index, time, false);
+                    SimVector end = GetNeckEnd(enemy, index, time, false, simulation);
                     if (SpellGeometry.SegmentDistance(enemy.Position, end, world.Player.Position) > _settings.NeckWidth * 0.5 + world.Sector.PlayerRadius) continue;
                     hurt(_settings.NeckDamage * enemy.DamageMultiplier);
                     return;
                 }
         }
 
-        /// <summary>表示用の現在または予告用の最大長の頭位置をシミュレーション座標で返す。</summary>
-        public SimVector GetNeckEnd(SimulationEnemy enemy, int index, bool isPreview = false)
-            => GetNeckEnd(enemy, index, _elapsed, isPreview);
+        /// <summary>고정 경로로 한 번 돌진하며 목의 최대 범위를 채운 직사각형으로 한 번만 피해를 주고 벽 또는 목표에 도달하면 목을 회수한다.</summary>
+        private void AdvanceSpin(SimulationEnemy enemy, SimulationWorld world, Action<double> hurt)
+        {
+            double previous = Math.Max(_settings.SpinWarning, _elapsed - RuneSimulation.STEP_SECONDS);
+            double current = Math.Min(_elapsed, _settings.SpinWarning + _spinDashDuration);
+            enemy.Move(GetSpinPosition(_elapsed), new SimVector(Math.Cos(_angle), Math.Sin(_angle)));
+            if (!_hasSpinHit && world.IsMission && !world.DebugInvulnerable && !world.Player.IsInvulnerable(world.Time)
+                && _spinDashDuration > RuneSimulation.COLLISION_EPSILON && current > previous + RuneSimulation.COLLISION_EPSILON)
+            {
+                double halfExtent = GetSpinHalfExtent(enemy);
+                bool hasHit = SpellGeometry.IntersectsBoxSweep(GetSpinPosition(previous), GetSpinPosition(current), SpinDirection,
+                    halfExtent, halfExtent, world.Player.Position, world.Sector.PlayerRadius);
+                if (hasHit) { _hasSpinHit = true; hurt(_settings.NeckDamage * enemy.DamageMultiplier); }
+            }
+            if (_elapsed + RuneSimulation.COLLISION_EPSILON >= _settings.SpinWarning + _spinDashDuration + _settings.RetractSeconds)
+                FinishAttack(world.Time);
+        }
+
+        /// <summary>지정 경과 시간의 몸체 위치를 벽 앞에서 제한된 고정 돌진 경로에서 반환한다.</summary>
+        public SimVector GetSpinPosition(double elapsed)
+        {
+            double progress = _spinDashDuration <= RuneSimulation.COLLISION_EPSILON ? 0
+                : Math.Max(0, Math.Min(1, (elapsed - _settings.SpinWarning) / _spinDashDuration));
+            return _spinOrigin + (_spinTarget - _spinOrigin) * progress;
+        }
+
+        /// <summary>몸체 반경과 확장한 목 길이·두께를 포함하는 돌진 직사각형의 반너비·반길이를 반환한다.</summary>
+        public double GetSpinHalfExtent(SimulationEnemy enemy)
+            => Math.Max(enemy.Radius, _settings.SpinLength + _settings.NeckWidth * 0.5);
+
+        /// <summary>현재 또는 예고용 최대 길이의 머리 위치를 목의 벽 충돌을 반영해 시뮬레이션 좌표로 반환한다.</summary>
+        public SimVector GetNeckEnd(SimulationEnemy enemy, int index, RuneSimulation simulation, bool isPreview = false)
+            => GetNeckEnd(enemy, index, _elapsed, isPreview, simulation);
 
         /// <summary>지정 경과 시간에서 목의 배치·신축·회전각을 계산해 판정과 표시가 공유하는 끝점을 반환한다.</summary>
-        private SimVector GetNeckEnd(SimulationEnemy enemy, int index, double elapsed, bool isPreview)
+        private SimVector GetNeckEnd(SimulationEnemy enemy, int index, double elapsed, bool isPreview, RuneSimulation simulation)
         {
+            SimVector center = _attack == HydraAttack.Spin ? GetSpinPosition(elapsed) : enemy.Position;
             double rest = enemy.Radius + REST_NECK_LENGTH;
             double length = rest;
             double angle = _angle + index * FULL_TURN / HEAD_COUNT;
@@ -384,17 +434,23 @@ namespace RuneCode
             }
             else if (_attack == HydraAttack.Spin && index < SPIN_HEAD_COUNT)
             {
-                double spinTime = Math.Max(0, Math.Min(_settings.SpinSeconds, elapsed - _settings.SpinWarning));
+                double spinTime = Math.Max(0, Math.Min(_spinDashDuration, elapsed - _settings.SpinWarning));
                 angle = _angle + index * FULL_TURN / SPIN_HEAD_COUNT + spinTime / _settings.SpinSeconds * FULL_TURN;
                 double progress = elapsed < _settings.SpinWarning ? elapsed / _settings.SpinWarning
-                    : 1 - Math.Max(0, elapsed - _settings.SpinWarning - _settings.SpinSeconds) / _settings.RetractSeconds;
+                    : 1 - Math.Max(0, elapsed - _settings.SpinWarning - _spinDashDuration) / _settings.RetractSeconds;
                 length = isPreview ? _settings.SpinLength : rest + (_settings.SpinLength - rest) * Math.Max(0, Math.Min(1, progress));
             }
-            return enemy.Position + new SimVector(Math.Cos(angle), Math.Sin(angle)) * length;
+            SimVector end = center + new SimVector(Math.Cos(angle), Math.Sin(angle)) * length;
+            if (_attack == HydraAttack.Spin)
+            {
+                double wall = simulation.FirstWallFraction(center, end, _settings.NeckWidth * 0.5);
+                if (!double.IsPositiveInfinity(wall)) end = center + (end - center) * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON);
+            }
+            return end;
         }
 
         /// <summary>전투 취소 시 공격과 잔류물 목록을 비워 재표시 때 이전 판정을 남기지 않는다.</summary>
-        internal void Cancel() { _attack = HydraAttack.Idle; _elapsed = 0; _hasJumpStarted = false; _poisons.Clear(); _waves.Clear(); }
+        internal void Cancel() { _attack = HydraAttack.Idle; _elapsed = 0; _hasJumpStarted = false; _hasSpinHit = false; _spinDashDuration = 0; _poisons.Clear(); _waves.Clear(); }
 
         /// <summary>추첨 결과·공격 시각·목 길이·피해 예산·잔류물 상태를 결정성 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
@@ -402,6 +458,7 @@ namespace RuneCode
             state.Append(FormattableString.Invariant($"|hydra:{_attack}:{_lastAttack}:{_startedAt:R}:{_elapsed:R}:{_cooldownUntil:R}:{_angle:R}:{_repeat}:{_poisonTarget.X:R}:{_poisonTarget.Y:R}:{_damageBudget:R}:{_lastDamageAt:R}"));
             state.Append(FormattableString.Invariant($"|jump:{_jumpOrigin.X:R}:{_jumpOrigin.Y:R}:{_jumpTarget.X:R}:{_jumpTarget.Y:R}:{_hasJumpStarted}"));
             state.Append(FormattableString.Invariant($"|poisonOrigin:{_poisonOrigin.X:R}:{_poisonOrigin.Y:R}"));
+            state.Append(FormattableString.Invariant($"|spinDash:{_spinOrigin.X:R}:{_spinOrigin.Y:R}:{_spinTarget.X:R}:{_spinTarget.Y:R}:{_spinDashDuration:R}:{_hasSpinHit}"));
             foreach (double length in _stretchLengths) SimHash.AppendNumber(state, length);
             foreach (HydraPoison poison in _poisons) poison.WriteState(state);
             foreach (HydraWave wave in _waves) wave.WriteState(state);

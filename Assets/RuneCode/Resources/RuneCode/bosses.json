@@ -57,7 +57,9 @@
         "_waveDamage": 18,
         "_spinWarning": 0.9,
         "_spinLength": 230,
-        "_spinSeconds": 0.9
+        "_spinSeconds": 0.1,
+        "_spinDashBodyLengths": 5,
+        "_spinDashSeconds": 0.6
       }
     },
     {
