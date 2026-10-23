@@ -271,6 +271,7 @@ namespace RuneCode
         public const string GOVERNOR_PATTERN = "governor";
         public const string MINI_GOVERNOR_PATTERN = "mini_governor";
         public const string HYDRA_PATTERN = "hydra";
+        public const string LEGOLAS_PATTERN = "legolas";
 
         [Header("보스 패턴")]
         [SerializeField] private string _enemyId;
@@ -290,6 +291,8 @@ namespace RuneCode
         [SerializeField] private string _dropTable;
         [Header("Hydra")]
         [SerializeField] private HydraDefinition _hydra;
+        [Header("레골라스")]
+        [SerializeField] private LegolasDefinition _legolas;
         public string EnemyId => _enemyId;
         public string Pattern => _pattern;
         public double PhaseTwoThreshold => _phaseTwoThreshold;
@@ -302,10 +305,13 @@ namespace RuneCode
         public double PreferredDistance => _preferredDistance;
         public BossReinforcement Reinforcement => _reinforcement;
         public string DropTable => _dropTable;
-        public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN || IsMiniBoss;
-        public bool IsMiniBoss => _pattern == MINI_GOVERNOR_PATTERN;
+        public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN || IsMiniGovernorPattern;
+        public bool IsMiniGovernorPattern => _pattern == MINI_GOVERNOR_PATTERN;
+        public bool IsMiniBoss => IsMiniGovernorPattern || IsLegolasPattern;
         public bool IsHydraPattern => _pattern == HYDRA_PATTERN;
         public HydraDefinition Hydra => _hydra;
+        public bool IsLegolasPattern => _pattern == LEGOLAS_PATTERN;
+        public LegolasDefinition Legolas => _legolas;
 
         /// <summary>페이즈에 대응하는 장판 세트 설정을 반환하고 2페이즈가 아니면 3페이즈 설정을 반환한다.</summary>
         public BossHazard GetHazard(int phase)
@@ -314,13 +320,20 @@ namespace RuneCode
         /// <summary>패턴 이름, 페이즈 문턱, 공격 주기, 장판 세트 설정과 증원의 적·진형 참조를 검증하고 모르는 값이나 증원에 쓸 수 없는 맵형 진형에는 데이터 오류를 발생시킨다.</summary>
         public void Validate(EnemyCatalog enemies, FormationCatalog formations)
         {
-            if (IsMiniBoss)
+            if (IsMiniGovernorPattern)
             {
                 if (!IsPositive(_phaseTwoThreshold) || _phaseTwoThreshold >= 1 || !IsPositive(_patchSeconds)
                     || _radialCount < 1 || !IsPositive(_radialInterval) || !IsPositive(_aimInterval)
                     || _aimInterval >= _radialInterval || !IsPositive(_preferredDistance)
                     || !IsPositive(enemies.Get(_enemyId).WarningSeconds))
                     throw new FormatException("미니 거버너의 페이즈·사격·예고 설정 오류입니다: " + _enemyId);
+                return;
+            }
+            if (IsLegolasPattern)
+            {
+                if (_legolas == null || enemies.Get(_enemyId).Attack != EnemyDefinition.ATTACK_SNIPER)
+                    throw new FormatException("레골라스의 저격 또는 패턴 설정이 없습니다: " + _enemyId);
+                _legolas.Validate();
                 return;
             }
             if (IsHydraPattern)

@@ -361,6 +361,25 @@
       "_reward": 30,
       "_damage": 8,
       "_burstInterval": 0.16
+    },
+    {
+      "_id": "boss.legolas",
+      "_hp": 480,
+      "_speed": 0,
+      "_radius": 26,
+      "_movement": "sniper",
+      "_attack": "sniper",
+      "_damage": 8,
+      "_attackInterval": 2,
+      "_attackRange": 1200,
+      "_aimSeconds": 0.65,
+      "_lockSeconds": 0.2,
+      "_projectileSpeed": 1800,
+      "_projectileRadius": 20,
+      "_projectileLifetime": 0.75,
+      "_reward": 30,
+      "_sides": 4,
+      "_dropTable": ""
     }
   ]
 }

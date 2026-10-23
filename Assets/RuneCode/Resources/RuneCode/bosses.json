@@ -64,6 +64,26 @@
       "_aimInterval": 1.8,
       "_preferredDistance": 200,
       "_dropTable": ""
+    },
+    {
+      "_enemyId": "boss.legolas",
+      "_pattern": "legolas",
+      "_legolas": {
+        "_initialDelay": 1.2,
+        "_attackCooldown": 1.1,
+        "_jumpWindup": 0.3,
+        "_jumpDistance": 220,
+        "_jumpSeconds": 0.45,
+        "_wallEscapeMargin": 500,
+        "_escapeJumpDistance": 360,
+        "_playerClearance": 24,
+        "_areaWarning": 0.55,
+        "_areaFlight": 0.5,
+        "_areaRadius": 75,
+        "_areaDamage": 8,
+        "_scatterRadius": 140,
+        "_minimumTargetDistance": 90
+      }
     }
   ]
 }

@@ -301,6 +301,7 @@ namespace RuneCode
         private readonly EnemyMovementType _movementType;
         private readonly BossDefinition _boss;
         private HydraBossState _hydra;
+        private LegolasBossState _legolas;
         private readonly bool _isDummy;
         private readonly bool _isElite;
         private readonly bool _isKillTarget;
@@ -370,6 +371,7 @@ namespace RuneCode
         public EnemyDefinition Definition => _definition;
         public BossDefinition Boss => _boss;
         public HydraBossState Hydra => _hydra;
+        public LegolasBossState Legolas => _legolas;
         public SimVector AttackOrigin => _attackOrigin;
         public SimVector AimedDirection => _attackDirection;
         public bool IsAiming => _aimUntil > 0;
@@ -410,10 +412,11 @@ namespace RuneCode
         /// <summary>예고, 패치 및 피격 표시 판정에 사용할 관측 시각을 갱신한다.</summary>
         internal void Observe(double time) { _observedTime = time; }
 
-        /// <summary>Hydra 정의가 있는 적에 생성 시각과 개별 최대 체력을 반영한 공격·피해 예산 상태를 만든다.</summary>
-        internal void InitializeHydra(double time)
+        /// <summary>보스 정의에 맞춰 생성 시각·최대 체력을 사용하는 Hydra 상태 또는 레골라스 공격 상태를 만든다.</summary>
+        internal void InitializeBossState(double time)
         {
             if (_boss != null && _boss.IsHydraPattern) _hydra = new HydraBossState(_boss.Hydra, time, _maxHp);
+            if (_boss != null && _boss.IsLegolasPattern) _legolas = new LegolasBossState(_boss.Legolas);
         }
 
         /// <summary>적 위치와 바라볼 방향을 갱신한다. 방향 전환 시간이 설정된 적은 이번 틱 최대 회전각만큼 목표 방향으로 돌고, 없으면 즉시 향한다.</summary>
@@ -510,7 +513,8 @@ namespace RuneCode
         {
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
             _hydra?.WriteState(state);
-            if (_boss != null && _boss.IsMiniBoss) state.Append('|').Append(_isNextBossBurst);
+            if (_boss != null && _boss.IsMiniGovernorPattern) state.Append('|').Append(_isNextBossBurst);
+            _legolas?.WriteState(state);
             if (_pendingDisplacementTick >= 0 || _displacementRemaining > 0)
                 state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));
             state.Append(FormattableString.Invariant($"|{_damage:R}|{_damageMultiplier:R}|{_reward}"));
@@ -854,12 +858,15 @@ namespace RuneCode
         private readonly double _lifetime;
         private readonly bool _isHazard;
         private readonly double _warning;
+        private readonly SimulationEnemy _owner;
         private SimVector _position;
         private double _age;
         public SimVector Position => _position;
         public SimVector Direction => _direction;
         public double Radius => _radius;
         public bool IsExplosion => _isExplosion;
+        /// <summary>이 탄환을 발사한 보스 정의다. 소유자가 없거나 일반 적이면 null이다.</summary>
+        public BossDefinition OwnerBoss => _owner?.Boss;
         public double Age => _age;
         public bool IsHazard => _isHazard;
         public bool IsWarning => _isHazard && _age < _warning;
@@ -867,17 +874,18 @@ namespace RuneCode
         internal int SourceEnemyId => _sourceEnemyId;
         internal double Damage => _damage;
         internal double Lifetime => _lifetime;
+        internal bool HasDeadOwner => _owner != null && !_owner.IsAlive;
 
-        /// <summary>위치·공격 설정으로 적 탄환 또는 예고 장판을 생성하고 피해 귀속용 원래 적 ID를 보관한다.</summary>
-        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0)
-        { _sourceEnemyId = sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; }
+        /// <summary>위치·공격 설정과 피해 귀속용 적 ID로 탄환 또는 예고 장판을 만든다. 선택적 소유자가 있으면 해당 ID를 사용하고 사망 시 정리한다.</summary>
+        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0, SimulationEnemy owner = null)
+        { _sourceEnemyId = owner != null ? owner.Id : sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; _owner = owner; }
 
         /// <summary>탄환의 위치와 수명을 고정 시간만큼 진행한다.</summary>
         internal void Advance(double dt) { _age += dt; _position += _direction * (_speed * dt); }
 
         /// <summary>적 탄환의 이동, 예고, 피해 및 수명 상태를 결정성 해시 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
-        { state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_speed:R}|{_damage:R}|{_radius:R}|{_lifetime:R}|{_isHazard}|{_warning:R}|{_age:R}")); if (_isExplosion) state.Append("|explosion"); }
+        { state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_speed:R}|{_damage:R}|{_radius:R}|{_lifetime:R}|{_isHazard}|{_warning:R}|{_age:R}")); if (_isExplosion) state.Append("|explosion"); if (_owner != null) state.Append(FormattableString.Invariant($"|owner:{_owner.Id}:{_owner.IsAlive}")); }
     }
 
     public struct FragmentOrb
