@@ -165,12 +165,12 @@ namespace RuneCode
             _pendingSpawns.Add(new PendingSpawn(_world.Tick + warningTicks, enemyId, position, elite, isKillTarget, warningCenter, warningRadius));
         }
 
-        /// <summary>Hexa의 고정 생성 위치인 맵 중앙에 생성 예고를 등록하고 경고 시간이 지난 뒤 생성되도록 대기시킨다. 예고 반경은 Hexa의 반경을 쓴다.</summary>
+        /// <summary>Hexa의 고정 생성 위치인 맵 중앙에 생성 예고를 등록하고 경고 시간이 지난 뒤 생성되도록 대기시킨다. 실제 생성 후 자동 공격을 시작하며 예고 반경은 Hexa의 반경을 쓴다.</summary>
         private void EnqueueHexaSpawn(string enemyId, EliteSpawnDefinition elite, bool isKillTarget, double radius)
         {
             SimVector center = new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
             int warningTicks = (int)Math.Round(_world.Stages.Spawn.WarningSeconds * RuneSimulation.TICK_RATE);
-            _pendingSpawns.Add(new PendingSpawn(_world.Tick + warningTicks, enemyId, center, elite, isKillTarget, center, radius));
+            _pendingSpawns.Add(new PendingSpawn(_world.Tick + warningTicks, enemyId, center, elite, isKillTarget, center, radius, startsHexaAutoOperation: true));
         }
 
         /// <summary>
@@ -197,7 +197,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 생성 틱에 도달한 대기 스폰을 등록 순서대로 생성하고 접촉 피해 유예를 준다. 적 수가 상한이라 생성하지 못하면 남은 항목을 다음 틱에 다시 시도한다.
+        /// 생성 틱에 도달한 대기 스폰을 등록 순서대로 생성하고 접촉 피해 유예와 예약된 Hexa 자동 공격 시작을 적용한다. 적 수가 상한이라 생성하지 못하면 남은 항목을 다음 틱에 다시 시도한다.
         /// </summary>
         internal void AdvancePendingSpawns()
         {
@@ -207,6 +207,9 @@ namespace RuneCode
                 if (spawn.Tick > _world.Tick) { i++; continue; }
                 SimulationEnemy enemy = SpawnEnemy(spawn.EnemyId, spawn.Position, false, 0, spawn.Elite, spawn.IsKillTarget);
                 if (enemy == null) return;
+                if (spawn.StartsHexaAutoOperation)
+                    enemy.Hexa.BeginAutoOperation(_world.EnemyCatalog.Get(HexaDefinition.PROJECTILE_SOURCE_ID),
+                        _world.EnemyCatalog.Get(HexaDefinition.SNIPER_SOURCE_ID));
                 enemy.ContactGraceUntil = _world.Time + _world.Stages.Spawn.SpawnGraceSeconds;
                 _pendingSpawns.RemoveAt(i);
             }
