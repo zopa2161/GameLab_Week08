@@ -310,7 +310,8 @@ namespace RuneCode.Editor
             if (_foldGrowth)
             {
                 SerializedProperty growth = root.FindPropertyRelative("_growth");
-                DrawDoubleFieldLayout(growth.FindPropertyRelative("_hpStageScale"), new GUIContent("체력 증가율", "스테이지당 체력 배율 증가. 0.15 = 스테이지당 +15%"));
+                DrawHpCurveSettings(growth);
+                DrawDoubleFieldLayout(growth.FindPropertyRelative("_hpStageScale"), new GUIContent("별도 미션 체력 증가율", "3막 진행 런에는 적용하지 않는 기존 미션용 증가율"));
                 DrawDoubleFieldLayout(growth.FindPropertyRelative("_damageStageScale"), new GUIContent("피해 증가율", "스테이지당 피해 배율 증가. 0.1 = 스테이지당 +10%"));
             }
 
@@ -339,6 +340,78 @@ namespace RuneCode.Editor
             _foldRewards = EditorGUILayout.Foldout(_foldRewards, "적 보상표", true);
             if (_foldRewards && _rewardsList != null)
                 _rewardsList.DoLayoutList();
+        }
+
+        /// <summary>3막의 시작·종료 체력 배율과 곡선 지수를 편집하고 현재 입력값의 라운드별 배율을 미리 표시한다.</summary>
+        private void DrawHpCurveSettings(SerializedProperty growth)
+        {
+            SerializedProperty starts = growth.FindPropertyRelative("_actHpStartMultipliers");
+            SerializedProperty ends = growth.FindPropertyRelative("_actHpEndMultipliers");
+            SerializedProperty exponent = growth.FindPropertyRelative("_hpCurveExponent");
+            EditorGUILayout.HelpBox("3막 × 6라운드. 같은 라운드의 3개 웨이브는 같은 체력 배율을 사용합니다. 스폰 수는 원본 편성 수량을 사용하며 엘리트 체력 배율은 추가로 곱합니다.", MessageType.Info);
+            if (starts.arraySize != StageCatalog.PROGRESSION_STAGE_COUNT || ends.arraySize != StageCatalog.PROGRESSION_STAGE_COUNT)
+            {
+                EditorGUILayout.HelpBox("stages.json의 막별 시작·종료 배율을 각각 3개 입력하세요.", MessageType.Error);
+                return;
+            }
+            bool isValid = true;
+            double previousEnd = 0;
+            for (int index = 0; index < StageCatalog.PROGRESSION_STAGE_COUNT; index++)
+            {
+                DrawDoubleFieldLayout(starts.GetArrayElementAtIndex(index), new GUIContent((index + 1) + "막 시작 배율"));
+                DrawDoubleFieldLayout(ends.GetArrayElementAtIndex(index), new GUIContent((index + 1) + "막 종료 배율"));
+                double start = starts.GetArrayElementAtIndex(index).doubleValue;
+                double end = ends.GetArrayElementAtIndex(index).doubleValue;
+                isValid &= start > 0 && end >= start && start >= previousEnd
+                    && !double.IsInfinity(start) && !double.IsInfinity(end);
+                previousEnd = end;
+            }
+            DrawDoubleFieldLayout(exponent, new GUIContent("곡선 지수", "1 = 일정 비율로 증가, 1보다 크면 후반에 증가 집중, 1보다 작으면 초반에 증가 집중"));
+            isValid &= exponent.doubleValue > 0 && !double.IsInfinity(exponent.doubleValue);
+            if (!isValid)
+            {
+                EditorGUILayout.HelpBox("배율은 양수, 종료 ≥ 시작, 다음 막 시작 ≥ 이전 막 종료여야 합니다. 곡선 지수도 양수여야 합니다.", MessageType.Error);
+                return;
+            }
+            DrawHpCurvePreview(starts, ends, exponent.doubleValue);
+            EditorGUILayout.LabelField("라운드       1막          2막          3막", EditorStyles.miniBoldLabel);
+            for (int round = 0; round < StageCatalog.PROGRESSION_ROUND_COUNT; round++)
+            {
+                string row = (round + 1) + "R";
+                for (int act = 0; act < StageCatalog.PROGRESSION_STAGE_COUNT; act++)
+                    row += "       " + StageGrowth.EvaluateHpCurve(starts.GetArrayElementAtIndex(act).doubleValue,
+                        ends.GetArrayElementAtIndex(act).doubleValue, exponent.doubleValue,
+                        round / (double)(StageCatalog.PROGRESSION_ROUND_COUNT - 1)).ToString("0.00") + "×";
+                EditorGUILayout.LabelField(row, EditorStyles.miniLabel);
+            }
+        }
+
+        /// <summary>편집 중인 막별 배율과 지수로 런타임 계산을 호출해 18라운드 체력 곡선을 그린다.</summary>
+        private static void DrawHpCurvePreview(SerializedProperty starts, SerializedProperty ends, double exponent)
+        {
+            Rect rect = GUILayoutUtility.GetRect(100, 140, GUILayout.ExpandWidth(true));
+            EditorGUI.DrawRect(rect, new Color(0.12f, 0.12f, 0.12f));
+            Rect plot = new Rect(rect.x + 5, rect.y + 22, rect.width - 10, rect.height - 42);
+            double minimum = starts.GetArrayElementAtIndex(0).doubleValue;
+            double maximum = ends.GetArrayElementAtIndex(StageCatalog.PROGRESSION_STAGE_COUNT - 1).doubleValue;
+            double range = Math.Max(0.000001, maximum - minimum);
+            int count = StageCatalog.PROGRESSION_STAGE_COUNT * StageCatalog.PROGRESSION_ROUND_COUNT;
+            var points = new Vector3[count];
+            for (int index = 0; index < count; index++)
+            {
+                int act = index / StageCatalog.PROGRESSION_ROUND_COUNT;
+                double progress = (index % StageCatalog.PROGRESSION_ROUND_COUNT) / (double)(StageCatalog.PROGRESSION_ROUND_COUNT - 1);
+                double value = StageGrowth.EvaluateHpCurve(starts.GetArrayElementAtIndex(act).doubleValue,
+                    ends.GetArrayElementAtIndex(act).doubleValue, exponent, progress);
+                points[index] = new Vector3(plot.x + plot.width * index / (count - 1),
+                    plot.yMax - plot.height * (float)((value - minimum) / range), 0);
+            }
+            Color previousColor = Handles.color;
+            Handles.color = new Color(0.45f, 0.9f, 0.55f);
+            Handles.DrawAAPolyLine(2f, points);
+            Handles.color = previousColor;
+            GUI.Label(new Rect(rect.x + 5, rect.y + 2, rect.width - 10, 20), "적 체력 " + minimum.ToString("0.##") + "× → " + maximum.ToString("0.##") + "×", EditorStyles.miniLabel);
+            GUI.Label(new Rect(rect.x + 5, rect.yMax - 20, rect.width - 10, 20), "1막                 2막                 3막", EditorStyles.miniLabel);
         }
 
         /// <summary>상세 영역에 선택 라운드의 제목, 엘리트 타입, 라운드 보상과 세 웨이브를 그린다.</summary>

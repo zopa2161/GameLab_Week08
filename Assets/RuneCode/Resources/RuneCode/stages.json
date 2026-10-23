@@ -6,10 +6,14 @@
         "_roomsY": 1
     },
     "_growth": {
+        "_actHpStartMultipliers": [1, 2.5, 6],
+        "_actHpEndMultipliers": [2, 5, 12],
+        "_hpCurveExponent": 1.2,
         "_hpStageScale": 0.15,
         "_damageStageScale": 0.05
     },
     "_spawn": {
+        "_batchIntervalSeconds": 2,
         "_ringSlots": 20,
         "_ringMargin": 50.0,
         "_jitterScale": 2.0,
@@ -257,7 +261,7 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior"
+                    "_rewardDropTable": "drop.round.behavior.1"
                 },
                 {
                     "_waves": [
@@ -714,14 +718,14 @@
                                     "_isElite": true
                                 },
                                 {
-                                    "_enemyId": "boss.mini_governor",
+                                    "_enemyId": "boss.legolas",
                                     "_count": 1,
                                     "_isElite": false
                                 }
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior"
+                    "_rewardDropTable": "drop.round.behavior.2"
                 },
                 {
                     "_waves": [
@@ -923,7 +927,7 @@
                             },
                             "_units": [
                                 {
-                                    "_enemyId": "boss.governor",
+                                    "_enemyId": "boss.hydra",
                                     "_count": 1,
                                     "_isElite": false
                                 },
@@ -1175,7 +1179,7 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior"
+                    "_rewardDropTable": "drop.round.behavior.3"
                 },
                 {
                     "_waves": [

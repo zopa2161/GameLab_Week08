@@ -595,6 +595,8 @@ namespace RuneCode
             {
                 enemy.CancelDisplacement();
                 enemy.Hydra?.Cancel();
+                enemy.Legolas?.Cancel();
+                if (enemy.Legolas != null) { enemy.AimEndsAt = 0; enemy.WarningUntil = 0; }
             }
             _enemy.CleanupAllHexaOwners();
             _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _executor.ClearScheduled(); _enemy.PendingEnemyShots.Clear(); _spawn.PendingSplits.Clear(); _loot.ClearDeadEnemies();

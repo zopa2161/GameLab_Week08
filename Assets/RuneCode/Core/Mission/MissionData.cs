@@ -271,6 +271,7 @@ namespace RuneCode
         public const string GOVERNOR_PATTERN = "governor";
         public const string MINI_GOVERNOR_PATTERN = "mini_governor";
         public const string HYDRA_PATTERN = "hydra";
+        public const string LEGOLAS_PATTERN = "legolas";
 
         [Header("보스 패턴")]
         [SerializeField] private string _enemyId;
@@ -290,6 +291,8 @@ namespace RuneCode
         [SerializeField] private string _dropTable;
         [Header("Hydra")]
         [SerializeField] private HydraDefinition _hydra;
+        [Header("레골라스")]
+        [SerializeField] private LegolasDefinition _legolas;
         public string EnemyId => _enemyId;
         public string Pattern => _pattern;
         public double PhaseTwoThreshold => _phaseTwoThreshold;
@@ -302,11 +305,14 @@ namespace RuneCode
         public double PreferredDistance => _preferredDistance;
         public BossReinforcement Reinforcement => _reinforcement;
         public string DropTable => _dropTable;
-        public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN || IsMiniBoss;
-        public bool IsMiniBoss => _pattern == MINI_GOVERNOR_PATTERN;
+        public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN || IsMiniGovernorPattern;
+        public bool IsMiniGovernorPattern => _pattern == MINI_GOVERNOR_PATTERN;
+        public bool IsMiniBoss => IsMiniGovernorPattern || IsLegolasPattern;
         public bool IsHydraPattern => _pattern == HYDRA_PATTERN;
         public bool IsHexaPattern => _pattern == HexaDefinition.ID;
         public HydraDefinition Hydra => _hydra;
+        public bool IsLegolasPattern => _pattern == LEGOLAS_PATTERN;
+        public LegolasDefinition Legolas => _legolas;
 
         /// <summary>페이즈에 대응하는 장판 세트 설정을 반환하고 2페이즈가 아니면 3페이즈 설정을 반환한다.</summary>
         public BossHazard GetHazard(int phase)
@@ -320,13 +326,20 @@ namespace RuneCode
                 HexaDefinition.Validate(enemies.Get(_enemyId));
                 return;
             }
-            if (IsMiniBoss)
+            if (IsMiniGovernorPattern)
             {
                 if (!IsPositive(_phaseTwoThreshold) || _phaseTwoThreshold >= 1 || !IsPositive(_patchSeconds)
                     || _radialCount < 1 || !IsPositive(_radialInterval) || !IsPositive(_aimInterval)
                     || _aimInterval >= _radialInterval || !IsPositive(_preferredDistance)
                     || !IsPositive(enemies.Get(_enemyId).WarningSeconds))
                     throw new FormatException("미니 거버너의 페이즈·사격·예고 설정 오류입니다: " + _enemyId);
+                return;
+            }
+            if (IsLegolasPattern)
+            {
+                if (_legolas == null || enemies.Get(_enemyId).Attack != EnemyDefinition.ATTACK_SNIPER)
+                    throw new FormatException("레골라스의 저격 또는 패턴 설정이 없습니다: " + _enemyId);
+                _legolas.Validate();
                 return;
             }
             if (IsHydraPattern)
@@ -463,6 +476,34 @@ namespace RuneCode
                     if (dx * dx + dy * dy < radius * radius) return false;
                 }
             return true;
+        }
+
+        /// <summary>원형 개체의 벽 접촉 위치·반경과 입사 방향으로 가장 정면에 닿은 벽의 단위 법선을 반환한다.</summary>
+        internal SimVector GetWallContactNormal(SimVector position, double radius, SimVector direction)
+        {
+            const double CONTACT_TOLERANCE = 0.001;
+            double searchRadius = radius + CONTACT_TOLERANCE;
+            int left = (int)Math.Floor((position.X - searchRadius) / _tileSize);
+            int right = (int)Math.Floor((position.X + searchRadius) / _tileSize);
+            int top = (int)Math.Floor((position.Y - searchRadius) / _tileSize);
+            int bottom = (int)Math.Floor((position.Y + searchRadius) / _tileSize);
+            SimVector normal = direction * -1;
+            double bestApproach = 0;
+            for (int y = top; y <= bottom; y++)
+                for (int x = left; x <= right; x++)
+                {
+                    if (y >= 0 && x >= 0 && y < _tiles.Length && x < _tiles[0].Length && _tiles[y][x] != '#') continue;
+                    double nearestX = Math.Max(x * _tileSize, Math.Min(position.X, (x + 1) * _tileSize));
+                    double nearestY = Math.Max(y * _tileSize, Math.Min(position.Y, (y + 1) * _tileSize));
+                    SimVector offset = position - new SimVector(nearestX, nearestY);
+                    if (offset.LengthSquared > searchRadius * searchRadius || offset.LengthSquared <= RuneSimulation.COLLISION_EPSILON) continue;
+                    SimVector candidate = offset.Normalized();
+                    double approach = -SimVector.Dot(direction, candidate);
+                    if (approach <= bestApproach) continue;
+                    bestApproach = approach;
+                    normal = candidate;
+                }
+            return normal;
         }
 
         /// <summary>이동 경로를 작은 구간으로 확인하고 벽을 따라 미끄러진 최종 이동 가능 좌표를 반환한다.</summary>

@@ -42,6 +42,7 @@ namespace RuneCode
         [SerializeField] private EnemyAppearance[] _appearances;
         [SerializeField] private Sprite _defaultShape;
         [SerializeField] private Color _defaultTint = new Color(0.94f, 0.34f, 0.40f);
+        public Color DefaultTint => _defaultTint;
 
         [Header("엘리트 외곽선")]
         [SerializeField] private Color _eliteOutlineColor = new Color(0.35f, 0.75f, 1f);
@@ -68,6 +69,7 @@ namespace RuneCode
         [SerializeField] private SpriteRenderer _circleShield;
         [SerializeField] private SpriteRenderer _sniperLine;
         [SerializeField] private HydraBossView _hydraView;
+        [SerializeField] private LegolasBossView _legolasView;
 
         private SpriteRenderer _hexaFirstTriangle;
         private SpriteRenderer _hexaSecondTriangle;
@@ -123,7 +125,8 @@ namespace RuneCode
             MissionWorldSpace.SetVisible(_hpFill, ratio > 0);
             if (ratio > 0) MissionWorldSpace.PlaceLine(_hpFill, new Vector2(-width * 0.5f, barY), new Vector2(-width * 0.5f + width * ratio, barY), HP_BAR_HEIGHT, tint);
             ApplyAdditionalIndicators(enemy, sim);
-            if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, _body, _rotator);
+            if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, sim, _body, _rotator);
+            if (_legolasView != null && enemy.Legolas != null) _legolasView.Apply(enemy, _body, _rotator);
         }
 
         /// <summary>Hexa일 때 기존 삼각형 두 개로 육각성을 표시하고, 일반 적 재사용 시 기본 몸체와 코어를 복원한다.</summary>

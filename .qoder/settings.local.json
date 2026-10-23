@@ -76,7 +76,16 @@
       "Bash(ls -la \"Assets/Docs~\" | head -30)",
       "Bash(node -e \"\nconst fs=require\\('fs'\\);\nconst p='C:/Users/JUNGLE/.qoder/projects/C--Users-JUNGLE-Desktop-firstProject-week08/506c7e54-cdd8-4c31-b4e6-87d36a70e952.jsonl';\nconst lines=fs.readFileSync\\(p,'utf8'\\).split\\(/\\\\r?\\\\n/\\);\nconst terms=['**외형:**','육각성 외형을 가진다','Hexa 본체 외형 변경'];\nfor\\(let i=0;i<lines.length;i++\\){\n  let s;\n  try{s=JSON.stringify\\(JSON.parse\\(lines[i]\\)\\);}catch\\(e\\){continue;}\n  for\\(const t of terms\\){\n    let idx=0;\n    while\\(\\(idx=s.indexOf\\(t,idx\\)\\)>=0\\){\n      console.log\\('--- line '+i+' term '+t+' ---'\\);\n      console.log\\(s.slice\\(Math.max\\(0,idx-400\\),idx+700\\)\\);\n      idx+=t.length;\n    }\n  }\n}\n\" | head -200)",
       "Bash(git restore --source=HEAD -- Assets/RuneCode/UI/Mission/World/EnemyView.cs && git status --short -- Assets/RuneCode/UI/Mission/World/EnemyView.cs)",
-      "Bash(rm -f \"C:/Users/JUNGLE/.qoder/tmp/HexaPreview.cs\" \"C:/Users/JUNGLE/.qoder/tmp/hexa_shape_preview.png\")"
+      "Bash(rm -f \"C:/Users/JUNGLE/.qoder/tmp/HexaPreview.cs\" \"C:/Users/JUNGLE/.qoder/tmp/hexa_shape_preview.png\")",
+      "Bash(git status && echo '---' && git log --oneline -5 && echo '---' && ls -la .git/MERGE_HEAD 2>/dev/null || true)",
+      "Bash(cat .git/MERGE_HEAD && echo '---' && git log --oneline -8 MERGE_HEAD && echo '---' && git merge-base HEAD MERGE_HEAD && echo '---' && git log --oneline -3 $\\(git merge-base HEAD MERGE_HEAD\\))",
+      "Bash(git show MERGE_HEAD:Assets/RuneCode/Core/Mission/MissionData.cs | sed -n '295,350p' && echo '=== develop EnemySystem check ===' && git show MERGE_HEAD:Assets/RuneCode/Core/Simulation/EnemySystem.cs | grep -n -E 'IsMiniBoss|IsMiniGovernorPattern|Legolas|Hexa' | head -40)",
+      "Bash(grep -rn -E '^\\(<<<<<<<|=======|>>>>>>>\\)' Assets/RuneCode Assets/Share\\\\ Docs~ 2>/dev/null | head -20; echo \"exit=$?\")",
+      "Bash(node:*)",
+      "Bash(git diff --check; echo \"diff-check=$?\"; echo '---'; git diff --stat -- Assets/RuneCode/Core/Simulation/SimulationTypes.cs Assets/RuneCode/Core/Simulation/SpawnSystem.cs Assets/RuneCode/Resources/RuneCode/bosses.json Assets/RuneCode/Resources/RuneCode/enemies.json Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs)",
+      "Bash(git diff --name-only 521a8d7 HEAD > /tmp/ours.txt; git diff --name-only 521a8d7 MERGE_HEAD > /tmp/theirs.txt; comm -12 <\\(sort /tmp/ours.txt\\) <\\(sort /tmp/theirs.txt\\))",
+      "Bash(grep -n -E '\"\\(hexa|boss\\\\.legolas|legolas\\)\"' Assets/RuneCode/Resources/RuneCode/strings.ko.json | head -20; echo '---'; git show HEAD:Assets/RuneCode/Core/Simulation/EnemySystem.cs | grep -n CleanupDeadHexaOwners)",
+      "Bash(git add -- Assets/RuneCode/Core/Simulation/SimulationTypes.cs Assets/RuneCode/Core/Simulation/SpawnSystem.cs Assets/RuneCode/Resources/RuneCode/bosses.json Assets/RuneCode/Resources/RuneCode/enemies.json Assets/RuneCode/UI/Mission/World/HostileProjectileView.cs && git status --short && echo '---' && git diff --cached --check; echo \"check=$?\")"
     ]
   }
 }
