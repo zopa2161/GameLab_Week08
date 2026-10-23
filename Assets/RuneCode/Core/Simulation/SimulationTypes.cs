@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -884,6 +884,7 @@ namespace RuneCode
         private readonly double _homingSeconds;
         private readonly HostileProjectileStyle _style;
         private readonly SimulationEnemy _owner;
+        private readonly string _sourcePattern;
         private SimVector _direction;
         private SimVector _position;
         private double _age;
@@ -897,6 +898,7 @@ namespace RuneCode
         public bool IsHazard => _isHazard;
         public bool IsWarning => _isHazard && _age < _warning;
         public double WarningProgress => _warning <= 0 ? 1 : Math.Min(1, _age / _warning);
+        internal string SourcePattern => _sourcePattern;
         internal int SourceEnemyId => _sourceEnemyId;
         internal double Damage => _damage;
         internal double Lifetime => _lifetime;
@@ -904,9 +906,9 @@ namespace RuneCode
         public HostileProjectileStyle Style => _style;
         internal bool HasDeadOwner => _owner != null && !_owner.IsAlive;
 
-        /// <summary>위치·공격 설정과 피해 귀속용 적 ID로 탄환 또는 예고 장판을 만들며, 유도 속도·지속 시간·표시 스타일과 선택적 소유자를 함께 보관한다. 소유자가 있으면 해당 ID를 사용하고 사망 시 정리한다.</summary>
-        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0, double homingTurnDegreesPerSecond = 0, double homingSeconds = 0, HostileProjectileStyle style = HostileProjectileStyle.Default, SimulationEnemy owner = null)
-        { _sourceEnemyId = owner != null ? owner.Id : sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; _homingTurnRadiansPerSecond = homingTurnDegreesPerSecond * RuneSimulation.DEGREES_TO_RADIANS; _homingSeconds = Math.Max(0, homingSeconds); _style = style; _owner = owner; }
+        /// <summary>위치·공격 설정과 피해 귀속용 적 ID로 탄환 또는 예고 장판을 만들며, 유도 속도·지속 시간·표시 스타일과 선택적 소유자·원래 보스 패턴을 함께 보관한다. 소유자가 있으면 해당 ID를 사용하고 사망 시 정리한다.</summary>
+        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0, double homingTurnDegreesPerSecond = 0, double homingSeconds = 0, HostileProjectileStyle style = HostileProjectileStyle.Default, SimulationEnemy owner = null, string sourcePattern = null)
+        { _sourcePattern = sourcePattern; _sourceEnemyId = owner != null ? owner.Id : sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; _homingTurnRadiansPerSecond = homingTurnDegreesPerSecond * RuneSimulation.DEGREES_TO_RADIANS; _homingSeconds = Math.Max(0, homingSeconds); _style = style; _owner = owner; }
 
         /// <summary>유도 탄환이면 유도 시간 안에서 목표 방향으로 최대 회전량만큼 최단 호로 방향을 보정한 뒤 위치와 수명을 고정 시간만큼 진행한다.</summary>
         internal void Advance(double dt, SimVector? homingTarget = null)

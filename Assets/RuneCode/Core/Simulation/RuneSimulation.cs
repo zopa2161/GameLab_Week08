@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -611,7 +611,11 @@ namespace RuneCode
             _stats.TrimRollingDamage(_world.Tick);
         }
 
-        /// <summary>적별 생성·사망·관측 시간과 플레이어에게 준 실제 피해의 변경분을 반환한다.</summary>
+        /// <summary>지정 보스가 현재 스테이지·라운드에서 패턴을 시작한 횟수를 누적한다.</summary>
+        internal void RecordBossPatternUse(SimulationEnemy enemy, string pattern)
+            => _stats.RecordBossPatternUse(_world, enemy, pattern);
+
+        /// <summary>변경된 적과 보스 패턴 누계를 로그용으로 반환한다.</summary>
         public IReadOnlyList<Dictionary<string, object>> TakeEnemyCombatLogSnapshot()
             => _stats.TakeEnemyCombatLogSnapshot(Time);
 

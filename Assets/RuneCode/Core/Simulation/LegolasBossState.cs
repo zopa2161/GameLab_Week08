@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -52,7 +52,7 @@ namespace RuneCode
         }
 
         /// <summary>고정 스텝으로 패턴을 진행하고 적·맵·난수와 공유 피격 처리를 사용해 이동 및 피해를 적용한다.</summary>
-        internal void Advance(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double> hurt)
+        internal void Advance(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double, string> hurt)
         {
             _elapsed += RuneSimulation.STEP_SECONDS;
             SimVector offset = world.Player.Position - enemy.Position;
@@ -64,6 +64,7 @@ namespace RuneCode
                 _elapsed = 0;
                 _attack = _isNextJump ? LegolasAttack.Jump : LegolasAttack.Snipe;
                 _isNextJump = !_isNextJump;
+                if (_attack == LegolasAttack.Snipe) simulation.RecordBossPatternUse(enemy, "snipe");
                 if (_attack == LegolasAttack.Jump)
                 {
                     bool isNearWall = !world.Map.CanOccupy(enemy.Position, enemy.Radius + _settings.WallEscapeMargin);
@@ -89,7 +90,7 @@ namespace RuneCode
                     _hasImpacted = true;
                     foreach (SimVector target in _targets)
                         if (SimVector.Distance(world.Player.Position, target) <= _settings.AreaRadius + world.Sector.PlayerRadius)
-                        { hurt(_settings.AreaDamage * enemy.DamageMultiplier); break; }
+                        { hurt(_settings.AreaDamage * enemy.DamageMultiplier, "jump_area"); break; }
                 }
                 if (_elapsed >= Math.Max(landingAt, _settings.AreaWarning + _settings.AreaFlight + IMPACT_VISUAL_SECONDS))
                 {
@@ -102,6 +103,7 @@ namespace RuneCode
         /// <summary>도약 목표와 플레이어 주변 공격 예고를 고정하고 공중 발사 상태를 초기화하며 남은 연속 도약 수를 줄인다.</summary>
         private void BeginJump(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, SimVector direction)
         {
+            simulation.RecordBossPatternUse(enemy, "jump_area");
             _jumpOrigin = enemy.Position;
             if (_escapeJumpsRemaining > 0)
             {
@@ -188,7 +190,7 @@ namespace RuneCode
             enemy.WarningUntil = world.Time + Math.Max(0, definition.AimSeconds + definition.LockSeconds - _elapsed);
             if (_elapsed < definition.AimSeconds + definition.LockSeconds) return;
             world.EnemyProjectiles.Add(new SimulationProjectile(enemy.AttackOrigin, enemy.AimedDirection, definition.ProjectileSpeed,
-                enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime, owner: enemy));
+                enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime, owner: enemy, sourcePattern: "snipe"));
             enemy.AimEndsAt = 0;
             enemy.WarningUntil = 0;
             Rest();

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace RuneCode
@@ -295,7 +295,10 @@ namespace RuneCode
             _spawnSlots.Refresh(_world.Map, boss.Position, boss.Radius + _world.Stages.Spawn.ReinforcementGap, count, Math.Atan2(boss.Facing.Y, boss.Facing.X), radius);
             SpawnFormation formation = SpawnFormations.Get(_world.Formations.Get(reinforcement.Formation).Shape);
             for (int i = 0; i < count; i++)
-                SpawnEnemy(reinforcement.EnemyId, ResolvePlacement(formation.Place(i, count, -1, _spawnSlots, default), radius), false, 0);
+            {
+                SimulationEnemy summon = SpawnEnemy(reinforcement.EnemyId, ResolvePlacement(formation.Place(i, count, -1, _spawnSlots, default), radius), false, 0);
+                _stats.RecordBossSummon(summon, boss.Id, "reinforcement");
+            }
         }
 
         /// <summary>

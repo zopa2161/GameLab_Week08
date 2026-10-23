@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Text;
 
 namespace RuneCode
@@ -10,6 +10,7 @@ namespace RuneCode
     /// <summary>Hexa 한 개체의 단독 난사·유도·저격·나선, 두 하위 공격 복합 패턴과 6마리 3묶음 소환의 진행·취소 상태를 보관하고, 자동 운영의 우선순위·횟수 쿨타임·3초 대기를 관리한다.</summary>
     public sealed class HexaBossState
     {
+        private bool _hasLoggedManualPattern;
         private bool _isCancelled;
         private bool _hasStartedSpray;
         private bool _isSpraying;
@@ -218,18 +219,21 @@ namespace RuneCode
         /// 빙결이 아닌 틱마다 첫 대기와 선택된 공격을 진행한다. 자동 운영은 대기 후 우선순위로 다음 상위 패턴을 선택하고,
         /// 수동 모드의 복합은 첫 공격 시작 3초 뒤 두 번째 공격을 시작해 동시 진행할 수 있다.
         /// </summary>
-        internal void Advance(SimulationEnemy owner, SimulationWorld world)
+        internal void Advance(SimulationEnemy owner, SimulationWorld world, RuneSimulation simulation)
         {
             if (_isCancelled) return;
             if (_delayTicks > 0) { _delayTicks--; return; }
             if (_hasAutoOperation)
             {
-                if (_autoPattern == HexaTopPattern.None) BeginAutoPattern(world);
+                if (_autoPattern == HexaTopPattern.None)
+                { BeginAutoPattern(world); simulation.RecordBossPatternUse(owner, LogPattern); }
                 if (_autoPattern == HexaTopPattern.Summon) return;
                 if (_autoPattern == HexaTopPattern.Spiral) { AdvanceSpiral(owner, world); return; }
                 if (_autoPattern == HexaTopPattern.Composite) AdvanceComposite(owner, world);
                 return;
             }
+            if (!_hasLoggedManualPattern)
+            { _hasLoggedManualPattern = true; simulation.RecordBossPatternUse(owner, LogPattern); }
             if (_hasStartedSummon) return;
             if (_hasStartedComposite) { AdvanceComposite(owner, world); return; }
             if (_isSpraying) { AdvanceSpray(owner, world); return; }
@@ -237,6 +241,12 @@ namespace RuneCode
             if (_isSpiraling) { AdvanceSpiral(owner, world); return; }
             if (_isSniperAttacking) AdvanceSniper(owner, world);
         }
+
+        /// <summary>현재 상위 패턴과 복합의 선택 순서를 로그용 ID로 반환한다.</summary>
+        private string LogPattern => (_hasAutoOperation ? _autoPattern == HexaTopPattern.Composite : _hasStartedComposite)
+            ? "composite." + _compositeFirst.ToString().ToLowerInvariant() + "." + _compositeSecond.ToString().ToLowerInvariant()
+            : (_hasAutoOperation ? _autoPattern.ToString() : _hasStartedSummon ? "Summon" : _hasStartedSpiral ? "Spiral"
+                : _hasStartedSpray ? "Spray" : _hasStartedHoming ? "Homing" : "Sniper").ToLowerInvariant();
 
         /// <summary>남은 카운터가 0인 패턴 중 소환→나선→복합 우선순위로 다음 상위 공격을 선택해 즉시 시작한다.</summary>
         private void BeginAutoPattern(SimulationWorld world)
@@ -389,7 +399,7 @@ namespace RuneCode
             world.EnemyProjectiles.Add(new SimulationProjectile(owner.AttackOrigin, owner.AimedDirection,
                 _sniperDefinition.ProjectileSpeed, _sniperDefinition.Damage * owner.DamageMultiplier,
                 _sniperDefinition.ProjectileRadius, _sniperDefinition.ProjectileLifetime, sourceEnemyId: owner.Id,
-                style: HostileProjectileStyle.Sniper));
+                style: HostileProjectileStyle.Sniper, sourcePattern: LogPattern));
             owner.AimEndsAt = 0; owner.WarningUntil = 0;
             _sniperShotCount++;
             _isSniperLocked = false;
@@ -474,7 +484,7 @@ namespace RuneCode
                 _projectileDefinition.ProjectileLifetime, sourceEnemyId: owner.Id,
                 homingTurnDegreesPerSecond: isHoming ? HexaDefinition.HOMING_TURN_DEGREES_PER_SECOND : 0,
                 homingSeconds: isHoming ? HexaDefinition.HOMING_SECONDS : 0,
-                style: isHoming ? HostileProjectileStyle.Homing : HostileProjectileStyle.Default));
+                style: isHoming ? HostileProjectileStyle.Homing : HostileProjectileStyle.Default, sourcePattern: LogPattern));
         }
 
         /// <summary>사망 또는 전투 종료 시 이 개체의 보스 실행 상태와 진행 중인 공격·소환·저격 예고선을 취소하며, 복합의 남은 하위 공격과 완료 집계는 진행하지 않는다.</summary>

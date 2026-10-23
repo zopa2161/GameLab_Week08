@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -27,7 +27,7 @@ namespace RuneCode
         { _position = origin; _direction = direction.Normalized(); _startedAt = time; }
 
         /// <summary>구체 이동·반사·명중 또는 장판의 주기 피해를 진행하고 해당 상태의 수명이 끝났는지 반환한다.</summary>
-        internal bool Advance(SimulationWorld world, HydraDefinition settings, double damageMultiplier, RuneSimulation simulation, Action<double> hurt)
+        internal bool Advance(SimulationWorld world, HydraDefinition settings, double damageMultiplier, RuneSimulation simulation, Action<double, string> hurt)
         {
             if (!_hasLanded)
             {
@@ -42,13 +42,13 @@ namespace RuneCode
             {
                 _nextDamageAt += settings.PoisonTickInterval;
                 if (SimVector.Distance(_position, world.Player.Position) <= settings.PoisonRadius + world.Sector.PlayerRadius)
-                    hurt(settings.PoisonTickDamage * damageMultiplier);
+                    hurt(settings.PoisonTickDamage * damageMultiplier, "poison");
             }
             return false;
         }
 
         /// <summary>남은 이동 시간을 벽 반사마다 나누어 연속 충돌을 검사하고 무적이 아닌 플레이어와 접촉하면 독 장판으로 전환한다.</summary>
-        private void AdvanceOrb(SimulationWorld world, HydraDefinition settings, double damageMultiplier, RuneSimulation simulation, Action<double> hurt, double moveSeconds)
+        private void AdvanceOrb(SimulationWorld world, HydraDefinition settings, double damageMultiplier, RuneSimulation simulation, Action<double, string> hurt, double moveSeconds)
         {
             double remaining = moveSeconds;
             for (int bounce = 0; bounce < MAX_BOUNCES_PER_TICK && remaining > RuneSimulation.COLLISION_EPSILON; bounce++)
@@ -62,7 +62,7 @@ namespace RuneCode
                 if (!double.IsPositiveInfinity(hit) && hit <= wall)
                 {
                     _position += displacement * hit;
-                    hurt(settings.PoisonDamage * damageMultiplier);
+                    hurt(settings.PoisonDamage * damageMultiplier, "poison");
                     _hasLanded = true;
                     _landedAt = world.Time;
                     _nextDamageAt = world.Time + settings.PoisonTickInterval;
@@ -122,7 +122,7 @@ namespace RuneCode
             => bodyRadius + (settings.WaveRadius - bodyRadius) * Math.Min(1, _age / settings.WaveSeconds);
 
         /// <summary>이전·현재 고리 사이의 통과를 판정해 한 번 피해를 주고 수명 종료 여부를 반환한다.</summary>
-        internal bool Advance(SimulationWorld world, HydraDefinition settings, double bodyRadius, double damageMultiplier, Action<double> hurt)
+        internal bool Advance(SimulationWorld world, HydraDefinition settings, double bodyRadius, double damageMultiplier, Action<double, string> hurt)
         {
             double previousRadius = GetRadius(settings, bodyRadius);
             _age = world.Time - _startedAt;
@@ -130,7 +130,7 @@ namespace RuneCode
             double distance = SimVector.Distance(_center, world.Player.Position);
             double thickness = world.Sector.PlayerRadius + settings.WaveWidth * 0.5;
             if (!_hasHit && distance + thickness >= previousRadius && distance - thickness <= currentRadius)
-            { _hasHit = true; hurt(settings.WaveDamage * damageMultiplier); }
+            { _hasHit = true; hurt(settings.WaveDamage * damageMultiplier, "stomp"); }
             return _age + RuneSimulation.COLLISION_EPSILON >= settings.WaveSeconds;
         }
 
@@ -218,7 +218,7 @@ namespace RuneCode
         }
 
         /// <summary>잔류물과 현재 공격을 한 틱 진행하며 쿨타임 추적·도약 이동과 목·파동·독 피해를 처리한다.</summary>
-        internal void Advance(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double> hurt)
+        internal void Advance(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double, string> hurt)
         {
             for (int index = _poisons.Count - 1; index >= 0; index--)
                 if (_poisons[index].Advance(world, _settings, enemy.DamageMultiplier, simulation, hurt)) _poisons.RemoveAt(index);
@@ -256,6 +256,7 @@ namespace RuneCode
             if (_lastAttack != HydraAttack.Idle && selected >= (int)_lastAttack) selected++;
             _attack = (HydraAttack)selected;
             _lastAttack = _attack;
+            simulation.RecordBossPatternUse(enemy, _attack.ToString().ToLowerInvariant());
             _startedAt = world.Time;
             _elapsed = 0;
             _repeat = 0;
@@ -370,7 +371,7 @@ namespace RuneCode
         }
 
         /// <summary>목 뻗기의 이전·현재 회전 경로를 여러 지점에서 검사해 빠른 회전 중 통과 누락을 막는다.</summary>
-        private void HitNecks(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double> hurt)
+        private void HitNecks(SimulationEnemy enemy, SimulationWorld world, RuneSimulation simulation, Action<double, string> hurt)
         {
             for (int index = 0; index < HEAD_COUNT; index++)
                 for (int sample = 0; sample <= NECK_SWEEP_SAMPLES; sample++)
@@ -378,13 +379,13 @@ namespace RuneCode
                     double time = Math.Max(0, _elapsed - RuneSimulation.STEP_SECONDS * sample / NECK_SWEEP_SAMPLES);
                     SimVector end = GetNeckEnd(enemy, index, time, false, simulation);
                     if (SpellGeometry.SegmentDistance(enemy.Position, end, world.Player.Position) > _settings.NeckWidth * 0.5 + world.Sector.PlayerRadius) continue;
-                    hurt(_settings.NeckDamage * enemy.DamageMultiplier);
+                    hurt(_settings.NeckDamage * enemy.DamageMultiplier, "stretch");
                     return;
                 }
         }
 
         /// <summary>고정 경로로 한 번 돌진하며 목의 최대 범위를 채운 직사각형으로 한 번만 피해를 주고 벽 또는 목표에 도달하면 목을 회수한다.</summary>
-        private void AdvanceSpin(SimulationEnemy enemy, SimulationWorld world, Action<double> hurt)
+        private void AdvanceSpin(SimulationEnemy enemy, SimulationWorld world, Action<double, string> hurt)
         {
             double previous = Math.Max(_settings.SpinWarning, _elapsed - RuneSimulation.STEP_SECONDS);
             double current = Math.Min(_elapsed, _settings.SpinWarning + _spinDashDuration);
@@ -395,7 +396,7 @@ namespace RuneCode
                 double halfExtent = GetSpinHalfExtent(enemy);
                 bool hasHit = SpellGeometry.IntersectsBoxSweep(GetSpinPosition(previous), GetSpinPosition(current), SpinDirection,
                     halfExtent, halfExtent, world.Player.Position, world.Sector.PlayerRadius);
-                if (hasHit) { _hasSpinHit = true; hurt(_settings.NeckDamage * enemy.DamageMultiplier); }
+                if (hasHit) { _hasSpinHit = true; hurt(_settings.NeckDamage * enemy.DamageMultiplier, "spin"); }
             }
             if (_elapsed + RuneSimulation.COLLISION_EPSILON >= _settings.SpinWarning + _spinDashDuration + _settings.RetractSeconds)
                 FinishAttack(world.Time);
