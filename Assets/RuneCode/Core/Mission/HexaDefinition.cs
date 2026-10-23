@@ -7,6 +7,8 @@ namespace RuneCode
     {
         public const string ID = "hexa";
         public const string PROJECTILE_SOURCE_ID = "enemy.sentry";
+        public const string SNIPER_SOURCE_ID = "enemy.clock_sniper";
+        public const int SNIPER_SHOT_COUNT = 1;
         public const int INITIAL_DELAY_TICKS = 3 * RuneSimulation.TICK_RATE;
         public const int SPRAY_INTERVAL_TICKS = RuneSimulation.TICK_RATE / 10;
         public const int SPRAY_DURATION_TICKS = 3 * RuneSimulation.TICK_RATE;

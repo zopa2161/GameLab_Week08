@@ -27,7 +27,8 @@
       "Bash(grep -n \"def.enemy.sentry\\\\|\\\\\"enemy.sentry\\\\\"\" -B 3 -A 20 \"C:/Users/JUNGLE/Desktop/firstProject/week08/Assets/RuneCode/Resources/RuneCode/enemies.json\" | head -60)",
       "Bash(cd \"C:/Users/JUNGLE/Desktop/firstProject/week08\" && grep -rn \"DebugStartBossWave\\\\|DebugStartBoss\\(\" --include=*.cs --exclude-dir=Library --exclude-dir=.git .)",
       "Bash(cd \"C:/Users/JUNGLE/Desktop/firstProject/week08\" && grep -rn \"new SimulationProjectile\" --include=*.cs --exclude-dir=Library --exclude-dir=.git . | wc -l && grep -rn \"new SimulationProjectile\" --include=*.cs --exclude-dir=Library --exclude-dir=.git .)",
-      "Bash(git check-ignore -v \"Assets/Docs~/05_PLAN_BOSS_HEXA.md\"; git status --short --ignored -- \"Assets/Docs~\" | head -5)"
+      "Bash(git check-ignore -v \"Assets/Docs~/05_PLAN_BOSS_HEXA.md\"; git status --short --ignored -- \"Assets/Docs~\" | head -5)",
+      "Bash(git status --short -- \"Assets/Docs~\" && git check-ignore -v \"Assets/Docs~/05_PLAN_BOSS_HEXA.md\" || true)"
     ]
   }
 }

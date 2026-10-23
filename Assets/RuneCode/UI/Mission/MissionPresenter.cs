@@ -35,8 +35,8 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private readonly Queue<string> _itemToasts = new Queue<string>();
-        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview, bool IsHexaHomingPreview)> _debugBossTargets
-            = new List<(int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview, bool IsHexaHomingPreview)>();
+        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview, bool IsHexaHomingPreview, bool IsHexaSniperPreview)> _debugBossTargets
+            = new List<(int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview, bool IsHexaHomingPreview, bool IsHexaSniperPreview)>();
 
         private MissionRun _run;
         private PausePopup _pausePopup;
@@ -292,7 +292,7 @@ namespace RuneCode
             _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
         }
 
-        /// <summary>보스별 첫 배치와 디버그 진입을 구성한다. 미배치 Hexa는 1스테이지 기본·난사·유도 모드를 추가한다.</summary>
+        /// <summary>보스별 첫 배치와 디버그 진입을 구성한다. 미배치 Hexa는 1스테이지 기본·난사·유도·Sniper 모드를 추가한다.</summary>
         private void BuildDebugBosses()
         {
             var labels = new List<string>();
@@ -303,15 +303,17 @@ namespace RuneCode
                 bool isHexaPreview = stage == 0 && boss.IsHexaPattern;
                 if (stage == 0 && !isHexaPreview) continue;
                 if (isHexaPreview) stage = 1;
-                _debugBossTargets.Add((stage, round, isHexaPreview, false, false));
+                _debugBossTargets.Add((stage, round, isHexaPreview, false, false, false));
                 labels.Add((boss.IsMiniBoss ? "" : "보스 ") + GameData.L(boss.EnemyId)
                     + (isHexaPreview ? " · 기본 모드" : " · 스테이지 " + stage));
                 if (isHexaPreview)
                 {
-                    _debugBossTargets.Add((stage, round, true, true, false));
+                    _debugBossTargets.Add((stage, round, true, true, false, false));
                     labels.Add("보스 " + GameData.L(boss.EnemyId) + " · 난사 모드");
-                    _debugBossTargets.Add((stage, round, true, false, true));
+                    _debugBossTargets.Add((stage, round, true, false, true, false));
                     labels.Add("보스 " + GameData.L(boss.EnemyId) + " · 유도 모드");
+                    _debugBossTargets.Add((stage, round, true, false, false, true));
+                    labels.Add("보스 " + GameData.L(boss.EnemyId) + " · Sniper 모드");
                 }
             }
             _hud.BuildDebugBosses(labels);
@@ -333,8 +335,8 @@ namespace RuneCode
         private void StartDebugBoss(int index)
         {
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
-            (int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview, bool IsHexaHomingPreview) target = _debugBossTargets[index];
-            if (!_run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview, target.IsHexaSprayPreview, target.IsHexaHomingPreview)) return;
+            (int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview, bool IsHexaHomingPreview, bool IsHexaSniperPreview) target = _debugBossTargets[index];
+            if (!_run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview, target.IsHexaSprayPreview, target.IsHexaHomingPreview, target.IsHexaSniperPreview)) return;
             _isInitialDebugRoundBreak = false;
             _result.HideClearModifierChoices();
             _result.Hide();
@@ -743,6 +745,15 @@ namespace RuneCode
                         objective = "Hexa 유도 " + hexa.HomingShotCount + "/" + HexaDefinition.HOMING_SHOT_COUNT
                             + " · " + (hexa.HomingElapsedTicks / (double)RuneSimulation.TICK_RATE).ToString("0.0")
                             + "s · " + homingState;
+                        break;
+                    }
+                    if (hexa.HasStartedSniper)
+                    {
+                        string sniperState = hexa.IsCancelled ? "취소" : hexa.DelayTicks > 0 ? "대기"
+                            : hexa.IsSniperPaused ? "빙결" : hexa.IsSniperAttacking ? (hexa.IsSniperLocked ? "고정" : "조준") : "완료";
+                        objective = "Hexa Sniper " + hexa.SniperShotCount + "/" + HexaDefinition.SNIPER_SHOT_COUNT
+                            + " · " + (hexa.SniperElapsedTicks / (double)RuneSimulation.TICK_RATE).ToString("0.0")
+                            + "s · " + sniperState;
                         break;
                     }
                 }

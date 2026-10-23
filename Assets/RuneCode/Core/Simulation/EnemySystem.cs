@@ -90,6 +90,7 @@ namespace RuneCode
                 {
                     if (enemy.Definition.Attack == EnemyDefinition.ATTACK_SNIPER)
                     { enemy.AimEndsAt = 0; enemy.WarningUntil = 0; enemy.AttackAt = _world.Time + RuneSimulation.STEP_SECONDS; }
+                    enemy.Hexa?.PauseSniper(enemy, _world.Time);
                     continue;
                 }
                 if (enemy.Hexa != null)
@@ -172,21 +173,36 @@ namespace RuneCode
         private void AdvanceSniper(SimulationEnemy enemy, SimVector direction)
         {
             EnemyDefinition definition = enemy.Definition;
-            if (!enemy.IsAiming)
-            {
-                if (_world.Time + RuneSimulation.COLLISION_EPSILON < enemy.AttackAt) return;
-                enemy.AimEndsAt = _world.Time + definition.AimSeconds;
-                enemy.WarningUntil = enemy.AimEndsAt + definition.LockSeconds;
-                enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction;
-                return;
-            }
-            if (_world.Time + RuneSimulation.COLLISION_EPSILON < enemy.AimEndsAt)
-            { enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction; return; }
-            if (_world.Time + RuneSimulation.COLLISION_EPSILON < enemy.WarningUntil) return;
+            if (!enemy.IsAiming && _world.Time + RuneSimulation.COLLISION_EPSILON < enemy.AttackAt) return;
+            if (!AdvanceSniperAim(enemy, definition, direction, _world.Time)) return;
             _world.EnemyProjectiles.Add(new SimulationProjectile(enemy.AttackOrigin, enemy.AttackDirection, definition.ProjectileSpeed,
                 enemy.Damage, definition.ProjectileRadius, definition.ProjectileLifetime, sourceEnemyId: enemy.Id));
             enemy.AimEndsAt = 0; enemy.WarningUntil = 0;
             enemy.AttackAt = _world.Time + definition.AttackInterval - definition.AimSeconds - definition.LockSeconds;
+        }
+
+        /// <summary>저격 정의의 조준 시작·추적·고정을 한 틱 진행하고 발사 시점이면 true를 반환한다.</summary>
+        internal static bool AdvanceSniperAim(SimulationEnemy enemy, EnemyDefinition definition, SimVector direction, double time)
+            => AdvanceSniperAim(enemy, definition, direction, time, out _);
+
+        /// <summary>
+        /// 저격 정의의 조준 시작·추적·고정을 한 틱 진행하고 발사 시점이면 true를 반환한다.
+        /// 조준 중에는 현재 위치와 방향을 저장하고, 고정 중에는 저장값을 유지하며 isLocked로 고정 구간을 알린다.
+        /// </summary>
+        internal static bool AdvanceSniperAim(SimulationEnemy enemy, EnemyDefinition definition, SimVector direction, double time, out bool isLocked)
+        {
+            isLocked = false;
+            if (!enemy.IsAiming)
+            {
+                enemy.AimEndsAt = time + definition.AimSeconds;
+                enemy.WarningUntil = enemy.AimEndsAt + definition.LockSeconds;
+                enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction;
+                return false;
+            }
+            if (time + RuneSimulation.COLLISION_EPSILON < enemy.AimEndsAt)
+            { enemy.ShotOrigin = enemy.Position; enemy.AttackDirection = direction; return false; }
+            isLocked = true;
+            return time + RuneSimulation.COLLISION_EPSILON >= enemy.WarningUntil;
         }
 
         /// <summary>인터셉터의 이동·정지 남은 시간을 줄이고 이동 종료마다 플레이어 방향에 한 발을 발사한다.</summary>
@@ -376,7 +392,7 @@ namespace RuneCode
         internal void CancelHexaAttack(SimulationEnemy enemy)
         {
             if (enemy.Hexa == null) return;
-            enemy.Hexa.Cancel();
+            enemy.Hexa.Cancel(enemy);
             for (int i = _world.EnemyProjectiles.Count - 1; i >= 0; i--)
                 if (_world.EnemyProjectiles[i].SourceEnemyId == enemy.Id) _world.EnemyProjectiles.RemoveAt(i);
         }

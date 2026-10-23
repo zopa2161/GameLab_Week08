@@ -519,6 +519,8 @@ namespace RuneCode
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
             _hydra?.WriteState(state);
             _hexa?.WriteState(state);
+            if (_hexa != null && _hexa.HasStartedSniper)
+                state.Append(FormattableString.Invariant($"|hexaAim:{_attackOrigin.X:R}:{_attackOrigin.Y:R}:{_attackDirection.X:R}:{_attackDirection.Y:R}:{_aimUntil:R}:{_warningUntil:R}"));
             if (_boss != null && _boss.IsMiniBoss) state.Append('|').Append(_isNextBossBurst);
             if (_pendingDisplacementTick >= 0 || _displacementRemaining > 0)
                 state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));

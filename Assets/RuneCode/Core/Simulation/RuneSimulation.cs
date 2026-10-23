@@ -133,8 +133,13 @@ namespace RuneCode
         public int NodeExecutionCount => _stats.NodeExecutionCount;
         public bool AdaptationEnabled => Adaptation.Enabled;
         public bool DebugInvulnerable => _world.DebugInvulnerable;
-        /// <summary>저격수의 저장된 조준 경로를 벽과 공격 사거리로 제한한 끝점을 반환한다.</summary>
-        public SimVector GetSniperEnd(SimulationEnemy enemy) => enemy.AttackOrigin + enemy.AimedDirection * _entities.ClipBeamLength(enemy.AttackOrigin, enemy.AimedDirection, enemy.Definition.AttackRange);
+        /// <summary>저격수 또는 Hexa 저격 하위 공격의 저장된 조준 경로를 벽과 원본 사거리로 제한한 끝점을 반환한다.</summary>
+        public SimVector GetSniperEnd(SimulationEnemy enemy)
+        {
+            double range = enemy.Hexa != null && enemy.Hexa.SniperAttackRange > 0
+                ? enemy.Hexa.SniperAttackRange : enemy.Definition.AttackRange;
+            return enemy.AttackOrigin + enemy.AimedDirection * _entities.ClipBeamLength(enemy.AttackOrigin, enemy.AimedDirection, range);
+        }
         /// <summary>시험 도크의 적응 학습 및 피해 감쇠 사용 여부를 변경한다.</summary>
         public void SetAdaptationEnabled(bool isEnabled) { Adaptation.SetEnabled(isEnabled); }
 
@@ -231,10 +236,10 @@ namespace RuneCode
 
         /// <summary>
         /// 디버그 라운드 대기 중 지정 스테이지의 미니 보스 또는 최종 보스 라운드 마지막 웨이브로 전환한다. 기본값은 최종 보스다.
-        /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고, isHexaSprayPreview 또는 isHexaHomingPreview일 때 해당 단독 공격을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
+        /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고, isHexaSprayPreview·isHexaHomingPreview·isHexaSniperPreview 중 하나일 때 해당 단독 공격을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
         /// </summary>
         public bool DebugStartBossWave(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT, bool isHexaPreview = false,
-            bool isHexaSprayPreview = false, bool isHexaHomingPreview = false)
+            bool isHexaSprayPreview = false, bool isHexaHomingPreview = false, bool isHexaSniperPreview = false)
         {
             if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak
                 || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT
@@ -242,7 +247,8 @@ namespace RuneCode
                 || (isHexaPreview && round != StageCatalog.PROGRESSION_ROUND_COUNT)
                 || (isHexaSprayPreview && !isHexaPreview)
                 || (isHexaHomingPreview && !isHexaPreview)
-                || (isHexaSprayPreview && isHexaHomingPreview)) return false;
+                || (isHexaSniperPreview && !isHexaPreview)
+                || ((isHexaSprayPreview ? 1 : 0) + (isHexaHomingPreview ? 1 : 0) + (isHexaSniperPreview ? 1 : 0) > 1)) return false;
             _loot.ClearClearFeedback();
             _world.StageNumber = stage;
             _world.RoundNumber = round;
@@ -250,14 +256,16 @@ namespace RuneCode
             _world.Player.SetHp(_world.Player.MaxHp);
             _world.Stage = MissionStage.Combat;
             StartProgressionWave(isHexaPreview);
-            if (isHexaSprayPreview || isHexaHomingPreview)
+            if (isHexaSprayPreview || isHexaHomingPreview || isHexaSniperPreview)
             {
-                EnemyDefinition projectile = _world.EnemyCatalog.Get(HexaDefinition.PROJECTILE_SOURCE_ID);
+                EnemyDefinition source = _world.EnemyCatalog.Get(isHexaSniperPreview
+                    ? HexaDefinition.SNIPER_SOURCE_ID : HexaDefinition.PROJECTILE_SOURCE_ID);
                 foreach (SimulationEnemy enemy in _world.Enemies)
                 {
                     if (enemy.Hexa == null) continue;
-                    if (isHexaSprayPreview) enemy.Hexa.BeginSpray(projectile);
-                    else enemy.Hexa.BeginHoming(projectile);
+                    if (isHexaSprayPreview) enemy.Hexa.BeginSpray(source);
+                    else if (isHexaHomingPreview) enemy.Hexa.BeginHoming(source);
+                    else enemy.Hexa.BeginSniper(source);
                 }
             }
             return true;
@@ -444,7 +452,7 @@ namespace RuneCode
             {
                 foreach (SimulationEnemy enemy in _world.Enemies)
                 {
-                    enemy.Hexa?.Cancel();
+                    enemy.Hexa?.Cancel(enemy);
                     _stats.RecordEnemyEnd(enemy, Time, "wave_ended_alive");
                 }
                 _world.Enemies.Clear();
@@ -524,7 +532,7 @@ namespace RuneCode
             {
                 enemy.CancelDisplacement();
                 enemy.Hydra?.Cancel();
-                enemy.Hexa?.Cancel();
+                enemy.Hexa?.Cancel(enemy);
             }
             _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _executor.ClearScheduled(); _enemy.PendingEnemyShots.Clear(); _spawn.PendingSplits.Clear(); _loot.ClearDeadEnemies();
             _spawn.PendingSpawns.Clear(); _feedback.ClearSpawnWarnings();
