@@ -37,8 +37,8 @@ namespace RuneCode
             _defaultBulletSprite = _bullet.sprite;
         }
 
-        /// <summary>적 탄환 또는 장판의 위치·크기·예고 상태로 맵 중앙(origin) 기준 월드 표시를 갱신한다.</summary>
-        public void Apply(SimulationProjectile projectile, SimVector origin)
+        /// <summary>탄환·장판을 맵 중앙 기준으로 표시하고 선택적 발사자 색을 레골라스 저격 탄환과 잔상에 적용한다.</summary>
+        public void Apply(SimulationProjectile projectile, SimVector origin, Color? sourceTint = null)
         {
             transform.localPosition = MissionWorldSpace.ToWorld(projectile.Position, origin);
             float radius = (float)projectile.Radius;
@@ -61,12 +61,14 @@ namespace RuneCode
                 return;
             }
             bool isLegolasShot = projectile.OwnerBoss != null && projectile.OwnerBoss.IsLegolasPattern;
+            Color bulletColor = isLegolasShot && sourceTint.HasValue ? sourceTint.Value : Tint;
+            Color trailColor = isLegolasShot ? new Color(bulletColor.r, bulletColor.g, bulletColor.b, TrailColor.a) : TrailColor;
             _bullet.sprite = isLegolasShot ? _legolasProjectileShape : _defaultBulletSprite;
             _bullet.transform.localRotation = isLegolasShot
                 ? Quaternion.Euler(0, 0, MissionWorldSpace.ToWorldAngle(projectile.Direction)) : Quaternion.identity;
             MissionWorldSpace.Place(_bullet, Vector2.zero,
-                new Vector2(radius * 2 * (isLegolasShot ? _legolasProjectileStretch : 1), radius * 2), Tint);
-            MissionWorldSpace.PlaceLine(_trail, -MissionWorldSpace.ToWorldDirection(projectile.Direction) * TRAIL_LENGTH, Vector2.zero, radius, TrailColor);
+                new Vector2(radius * 2 * (isLegolasShot ? _legolasProjectileStretch : 1), radius * 2), bulletColor);
+            MissionWorldSpace.PlaceLine(_trail, -MissionWorldSpace.ToWorldDirection(projectile.Direction) * TRAIL_LENGTH, Vector2.zero, radius, trailColor);
         }
     }
 }

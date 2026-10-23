@@ -40,6 +40,7 @@ namespace RuneCode
         [SerializeField] private EnemyAppearance[] _appearances;
         [SerializeField] private Sprite _defaultShape;
         [SerializeField] private Color _defaultTint = new Color(0.94f, 0.34f, 0.40f);
+        public Color DefaultTint => _defaultTint;
 
         [Header("엘리트 외곽선")]
         [SerializeField] private Color _eliteOutlineColor = new Color(0.35f, 0.75f, 1f);
