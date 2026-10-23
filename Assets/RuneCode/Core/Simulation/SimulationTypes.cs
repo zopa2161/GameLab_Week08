@@ -855,7 +855,6 @@ namespace RuneCode
     public sealed class SimulationProjectile
     {
         private readonly int _sourceEnemyId;
-        private readonly SimVector _direction;
         private readonly double _speed;
         private readonly double _damage;
         private readonly bool _isExplosion;
@@ -863,6 +862,9 @@ namespace RuneCode
         private readonly double _lifetime;
         private readonly bool _isHazard;
         private readonly double _warning;
+        private readonly double _homingTurnRadiansPerSecond;
+        private readonly double _homingSeconds;
+        private SimVector _direction;
         private SimVector _position;
         private double _age;
         public SimVector Position => _position;
@@ -876,17 +878,39 @@ namespace RuneCode
         internal int SourceEnemyId => _sourceEnemyId;
         internal double Damage => _damage;
         internal double Lifetime => _lifetime;
+        internal bool IsHoming => _homingTurnRadiansPerSecond > 0 && _homingSeconds > 0;
 
-        /// <summary>위치·공격 설정으로 적 탄환 또는 예고 장판을 생성하고 피해 귀속용 원래 적 ID를 보관한다.</summary>
-        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0)
-        { _sourceEnemyId = sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; }
+        /// <summary>위치·공격 설정으로 적 탄환 또는 예고 장판을 생성하고 피해 귀속용 원래 적 ID를 보관한다. 유도 회전 속도와 지속 시간을 지정하면 생성 직후부터 해당 시간 동안 플레이어 방향 보정을 사용한다.</summary>
+        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0, double homingTurnDegreesPerSecond = 0, double homingSeconds = 0)
+        { _sourceEnemyId = sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; _homingTurnRadiansPerSecond = homingTurnDegreesPerSecond * RuneSimulation.DEGREES_TO_RADIANS; _homingSeconds = Math.Max(0, homingSeconds); }
 
-        /// <summary>탄환의 위치와 수명을 고정 시간만큼 진행한다.</summary>
-        internal void Advance(double dt) { _age += dt; _position += _direction * (_speed * dt); }
+        /// <summary>유도 탄환이면 유도 시간 안에서 목표 방향으로 최대 회전량만큼 최단 호로 방향을 보정한 뒤 위치와 수명을 고정 시간만큼 진행한다.</summary>
+        internal void Advance(double dt, SimVector? homingTarget = null)
+        {
+            if (homingTarget.HasValue) SteerToward(homingTarget.Value, dt);
+            _age += dt;
+            _position += _direction * (_speed * dt);
+        }
 
-        /// <summary>적 탄환의 이동, 예고, 피해, 수명과 사망 정리에 사용하는 소유자 ID를 결정성 해시 버퍼에 기록한다.</summary>
+        /// <summary>현재 방향을 목표 위치 방향으로 남은 유도 시간과 초당 회전 상한 안에서 최단 호로 돌린다. 방향이나 목표 오프셋이 0이면 유지한다.</summary>
+        private void SteerToward(SimVector target, double dt)
+        {
+            if (!IsHoming || dt <= 0) return;
+            double remaining = _homingSeconds - _age;
+            if (remaining <= 0) return;
+            SimVector offset = target - _position;
+            if (offset.LengthSquared <= 0.000001) return;
+            SimVector targetDirection = offset.Normalized();
+            SimVector currentDirection = _direction.LengthSquared > 0.000001 ? _direction.Normalized() : targetDirection;
+            double maxRadians = _homingTurnRadiansPerSecond * Math.Min(dt, remaining);
+            double cross = currentDirection.X * targetDirection.Y - currentDirection.Y * targetDirection.X;
+            double angle = Math.Atan2(cross, SimVector.Dot(currentDirection, targetDirection));
+            _direction = Math.Abs(angle) <= maxRadians ? targetDirection : currentDirection.Rotated(Math.Sign(angle) * maxRadians);
+        }
+
+        /// <summary>적 탄환의 이동, 예고, 피해, 수명과 사망 정리에 사용하는 소유자 ID 및 유도 설정을 결정성 해시 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
-        { state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_speed:R}|{_damage:R}|{_radius:R}|{_lifetime:R}|{_isHazard}|{_warning:R}|{_age:R}|source:{_sourceEnemyId}")); if (_isExplosion) state.Append("|explosion"); }
+        { state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_speed:R}|{_damage:R}|{_radius:R}|{_lifetime:R}|{_isHazard}|{_warning:R}|{_age:R}|source:{_sourceEnemyId}")); if (IsHoming) state.Append(FormattableString.Invariant($"|homing:{_homingTurnRadiansPerSecond:R}:{_homingSeconds:R}")); if (_isExplosion) state.Append("|explosion"); }
     }
 
     public struct FragmentOrb

@@ -231,16 +231,18 @@ namespace RuneCode
 
         /// <summary>
         /// 디버그 라운드 대기 중 지정 스테이지의 미니 보스 또는 최종 보스 라운드 마지막 웨이브로 전환한다. 기본값은 최종 보스다.
-        /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고 isHexaSprayPreview일 때 난사 한 번을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
+        /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고, isHexaSprayPreview 또는 isHexaHomingPreview일 때 해당 단독 공격을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
         /// </summary>
         public bool DebugStartBossWave(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT, bool isHexaPreview = false,
-            bool isHexaSprayPreview = false)
+            bool isHexaSprayPreview = false, bool isHexaHomingPreview = false)
         {
             if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak
                 || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT
                 || (round != StageCatalog.MINI_BOSS_ROUND && round != StageCatalog.PROGRESSION_ROUND_COUNT)
                 || (isHexaPreview && round != StageCatalog.PROGRESSION_ROUND_COUNT)
-                || (isHexaSprayPreview && !isHexaPreview)) return false;
+                || (isHexaSprayPreview && !isHexaPreview)
+                || (isHexaHomingPreview && !isHexaPreview)
+                || (isHexaSprayPreview && isHexaHomingPreview)) return false;
             _loot.ClearClearFeedback();
             _world.StageNumber = stage;
             _world.RoundNumber = round;
@@ -248,9 +250,16 @@ namespace RuneCode
             _world.Player.SetHp(_world.Player.MaxHp);
             _world.Stage = MissionStage.Combat;
             StartProgressionWave(isHexaPreview);
-            if (isHexaSprayPreview)
+            if (isHexaSprayPreview || isHexaHomingPreview)
+            {
+                EnemyDefinition projectile = _world.EnemyCatalog.Get(HexaDefinition.PROJECTILE_SOURCE_ID);
                 foreach (SimulationEnemy enemy in _world.Enemies)
-                    if (enemy.Hexa != null) enemy.Hexa.BeginSpray(_world.EnemyCatalog.Get(HexaDefinition.PROJECTILE_SOURCE_ID));
+                {
+                    if (enemy.Hexa == null) continue;
+                    if (isHexaSprayPreview) enemy.Hexa.BeginSpray(projectile);
+                    else enemy.Hexa.BeginHoming(projectile);
+                }
+            }
             return true;
         }
 

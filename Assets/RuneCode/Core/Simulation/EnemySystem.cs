@@ -381,7 +381,7 @@ namespace RuneCode
                 if (_world.EnemyProjectiles[i].SourceEnemyId == enemy.Id) _world.EnemyProjectiles.RemoveAt(i);
         }
 
-        /// <summary>적 탄환과 위험 장판의 수명, 벽 충돌 및 플레이어 피격을 처리하며 죽은 Hexa의 탄환은 피해 처리 전에 제거한다.</summary>
+        /// <summary>적 탄환과 위험 장판의 수명, 벽 충돌 및 플레이어 피격을 처리하며 유도 탄환은 이동 전에 플레이어 방향으로 보정하고 죽은 Hexa의 탄환은 피해 처리 전에 제거한다.</summary>
         internal void AdvanceHostileProjectiles()
         {
             foreach (SimulationEnemy enemy in _world.Enemies)
@@ -390,7 +390,7 @@ namespace RuneCode
             {
                 SimulationProjectile projectile = _world.EnemyProjectiles[i];
                 SimVector previous = projectile.Position;
-                projectile.Advance(Math.Min(RuneSimulation.STEP_SECONDS, Math.Max(0, projectile.Lifetime - projectile.Age)));
+                projectile.Advance(Math.Min(RuneSimulation.STEP_SECONDS, Math.Max(0, projectile.Lifetime - projectile.Age)), _world.Player.Position);
                 if (!projectile.IsHazard)
                 {
                     double wall = _simulation.FirstWallFraction(previous, projectile.Position, projectile.Radius);

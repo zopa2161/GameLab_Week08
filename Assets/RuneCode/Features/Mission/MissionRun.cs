@@ -271,16 +271,16 @@ namespace RuneCode
 
         /// <summary>
         /// 디버그 라운드 대기 중 지정 스테이지·라운드의 마지막 웨이브로 진입한다. 기본 라운드는 최종 보스이며 고르지 않은 보상은 버린다.
-        /// isHexaPreview이면 이번 진입만 Hexa 한 기로 대체하고 isHexaSprayPreview일 때 단독 난사를 준비한다. 진입 성공 여부를 반환한다.
+        /// isHexaPreview이면 이번 진입만 Hexa 한 기로 대체하고 isHexaSprayPreview 또는 isHexaHomingPreview일 때 해당 단독 공격을 준비한다. 진입 성공 여부를 반환한다.
         /// </summary>
         public bool DebugStartBoss(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT, bool isHexaPreview = false,
-            bool isHexaSprayPreview = false)
+            bool isHexaSprayPreview = false, bool isHexaHomingPreview = false)
         {
             if (!_session.IsDebugEnabled || _settled || _isPaused || !_simulation.IsWaitingForNextRound) return false;
             ResetRoundInput();
             int completedStage = _simulation.StageNumber;
             int completedRound = _simulation.RoundNumber;
-            if (!_simulation.DebugStartBossWave(stage, round, isHexaPreview, isHexaSprayPreview)) return false;
+            if (!_simulation.DebugStartBossWave(stage, round, isHexaPreview, isHexaSprayPreview, isHexaHomingPreview)) return false;
             EndRoundBreak(completedStage, completedRound, "debug_boss_clicked");
             return true;
         }
