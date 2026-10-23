@@ -301,6 +301,7 @@ namespace RuneCode
         private readonly EnemyMovementType _movementType;
         private readonly BossDefinition _boss;
         private HydraBossState _hydra;
+        private HexaBossState _hexa;
         private readonly bool _isDummy;
         private readonly bool _isElite;
         private readonly bool _isKillTarget;
@@ -370,6 +371,7 @@ namespace RuneCode
         public EnemyDefinition Definition => _definition;
         public BossDefinition Boss => _boss;
         public HydraBossState Hydra => _hydra;
+        public HexaBossState Hexa => _hexa;
         public SimVector AttackOrigin => _attackOrigin;
         public SimVector AimedDirection => _attackDirection;
         public bool IsAiming => _aimUntil > 0;
@@ -414,6 +416,12 @@ namespace RuneCode
         internal void InitializeHydra(double time)
         {
             if (_boss != null && _boss.IsHydraPattern) _hydra = new HydraBossState(_boss.Hydra, time, _maxHp);
+        }
+
+        /// <summary>Hexa 정의가 있는 개체에 새 비공격 보스 상태를 생성한다.</summary>
+        internal void InitializeHexa()
+        {
+            if (_boss != null && _boss.IsHexaPattern) _hexa = new HexaBossState();
         }
 
         /// <summary>적 위치와 바라볼 방향을 갱신한다. 방향 전환 시간이 설정된 적은 이번 틱 최대 회전각만큼 목표 방향으로 돌고, 없으면 즉시 향한다.</summary>
@@ -510,6 +518,7 @@ namespace RuneCode
         {
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
             _hydra?.WriteState(state);
+            _hexa?.WriteState(state);
             if (_boss != null && _boss.IsMiniBoss) state.Append('|').Append(_isNextBossBurst);
             if (_pendingDisplacementTick >= 0 || _displacementRemaining > 0)
                 state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));
@@ -875,9 +884,9 @@ namespace RuneCode
         /// <summary>탄환의 위치와 수명을 고정 시간만큼 진행한다.</summary>
         internal void Advance(double dt) { _age += dt; _position += _direction * (_speed * dt); }
 
-        /// <summary>적 탄환의 이동, 예고, 피해 및 수명 상태를 결정성 해시 버퍼에 기록한다.</summary>
+        /// <summary>적 탄환의 이동, 예고, 피해, 수명과 사망 정리에 사용하는 소유자 ID를 결정성 해시 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
-        { state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_speed:R}|{_damage:R}|{_radius:R}|{_lifetime:R}|{_isHazard}|{_warning:R}|{_age:R}")); if (_isExplosion) state.Append("|explosion"); }
+        { state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_speed:R}|{_damage:R}|{_radius:R}|{_lifetime:R}|{_isHazard}|{_warning:R}|{_age:R}|source:{_sourceEnemyId}")); if (_isExplosion) state.Append("|explosion"); }
     }
 
     public struct FragmentOrb

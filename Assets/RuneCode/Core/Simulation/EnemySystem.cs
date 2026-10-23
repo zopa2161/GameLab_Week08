@@ -92,6 +92,15 @@ namespace RuneCode
                     { enemy.AimEndsAt = 0; enemy.WarningUntil = 0; enemy.AttackAt = _world.Time + RuneSimulation.STEP_SECONDS; }
                     continue;
                 }
+                if (enemy.Hexa != null)
+                {
+                    if (!enemy.Hexa.IsCancelled)
+                    {
+                        enemy.Hexa.Advance(enemy, _world);
+                        HurtByContact(enemy);
+                    }
+                    continue;
+                }
                 SimVector offset = _world.Player.Position - enemy.Position; SimVector direction = offset.Normalized();
                 BossDefinition bossPattern = enemy.Boss;
                 bool isBoss = bossPattern != null && bossPattern.IsGovernorPattern;
@@ -363,9 +372,20 @@ namespace RuneCode
             boss.AttackAt = _world.Time + pattern.PatchSeconds + boss.Definition.WarningSeconds;
         }
 
-        /// <summary>적 탄환과 위험 장판의 수명, 벽 충돌 및 플레이어 피격을 처리한다.</summary>
+        /// <summary>Hexa의 실행을 취소하고 해당 개체가 생성한 탄환만 제거한다. 다른 적의 공격은 유지한다.</summary>
+        internal void CancelHexaAttack(SimulationEnemy enemy)
+        {
+            if (enemy.Hexa == null) return;
+            enemy.Hexa.Cancel();
+            for (int i = _world.EnemyProjectiles.Count - 1; i >= 0; i--)
+                if (_world.EnemyProjectiles[i].SourceEnemyId == enemy.Id) _world.EnemyProjectiles.RemoveAt(i);
+        }
+
+        /// <summary>적 탄환과 위험 장판의 수명, 벽 충돌 및 플레이어 피격을 처리하며 죽은 Hexa의 탄환은 피해 처리 전에 제거한다.</summary>
         internal void AdvanceHostileProjectiles()
         {
+            foreach (SimulationEnemy enemy in _world.Enemies)
+                if (enemy.Hexa != null && !enemy.IsAlive) CancelHexaAttack(enemy);
             for (int i = _world.EnemyProjectiles.Count - 1; i >= 0; i--)
             {
                 SimulationProjectile projectile = _world.EnemyProjectiles[i];

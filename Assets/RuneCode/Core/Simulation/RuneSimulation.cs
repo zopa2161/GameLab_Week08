@@ -231,20 +231,26 @@ namespace RuneCode
 
         /// <summary>
         /// 디버그 라운드 대기 중 지정 스테이지의 미니 보스 또는 최종 보스 라운드 마지막 웨이브로 전환한다. 기본값은 최종 보스다.
-        /// 플레이어 체력을 최대로 채우며 대기 상태·스테이지·보스 라운드가 유효하지 않으면 false를 반환한다.
+        /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고 isHexaSprayPreview일 때 난사 한 번을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
         /// </summary>
-        public bool DebugStartBossWave(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT)
+        public bool DebugStartBossWave(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT, bool isHexaPreview = false,
+            bool isHexaSprayPreview = false)
         {
             if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak
                 || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT
-                || (round != StageCatalog.MINI_BOSS_ROUND && round != StageCatalog.PROGRESSION_ROUND_COUNT)) return false;
+                || (round != StageCatalog.MINI_BOSS_ROUND && round != StageCatalog.PROGRESSION_ROUND_COUNT)
+                || (isHexaPreview && round != StageCatalog.PROGRESSION_ROUND_COUNT)
+                || (isHexaSprayPreview && !isHexaPreview)) return false;
             _loot.ClearClearFeedback();
             _world.StageNumber = stage;
             _world.RoundNumber = round;
             _world.WaveNumber = StageCatalog.PROGRESSION_WAVE_COUNT;
             _world.Player.SetHp(_world.Player.MaxHp);
             _world.Stage = MissionStage.Combat;
-            StartProgressionWave();
+            StartProgressionWave(isHexaPreview);
+            if (isHexaSprayPreview)
+                foreach (SimulationEnemy enemy in _world.Enemies)
+                    if (enemy.Hexa != null) enemy.Hexa.BeginSpray(_world.EnemyCatalog.Get(HexaDefinition.PROJECTILE_SOURCE_ID));
             return true;
         }
 
@@ -427,7 +433,11 @@ namespace RuneCode
             }
             if (_world.IsBossStage)
             {
-                foreach (SimulationEnemy enemy in _world.Enemies) _stats.RecordEnemyEnd(enemy, Time, "wave_ended_alive");
+                foreach (SimulationEnemy enemy in _world.Enemies)
+                {
+                    enemy.Hexa?.Cancel();
+                    _stats.RecordEnemyEnd(enemy, Time, "wave_ended_alive");
+                }
                 _world.Enemies.Clear();
             }
             _statuses.ClearAll();
@@ -442,11 +452,12 @@ namespace RuneCode
             _spawn.Director = null;
         }
 
-        /// <summary>현재 스테이지·라운드·웨이브의 유한 편성을 스폰 진행기에 설치하고 보스 판정을 초기화한다.</summary>
-        private void StartProgressionWave()
+        /// <summary>현재 웨이브 편성을 설치하고 보스 판정을 초기화한다. isHexaPreview일 때만 원본을 보존한 Hexa 단독 편성을 사용한다.</summary>
+        private void StartProgressionWave(bool isHexaPreview = false)
         {
             _rules.ResetForWave();
             WaveDefinition wave = _world.Stages.GetProgressionStage(_world.StageNumber).Rounds[_world.RoundNumber - 1].Waves[_world.WaveNumber - 1];
+            if (isHexaPreview) wave = wave.WithBoss(HexaDefinition.ID);
             _spawn.StartWave(wave);
         }
 
@@ -504,6 +515,7 @@ namespace RuneCode
             {
                 enemy.CancelDisplacement();
                 enemy.Hydra?.Cancel();
+                enemy.Hexa?.Cancel();
             }
             _world.SpellEntities.Clear(); _world.EnemyProjectiles.Clear(); _executor.ClearScheduled(); _enemy.PendingEnemyShots.Clear(); _spawn.PendingSplits.Clear(); _loot.ClearDeadEnemies();
             _spawn.PendingSpawns.Clear(); _feedback.ClearSpawnWarnings();

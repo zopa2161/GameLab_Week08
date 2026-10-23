@@ -35,7 +35,8 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private readonly Queue<string> _itemToasts = new Queue<string>();
-        private readonly List<(int Stage, int Round)> _debugBossTargets = new List<(int Stage, int Round)>();
+        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview)> _debugBossTargets
+            = new List<(int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview)>();
 
         private MissionRun _run;
         private PausePopup _pausePopup;
@@ -291,7 +292,7 @@ namespace RuneCode
             _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
         }
 
-        /// <summary>보스 종류별 등장 라운드에서 최초 스테이지를 찾아 디버그 버튼과 이동할 스테이지·라운드를 구성한다.</summary>
+        /// <summary>보스별 첫 배치와 디버그 진입을 구성한다. 미배치 Hexa는 1스테이지 기본 모드와 단독 난사 모드를 추가한다.</summary>
         private void BuildDebugBosses()
         {
             var labels = new List<string>();
@@ -299,9 +300,17 @@ namespace RuneCode
             {
                 int round = boss.IsMiniBoss ? StageCatalog.MINI_BOSS_ROUND : StageCatalog.PROGRESSION_ROUND_COUNT;
                 int stage = FindBossStage(boss.EnemyId, round);
-                if (stage == 0) continue;
-                _debugBossTargets.Add((stage, round));
-                labels.Add((boss.IsMiniBoss ? "" : "보스 ") + GameData.L(boss.EnemyId) + " · 스테이지 " + stage);
+                bool isHexaPreview = stage == 0 && boss.IsHexaPattern;
+                if (stage == 0 && !isHexaPreview) continue;
+                if (isHexaPreview) stage = 1;
+                _debugBossTargets.Add((stage, round, isHexaPreview, false));
+                labels.Add((boss.IsMiniBoss ? "" : "보스 ") + GameData.L(boss.EnemyId)
+                    + (isHexaPreview ? " · 기본 모드" : " · 스테이지 " + stage));
+                if (isHexaPreview)
+                {
+                    _debugBossTargets.Add((stage, round, true, true));
+                    labels.Add("보스 " + GameData.L(boss.EnemyId) + " · 난사 모드");
+                }
             }
             _hud.BuildDebugBosses(labels);
         }
@@ -322,8 +331,8 @@ namespace RuneCode
         private void StartDebugBoss(int index)
         {
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
-            (int Stage, int Round) target = _debugBossTargets[index];
-            if (!_run.DebugStartBoss(target.Stage, target.Round)) return;
+            (int Stage, int Round, bool IsHexaPreview, bool IsHexaSprayPreview) target = _debugBossTargets[index];
+            if (!_run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview, target.IsHexaSprayPreview)) return;
             _isInitialDebugRoundBreak = false;
             _result.HideClearModifierChoices();
             _result.Hide();
@@ -711,6 +720,18 @@ namespace RuneCode
             string objective = _run.IsFinished ? (sim.Completed ? "미션 완료" : sim.IsFailed ? "전투 패배" : "전투 중단")
                 : sim.IsWaitingForNextRound ? "다음 라운드 대기"
                 : (sim.IsBossStage ? "보스를 처치하세요 · " : "") + "남은 적 " + sim.RemainingWaveEnemyCount;
+            if (_session.IsDebugEnabled && !_run.IsFinished && !sim.IsWaitingForNextRound)
+                foreach (SimulationEnemy enemy in sim.Enemies)
+                {
+                    HexaBossState hexa = enemy.Hexa;
+                    if (hexa == null || !hexa.HasStartedSpray) continue;
+                    string sprayState = hexa.IsCancelled ? "취소" : hexa.DelayTicks > 0 ? "대기"
+                        : hexa.IsSpraying ? "진행" : "완료";
+                    objective = "Hexa 난사 " + hexa.SprayShotCount + "/" + HexaDefinition.SPRAY_SHOT_COUNT
+                        + " · " + (hexa.SprayElapsedTicks / (double)RuneSimulation.TICK_RATE).ToString("0.0")
+                        + "s · " + sprayState;
+                    break;
+                }
             _hud.SetTimer(objective, false);
             string executionState = sim.HasActiveBeam(0) ? GameData.L("ui.beamActive") : sim.Player.IsSpellRunning(0)
                 ? GameData.L("ui.executing") + " " + sim.Player.ExecutionRemaining(0).ToString("0.0") + "s " + GameData.L("ui.remaining")

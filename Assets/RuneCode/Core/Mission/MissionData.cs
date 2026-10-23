@@ -305,6 +305,7 @@ namespace RuneCode
         public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN || IsMiniBoss;
         public bool IsMiniBoss => _pattern == MINI_GOVERNOR_PATTERN;
         public bool IsHydraPattern => _pattern == HYDRA_PATTERN;
+        public bool IsHexaPattern => _pattern == HexaDefinition.ID;
         public HydraDefinition Hydra => _hydra;
 
         /// <summary>페이즈에 대응하는 장판 세트 설정을 반환하고 2페이즈가 아니면 3페이즈 설정을 반환한다.</summary>
@@ -314,6 +315,11 @@ namespace RuneCode
         /// <summary>패턴 이름, 페이즈 문턱, 공격 주기, 장판 세트 설정과 증원의 적·진형 참조를 검증하고 모르는 값이나 증원에 쓸 수 없는 맵형 진형에는 데이터 오류를 발생시킨다.</summary>
         public void Validate(EnemyCatalog enemies, FormationCatalog formations)
         {
+            if (IsHexaPattern)
+            {
+                HexaDefinition.Validate(enemies.Get(_enemyId));
+                return;
+            }
             if (IsMiniBoss)
             {
                 if (!IsPositive(_phaseTwoThreshold) || _phaseTwoThreshold >= 1 || !IsPositive(_patchSeconds)
@@ -377,6 +383,11 @@ namespace RuneCode
                 enemies.Get(boss.EnemyId);
                 boss.Validate(enemies, formations);
             }
+            foreach (EnemyDefinition enemy in enemies.Enemies)
+                if (enemy.HasTrait(EnemyDefinition.TRAIT_CARRIER))
+                    foreach (string target in enemy.CarrierTargets)
+                        if (catalog.TryGet(target, out _))
+                            throw new FormatException("캐리어는 보스를 생성할 수 없습니다: " + enemy.Id + ", " + target);
             return catalog;
         }
     }

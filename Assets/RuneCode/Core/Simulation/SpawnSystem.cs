@@ -302,9 +302,18 @@ namespace RuneCode
             if (elite != null) reward = (int)Math.Round(reward * elite.RewardMultiplier, MidpointRounding.AwayFromZero);
             _world.Bosses.TryGet(id, out BossDefinition boss);
             double radius = definition.Radius * (elite != null ? elite.RadiusMultiplier : 1);
-            var enemy = new SimulationEnemy(_world.AllocateEntityId(), definition, EnemyMovements.Resolve(definition.Movement), boss, _world.Map.NearestFree(position, radius), isDummy, hp, _world.Balance.Sim.HitFlashSeconds, hpMultiplier, damageMultiplier, carrierOwnerId == 0 ? reward : 0, elite != null, elite != null ? elite.SpeedMultiplier : 1, elite, isKillTarget, carrierOwnerId);
+            SimVector spawnPosition;
+            if (boss != null && boss.IsHexaPattern)
+            {
+                spawnPosition = new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
+                if (!_world.Map.CanOccupy(spawnPosition, radius))
+                    throw new FormatException("Hexa의 맵 중앙 생성 위치가 벽과 겹칩니다.");
+            }
+            else spawnPosition = _world.Map.NearestFree(position, radius);
+            var enemy = new SimulationEnemy(_world.AllocateEntityId(), definition, EnemyMovements.Resolve(definition.Movement), boss, spawnPosition, isDummy, hp, _world.Balance.Sim.HitFlashSeconds, hpMultiplier, damageMultiplier, carrierOwnerId == 0 ? reward : 0, elite != null, elite != null ? elite.SpeedMultiplier : 1, elite, isKillTarget, carrierOwnerId);
             enemy.AttackAt = _world.Time + definition.AttackInterval;
             enemy.InitializeHydra(_world.Time);
+            enemy.InitializeHexa();
             if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = _world.Time;
             if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = definition.CarrierInterval;
             if (boss != null && boss.IsGovernorPattern && !boss.IsMiniBoss)
