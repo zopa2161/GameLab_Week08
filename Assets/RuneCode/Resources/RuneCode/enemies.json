@@ -363,6 +363,19 @@
       "_burstInterval": 0.16
     },
     {
+      "_id": "hexa",
+      "_hp": 1800,
+      "_speed": 0,
+      "_radius": 52,
+      "_damage": 20,
+      "_reward": 100,
+      "_movement": "anchor",
+      "_attack": "contact",
+      "_attackInterval": 1,
+      "_sides": 6,
+      "_dropTable": ""
+    },
+    {
       "_id": "boss.legolas",
       "_hp": 480,
       "_speed": 0,

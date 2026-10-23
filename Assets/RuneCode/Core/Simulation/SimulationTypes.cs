@@ -304,6 +304,7 @@ namespace RuneCode
         private readonly EnemyMovementType _movementType;
         private readonly BossDefinition _boss;
         private HydraBossState _hydra;
+        private HexaBossState _hexa;
         private LegolasBossState _legolas;
         private readonly bool _isDummy;
         private readonly bool _isElite;
@@ -338,6 +339,7 @@ namespace RuneCode
         private double _behaviorRemaining;
         private bool _isStopping;
         private int _carrierOwnerId;
+        private readonly int _summonerId;
         private double _shieldHp;
         private int _spawnCursor;
         private int _spawnRemaining;
@@ -374,6 +376,7 @@ namespace RuneCode
         public EnemyDefinition Definition => _definition;
         public BossDefinition Boss => _boss;
         public HydraBossState Hydra => _hydra;
+        public HexaBossState Hexa => _hexa;
         public LegolasBossState Legolas => _legolas;
         public SimVector AttackOrigin => _attackOrigin;
         public SimVector AimedDirection => _attackDirection;
@@ -381,6 +384,10 @@ namespace RuneCode
         public double AimUntil => _aimUntil;
         public bool IsStopping => _isStopping;
         public int CarrierOwnerId => _carrierOwnerId;
+
+        /// <summary>이 적을 소환한 Hexa 보스의 개체 ID다. 직접 소환된 적이 아니면 0이다.</summary>
+        public int SummonerId => _summonerId;
+
         public double ShieldHp => _shieldHp;
         public bool HasCircleShield => IsAlive && _shieldHp > 0;
         internal EnemyMovementType MovementType => _movementType;
@@ -408,9 +415,9 @@ namespace RuneCode
         internal double SpawnRemainingSeconds { get => _spawnRemainingSeconds; set => _spawnRemainingSeconds = value; }
         internal int OrbitSign => (_id & 1) == 0 ? 1 : -1;
 
-        /// <summary>공유 적 설정과 보스 설정을 변경하지 않고 이동 종류, 위치, 개별 체력·피해·이동 속도 배율, 보상, 무반격, 엘리트 여부와 엘리트 정의, 목표 처치 수 집계 대상 여부로 실행 상태를 생성한다. 보스가 아니면 보스 설정은 null이다.</summary>
-        internal SimulationEnemy(int id, EnemyDefinition definition, EnemyMovementType movementType, BossDefinition boss, SimVector position, bool isDummy, double hp, double hitFlashSeconds, double hpMultiplier = 1, double damageMultiplier = 1, int reward = -1, bool isElite = false, double speedMultiplier = 1, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0)
-        { _id = id; _definition = definition; _movementType = movementType; _boss = boss; _position = position; _isDummy = isDummy; _isElite = isElite; _isKillTarget = isKillTarget; _speedMultiplier = speedMultiplier; _hitFlashSeconds = hitFlashSeconds; _maxHp = hp > 0 ? hp : definition.Hp * hpMultiplier; _hp = _maxHp; _damageMultiplier = damageMultiplier; _damage = definition.Damage * damageMultiplier; _reward = reward >= 0 ? reward : definition.Reward; _attackAt = definition.AttackInterval; _elite = elite; _carrierOwnerId = carrierOwnerId; _behaviorRemaining = definition.MoveSeconds; _shieldHp = definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD) ? _maxHp * CIRCLE_SHIELD_HP_MULTIPLIER : 0; }
+        /// <summary>공유 적 설정과 보스 설정을 변경하지 않고 이동 종류, 위치, 개별 체력·피해·이동 속도 배율, 보상, 무반격, 엘리트 여부와 엘리트 정의, 목표 처치 수 집계 대상 여부, 캐리어 소유자와 소환한 Hexa ID로 실행 상태를 생성한다. 보스가 아니면 보스 설정은 null이다.</summary>
+        internal SimulationEnemy(int id, EnemyDefinition definition, EnemyMovementType movementType, BossDefinition boss, SimVector position, bool isDummy, double hp, double hitFlashSeconds, double hpMultiplier = 1, double damageMultiplier = 1, int reward = -1, bool isElite = false, double speedMultiplier = 1, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0, int summonerId = 0)
+        { _id = id; _definition = definition; _movementType = movementType; _boss = boss; _position = position; _isDummy = isDummy; _isElite = isElite; _isKillTarget = isKillTarget; _speedMultiplier = speedMultiplier; _hitFlashSeconds = hitFlashSeconds; _maxHp = hp > 0 ? hp : definition.Hp * hpMultiplier; _hp = _maxHp; _damageMultiplier = damageMultiplier; _damage = definition.Damage * damageMultiplier; _reward = reward >= 0 ? reward : definition.Reward; _attackAt = definition.AttackInterval; _elite = elite; _carrierOwnerId = carrierOwnerId; _summonerId = summonerId; _behaviorRemaining = definition.MoveSeconds; _shieldHp = definition.HasTrait(EnemyDefinition.TRAIT_CIRCLE_SHIELD) ? _maxHp * CIRCLE_SHIELD_HP_MULTIPLIER : 0; }
 
         /// <summary>예고, 패치 및 피격 표시 판정에 사용할 관측 시각을 갱신한다.</summary>
         internal void Observe(double time) { _observedTime = time; }
@@ -420,6 +427,12 @@ namespace RuneCode
         {
             if (_boss != null && _boss.IsHydraPattern) _hydra = new HydraBossState(_boss.Hydra, time, _maxHp);
             if (_boss != null && _boss.IsLegolasPattern) _legolas = new LegolasBossState(_boss.Legolas);
+        }
+
+        /// <summary>Hexa 정의가 있는 개체에 새 비공격 보스 상태를 생성한다.</summary>
+        internal void InitializeHexa()
+        {
+            if (_boss != null && _boss.IsHexaPattern) _hexa = new HexaBossState();
         }
 
         /// <summary>적 위치와 바라볼 방향을 갱신한다. 방향 전환 시간이 설정된 적은 이번 틱 최대 회전각만큼 목표 방향으로 돌고, 없으면 즉시 향한다.</summary>
@@ -516,11 +529,15 @@ namespace RuneCode
         {
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
             _hydra?.WriteState(state);
+            _hexa?.WriteState(state);
+            if (_hexa != null && (_hexa.HasStartedSniper || _hexa.HasStartedComposite))
+                state.Append(FormattableString.Invariant($"|hexaAim:{_attackOrigin.X:R}:{_attackOrigin.Y:R}:{_attackDirection.X:R}:{_attackDirection.Y:R}:{_aimUntil:R}:{_warningUntil:R}"));
             if (_boss != null && _boss.IsMiniGovernorPattern) state.Append('|').Append(_isNextBossBurst);
             _legolas?.WriteState(state);
             if (_pendingDisplacementTick >= 0 || _displacementRemaining > 0)
                 state.Append(FormattableString.Invariant($"|displacement:{_pendingDisplacementTick}:{_pendingDisplacement.X:R}:{_pendingDisplacement.Y:R}:{_pendingDisplacementLimit:R}:{_pendingDisplacementSeconds:R}:{_displacementVelocity.X:R}:{_displacementVelocity.Y:R}:{_displacementRemaining:R}"));
             state.Append(FormattableString.Invariant($"|{_damage:R}|{_damageMultiplier:R}|{_reward}"));
+            if (_summonerId != 0) state.Append("|summoner:").Append(_summonerId);
             state.Append('|').Append(_lastDamageElement).Append('|').Append(_lastDamageForm);
             state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_facing.X:R}|{_facing.Y:R}|{_hp:R}|{_maxHp:R}|{_shieldHp:R}|{_attackAt:R}|{_warningUntil:R}|{_contactGraceUntil:R}|{_dashUntil:R}|{_attackDirection.X:R}|{_attackDirection.Y:R}|{_flashUntil:R}|{_phase}|{_patchUntil:R}|{_reinforcementAt:R}|{_hazardAt:R}|{_observedTime:R}"));
             if (_definition.Attack == EnemyDefinition.ATTACK_SNIPER || _definition.Attack == EnemyDefinition.ATTACK_INTERCEPTOR || _definition.HasTrait(EnemyDefinition.TRAIT_CARRIER) || _carrierOwnerId != 0)
@@ -850,10 +867,12 @@ namespace RuneCode
         }
     }
 
+    /// <summary>적 탄환의 표시 색상 구분이다. 기본은 기존 탄환 색이며 Hexa의 유도·Sniper 탄환만 별도 색을 사용한다.</summary>
+    public enum HostileProjectileStyle { Default, Homing, Sniper }
+
     public sealed class SimulationProjectile
     {
         private readonly int _sourceEnemyId;
-        private readonly SimVector _direction;
         private readonly double _speed;
         private readonly double _damage;
         private readonly bool _isExplosion;
@@ -861,7 +880,11 @@ namespace RuneCode
         private readonly double _lifetime;
         private readonly bool _isHazard;
         private readonly double _warning;
+        private readonly double _homingTurnRadiansPerSecond;
+        private readonly double _homingSeconds;
+        private readonly HostileProjectileStyle _style;
         private readonly SimulationEnemy _owner;
+        private SimVector _direction;
         private SimVector _position;
         private double _age;
         public SimVector Position => _position;
@@ -877,18 +900,41 @@ namespace RuneCode
         internal int SourceEnemyId => _sourceEnemyId;
         internal double Damage => _damage;
         internal double Lifetime => _lifetime;
+        internal bool IsHoming => _homingTurnRadiansPerSecond > 0 && _homingSeconds > 0;
+        public HostileProjectileStyle Style => _style;
         internal bool HasDeadOwner => _owner != null && !_owner.IsAlive;
 
-        /// <summary>위치·공격 설정과 피해 귀속용 적 ID로 탄환 또는 예고 장판을 만든다. 선택적 소유자가 있으면 해당 ID를 사용하고 사망 시 정리한다.</summary>
-        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0, SimulationEnemy owner = null)
-        { _sourceEnemyId = owner != null ? owner.Id : sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; _owner = owner; }
+        /// <summary>위치·공격 설정과 피해 귀속용 적 ID로 탄환 또는 예고 장판을 만들며, 유도 속도·지속 시간·표시 스타일과 선택적 소유자를 함께 보관한다. 소유자가 있으면 해당 ID를 사용하고 사망 시 정리한다.</summary>
+        internal SimulationProjectile(SimVector position, SimVector direction, double speed, double damage, double radius, double lifetime, bool isHazard = false, double warning = 0, bool isExplosion = false, int sourceEnemyId = 0, double homingTurnDegreesPerSecond = 0, double homingSeconds = 0, HostileProjectileStyle style = HostileProjectileStyle.Default, SimulationEnemy owner = null)
+        { _sourceEnemyId = owner != null ? owner.Id : sourceEnemyId; _position = position; _direction = direction; _speed = speed; _damage = damage; _radius = radius; _lifetime = lifetime; _isHazard = isHazard; _warning = warning; _isExplosion = isExplosion; _homingTurnRadiansPerSecond = homingTurnDegreesPerSecond * RuneSimulation.DEGREES_TO_RADIANS; _homingSeconds = Math.Max(0, homingSeconds); _style = style; _owner = owner; }
 
-        /// <summary>탄환의 위치와 수명을 고정 시간만큼 진행한다.</summary>
-        internal void Advance(double dt) { _age += dt; _position += _direction * (_speed * dt); }
+        /// <summary>유도 탄환이면 유도 시간 안에서 목표 방향으로 최대 회전량만큼 최단 호로 방향을 보정한 뒤 위치와 수명을 고정 시간만큼 진행한다.</summary>
+        internal void Advance(double dt, SimVector? homingTarget = null)
+        {
+            if (homingTarget.HasValue) SteerToward(homingTarget.Value, dt);
+            _age += dt;
+            _position += _direction * (_speed * dt);
+        }
 
-        /// <summary>적 탄환의 이동, 예고, 피해 및 수명 상태를 결정성 해시 버퍼에 기록한다.</summary>
+        /// <summary>현재 방향을 목표 위치 방향으로 남은 유도 시간과 초당 회전 상한 안에서 최단 호로 돌린다. 방향이나 목표 오프셋이 0이면 유지한다.</summary>
+        private void SteerToward(SimVector target, double dt)
+        {
+            if (!IsHoming || dt <= 0) return;
+            double remaining = _homingSeconds - _age;
+            if (remaining <= 0) return;
+            SimVector offset = target - _position;
+            if (offset.LengthSquared <= 0.000001) return;
+            SimVector targetDirection = offset.Normalized();
+            SimVector currentDirection = _direction.LengthSquared > 0.000001 ? _direction.Normalized() : targetDirection;
+            double maxRadians = _homingTurnRadiansPerSecond * Math.Min(dt, remaining);
+            double cross = currentDirection.X * targetDirection.Y - currentDirection.Y * targetDirection.X;
+            double angle = Math.Atan2(cross, SimVector.Dot(currentDirection, targetDirection));
+            _direction = Math.Abs(angle) <= maxRadians ? targetDirection : currentDirection.Rotated(Math.Sign(angle) * maxRadians);
+        }
+
+        /// <summary>적 탄환의 이동, 예고, 피해, 수명과 사망 정리에 사용하는 소유자 ID 및 유도 설정을 결정성 해시 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
-        { state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_speed:R}|{_damage:R}|{_radius:R}|{_lifetime:R}|{_isHazard}|{_warning:R}|{_age:R}")); if (_isExplosion) state.Append("|explosion"); if (_owner != null) state.Append(FormattableString.Invariant($"|owner:{_owner.Id}:{_owner.IsAlive}")); }
+        { state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_speed:R}|{_damage:R}|{_radius:R}|{_lifetime:R}|{_isHazard}|{_warning:R}|{_age:R}|source:{_sourceEnemyId}")); if (IsHoming) state.Append(FormattableString.Invariant($"|homing:{_homingTurnRadiansPerSecond:R}:{_homingSeconds:R}")); if (_isExplosion) state.Append("|explosion"); if (_owner != null) state.Append(FormattableString.Invariant($"|owner:{_owner.Id}:{_owner.IsAlive}")); }
     }
 
     public struct FragmentOrb

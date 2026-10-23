@@ -2,8 +2,8 @@ using UnityEngine;
 
 namespace RuneCode
 {
-    /// <summary>적 탄환, 레골라스의 길쭉한 삼각 탄환과 보스 위험 장판(채움, 외곽 링, 사선 표시)을 표시한다.
-    /// 예고 중에는 노란색으로 채우고 링이 장판 경계로 수축하며, 활성화되면 빨간색으로 바꾼다.</summary>
+    /// <summary>적 탄환(마름모와 잔상), 레골라스·Hexa의 길쭉한 삼각 저격 탄환과 보스 위험 장판(채움, 외곽 링, 사선 표시)을 표시한다.
+    /// 예고 중에는 노란색으로 채우고 링이 장판 경계로 수축하며, 활성화되면 빨간색으로 바꾼다. 기본 탄환은 기존 빨간색을 쓰고 Hexa 유도는 보라색, 저격 탄환은 발사자 색을 사용한다.</summary>
     public sealed class HostileProjectileView : MonoBehaviour
     {
         private const float TRAIL_LENGTH = 14f;
@@ -12,6 +12,8 @@ namespace RuneCode
         private const float HAZARD_MARK_SCALE = 0.3f;
         private const float HAZARD_LINE_WIDTH = 2f;
         private const float HAZARD_RING_START_SCALE = 1.6f;
+        // Hexa Sniper 탄환은 판정 반경과 별개로 레골라스 저격탄(반경 20)과 같은 크기로 표시한다.
+        private const float SNIPER_PROJECTILE_VISUAL_RADIUS = 20f;
 
         private static readonly Color Tint = new Color(1f, 0.33f, 0.42f);
         private static readonly Color TrailColor = new Color(1f, 0.25f, 0.3f, 0.25f);
@@ -21,7 +23,7 @@ namespace RuneCode
         [SerializeField] private SpriteRenderer _bullet;
         [SerializeField] private SpriteRenderer _trail;
 
-        [Header("레골라스 저격 탄환")]
+        [Header("저격 탄환")]
         [SerializeField] private Sprite _legolasProjectileShape;
         [SerializeField, Min(1f)] private float _legolasProjectileStretch = 3f;
 
@@ -32,12 +34,32 @@ namespace RuneCode
         [SerializeField] private SpriteRenderer _hazardRing;
         [SerializeField] private SpriteRenderer _hazardMark;
 
+        /// <summary>탄환 스타일에 맞는 표시 색을 반환한다. 유도는 감전 색, Sniper는 얼음 색을 사용하고 기본은 기존 빨간 탄환 색이다. 저격 탄환은 호출자가 발사자 색을 전달하면 그 색을 우선한다.</summary>
+        private static Color ProjectileTint(HostileProjectileStyle style)
+        {
+            switch (style)
+            {
+                case HostileProjectileStyle.Homing: return RuneMesh.ElementColor("arc");
+                case HostileProjectileStyle.Sniper: return RuneMesh.ElementColor("ice");
+                default: return Tint;
+            }
+        }
+
+        /// <summary>탄환 스타일에 맞는 잔상 색을 반환한다. 기본 잔상은 기존 색을 유지하고 별도 스타일은 같은 색에 기존 잔상 알파를 적용한다.</summary>
+        private static Color ProjectileTrailColor(HostileProjectileStyle style)
+        {
+            if (style == HostileProjectileStyle.Default) return TrailColor;
+            Color trail = ProjectileTint(style);
+            trail.a = TrailColor.a;
+            return trail;
+        }
+
         void Awake()
         {
             _defaultBulletSprite = _bullet.sprite;
         }
 
-        /// <summary>탄환·장판을 맵 중앙 기준으로 표시하고 선택적 발사자 색을 레골라스 저격 탄환과 잔상에 적용한다.</summary>
+        /// <summary>탄환·장판을 맵 중앙 기준으로 표시한다. 저격 탄환은 발사자 색을 우선해 길쭉한 삼각 모양으로 진행 방향에 맞춰 표시하고, Hexa Sniper 탄환은 판정 반경과 별개로 레골라스 저격탄과 같은 표시 크기를 사용한다.</summary>
         public void Apply(SimulationProjectile projectile, SimVector origin, Color? sourceTint = null)
         {
             transform.localPosition = MissionWorldSpace.ToWorld(projectile.Position, origin);
@@ -61,14 +83,16 @@ namespace RuneCode
                 return;
             }
             bool isLegolasShot = projectile.OwnerBoss != null && projectile.OwnerBoss.IsLegolasPattern;
-            Color bulletColor = isLegolasShot && sourceTint.HasValue ? sourceTint.Value : Tint;
-            Color trailColor = isLegolasShot ? new Color(bulletColor.r, bulletColor.g, bulletColor.b, TrailColor.a) : TrailColor;
-            _bullet.sprite = isLegolasShot ? _legolasProjectileShape : _defaultBulletSprite;
-            _bullet.transform.localRotation = isLegolasShot
+            bool isElongatedShot = isLegolasShot || projectile.Style == HostileProjectileStyle.Sniper;
+            float visualRadius = projectile.Style == HostileProjectileStyle.Sniper ? SNIPER_PROJECTILE_VISUAL_RADIUS : radius;
+            Color bulletColor = isElongatedShot && sourceTint.HasValue ? sourceTint.Value : ProjectileTint(projectile.Style);
+            Color trailColor = isElongatedShot ? new Color(bulletColor.r, bulletColor.g, bulletColor.b, TrailColor.a) : ProjectileTrailColor(projectile.Style);
+            _bullet.sprite = isElongatedShot ? _legolasProjectileShape : _defaultBulletSprite;
+            _bullet.transform.localRotation = isElongatedShot
                 ? Quaternion.Euler(0, 0, MissionWorldSpace.ToWorldAngle(projectile.Direction)) : Quaternion.identity;
             MissionWorldSpace.Place(_bullet, Vector2.zero,
-                new Vector2(radius * 2 * (isLegolasShot ? _legolasProjectileStretch : 1), radius * 2), bulletColor);
-            MissionWorldSpace.PlaceLine(_trail, -MissionWorldSpace.ToWorldDirection(projectile.Direction) * TRAIL_LENGTH, Vector2.zero, radius, trailColor);
+                new Vector2(visualRadius * 2 * (isElongatedShot ? _legolasProjectileStretch : 1), visualRadius * 2), bulletColor);
+            MissionWorldSpace.PlaceLine(_trail, -MissionWorldSpace.ToWorldDirection(projectile.Direction) * TRAIL_LENGTH, Vector2.zero, visualRadius, trailColor);
         }
     }
 }

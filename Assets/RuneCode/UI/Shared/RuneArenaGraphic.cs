@@ -464,7 +464,27 @@ namespace RuneCode
             }
         }
 
-        /// <summary>적 탄환은 사각형과 꼬리선, 위험 장판은 예고 여부에 따른 반투명 원과 표식으로 그린다.</summary>
+        /// <summary>탄환 스타일에 맞는 표시 색을 반환한다. 유도는 감전 색, Sniper는 얼음 색을 사용하고 기본은 기존 적 탄환 색이다.</summary>
+        private static Color HostileProjectileTint(HostileProjectileStyle style)
+        {
+            switch (style)
+            {
+                case HostileProjectileStyle.Homing: return RuneMesh.ElementColor("arc");
+                case HostileProjectileStyle.Sniper: return RuneMesh.ElementColor("ice");
+                default: return HOSTILE_COLOR;
+            }
+        }
+
+        /// <summary>탄환 스타일에 맞는 잔상 색을 반환한다. 기본 잔상은 기존 색을 유지하고 별도 스타일은 같은 색에 기존 잔상 알파를 적용한다.</summary>
+        private static Color HostileProjectileTrailColor(HostileProjectileStyle style)
+        {
+            if (style == HostileProjectileStyle.Default) return HOSTILE_TRAIL_COLOR;
+            Color trail = HostileProjectileTint(style);
+            trail.a = HOSTILE_TRAIL_COLOR.a;
+            return trail;
+        }
+
+        /// <summary>적 탄환은 사각형과 꼬리선, 위험 장판은 예고 여부에 따른 반투명 원과 표식으로 그린다. 탄환은 기본 빨간색을 쓰고 유도는 보라색, Sniper는 하늘색으로 표시한다.</summary>
         private void DrawHostileProjectile(UnityEngine.UI.VertexHelper mesh, SimulationProjectile projectile)
         {
             Vector2 point = Point(projectile.Position);
@@ -478,8 +498,8 @@ namespace RuneCode
                 RuneMesh.Line(mesh, point - Vector2.one * radius * 0.3f, point + Vector2.one * radius * 0.3f, 2 * _scale, HOSTILE_COLOR);
                 return;
             }
-            RuneMesh.Polygon(mesh, point, radius, HOSTILE_COLOR, 4);
-            RuneMesh.Line(mesh, point - ScreenDirection(projectile.Direction) * 14 * _scale, point, radius, HOSTILE_TRAIL_COLOR);
+            RuneMesh.Polygon(mesh, point, radius, HostileProjectileTint(projectile.Style), 4);
+            RuneMesh.Line(mesh, point - ScreenDirection(projectile.Direction) * 14 * _scale, point, radius, HostileProjectileTrailColor(projectile.Style));
         }
 
         /// <summary>처치 보상 조각을 마름모와 고리로 그린다.</summary>

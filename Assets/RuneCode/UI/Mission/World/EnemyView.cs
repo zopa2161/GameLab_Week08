@@ -23,6 +23,8 @@ namespace RuneCode
         private const float HP_BAR_HEIGHT = 3f;
         private const int SNIPER_BLINK_TICKS = 6;
 
+        private const float HEXA_OPPOSITE_ANGLE = 180f;
+
         private static readonly Color CoreColor = new Color(0.04f, 0.09f, 0.13f);
         private static readonly Color DummyColor = new Color(0.52f, 0.69f, 0.74f);
         private static readonly Color WarningColor = new Color(1f, 0.78f, 0.23f);
@@ -69,6 +71,9 @@ namespace RuneCode
         [SerializeField] private HydraBossView _hydraView;
         [SerializeField] private LegolasBossView _legolasView;
 
+        private SpriteRenderer _hexaFirstTriangle;
+        private SpriteRenderer _hexaSecondTriangle;
+
         /// <summary>적 상태와 시뮬레이션의 시간·상태 이상·적응 정보로 맵 중앙(origin) 기준 월드 표시와 엘리트 외곽선의 맥동을 갱신한다.</summary>
         public void Apply(SimulationEnemy enemy, RuneSimulation sim, SimVector origin)
         {
@@ -82,6 +87,7 @@ namespace RuneCode
             _body.sprite = _core.sprite = appearance != null ? appearance.Shape : _defaultShape;
             MissionWorldSpace.Place(_body, Vector2.zero, radius * 2, tint);
             MissionWorldSpace.Place(_core, Vector2.zero, radius * 2 * CORE_SCALE, CoreColor);
+            ApplyHexaBody(enemy.Hexa != null, radius, tint);
             MissionWorldSpace.SetVisible(_eliteOutline, enemy.IsElite);
             if (enemy.IsElite)
             {
@@ -121,6 +127,31 @@ namespace RuneCode
             ApplyAdditionalIndicators(enemy, sim);
             if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, sim, _body, _rotator);
             if (_legolasView != null && enemy.Legolas != null) _legolasView.Apply(enemy, _body, _rotator);
+        }
+
+        /// <summary>Hexa일 때 기존 삼각형 두 개로 육각성을 표시하고, 일반 적 재사용 시 기본 몸체와 코어를 복원한다.</summary>
+        private void ApplyHexaBody(bool isHexa, float radius, Color tint)
+        {
+            if (isHexa && _hexaFirstTriangle == null)
+            {
+                Sprite triangle = FindAppearance("enemy.scout").Shape;
+                _hexaFirstTriangle = Instantiate(_body, _rotator, false);
+                _hexaFirstTriangle.name = "HexaFirstTriangle";
+                _hexaFirstTriangle.sprite = triangle;
+                _hexaFirstTriangle.transform.localRotation = Quaternion.identity;
+                _hexaSecondTriangle = Instantiate(_body, _rotator, false);
+                _hexaSecondTriangle.name = "HexaSecondTriangle";
+                _hexaSecondTriangle.sprite = triangle;
+                _hexaSecondTriangle.transform.localRotation = Quaternion.Euler(0, 0, HEXA_OPPOSITE_ANGLE);
+            }
+            MissionWorldSpace.SetVisible(_body, !isHexa);
+            MissionWorldSpace.SetVisible(_core, !isHexa);
+            if (_hexaFirstTriangle == null) return;
+            MissionWorldSpace.SetVisible(_hexaFirstTriangle, isHexa);
+            MissionWorldSpace.SetVisible(_hexaSecondTriangle, isHexa);
+            if (!isHexa) return;
+            MissionWorldSpace.Place(_hexaFirstTriangle, Vector2.zero, radius * 2, tint);
+            MissionWorldSpace.Place(_hexaSecondTriangle, Vector2.zero, radius * 2, tint);
         }
 
         /// <summary>원형 보호막과 저격 경로를 시뮬레이션의 반경·저장 조준선으로 갱신한다.</summary>

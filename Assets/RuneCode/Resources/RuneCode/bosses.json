@@ -74,6 +74,12 @@
       "_dropTable": ""
     },
     {
+      "_enemyId": "hexa",
+      "_pattern": "hexa",
+      "_reinforcement": { "_enemyId": "enemy.hunter", "_formation": "surround" },
+      "_dropTable": ""
+    },
+    {
       "_enemyId": "boss.legolas",
       "_pattern": "legolas",
       "_legolas": {
