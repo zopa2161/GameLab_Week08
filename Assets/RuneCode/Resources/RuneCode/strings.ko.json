@@ -1169,7 +1169,7 @@
     },
     {
       "_key": "ui.mod.multiHint",
-      "_value": "등급별 생성 개수를 늘리고 피해량과 발사 각도를 조정합니다."
+      "_value": "발사·빔·참격은 등급별 생성 개수를 늘리고 피해량과 발사 각도를 조정합니다. 폭발은 생성 개수 대신 회차 수를 늘리며 0.2초 간격으로 반복하고 회차마다 피해가 감소합니다. 잔류에는 장착할 수 없습니다."
     },
     {
       "_key": "ui.mod.beamEmpowerHint",
@@ -1186,10 +1186,6 @@
     {
       "_key": "ui.mod.orbitHint",
       "_value": "등급이 낮을수록 시전자 중심에서 궤도가 멀어집니다. 발사체·잔류 필드는 궤도를 돌며 유도가 있으면 적을 추적합니다. 빔은 시전자를 따라가는 원형이고 유도 시 적 주변 구간이 변형됩니다."
-    },
-    {
-      "_key": "ui.mod.sequenceHint",
-      "_value": "약간의 간격을 두고 같은 마법을 반복 실행합니다. 등급이 높을수록 실행 횟수가 늘어나며 모든 회차의 피해가 줄어듭니다. 루트 시전은 회차마다 현재 위치·조준을 다시 씁니다."
     },
     {
       "_key": "ui.mod.durationHint",
@@ -1627,10 +1623,9 @@
     {"_key": "rune.mod.knockback.desc", "_value": "실제로 준 직접 피해에 비례해 적을 밀어냅니다."},
     {"_key": "rune.mod.saving.desc", "_value": "장착한 행동의 기본 전력 소비를 줄입니다."},
     {"_key": "rune.mod.amplify.desc", "_value": "행동의 피해를 높입니다."},
-    {"_key": "rune.mod.multi.desc", "_value": "생성 개수를 늘립니다. 발사는 전용 개수와 퍼짐을 사용합니다."},
+    {"_key": "rune.mod.multi.desc", "_value": "생성 개수를 늘리거나 폭발을 여러 회차로 반복합니다. 폭발은 회차마다 피해가 감소하며, 잔류에는 사용할 수 없습니다."},
     {"_key": "rune.mod.beamEmpower.desc", "_value": "빔을 오래 유지할수록 피해·마나 소비·빔 폭이 커집니다."},
     {"_key": "rune.mod.pierce.desc", "_value": "적을 관통해 뒤쪽 대상도 타격합니다."},
-    {"_key": "rune.mod.sequence.desc", "_value": "약간의 간격을 두고 같은 행동을 반복 실행합니다."},
     {"_key": "rune.mod.homing.desc", "_value": "탐색 범위 안의 적을 향해 방향을 조정합니다."},
     {"_key": "rune.mod.orbit.desc", "_value": "생성된 개체가 시전자 주위 궤도를 돕니다."},
     {"_key": "rune.mod.expand.desc", "_value": "효과 면적을 늘립니다. 일반 형상의 길이는 면적 배율의 제곱근만큼 커집니다."},
@@ -1640,7 +1635,7 @@
     {"_key": "rune.effect.energyCostMultiplier", "_value": "전력 소비 <b>×{value}</b>"},
     {"_key": "rune.effect.multipleCount", "_value": "생성 개수 <b>{value}</b>"},
     {"_key": "rune.effect.launchCount", "_value": "발사 행동 수 <b>{value}</b>"},
-    {"_key": "rune.effect.waveCount", "_value": "연속 횟수 <b>{value}</b>"},
+    {"_key": "rune.effect.waveCount", "_value": "폭발 반복 횟수 <b>{value}</b>"},
     {"_key": "rune.effect.pierceCount", "_value": "관통 횟수 <b>{value}</b>"},
     {"_key": "rune.effect.radiusMultiplier", "_value": "면적 <b>×{value}</b>"},
     {"_key": "rune.effect.durationMultiplier", "_value": "지속시간 <b>×{value}</b>"},
@@ -1657,7 +1652,7 @@
     {"_key": "rune.detail.damage", "_value": "피해 <b>×{value}</b>"},
     {"_key": "rune.detail.spread", "_value": "확산 각도 <b>{value}°</b>"},
     {"_key": "rune.detail.launchSpread", "_value": "발사 행동 퍼짐 <b>{value}°</b>"},
-    {"_key": "rune.detail.waveInterval", "_value": "연속 간격 <b>{value}s</b>"},
+    {"_key": "rune.detail.waveInterval", "_value": "폭발 회차 간격 <b>{value}s</b>"},
     {"_key": "rune.detail.pierceDamage", "_value": "관통 적중당 피해 <b>×{value}</b> · 최소 피해 1"},
     {"_key": "rune.modifierTargets", "_value": "장착 가능 행동: \n<b>{targets}</b>"}
   ]

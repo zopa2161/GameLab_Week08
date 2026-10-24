@@ -77,6 +77,21 @@ namespace RuneCode
         public static void Load()
         {
             if (IsLoaded) return;
+            LoadTables();
+        }
+
+        /// <summary>
+        /// 이미 읽은 데이터가 있어도 Resources의 JSON을 다시 읽어 모든 테이블을 교체한다.
+        /// 도메인 리로드 없이 에디터에서 runes.json 등의 수정값을 반영할 때 쓴다. 읽기·검증에 실패하면 예외를 던지고 룬·밸런스 등 테이블은 기존 값을 유지한다.
+        /// </summary>
+        public static void Reload()
+        {
+            LoadTables();
+        }
+
+        /// <summary>Resources의 게임 데이터 JSON을 읽어 검증한 뒤 정적 테이블 필드를 교체한다.</summary>
+        private static void LoadTables()
+        {
             LocalizationData strings = JsonUtility.FromJson<LocalizationData>(ReadResource("strings.ko"));
             if (strings?.Entries == null) throw new FormatException("한국어 문자열 데이터가 없습니다.");
             _strings = new Dictionary<string, string>(StringComparer.Ordinal);

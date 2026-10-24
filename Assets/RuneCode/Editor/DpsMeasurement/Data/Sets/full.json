@@ -5,16 +5,14 @@
         "_profile": {
             "_profileId": "max_tree",
             "_ramCapacity": 21,
-            "_maxEnergy": 250,
-            "_energyRegen": 55,
-            "_startEnergyRatio": 1,
-            "_damageMultiplier": 1,
+            "_maxEnergy": 250.0,
+            "_energyRegen": 55.0,
+            "_startEnergyRatio": 1.0,
+            "_damageMultiplier": 1.0,
             "_isInvulnerable": true
         },
         "_grades": [
-            "B",
-            "A",
-            "S"
+            "B"
         ],
         "_chainLengths": [
             2,
@@ -35,24 +33,13 @@
                 "_behaviorId": "behavior.launch",
                 "_modifierIds": [
                     "mod.multi",
-                    "mod.sequence",
+                    "mod.pierce",
                     "mod.homing"
                 ],
                 "_elementId": ""
             },
             {
-                "_presetId": "L3",
-                "_behaviorId": "behavior.launch",
-                "_modifierIds": [
-                    "mod.multi",
-                    "mod.sequence",
-                    "mod.homing",
-                    "mod.pierce"
-                ],
-                "_elementId": ""
-            },
-            {
-                "_presetId": "M1",
+                "_presetId": "M",
                 "_behaviorId": "behavior.beam",
                 "_modifierIds": [
                     "mod.multi",
@@ -61,46 +48,10 @@
                 "_elementId": ""
             },
             {
-                "_presetId": "X1",
+                "_presetId": "B1",
                 "_behaviorId": "behavior.burst",
-                "_modifierIds": [
-                    "mod.sequence"
-                ],
-                "_elementId": ""
-            },
-            {
-                "_presetId": "X2",
-                "_behaviorId": "behavior.burst",
-                "_modifierIds": [
-                    "mod.sequence",
-                    "mod.expand"
-                ],
-                "_elementId": ""
-            },
-            {
-                "_presetId": "S1",
-                "_behaviorId": "behavior.slash",
                 "_modifierIds": [
                     "mod.multi"
-                ],
-                "_elementId": ""
-            },
-            {
-                "_presetId": "S2",
-                "_behaviorId": "behavior.slash",
-                "_modifierIds": [
-                    "mod.multi",
-                    "mod.sequence"
-                ],
-                "_elementId": ""
-            },
-            {
-                "_presetId": "S3",
-                "_behaviorId": "behavior.slash",
-                "_modifierIds": [
-                    "mod.multi",
-                    "mod.sequence",
-                    "mod.expand"
                 ],
                 "_elementId": ""
             },
@@ -108,8 +59,7 @@
                 "_presetId": "P1",
                 "_behaviorId": "behavior.persist",
                 "_modifierIds": [
-                    "mod.multi",
-                    "mod.expand"
+                    "mod.multi"
                 ],
                 "_elementId": ""
             },
@@ -118,9 +68,28 @@
                 "_behaviorId": "behavior.persist",
                 "_modifierIds": [
                     "mod.multi",
-                    "mod.expand",
                     "mod.duration"
                 ],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "S",
+                "_behaviorId": "behavior.slash",
+                "_modifierIds": [
+                    "mod.multi"
+                ],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "B2",
+                "_behaviorId": "behavior.burst",
+                "_modifierIds": [],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "P9",
+                "_behaviorId": "behavior.launch",
+                "_modifierIds": [],
                 "_elementId": ""
             }
         ],
@@ -128,8 +97,8 @@
             {
                 "_conditionId": "single_near",
                 "_situation": "single",
-                "_distance": 140,
-                "_durationSeconds": 30,
+                "_distance": 140.0,
+                "_durationSeconds": 30.0,
                 "_inputMode": "holdAttack",
                 "_seed": 1,
                 "_repeatCount": 3
@@ -137,8 +106,8 @@
             {
                 "_conditionId": "single_mid",
                 "_situation": "single",
-                "_distance": 480,
-                "_durationSeconds": 30,
+                "_distance": 480.0,
+                "_durationSeconds": 30.0,
                 "_inputMode": "holdAttack",
                 "_seed": 1,
                 "_repeatCount": 3
@@ -146,8 +115,8 @@
             {
                 "_conditionId": "swarm_near",
                 "_situation": "swarm",
-                "_distance": 140,
-                "_durationSeconds": 30,
+                "_distance": 140.0,
+                "_durationSeconds": 30.0,
                 "_inputMode": "holdAttack",
                 "_seed": 1,
                 "_repeatCount": 3
@@ -155,8 +124,26 @@
             {
                 "_conditionId": "swarm_mid",
                 "_situation": "swarm",
-                "_distance": 480,
-                "_durationSeconds": 30,
+                "_distance": 480.0,
+                "_durationSeconds": 30.0,
+                "_inputMode": "holdAttack",
+                "_seed": 1,
+                "_repeatCount": 3
+            },
+            {
+                "_conditionId": "pentagon_near",
+                "_situation": "pentagon",
+                "_distance": 140.0,
+                "_durationSeconds": 30.0,
+                "_inputMode": "holdAttack",
+                "_seed": 1,
+                "_repeatCount": 3
+            },
+            {
+                "_conditionId": "pentagon_mid",
+                "_situation": "pentagon",
+                "_distance": 480.0,
+                "_durationSeconds": 30.0,
                 "_inputMode": "holdAttack",
                 "_seed": 1,
                 "_repeatCount": 3

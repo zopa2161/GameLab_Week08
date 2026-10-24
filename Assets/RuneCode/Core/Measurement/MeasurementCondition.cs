@@ -14,8 +14,8 @@ namespace RuneCode
         [SerializeField] private string _conditionId;
 
         [Header("전장")]
-        [SerializeField, Tooltip("single 또는 swarm")] private string _situation = MeasurementCodes.SITUATION_SINGLE;
-        [SerializeField, Tooltip("플레이어와 적(무리는 격자 중심) 사이 거리")] private float _distance = 140f;
+        [SerializeField, Tooltip("single, swarm 또는 pentagon")] private string _situation = MeasurementCodes.SITUATION_SINGLE;
+        [SerializeField, Tooltip("플레이어와 적(무리는 격자 중심, 오각형은 중앙 적) 사이 거리")] private float _distance = 140f;
 
         [Header("진행")]
         [SerializeField] private float _durationSeconds = 30f;

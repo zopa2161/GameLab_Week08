@@ -524,7 +524,7 @@ namespace RuneCode.Editor
             try
             {
                 EditorUtility.DisplayProgressBar(WINDOW_TITLE, "조합을 생성하고 컴파일하는 중", 0.5f);
-                GameData.Load();
+                GameData.Reload();
                 generated = DpsBuildGenerator.Generate(_host.Set.Suite, patternExclusions);
             }
             finally

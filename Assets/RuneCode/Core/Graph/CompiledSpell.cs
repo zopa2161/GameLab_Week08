@@ -314,7 +314,8 @@ namespace RuneCode
                 string grade = SpellGrammar.GetModifierGrade(mod, modifierNode, modifierGrades);
                 if (mod.Id == OrbitModifierRules.RUNE_ID) orbitRadius = stats.OrbitRadius;
                 orbitRadiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.ORBIT_PATH_EFFECT, 1f);
-                damageMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.EFFECT_MULTIPLIER_EFFECT, stats.DamageMultiplier);
+                damageMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.EFFECT_MULTIPLIER_EFFECT,
+                    stats.DamageMultiplier);
                 radiusMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.RADIUS_MULTIPLIER_EFFECT, stats.RadiusMultiplier);
                 speedMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.SPEED_MULTIPLIER_EFFECT, stats.SpeedMultiplier);
                 durationMult *= SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.DURATION_MULTIPLIER_EFFECT, stats.DurationMultiplier);
@@ -346,10 +347,13 @@ namespace RuneCode
                 _knockbackDistance = Math.Max(_knockbackDistance,
                     SpellModifierValues.GradeNumber(modifierGrades, mod.Id, grade, ModifierGradeTable.KNOCKBACK_DISTANCE_EFFECT, stats.KnockbackDistance));
                 _knockbackSeconds = Math.Max(_knockbackSeconds, stats.KnockbackSeconds);
-                // 지팡이 앞 행동(발사·빔)은 등급표의 발사 전용 퍼짐 각도가 있으면 그 값을 쓴다.
-                if (usesLaunchGradeValues && modifierGrades != null
-                    && modifierGrades.TryGetLaunchSpreadAngle(mod.Id, grade, out float launchSpread)) _spreadAngle = launchSpread;
-                else if (stats.SpreadAngle > 0f) _spreadAngle = stats.SpreadAngle;
+                // 폭발은 개수를 늘리지 않고 회차로 반복하므로 확산 각도를 쓰지 않는다. 지팡이 앞 행동(발사·빔)은 등급표의 발사 전용 퍼짐 각도가 있으면 그 값을 쓴다.
+                if (!_isExpandingRing)
+                {
+                    if (usesLaunchGradeValues && modifierGrades != null
+                        && modifierGrades.TryGetLaunchSpreadAngle(mod.Id, grade, out float launchSpread)) _spreadAngle = launchSpread;
+                    else if (stats.SpreadAngle > 0f) _spreadAngle = stats.SpreadAngle;
+                }
             }
             float lengthMult = (float)Math.Sqrt(radiusMult);
             _damage = form.Damage * damageMult;
@@ -521,10 +525,10 @@ namespace RuneCode
         public bool Noise => _isNoise;
         public int Count => _count;
 
-        /// <summary>연속 모드의 실행 회차 수다. 연속 모드가 없으면 1이다.</summary>
+        /// <summary>폭발에 장착한 다중의 실행 회차 수다. 회차를 만드는 모드가 없으면 1이다.</summary>
         public int WaveCount => _waveCount;
 
-        /// <summary>연속 모드의 회차 사이 간격(초)이다. 회차가 하나면 0이다.</summary>
+        /// <summary>폭발에 장착한 다중의 회차 사이 간격(초)이다. 회차가 하나면 0이다.</summary>
         public float WaveInterval => _waveInterval;
 
         public SpellStats Stats => _stats;
@@ -644,7 +648,7 @@ namespace RuneCode
                     _count = modifierRules.ModifyCount(_count, _rules, grade, modifierStats, modifierGrades);
                     _waveCount = modifierRules.ModifyWaveCount(_waveCount, _rules, grade, modifierStats, modifierGrades);
                 }
-                if (mod.Id == SequenceModifierRules.RUNE_ID) _waveInterval = modifierStats.WaveInterval;
+                if (mod.Id == MultiModifierRules.RUNE_ID) _waveInterval = modifierStats.WaveInterval;
                 if (mod.Id == "mod.noise") _isNoise = true;
             }
             if (_waveCount < 1) _waveCount = 1;
@@ -1004,7 +1008,7 @@ namespace RuneCode
         {
             double nodeSeconds = action.Kind == "delay" ? action.Seconds : action.GetExecutionSeconds(inheritedModifiers);
             int nodeTicks = GetExecutionDelayTicks(nodeSeconds * executionTimeScale);
-            // 연속 모드의 회차 사이 간격을 노드 실행 시간에 더한다. 마지막 회차 뒤에는 간격이 없다.
+            // 폭발에 장착한 다중의 회차 사이 간격을 노드 실행 시간에 더한다. 마지막 회차 뒤에는 간격이 없다.
             if (action.Kind == "spawn" && action.WaveCount > 1)
                 nodeTicks = AddTicks(nodeTicks,
                     MultiplyTicks(GetExecutionDelayTicks(action.WaveInterval * executionTimeScale), action.WaveCount - 1));

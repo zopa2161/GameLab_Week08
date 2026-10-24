@@ -169,11 +169,12 @@ namespace RuneCode.Editor
         }
 
         /// <summary>
-        /// 게임 데이터를 읽고 조합 셋의 생성 규칙·제외 규칙으로 조합을 생성해 와일드카드 필터와 개수 한도를 적용한다.
+        /// 게임 데이터를 다시 읽고 조합 셋의 생성 규칙·제외 규칙으로 조합을 생성해 와일드카드 필터와 개수 한도를 적용한다.
+        /// 에디터에서 수정한 runes.json 등이 결과 파일의 dataVersion과 같은 내용으로 측정되도록 매번 다시 읽는다.
         /// </summary>
         private static RunPreparation PrepareBuilds(DpsBuildSet set, string filterPattern, int limit)
         {
-            GameData.Load();
+            GameData.Reload();
             DpsGenerationResult generated = DpsBuildGenerator.Generate(set.Suite, set.Exclusions);
             return new RunPreparation(set, generated, ApplyFilterAndLimit(generated.Builds, filterPattern, limit));
         }
