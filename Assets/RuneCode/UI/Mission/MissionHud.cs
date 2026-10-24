@@ -54,7 +54,6 @@ namespace RuneCode
 
         private bool _isBound;
         private readonly List<Button> _debugBossButtons = new List<Button>();
-        private readonly List<Button> _debugActionButtons = new List<Button>();
         private Outline _workshopOutline;
         private bool _isWorkshopHighlighted;
 
@@ -72,9 +71,6 @@ namespace RuneCode
 
         /// <summary>디버그 보스 바로 상대하기 버튼을 눌렀을 때 버튼 순번을 알린다.</summary>
         public event Action<int> DebugBossClicked;
-
-        /// <summary>디버그 소환 시험 조작 버튼을 눌렀을 때 버튼 순번을 알린다.</summary>
-        public event Action<int> DebugActionClicked;
 
         void Update()
         {
@@ -97,7 +93,7 @@ namespace RuneCode
             _debugButton.gameObject.SetActive(isDebugVisible);
             SetNextRound(false, false);
             SetWorkshop(false, false);
-            SetDebugBossMenu(false, false);
+            SetDebugBosses(false, false);
         }
 
         /// <summary>
@@ -120,44 +116,11 @@ namespace RuneCode
             }
         }
 
-        /// <summary>디버그 보스 선택 버튼 묶음을 표시하거나 숨기고 소환 시험 조작 버튼은 숨긴다. 팝업·일시정지 중에는 입력을 잠근다.</summary>
-        public void SetDebugBossMenu(bool isVisible, bool isInteractable)
+        /// <summary>디버그 보스 버튼 묶음을 표시하거나 숨기고 팝업·일시정지 중에는 입력을 잠근다.</summary>
+        public void SetDebugBosses(bool isVisible, bool isInteractable)
         {
             _debugBossRoot.gameObject.SetActive(isVisible);
-            foreach (Button button in _debugBossButtons)
-            {
-                button.gameObject.SetActive(true);
-                button.interactable = isVisible && isInteractable;
-            }
-            foreach (Button button in _debugActionButtons) button.gameObject.SetActive(false);
-        }
-
-        /// <summary>
-        /// 소환 시험 조작 버튼을 라벨 순서대로 표시하고 보스 선택 버튼은 숨긴다.
-        /// 필요한 버튼은 템플릿에서 복제해 재사용하며 라벨이 같으면 글자를 다시 쓰지 않는다. 팝업·일시정지 중에는 입력을 잠근다.
-        /// </summary>
-        public void SetDebugActions(IReadOnlyList<string> labels, bool isInteractable)
-        {
-            _debugBossRoot.gameObject.SetActive(labels.Count > 0);
-            foreach (Button button in _debugBossButtons) button.gameObject.SetActive(false);
-            while (_debugActionButtons.Count < labels.Count)
-            {
-                int actionIndex = _debugActionButtons.Count;
-                Button button = Instantiate(_debugBossButtonTemplate, _debugBossRoot, false);
-                button.name = "DebugActionButton" + actionIndex;
-                button.onClick.AddListener(() => DebugActionClicked?.Invoke(actionIndex));
-                _debugActionButtons.Add(button);
-            }
-            for (int index = 0; index < _debugActionButtons.Count; index++)
-            {
-                Button button = _debugActionButtons[index];
-                bool isVisible = index < labels.Count;
-                button.gameObject.SetActive(isVisible);
-                if (!isVisible) continue;
-                button.interactable = isInteractable;
-                TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
-                if (label.text != labels[index]) label.text = labels[index];
-            }
+            foreach (Button button in _debugBossButtons) button.interactable = isVisible && isInteractable;
         }
 
         /// <summary>라운드 대기 여부에 따라 시작 버튼을 표시하고 팝업·일시정지 중에는 입력을 잠근다.</summary>

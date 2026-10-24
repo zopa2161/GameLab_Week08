@@ -172,16 +172,7 @@ namespace RuneCode
             foreach (SimulationSpellEntity spell in sim.SpellEntities) GetView(_spellViews, _spellPrefab, count++).Apply(spell, origin);
             HideFrom(_spellViews, count);
             count = 0;
-            foreach (SimulationProjectile projectile in sim.EnemyProjectiles)
-            {
-                Color? sourceTint = null;
-                if (projectile.Style == HostileProjectileStyle.Sniper)
-                    sourceTint = _enemyPrefab.DefaultTint; // Hexa는 전용 프리팹 없이 기본 적 프리팹의 몸체 색을 쓴다.
-                else if (projectile.OwnerBoss != null && projectile.OwnerBoss.IsLegolasPattern
-                    && _additionalEnemyPrefabs.TryGetValue(projectile.OwnerBoss.EnemyId, out EnemyView sourcePrefab))
-                    sourceTint = sourcePrefab.DefaultTint;
-                GetView(_projectileViews, _projectilePrefab, count++).Apply(projectile, origin, sourceTint);
-            }
+            foreach (SimulationProjectile projectile in sim.EnemyProjectiles) GetView(_projectileViews, _projectilePrefab, count++).Apply(projectile, origin);
             HideFrom(_projectileViews, count);
             count = 0;
             foreach (FragmentOrb orb in sim.Orbs) GetView(_orbViews, _orbPrefab, count++).Apply(orb, origin);

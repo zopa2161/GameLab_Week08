@@ -75,10 +75,7 @@
       "Bash(find \"C:/Users/Krafton/Documents/GitHub/GameLab_Week08/Assets/Docs~\" -type f | head -50; echo \"---\"; find \"C:/Users/Krafton/Documents/GitHub/GameLab_Week08/Assets/Share Docs~\" -type f | head -50; echo \"---DIRS---\"; find \"C:/Users/Krafton/Documents/GitHub/GameLab_Week08/Assets/RuneCode\" -type d | sort)",
       "Bash(cd \"C:/Users/Krafton/Documents/GitHub/GameLab_Week08\" && wc -l Assets/RuneCode/Resources/RuneCode/*.json Assets/RuneCode/Core/Data/GameData.cs Assets/RuneCode/Core/Mission/*.cs Assets/RuneCode/Session/RuneCodeSession.cs Assets/RuneCode/Features/Mission/MissionRun.cs Assets/RuneCode/Progression/UpgradeTreeDefinition.cs Assets/RuneCode/Save/PlayerSave.cs Assets/RuneCode/Core/Simulation/BattleRules.cs Assets/RuneCode/Core/Simulation/LootSystem.cs Assets/RuneCode/Core/Data/BalanceData.cs)",
       "Bash(cd \"C:/Users/Krafton/Documents/GitHub/GameLab_Week08\" && head -80 Assets/RuneCode/Resources/RuneCode/stages.json && echo \"...\" && grep -n '\"_' Assets/RuneCode/Resources/RuneCode/stages.json | head -40)",
-      "Bash(echo \"ORCA_CLI_COMMAND=${ORCA_CLI_COMMAND:-<unset>}\"; echo \"ORCA_DEV_REPO_ROOT=${ORCA_DEV_REPO_ROOT:-<unset>}\")",
-      "Bash(grep:*)",
-      "Bash(node:*)",
-      "Bash(python:*)"
+      "Bash(echo \"ORCA_CLI_COMMAND=${ORCA_CLI_COMMAND:-<unset>}\"; echo \"ORCA_DEV_REPO_ROOT=${ORCA_DEV_REPO_ROOT:-<unset>}\")"
     ]
   }
 }

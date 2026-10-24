@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace RuneCode
@@ -15,7 +15,6 @@ namespace RuneCode
         private readonly List<PendingSplit> _pendingSplits = new List<PendingSplit>();
         private readonly List<PendingSpawn> _pendingSpawns = new List<PendingSpawn>();
         private readonly List<SimVector> _tickSpawnPositions = new List<SimVector>();
-        private readonly List<SimVector> _summonPositions = new List<SimVector>();
         private readonly SpawnSlots _spawnSlots;
         private readonly ArenaSpawnPoints _arenaSpawnPoints;
         private readonly Func<SimVector, bool> _isArenaPointReserved;
@@ -23,7 +22,6 @@ namespace RuneCode
         private double _spawnRadius;
         private int _tickSpawnPositionsTick = -1;
         private int _spawnedEnemies;
-        private bool _hasHexaOmen;
 
         /// <summary>분열 대기 목록이다. 상태 해시와 전투 취소가 같은 인스턴스를 쓴다.</summary>
         internal List<PendingSplit> PendingSplits => _pendingSplits;
@@ -39,10 +37,9 @@ namespace RuneCode
         /// <summary>현재 유한 웨이브의 미배출 편성·스폰 예고·분열 예약과 살아 있는 적 수를 합산한다.</summary>
         internal int RemainingWaveEnemyCount => _director.RemainingWaveSpawns + _pendingSpawns.Count + _pendingSplits.Count + _world.Enemies.Count;
 
-        /// <summary>원본 웨이브 편성 수량으로 진행기를 만들고 첫 틱 스폰과 예고 표시를 준비한다. hasHexaOmen이면 Hexa를 생성 예고 뒤에 생성한다.</summary>
-        internal void StartWave(WaveDefinition wave, bool hasHexaOmen)
+        /// <summary>원본 웨이브 편성 수량으로 진행기를 만들고 첫 틱 스폰과 예고 표시를 준비한다.</summary>
+        internal void StartWave(WaveDefinition wave)
         {
-            _hasHexaOmen = hasHexaOmen;
             _director = new SpawnDirector(wave, _world.Formations, RuneSimulation.TICK_RATE, _world.Tick);
             AdvanceSpawns();
             RefreshSpawnWarnings();
@@ -114,14 +111,13 @@ namespace RuneCode
         /// 예약의 진형으로 플레이어 주변 원형 슬롯 중 위치를 정해 적을 생성한다. elite가 있으면 엘리트 배율로 생성하고,
         /// isKillTarget은 웨이브 스폰에 true로 받아 목표 처치 수 집계 대상으로 만든다.
         /// 웨이브의 첫 스폰에서 슬롯 시작 각도(무작위, 진행 방향 또는 고정 0도)와 기준 슬롯을 정하고, 위치는 스폰 순간의 플레이어 위치 기준으로 계산한다.
-        /// 맵형 진형은 원형 슬롯 대신 EnqueueArenaSpawn으로 예고 대기 스폰을 등록하며, Hexa는 맵 중앙에 예고를 띄운 뒤 생성한다.
+        /// 맵형 진형은 원형 슬롯 대신 EnqueueArenaSpawn으로 예고 대기 스폰을 등록한다.
         /// </summary>
         private void SpawnByFormation(SpawnOrder order, string enemyId, EliteSpawnDefinition elite, bool isKillTarget)
         {
             FormationSettings settings = _director.Settings;
             SpawnFormation formation = SpawnFormations.Get(settings.Shape);
             double radius = _world.EnemyCatalog.Get(enemyId).Radius * (elite != null ? elite.RadiusMultiplier : 1);
-            if (_hasHexaOmen && _world.Bosses.TryGet(enemyId, out BossDefinition boss) && boss.IsHexaPattern) { EnqueueHexaSpawn(enemyId, elite, isKillTarget, radius); return; }
             if (formation.IsArena) { EnqueueArenaSpawn(order, enemyId, elite, isKillTarget, formation, settings, radius); return; }
             int slotCount = settings.Slots > 0 ? settings.Slots : _world.Stages.Spawn.RingSlots;
             double spawnRadius = _spawnRadius * settings.RadiusScale;
@@ -165,14 +161,6 @@ namespace RuneCode
             _pendingSpawns.Add(new PendingSpawn(_world.Tick + warningTicks, enemyId, position, elite, isKillTarget, warningCenter, warningRadius));
         }
 
-        /// <summary>Hexa의 고정 생성 위치인 맵 중앙에 생성 예고를 등록하고 경고 시간이 지난 뒤 생성되도록 대기시킨다. 실제 생성 후 자동 공격을 시작하며 예고 반경은 Hexa의 반경을 쓴다.</summary>
-        private void EnqueueHexaSpawn(string enemyId, EliteSpawnDefinition elite, bool isKillTarget, double radius)
-        {
-            SimVector center = new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
-            int warningTicks = (int)Math.Round(_world.Stages.Spawn.WarningSeconds * RuneSimulation.TICK_RATE);
-            _pendingSpawns.Add(new PendingSpawn(_world.Tick + warningTicks, enemyId, center, elite, isKillTarget, center, radius, startsHexaAutoOperation: true));
-        }
-
         /// <summary>
         /// 맵 전체에서 플레이어 거리 띠와 벽, 다른 예고 위치를 피한 스폰 위치를 고른다. 두 번 추첨해도 후보가 없으면 맵 안에서 플레이어로부터 가장 먼 지점을 반환한다.
         /// </summary>
@@ -197,7 +185,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 생성 틱에 도달한 대기 스폰을 등록 순서대로 생성하고 접촉 피해 유예와 예약된 Hexa 자동 공격 시작을 적용한다. 적 수가 상한이라 생성하지 못하면 남은 항목을 다음 틱에 다시 시도한다.
+        /// 생성 틱에 도달한 대기 스폰을 등록 순서대로 생성하고 접촉 피해 유예를 준다. 적 수가 상한이라 생성하지 못하면 남은 항목을 다음 틱에 다시 시도한다.
         /// </summary>
         internal void AdvancePendingSpawns()
         {
@@ -207,9 +195,6 @@ namespace RuneCode
                 if (spawn.Tick > _world.Tick) { i++; continue; }
                 SimulationEnemy enemy = SpawnEnemy(spawn.EnemyId, spawn.Position, false, 0, spawn.Elite, spawn.IsKillTarget);
                 if (enemy == null) return;
-                if (spawn.StartsHexaAutoOperation)
-                    enemy.Hexa.BeginAutoOperation(_world.EnemyCatalog.Get(HexaDefinition.PROJECTILE_SOURCE_ID),
-                        _world.EnemyCatalog.Get(HexaDefinition.SNIPER_SOURCE_ID));
                 enemy.ContactGraceUntil = _world.Time + _world.Stages.Spawn.SpawnGraceSeconds;
                 _pendingSpawns.RemoveAt(i);
             }
@@ -235,61 +220,6 @@ namespace RuneCode
             }
         }
 
-        /// <summary>
-        /// Hexa 자신의 증원 대상과 보스 주변 원형 슬롯 배치를 사용해 소환 묶음 6마리를 한 번에 생성한다.
-        /// 적 상한이나 맵 안 유효 위치가 6마리를 모두 수용하지 못하면 아무것도 생성하지 않고 0을 반환해 다음 틱에 다시 시도하게 한다.
-        /// 생성한 적에는 소환한 Hexa의 ID를 기록하고 일반 적 보상과 AI, 목표 집계 제외 상태를 유지한다.
-        /// </summary>
-        internal int SpawnHexaSummonBundle(SimulationEnemy owner)
-        {
-            int count = HexaDefinition.SUMMON_COUNT;
-            if (owner == null || !owner.IsAlive || !_world.IsMission || _world.Stage != MissionStage.Combat) return 0;
-            BossReinforcement reinforcement = owner.Boss.Reinforcement;
-            if (_world.Enemies.Count + _pendingSpawns.Count + count > _world.EnemyLimit) return 0;
-            EnemyDefinition definition = _world.EnemyCatalog.Get(reinforcement.EnemyId);
-            SpawnFormation formation = SpawnFormations.Get(_world.Formations.Get(reinforcement.Formation).Shape);
-            if (formation.IsArena) throw new FormatException("Hexa 소환에는 맵형 진형을 쓸 수 없습니다: " + reinforcement.Formation);
-            _spawnSlots.Refresh(_world.Map, owner.Position, owner.Radius + _world.Stages.Spawn.ReinforcementGap,
-                count, Math.Atan2(owner.Facing.Y, owner.Facing.X), definition.Radius);
-            _summonPositions.Clear();
-            for (int i = 0; i < count; i++)
-            {
-                SpawnPlacement placement = formation.Place(i, count, -1, _spawnSlots, default);
-                if (!TryResolveHexaSummonPlacement(placement, definition.Radius, out SimVector position)
-                    || IsSummonPositionTaken(position)) return 0;
-                _summonPositions.Add(position);
-            }
-            int startCount = _world.Enemies.Count;
-            foreach (SimVector position in _summonPositions)
-                if (SpawnEnemy(reinforcement.EnemyId, position, summonerId: owner.Id) == null)
-                {
-                    for (int i = _world.Enemies.Count - 1; i >= startCount; i--) _world.Enemies.RemoveAt(i);
-                    return 0;
-                }
-            return _summonPositions.Count;
-        }
-
-        /// <summary>원형 슬롯 배치의 호·바깥 오프셋을 적용한 위치가 맵 안인지 확인하고 위치를 반환한다. 쓸 슬롯이 없거나 맵 밖이면 false를 반환한다.</summary>
-        private bool TryResolveHexaSummonPlacement(SpawnPlacement placement, double radius, out SimVector position)
-        {
-            position = SimVector.Zero;
-            if (!placement.HasSlot) return false;
-            position = placement.Arc != 0
-                ? _spawnSlots.GetArcPosition(placement.Slot, placement.Arc, placement.Outward)
-                : placement.Outward > 0
-                    ? _spawnSlots.GetPosition(placement.Slot) + _spawnSlots.GetDirection(placement.Slot) * placement.Outward
-                    : _spawnSlots.GetPosition(placement.Slot);
-            return _world.Map.CanOccupy(position, radius);
-        }
-
-        /// <summary>이번 묶음에서 이미 고른 소환 위치와 같은 지점인지 반환한다.</summary>
-        private bool IsSummonPositionTaken(SimVector position)
-        {
-            foreach (SimVector taken in _summonPositions)
-                if ((taken - position).LengthSquared < SAME_SPAWN_DISTANCE * SAME_SPAWN_DISTANCE) return true;
-            return false;
-        }
-
         /// <summary>보스 증원 설정으로 보스 주변 원 위에 같은 간격으로 증원을 생성한다. 시작 각도는 보스가 바라보는 방향이며 맵 밖 위치는 원형 슬롯과 같이 제외한다.</summary>
         internal void SpawnReinforcements(SimulationEnemy boss, BossReinforcement reinforcement)
         {
@@ -298,10 +228,7 @@ namespace RuneCode
             _spawnSlots.Refresh(_world.Map, boss.Position, boss.Radius + _world.Stages.Spawn.ReinforcementGap, count, Math.Atan2(boss.Facing.Y, boss.Facing.X), radius);
             SpawnFormation formation = SpawnFormations.Get(_world.Formations.Get(reinforcement.Formation).Shape);
             for (int i = 0; i < count; i++)
-            {
-                SimulationEnemy summon = SpawnEnemy(reinforcement.EnemyId, ResolvePlacement(formation.Place(i, count, -1, _spawnSlots, default), radius), false, 0);
-                _stats.RecordBossSummon(summon, boss.Id, "reinforcement");
-            }
+                SpawnEnemy(reinforcement.EnemyId, ResolvePlacement(formation.Place(i, count, -1, _spawnSlots, default), radius), false, 0);
         }
 
         /// <summary>
@@ -363,8 +290,8 @@ namespace RuneCode
         /// <summary>무반격 더미 적을 지정한 위치와 체력으로 생성한다.</summary>
         internal SimulationEnemy SpawnBenchDummy(SimVector position, double hp) => SpawnEnemy("enemy.scout", position, true, hp);
 
-        /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부, 캐리어 소유자와 소환한 Hexa ID로 적을 생성하고 공격 일정을 설정한다. 엘리트는 체력·보상·이동 속도·반경 배율을 적용하며 캐리어 자식의 보상은 0으로 설정한다.</summary>
-        internal SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0, int summonerId = 0)
+        /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부와 캐리어 소유자 ID로 적을 생성하고 공격 일정을 설정한다. 엘리트는 체력·보상·이동 속도·반경 배율을 적용하며 캐리어 자식의 보상은 0으로 설정한다.</summary>
+        internal SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0)
         {
             if (_world.IsMission && _world.Stage != MissionStage.Combat || _world.Enemies.Count >= _world.EnemyLimit) return null;
             EnemyDefinition definition = _world.EnemyCatalog.Get(id);
@@ -377,18 +304,9 @@ namespace RuneCode
             if (elite != null) reward = (int)Math.Round(reward * elite.RewardMultiplier, MidpointRounding.AwayFromZero);
             _world.Bosses.TryGet(id, out BossDefinition boss);
             double radius = definition.Radius * (elite != null ? elite.RadiusMultiplier : 1);
-            SimVector spawnPosition;
-            if (boss != null && boss.IsHexaPattern)
-            {
-                spawnPosition = new SimVector(_world.Map.Width * 0.5, _world.Map.Height * 0.5);
-                if (!_world.Map.CanOccupy(spawnPosition, radius))
-                    throw new FormatException("Hexa의 맵 중앙 생성 위치가 벽과 겹칩니다.");
-            }
-            else spawnPosition = _world.Map.NearestFree(position, radius);
-            var enemy = new SimulationEnemy(_world.AllocateEntityId(), definition, EnemyMovements.Resolve(definition.Movement), boss, spawnPosition, isDummy, hp, _world.Balance.Sim.HitFlashSeconds, hpMultiplier, damageMultiplier, carrierOwnerId == 0 ? reward : 0, elite != null, elite != null ? elite.SpeedMultiplier : 1, elite, isKillTarget, carrierOwnerId, summonerId);
+            var enemy = new SimulationEnemy(_world.AllocateEntityId(), definition, EnemyMovements.Resolve(definition.Movement), boss, _world.Map.NearestFree(position, radius), isDummy, hp, _world.Balance.Sim.HitFlashSeconds, hpMultiplier, damageMultiplier, carrierOwnerId == 0 ? reward : 0, elite != null, elite != null ? elite.SpeedMultiplier : 1, elite, isKillTarget, carrierOwnerId);
             enemy.AttackAt = _world.Time + definition.AttackInterval;
-            enemy.InitializeBossState(_world.Time);
-            enemy.InitializeHexa();
+            enemy.InitializeHydra(_world.Time);
             if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = _world.Time;
             if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = definition.CarrierInterval;
             if (boss != null && boss.IsGovernorPattern && !boss.IsMiniBoss)

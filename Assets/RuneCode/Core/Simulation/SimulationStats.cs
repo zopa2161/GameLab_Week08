@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -7,8 +7,6 @@ namespace RuneCode
     /// <summary>시뮬레이션의 피해 누계, 이벤트 카운터, 자원 소비와 행동별 전투 로그를 기록한다.</summary>
     internal sealed class SimulationStats
     {
-        private readonly Dictionary<string, Dictionary<string, object>> _bossPatternRows = new Dictionary<string, Dictionary<string, object>>();
-
         private readonly Dictionary<int, Dictionary<string, object>> _enemyLogRows = new Dictionary<int, Dictionary<string, object>>();
         private readonly HashSet<int> _dirtyEnemyRows = new HashSet<int>();
 
@@ -75,22 +73,12 @@ namespace RuneCode
             _enemyLogRows[enemy.Id] = new Dictionary<string, object>
             {
                 ["enemy_id"] = enemy.Id, ["enemy_kind"] = enemy.Kind,
-                ["is_boss"] = enemy.Boss != null, ["summoner_id"] = enemy.SummonerId,
                 ["stage"] = world.StageNumber, ["round"] = world.RoundNumber, ["is_elite"] = enemy.IsElite,
                 ["spawn_seconds"] = world.Time, ["observed_seconds"] = world.Time,
                 ["lifetime_seconds"] = null, ["end_reason"] = null,
                 ["damage_hp"] = 0d, ["shield_absorbed"] = 0d, ["hit_count"] = 0,
             };
             _dirtyEnemyRows.Add(enemy.Id);
-        }
-
-        /// <summary>증원 생성 결과에 소환 보스와 패턴을 로그용으로 연결한다. 게임 개체의 소유권은 변경하지 않는다.</summary>
-        internal void RecordBossSummon(SimulationEnemy summon, int bossId, string pattern)
-        {
-            if (summon == null || !_enemyLogRows.TryGetValue(summon.Id, out Dictionary<string, object> row)) return;
-            row["summoner_id"] = bossId;
-            row["summoner_pattern"] = pattern;
-            _dirtyEnemyRows.Add(summon.Id);
         }
 
         /// <summary>실제 사망 또는 강제 제거 시각을 한 번 기록한다. 사망한 적만 생존시간을 확정한다.</summary>
@@ -104,23 +92,9 @@ namespace RuneCode
         }
 
         /// <summary>실제 HP 감소와 보호막 흡수를 공격한 적의 누계에 더한다. 상태 이상과 출처 불명은 적 통계와 구분한다.</summary>
-        internal void RecordPlayerDamage(SimulationWorld world, int sourceId, double hp, double shield, string pattern = null)
+        internal void RecordPlayerDamage(SimulationWorld world, int sourceId, double hp, double shield)
         {
             if (!world.IsMission || hp <= 0 && shield <= 0) return;
-            int bossId = sourceId;
-            if (_enemyLogRows.TryGetValue(sourceId, out Dictionary<string, object> source))
-            {
-                int summoner = source.TryGetValue("summoner_id", out object parent) ? (int)parent : 0;
-                if (summoner > 0)
-                { bossId = summoner; pattern = source.TryGetValue("summoner_pattern", out object summonedPattern) ? (string)summonedPattern : "summon"; }
-                if (_enemyLogRows.TryGetValue(bossId, out Dictionary<string, object> boss) && boss.TryGetValue("is_boss", out object isBoss) && (bool)isBoss)
-                {
-                    Dictionary<string, object> patternRow = GetBossPatternRow(world, bossId, pattern ?? "contact");
-                    patternRow["damage_hp"] = (double)patternRow["damage_hp"] + hp;
-                    patternRow["shield_absorbed"] = (double)patternRow["shield_absorbed"] + shield;
-                    patternRow["hit_count"] = (int)patternRow["hit_count"] + 1;
-                }
-            }
             int key = sourceId;
             if (sourceId <= 0) key = -((world.StageNumber * 1000 + world.RoundNumber) * 2 + (sourceId < 0 ? 1 : 0));
             if (!_enemyLogRows.TryGetValue(key, out Dictionary<string, object> row))
@@ -141,32 +115,6 @@ namespace RuneCode
             _dirtyEnemyRows.Add(key);
         }
 
-        /// <summary>보스·현재 스테이지·라운드·패턴별 누계 행을 반환하고 다음 스냅샷 대상으로 표시한다.</summary>
-        private Dictionary<string, object> GetBossPatternRow(SimulationWorld world, int enemyId, string pattern)
-        {
-            string key = enemyId + ":" + world.StageNumber + ":" + world.RoundNumber + ":" + pattern;
-            if (!_bossPatternRows.TryGetValue(key, out Dictionary<string, object> row))
-            {
-                row = new Dictionary<string, object>
-                {
-                    ["enemy_id"] = enemyId, ["stage"] = world.StageNumber, ["round"] = world.RoundNumber,
-                    ["pattern"] = pattern, ["use_count"] = 0, ["damage_hp"] = 0d,
-                    ["shield_absorbed"] = 0d, ["hit_count"] = 0,
-                };
-                _bossPatternRows.Add(key, row);
-            }
-            _dirtyEnemyRows.Add(enemyId);
-            return row;
-        }
-
-        /// <summary>미션에서 보스 패턴을 실제 시작한 횟수를 한 번 누적한다. 탄환 수나 피격 여부와 무관하다.</summary>
-        internal void RecordBossPatternUse(SimulationWorld world, SimulationEnemy enemy, string pattern)
-        {
-            if (!world.IsMission) return;
-            Dictionary<string, object> row = GetBossPatternRow(world, enemy.Id, pattern);
-            row["use_count"] = (int)row["use_count"] + 1;
-        }
-
         /// <summary>변경된 적 누계와 생존 중인 적의 관측 상태를 복사한다. 확정하지 못한 생존시간은 null로 유지한다.</summary>
         internal IReadOnlyList<Dictionary<string, object>> TakeEnemyCombatLogSnapshot(double time)
         {
@@ -177,15 +125,7 @@ namespace RuneCode
                 bool isAlive = row["end_reason"] == null;
                 if (!isAlive && !_dirtyEnemyRows.Contains(entry.Key)) continue;
                 if (isAlive) row["observed_seconds"] = time;
-                var snapshot = new Dictionary<string, object>(row);
-                if (row.TryGetValue("is_boss", out object isBoss) && (bool)isBoss)
-                {
-                    var patterns = new List<Dictionary<string, object>>();
-                    foreach (Dictionary<string, object> patternRow in _bossPatternRows.Values)
-                        if ((int)patternRow["enemy_id"] == entry.Key) patterns.Add(new Dictionary<string, object>(patternRow));
-                    if (patterns.Count > 0) snapshot["boss_patterns"] = patterns;
-                }
-                result.Add(snapshot);
+                result.Add(new Dictionary<string, object>(row));
             }
             _dirtyEnemyRows.Clear();
             return result;
@@ -218,7 +158,6 @@ namespace RuneCode
         /// <summary>시험 도크 초기화에 맞춰 누계·카운터, 자원 소비, 종류별 처치 수와 DPS 창을 모두 되돌린다.</summary>
         internal void ResetForBench()
         {
-            _bossPatternRows.Clear();
             _enemyLogRows.Clear();
             _dirtyEnemyRows.Clear();
             _damageWindow.Clear();

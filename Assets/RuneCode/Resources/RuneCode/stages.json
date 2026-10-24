@@ -261,7 +261,7 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior.1"
+                    "_rewardDropTable": "drop.round.behavior"
                 },
                 {
                     "_waves": [
@@ -718,14 +718,14 @@
                                     "_isElite": true
                                 },
                                 {
-                                    "_enemyId": "boss.legolas",
+                                    "_enemyId": "boss.mini_governor",
                                     "_count": 1,
                                     "_isElite": false
                                 }
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior.2"
+                    "_rewardDropTable": "drop.round.behavior"
                 },
                 {
                     "_waves": [
@@ -927,7 +927,7 @@
                             },
                             "_units": [
                                 {
-                                    "_enemyId": "boss.hydra",
+                                    "_enemyId": "boss.governor",
                                     "_count": 1,
                                     "_isElite": false
                                 },
@@ -1179,7 +1179,7 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior.3"
+                    "_rewardDropTable": "drop.round.behavior"
                 },
                 {
                     "_waves": [
@@ -1376,7 +1376,7 @@
                             },
                             "_units": [
                                 {
-                                    "_enemyId": "hexa",
+                                    "_enemyId": "boss.governor",
                                     "_count": 1,
                                     "_isElite": false
                                 },

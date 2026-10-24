@@ -142,8 +142,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RuneCode.HostileProjectileView
   _bullet: {fileID: 5171131820637744641}
   _trail: {fileID: 7654577777476995200}
-  _legolasProjectileShape: {fileID: 21300000, guid: 4a59ecdc84f44763bd3b9d0e2b58fe99, type: 3}
-  _legolasProjectileStretch: 3
   _hazardFill: {fileID: 7791356843665244187}
   _hazardRing: {fileID: 5630592384740482530}
   _hazardMark: {fileID: 7015790831823623858}
