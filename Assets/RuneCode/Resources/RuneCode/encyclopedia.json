@@ -21,6 +21,16 @@
       ]
     },
     {
+      "_title": "획득한 보상을 편집창에서 장착하세요.",
+      "_pages": [
+        {
+          "_body": "편집창 버튼 클릭 또는 단축키 C를 눌러 편집창에 들어갈 수 있습니다.",
+          "_video": "",
+          "_image": "RuneCode/Onboarding/Onboarding_EditWindow3"
+        }
+      ]
+    },
+    {
       "_title": "강화 룬을 장착해 마법을 강화 시키세요!",
       "_pages": [
         {

@@ -25,8 +25,9 @@ namespace RuneCode
         private const double PLAYER_DAMAGE_EPSILON = 0.000001;
         private const int ONBOARDING_BATTLE_START = 1;
         private const int ONBOARDING_FIRST_CLEAR = 2;
-        private const int ONBOARDING_ROUND_RETURN = 4;
-        private const int ONBOARDING_SPELL_ORDER = 5;
+        private const int ONBOARDING_EDIT_WINDOW = 3;
+        private const int ONBOARDING_ROUND_RETURN = 5;
+        private const int ONBOARDING_SPELL_ORDER = 6;
         private const int ONBOARDING_SPELL_ORDER_STAGE = 1;
         private const int ONBOARDING_SPELL_ORDER_ROUND = 3;
         private const int MAX_HEXA_DEBUG_TARGETS = 2;
@@ -738,12 +739,32 @@ namespace RuneCode
                 _result.HideClearModifierChoices();
                 _result.Hide();
                 if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowRoundChoices(isResumed: true);
+                if (_run.IsClearModifierChosen) ShowFirstRewardOnboarding();
                 RenderHud();
                 return;
             }
             SetResultSummary();
             _result.HideClearModifierChoices();
             _result.FocusReward(_run.ClearModifierChoices[index], _run.ClearModifierGrades[index]);
+        }
+
+        /// <summary>테스트 모드의 첫 보상 선택 후 편집창 진입 안내를 표시하고, 같은 런에서 팝업을 닫으면 안내 진행을 넘기고 HUD를 갱신한다.</summary>
+        private void ShowFirstRewardOnboarding()
+        {
+            if (!_session.IsTestMode || _session.TestOnboardingChapter != ONBOARDING_FIRST_CLEAR) return;
+            EncyclopediaEntry entry = GameData.Encyclopedia?.FindChapter(ONBOARDING_EDIT_WINDOW);
+            if (entry == null)
+            {
+                Debug.LogWarning("게임 도움말 JSON에 온보딩 챕터가 없습니다: " + ONBOARDING_EDIT_WINDOW);
+                return;
+            }
+            MissionRun run = _run;
+            OnboardingPopup popup = _ui.OpenPopup<OnboardingPopup>();
+            popup.Configure(entry.Title, entry.Pages);
+            popup.Closed += () =>
+            {
+                if (_run == run && _session.TryAdvanceTestOnboarding(ONBOARDING_EDIT_WINDOW)) RenderHud();
+            };
         }
 
         /// <summary>세션에서 시전 마법을 준비받아 새 미션을 만들고 HUD·결과 View를 시작 상태로 되돌린다. 이어하기로 고르지 않은 라운드 후보가 남으면 종료 연출 없이 카드 선택창을 즉시 연다. 실패하면 false를 반환한다.</summary>
@@ -869,7 +890,8 @@ namespace RuneCode
             _hud.SetWorkshopShortcuts(CanToggleWorkshop);
             // 첫 클리어 온보딩 뒤 보상을 고르면 작업실 온보딩 전까지 작업실 버튼을 강조한다.
             _hud.SetWorkshopHighlight(CanOpenWorkshop && _run.IsClearModifierChosen
-                && _session.TestOnboardingChapter == ONBOARDING_FIRST_CLEAR);
+                && _session.TestOnboardingChapter >= ONBOARDING_FIRST_CLEAR
+                && _session.TestOnboardingChapter <= ONBOARDING_EDIT_WINDOW);
             if (_run.IsFinished || sim.IsWaitingForNextRound) ResetHexaDebugActions();
             bool isDebugMenuVisible = _session.IsDebugEnabled && CanOpenWorkshop;
             bool isDebugActionsVisible = _session.IsDebugEnabled && _isHexaSummonTestActive

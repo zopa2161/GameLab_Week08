@@ -14,8 +14,8 @@ namespace RuneCode
     public sealed class WorkshopPresenter : ISpellEditorHost, IDisposable
     {
         private const float STATUS_TOAST_DURATION = 4f;
-        private const int ONBOARDING_WORKSHOP_ENTER = 3;
-        private const int ONBOARDING_UPGRADE_TREE = 6;
+        private const int ONBOARDING_WORKSHOP_ENTER = 4;
+        private const int ONBOARDING_UPGRADE_TREE = 7;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
