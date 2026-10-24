@@ -37,6 +37,7 @@ namespace RuneCode
     public sealed class MissionRun
     {
         private const double FIXED_STEP = 1.0 / RuneSimulation.TICK_RATE;
+        private const string DEBUG_MODIFIER_REWARD_TABLE = "drop.round.modifier";
 
         private readonly RuneCodeSession _session;
         private readonly RuneSimulation _simulation;
@@ -71,6 +72,13 @@ namespace RuneCode
         private readonly bool _isResumedRoundBreak;
         private Stopwatch _roundBreakClock;
         private readonly Stopwatch _activeMissionClock = Stopwatch.StartNew();
+
+        private List<string> _savedDebugChoiceIds;
+        private List<string> _savedDebugChoiceGrades;
+        private bool _wasDebugChoiceChosen;
+        private bool _isDebugRewardChoice;
+        private int _debugRewardGradeIndex;
+        public bool IsDebugRewardChoice => _isDebugRewardChoice;
 
         /// <summary>현재 전투 시뮬레이션을 반환한다. 경기장 그래픽과 HUD가 읽는다.</summary>
         public RuneSimulation Simulation => _simulation;
@@ -275,6 +283,8 @@ namespace RuneCode
             int completedStage = _simulation.StageNumber;
             int completedRound = _simulation.RoundNumber;
             if (!_simulation.TryStartNextRound()) return false;
+            if (_session.IsDebugEnabled)
+                _session.SkipRoundRewardsBefore(_simulation.StageNumber, _simulation.RoundNumber);
             EndRoundBreak(completedStage, completedRound, "next_round_clicked");
             return true;
         }
@@ -297,6 +307,7 @@ namespace RuneCode
             if (!_simulation.DebugStartBossWave(stage, round, isHexaPreview, isHexaSprayPreview, isHexaHomingPreview,
                 isHexaSniperPreview, isHexaCompositePreview, compositeFirst, compositeSecond, isHexaSpiralPreview,
                 isHexaAutoPreview)) return false;
+            _session.SkipRoundRewardsBefore(stage, round);
             EndRoundBreak(completedStage, completedRound, "debug_boss_clicked");
             return true;
         }
@@ -416,10 +427,22 @@ namespace RuneCode
             if (_simulation.Completed || _simulation.IsFailed) FinishMission();
         }
 
-        /// <summary>라운드 종료 시 해당 라운드의 보상 드롭 테이블과 시뮬레이션 난수로 후보와 등급을 한 번 추첨한다.</summary>
+        /// <summary>라운드 보상 후보를 만든다. 새 런은 저장된 다음 등급을 사용하고 기존 진행은 확률표를 쓰며, 소비는 라운드 기록과 함께 처리한다.</summary>
         private void SetRoundModifierChoices()
         {
-            if (!_simulation.TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades)) return;
+            string category = null;
+            string grade = null;
+            if (_session.Save.UsesFixedRewardGrades)
+            {
+                category = GameData.Stages.GetRoundRewardCategory(_simulation.StageNumber, _simulation.RoundNumber, GameData.Drops);
+                if (!_session.Save.TryGetNextRewardGrade(category, out grade))
+                {
+                    _isClearModifierChosen = true;
+                    return;
+                }
+            }
+            if (!_simulation.TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades, category, grade))
+                throw new InvalidOperationException("라운드 선택 보상 후보가 없습니다.");
             _clearModifierChoices = candidates;
             _clearModifierGrades = grades;
             _isClearModifierChosen = false;
@@ -593,6 +616,17 @@ namespace RuneCode
             if ((!_settled && !_simulation.IsWaitingForNextRound) || _clearModifierChoices == null
                 || _isClearModifierChosen || index < 0 || index >= _clearModifierChoices.Count) return false;
             string grade = _clearModifierGrades[index];
+            if (_isDebugRewardChoice)
+            {
+                _session.GrantRune(_clearModifierChoices[index], grade, 1, "debug_reward_choice");
+                _clearModifierChoices = _savedDebugChoiceIds;
+                _clearModifierGrades = _savedDebugChoiceGrades;
+                _isClearModifierChosen = _wasDebugChoiceChosen;
+                _savedDebugChoiceIds = null;
+                _savedDebugChoiceGrades = null;
+                _isDebugRewardChoice = false;
+                return true;
+            }
             if (_simulation.IsProgressionMission && _settled && _session.PendingProgressionChoiceIds.Count > 0)
             {
                 if (!_session.ClaimProgressionChoice(index)) return false;
@@ -636,7 +670,42 @@ namespace RuneCode
             int completedStage = _simulation.StageNumber;
             int completedRound = _simulation.RoundNumber;
             if (!_simulation.DebugStartNormalWave(stage, round)) return false;
+            _session.SkipRoundRewardsBefore(stage, round);
             EndRoundBreak(completedStage, completedRound, "debug_normal_wave_clicked");
+            return true;
+        }
+
+        /// <summary>디버그 라운드 대기 중 속성이 반드시 포함된 모드 보상 후보를 표시용 상태로 준비한다. 등급 조건을 순환하며 원래 보상과 고정 지급 목록은 보존한다.</summary>
+        public bool DebugShowModifierRewardChoices()
+        {
+            if (!_session.IsDebugEnabled || _settled || _isPaused || !_simulation.IsWaitingForNextRound || _isDebugRewardChoice) return false;
+            DropTableDefinition table = GameData.Drops.Get(DEBUG_MODIFIER_REWARD_TABLE);
+            var elementEntries = new List<DropEntry>();
+            foreach (DropEntry entry in table.Entries)
+                if (entry.Type == DropCatalog.TYPE_ELEMENT && !string.IsNullOrEmpty(entry.RewardGrade)) elementEntries.Add(entry);
+            if (elementEntries.Count == 0) return false;
+            string grade = elementEntries[_debugRewardGradeIndex % elementEntries.Count].RewardGrade;
+            int count = RuneRewardRoller.CollectChoiceCandidates(table, DropCatalog.TYPE_MODIFIER, grade,
+                GameData.Runes, GameData.ModifierGrades, null).Count;
+            List<DropRoll> choices = RuneRewardRoller.DrawChoices(table, DropCatalog.TYPE_MODIFIER, grade, count,
+                () => UnityEngine.Random.value);
+            int elementIndex = choices.FindIndex(choice => choice.Type == DropCatalog.TYPE_ELEMENT);
+            if (choices.Count < StageCatalog.ROUND_REWARD_CHOICE_COUNT || elementIndex < 0) return false;
+            if (elementIndex >= StageCatalog.ROUND_REWARD_CHOICE_COUNT)
+                choices[UnityEngine.Random.Range(0, StageCatalog.ROUND_REWARD_CHOICE_COUNT)] = choices[elementIndex];
+            _savedDebugChoiceIds = _clearModifierChoices;
+            _savedDebugChoiceGrades = _clearModifierGrades;
+            _wasDebugChoiceChosen = _isClearModifierChosen;
+            _clearModifierChoices = new List<string>();
+            _clearModifierGrades = new List<string>();
+            for (int index = 0; index < StageCatalog.ROUND_REWARD_CHOICE_COUNT; index++)
+            {
+                _clearModifierChoices.Add(choices[index].RuneId);
+                _clearModifierGrades.Add(choices[index].Grade);
+            }
+            _debugRewardGradeIndex++;
+            _isDebugRewardChoice = true;
+            _isClearModifierChosen = false;
             return true;
         }
 

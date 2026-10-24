@@ -84,16 +84,20 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 현재 라운드의 보상 드롭 테이블로 서로 다른 룬 후보를 최대 3개 추첨해 후보 ID와 등급 목록으로 반환한다. 마지막 라운드는 스테이지 종료 보상 테이블을 쓴다.
+        /// 현재 라운드의 보상 테이블로 서로 다른 룬 후보를 최대 3개 반환한다. 지정한 분류·등급이 없으면 기존 확률표로 추첨한다.
         /// 후보가 하나도 없으면 false를 반환한다.
         /// </summary>
-        internal bool TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades)
+        internal bool TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades,
+            string category = null, string grade = null)
         {
             string tableId = _world.Stages.GetProgressionStage(_world.StageNumber).Rounds[_world.RoundNumber - 1].RewardDropTable;
             candidates = new List<string>();
             grades = new List<string>();
-            foreach (DropRoll roll in RuneRewardRoller.DrawChoices(_world.Drops.Get(tableId), _world.StageNumber,
-                StageCatalog.ROUND_REWARD_CHOICE_COUNT, _world.EliteDrops, _world.Random.Next))
+            DropTableDefinition table = _world.Drops.Get(tableId);
+            List<DropRoll> choices = grade == null
+                ? RuneRewardRoller.DrawChoices(table, _world.StageNumber, StageCatalog.ROUND_REWARD_CHOICE_COUNT, _world.EliteDrops, _world.Random.Next)
+                : RuneRewardRoller.DrawChoices(table, category, grade, StageCatalog.ROUND_REWARD_CHOICE_COUNT, _world.Random.Next);
+            foreach (DropRoll roll in choices)
             {
                 candidates.Add(roll.RuneId);
                 grades.Add(roll.Grade);

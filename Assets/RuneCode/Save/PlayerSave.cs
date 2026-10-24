@@ -43,6 +43,14 @@ namespace RuneCode
         [SerializeField] private string[] _pendingRoundChoiceIds;
         [SerializeField] private string[] _pendingRoundChoiceGrades;
 
+        [Header("런 선택 보상 순서")]
+        [SerializeField] private bool _usesFixedRewardGrades;
+        [SerializeField] private string[] _modifierRewardGrades;
+        [SerializeField] private string[] _behaviorRewardGrades;
+        [SerializeField] private int _modifierRewardIndex;
+        [SerializeField] private int _behaviorRewardIndex;
+        public bool UsesFixedRewardGrades => _usesFixedRewardGrades;
+
         [Header("피드백 설정")]
         [SerializeField] private bool _screenShake = true;
         [SerializeField] private bool _hitStop = true;
@@ -311,7 +319,80 @@ namespace RuneCode
             save._loadout.Add(null);
             save.AddDefaultMethods();
             save.EnsureStock();
+            save._usesFixedRewardGrades = true;
+            save._modifierRewardGrades = ShuffleRewardGrades(GameData.Balance.Economy.ModifierRewardGrades);
+            save._behaviorRewardGrades = ShuffleRewardGrades(GameData.Balance.Economy.BehaviorRewardGrades);
             return save;
+        }
+
+        /// <summary>설정의 등급 목록을 복사하고 Fisher–Yates 방식으로 섞어 반환한다. 원본 설정은 변경하지 않는다.</summary>
+        private static string[] ShuffleRewardGrades(IReadOnlyList<string> source)
+        {
+            var grades = new string[source.Count];
+            for (int index = 0; index < source.Count; index++) grades[index] = source[index];
+            for (int index = grades.Length - 1; index > 0; index--)
+            {
+                int other = UnityEngine.Random.Range(0, index + 1);
+                string grade = grades[index];
+                grades[index] = grades[other];
+                grades[other] = grade;
+            }
+            return grades;
+        }
+
+        /// <summary>분류의 다음 고정 보상 등급을 소비하지 않고 반환한다. 기존 진행이거나 해당 목록을 모두 소비했으면 false다.</summary>
+        public bool TryGetNextRewardGrade(string category, out string grade)
+        {
+            grade = null;
+            if (!_usesFixedRewardGrades) return false;
+            if (category != DropCatalog.TYPE_MODIFIER && category != DropCatalog.TYPE_BEHAVIOR)
+                throw new ArgumentException("고정 보상은 행동 또는 모드 분류여야 합니다.", nameof(category));
+            string[] grades = category == DropCatalog.TYPE_MODIFIER ? _modifierRewardGrades : _behaviorRewardGrades;
+            int index = category == DropCatalog.TYPE_MODIFIER ? _modifierRewardIndex : _behaviorRewardIndex;
+            if (index >= grades.Length) return false;
+            grade = grades[index];
+            return true;
+        }
+
+        /// <summary>제시한 분류·등급이 다음 고정 보상과 일치하면 한 칸 소비한다. 기존 진행은 유지하고 불일치는 오류로 보고한다.</summary>
+        public void ConsumeRewardGrade(string category, string grade)
+        {
+            if (!_usesFixedRewardGrades) return;
+            if (!TryGetNextRewardGrade(category, out string expected) || expected != grade)
+                throw new InvalidOperationException("런 보상 등급 순서가 일치하지 않습니다.");
+            if (category == DropCatalog.TYPE_MODIFIER) _modifierRewardIndex++;
+            else _behaviorRewardIndex++;
+        }
+
+        /// <summary>디버그로 진입할 라운드 앞의 모든 보상 횟수까지 목록을 소비한다. 이전 라운드로 돌아가도 소비 위치를 되돌리지 않는다.</summary>
+        public void SkipRewardGradesBefore(int stage, int round)
+        {
+            if (!_usesFixedRewardGrades) return;
+            int modifierCount = 0;
+            int behaviorCount = 0;
+            for (int stageNumber = 1; stageNumber <= stage; stageNumber++)
+            {
+                int roundLimit = stageNumber == stage ? round - 1 : StageCatalog.PROGRESSION_ROUND_COUNT;
+                for (int roundNumber = 1; roundNumber <= roundLimit; roundNumber++)
+                {
+                    string category = GameData.Stages.GetRoundRewardCategory(stageNumber, roundNumber, GameData.Drops);
+                    if (category == DropCatalog.TYPE_MODIFIER) modifierCount++;
+                    else behaviorCount++;
+                }
+            }
+            _modifierRewardIndex = Math.Max(_modifierRewardIndex, Math.Min(modifierCount, _modifierRewardGrades.Length));
+            _behaviorRewardIndex = Math.Max(_behaviorRewardIndex, Math.Min(behaviorCount, _behaviorRewardGrades.Length));
+            ClearPendingRoundChoice();
+        }
+
+        /// <summary>저장된 목록의 수량·등급별 구성이 설정과 같고 소비 위치가 범위 안인지 반환한다.</summary>
+        private static bool IsValidRewardGrades(string[] grades, int index, IReadOnlyList<string> configured)
+        {
+            if (grades == null || grades.Length != configured.Count || index < 0 || index > grades.Length) return false;
+            var remaining = new List<string>(configured);
+            foreach (string grade in grades)
+                if (!remaining.Remove(grade)) return false;
+            return remaining.Count == 0;
         }
 
         /// <summary>기본 시작 룬을 해금 목록에 중복 없이 추가한다.</summary>
@@ -438,6 +519,13 @@ namespace RuneCode
         {
             error = null;
             var economy = GameData.Balance.Economy;
+            if (_usesFixedRewardGrades
+                && (!IsValidRewardGrades(_modifierRewardGrades, _modifierRewardIndex, economy.ModifierRewardGrades)
+                    || !IsValidRewardGrades(_behaviorRewardGrades, _behaviorRewardIndex, economy.BehaviorRewardGrades)))
+            {
+                error = "save.invalidValues";
+                return false;
+            }
             if (_version != 5 || _currency < 0 || _currency > 100000000 ||
                 _highestClearedStage < 0 || _highestClearedStage >= 1000000 ||
                 _selectedStage < 1 || _selectedStage > _highestClearedStage + 1 ||

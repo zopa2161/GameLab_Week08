@@ -722,17 +722,32 @@ namespace RuneCode
 
         /// <summary>
         /// 라운드 동안 모아 둔 조각과 소지 아이템 드롭을 세이브에 한 번에 지급하고, 끝낸 라운드 위치와 그 시점 체력, 라운드 보상 후보를 기록한다.
-        /// persist이면 저장 정책에 맞춰 한 번 기록한다. 아이템이 늘면 소지량 검사를 위해 다시 컴파일한다.
+        /// 새 런은 라운드 분류의 다음 보상 등급을 소비하므로 속성 후보의 위치와 무관하다. persist이면 후보와 소비 상태를 함께 기록하고 아이템이 늘면 다시 컴파일한다.
         /// </summary>
         public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, int stageNumber, int roundNumber,
             double hp, double maxHp, IReadOnlyList<string> roundChoiceIds, IReadOnlyList<string> roundChoiceGrades, bool persist = true)
         {
+            if (_save.UsesFixedRewardGrades && roundChoiceIds != null && roundChoiceIds.Count > 0)
+            {
+                string category = GameData.Stages.GetRoundRewardCategory(stageNumber, roundNumber, GameData.Drops);
+                if (!_save.TryGetNextRewardGrade(category, out string rewardGrade))
+                    throw new InvalidOperationException("라운드 선택 보상 등급 목록이 소진되었습니다.");
+                _save.ConsumeRewardGrade(category, rewardGrade);
+            }
             _save.Settle(fragments, false);
             foreach (SimulationItemDrop drop in drops)
                 GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup", persist: false);
             if (drops.Count > 0) _spells.Recompile();
             _save.RecordProgressionRound(stageNumber, roundNumber, hp, maxHp, roundChoiceIds, roundChoiceGrades);
             if (persist) PersistProgress();
+        }
+
+        /// <summary>디버그 진입 라운드 앞의 고정 보상을 지급 없이 소비하고 대기 후보를 지운 뒤 저장 정책에 따라 보관한다.</summary>
+        public void SkipRoundRewardsBefore(int stage, int round)
+        {
+            if (!_isDebugEnabled) return;
+            _save.SkipRewardGradesBefore(stage, round);
+            PersistProgress();
         }
 
         /// <summary>저장된 연속 미션 보상 후보 index를 하나 지급하고 후보 삭제와 소지량 변경을 한 번에 저장한다.</summary>
