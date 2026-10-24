@@ -56,10 +56,12 @@ namespace RuneCode
                 || !GameData.Runes.TryGet(_runeId, out RuneDefinition rune)) return;
             _graph.CancelPickedModule();
             ClearHover();
-            _preview = RunePalettePreview.UsesRowPreview(rune.Category)
+            bool isModule = RunePalettePreview.UsesRowPreview(rune.Category);
+            _preview = isModule
                 ? _graph.CreateRowPreview(GetComponent<UiRow>())
                 : _graph.CreatePalettePreview(rune, _grade);
             _preview?.Move(eventData.position);
+            if (isModule) _graph.ShowEquippableSlots(_runeId, _grade);
         }
 
         /// <summary>미리보기를 현재 포인터 위치로 옮긴다.</summary>
@@ -73,6 +75,7 @@ namespace RuneCode
         {
             _preview?.Dispose();
             _preview = null;
+            _graph?.ClearEquippableSlots();
         }
 
         /// <summary>속성·모디는 그래프의 행동 노드 슬롯에 장착하고, 행동은 그래프 안에 드롭한 좌표에 배치한다.</summary>

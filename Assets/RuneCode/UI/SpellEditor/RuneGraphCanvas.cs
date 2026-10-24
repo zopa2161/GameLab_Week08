@@ -233,6 +233,36 @@ namespace RuneCode
             return RunePalettePreview.CreateRow(canvas.rootCanvas, source);
         }
 
+        /// <summary>지정 룬·등급을 들고 있는 동안 장착 가능한 슬롯을 계산하고 표시 메시를 갱신한다.</summary>
+        internal void ShowEquippableSlots(string runeId, string grade)
+        {
+            _state.EquippableSlots.Clear();
+            if (HasGraph && GameData.Runes.TryGet(runeId, out _))
+            {
+                foreach (GraphNode node in _editor.Graph.Nodes)
+                {
+                    if (!GraphNodeLayout.HasSlots(GameData.Runes.Get(node.RuneId))) continue;
+                    HashSet<string> slots = null;
+                    foreach (string slotKey in GraphNodeLayout.SlotKeys)
+                    {
+                        if (!_editor.CanEquipToSlot(node.Id, slotKey, runeId, grade)) continue;
+                        slots ??= new HashSet<string>();
+                        slots.Add(slotKey);
+                    }
+                    if (slots != null) _state.EquippableSlots.Add(node.Id, slots);
+                }
+            }
+            RefreshMeshes();
+        }
+
+        /// <summary>장착 가능한 슬롯 표시를 지우고 표시 메시를 갱신한다.</summary>
+        internal void ClearEquippableSlots()
+        {
+            if (_state.EquippableSlots.Count == 0) return;
+            _state.EquippableSlots.Clear();
+            RefreshMeshes();
+        }
+
         /// <summary>팔레트에서 클릭한 속성·모디를 행 복제 미리보기로 커서에 붙이고 다음 그래프 클릭 해제 시 장착하도록 준비한다.</summary>
         public void PickUpModule(string runeId, string grade, UiRow source)
         {
@@ -244,6 +274,7 @@ namespace RuneCode
             _pickedRuneId = runeId;
             _pickedGrade = grade;
             _pickedModulePreview?.Move(Mouse.current.position.ReadValue());
+            ShowEquippableSlots(runeId, grade);
             _moduleInputFrame = Time.frameCount;
             _state.ResetPointer();
         }
@@ -251,6 +282,7 @@ namespace RuneCode
         /// <summary>커서에 붙인 모듈 미리보기와 장착·이동 대기를 제거하고 취소한 항목이 있으면 true를 반환한다.</summary>
         public bool CancelPickedModule()
         {
+            ClearEquippableSlots();
             if (!HasPickedModule) return false;
             _pickedModulePreview.Dispose();
             _pickedModulePreview = null;
@@ -354,6 +386,7 @@ namespace RuneCode
             _pickedSourceSlotKey = slotKey;
             _isPickupPressActive = true;
             _pickedModulePreview.Move(Mouse.current.position.ReadValue());
+            ShowEquippableSlots(runeId, grade);
             _moduleInputFrame = Time.frameCount;
             _state.ResetPointer();
             return true;
