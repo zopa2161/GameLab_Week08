@@ -271,6 +271,7 @@ namespace RuneCode
         public const string GOVERNOR_PATTERN = "governor";
         public const string MINI_GOVERNOR_PATTERN = "mini_governor";
         public const string HYDRA_PATTERN = "hydra";
+        public const string LEGOLAS_PATTERN = "legolas";
 
         [Header("보스 패턴")]
         [SerializeField] private string _enemyId;
@@ -290,6 +291,8 @@ namespace RuneCode
         [SerializeField] private string _dropTable;
         [Header("Hydra")]
         [SerializeField] private HydraDefinition _hydra;
+        [Header("레골라스")]
+        [SerializeField] private LegolasDefinition _legolas;
         public string EnemyId => _enemyId;
         public string Pattern => _pattern;
         public double PhaseTwoThreshold => _phaseTwoThreshold;
@@ -302,10 +305,14 @@ namespace RuneCode
         public double PreferredDistance => _preferredDistance;
         public BossReinforcement Reinforcement => _reinforcement;
         public string DropTable => _dropTable;
-        public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN || IsMiniBoss;
-        public bool IsMiniBoss => _pattern == MINI_GOVERNOR_PATTERN;
+        public bool IsGovernorPattern => _pattern == GOVERNOR_PATTERN || IsMiniGovernorPattern;
+        public bool IsMiniGovernorPattern => _pattern == MINI_GOVERNOR_PATTERN;
+        public bool IsMiniBoss => IsMiniGovernorPattern || IsLegolasPattern;
         public bool IsHydraPattern => _pattern == HYDRA_PATTERN;
+        public bool IsHexaPattern => _pattern == HexaDefinition.ID;
         public HydraDefinition Hydra => _hydra;
+        public bool IsLegolasPattern => _pattern == LEGOLAS_PATTERN;
+        public LegolasDefinition Legolas => _legolas;
 
         /// <summary>페이즈에 대응하는 장판 세트 설정을 반환하고 2페이즈가 아니면 3페이즈 설정을 반환한다.</summary>
         public BossHazard GetHazard(int phase)
@@ -314,13 +321,26 @@ namespace RuneCode
         /// <summary>패턴 이름, 페이즈 문턱, 공격 주기, 장판 세트 설정과 증원의 적·진형 참조를 검증하고 모르는 값이나 증원에 쓸 수 없는 맵형 진형에는 데이터 오류를 발생시킨다.</summary>
         public void Validate(EnemyCatalog enemies, FormationCatalog formations)
         {
-            if (IsMiniBoss)
+            if (IsHexaPattern)
+            {
+                HexaDefinition.Validate(enemies.Get(_enemyId));
+                ValidateReinforcementTarget(enemies, formations);
+                return;
+            }
+            if (IsMiniGovernorPattern)
             {
                 if (!IsPositive(_phaseTwoThreshold) || _phaseTwoThreshold >= 1 || !IsPositive(_patchSeconds)
                     || _radialCount < 1 || !IsPositive(_radialInterval) || !IsPositive(_aimInterval)
                     || _aimInterval >= _radialInterval || !IsPositive(_preferredDistance)
                     || !IsPositive(enemies.Get(_enemyId).WarningSeconds))
                     throw new FormatException("미니 거버너의 페이즈·사격·예고 설정 오류입니다: " + _enemyId);
+                return;
+            }
+            if (IsLegolasPattern)
+            {
+                if (_legolas == null || enemies.Get(_enemyId).Attack != EnemyDefinition.ATTACK_SNIPER)
+                    throw new FormatException("레골라스의 저격 또는 패턴 설정이 없습니다: " + _enemyId);
+                _legolas.Validate();
                 return;
             }
             if (IsHydraPattern)
@@ -335,6 +355,15 @@ namespace RuneCode
             _hazardPhaseTwo.Validate(_enemyId);
             _hazardPhaseThree.Validate(_enemyId);
             if (_reinforcement == null || _reinforcement.Count < 1 || _reinforcement.Interval <= 0) throw new FormatException("보스 증원 설정 오류입니다: " + _enemyId);
+            ValidateReinforcementTarget(enemies, formations);
+        }
+
+        /// <summary>증원 대상 적·진형이 지정되어 있고 대상 적이 등록되어 있는지, 진형이 보스 주변 즉시 생성에 쓸 수 있는지 검증한다.</summary>
+        private void ValidateReinforcementTarget(EnemyCatalog enemies, FormationCatalog formations)
+        {
+            // JsonUtility는 JSON에 증원 항목이 없어도 빈 인스턴스를 만들므로 필드 값까지 확인한다.
+            if (_reinforcement == null || string.IsNullOrEmpty(_reinforcement.EnemyId) || string.IsNullOrEmpty(_reinforcement.Formation))
+                throw new FormatException("보스 증원 대상 적 또는 진형이 비어 있습니다: " + _enemyId);
             enemies.Get(_reinforcement.EnemyId);
             // 증원은 보스 주변 원형 슬롯에 즉시 생성하므로 예고를 거치는 맵형 진형은 쓸 수 없다.
             if (SpawnFormations.Get(formations.Get(_reinforcement.Formation).Shape).IsArena)
@@ -377,6 +406,11 @@ namespace RuneCode
                 enemies.Get(boss.EnemyId);
                 boss.Validate(enemies, formations);
             }
+            foreach (EnemyDefinition enemy in enemies.Enemies)
+                if (enemy.HasTrait(EnemyDefinition.TRAIT_CARRIER))
+                    foreach (string target in enemy.CarrierTargets)
+                        if (catalog.TryGet(target, out _))
+                            throw new FormatException("캐리어는 보스를 생성할 수 없습니다: " + enemy.Id + ", " + target);
             return catalog;
         }
     }
@@ -452,6 +486,34 @@ namespace RuneCode
                     if (dx * dx + dy * dy < radius * radius) return false;
                 }
             return true;
+        }
+
+        /// <summary>원형 개체의 벽 접촉 위치·반경과 입사 방향으로 가장 정면에 닿은 벽의 단위 법선을 반환한다.</summary>
+        internal SimVector GetWallContactNormal(SimVector position, double radius, SimVector direction)
+        {
+            const double CONTACT_TOLERANCE = 0.001;
+            double searchRadius = radius + CONTACT_TOLERANCE;
+            int left = (int)Math.Floor((position.X - searchRadius) / _tileSize);
+            int right = (int)Math.Floor((position.X + searchRadius) / _tileSize);
+            int top = (int)Math.Floor((position.Y - searchRadius) / _tileSize);
+            int bottom = (int)Math.Floor((position.Y + searchRadius) / _tileSize);
+            SimVector normal = direction * -1;
+            double bestApproach = 0;
+            for (int y = top; y <= bottom; y++)
+                for (int x = left; x <= right; x++)
+                {
+                    if (y >= 0 && x >= 0 && y < _tiles.Length && x < _tiles[0].Length && _tiles[y][x] != '#') continue;
+                    double nearestX = Math.Max(x * _tileSize, Math.Min(position.X, (x + 1) * _tileSize));
+                    double nearestY = Math.Max(y * _tileSize, Math.Min(position.Y, (y + 1) * _tileSize));
+                    SimVector offset = position - new SimVector(nearestX, nearestY);
+                    if (offset.LengthSquared > searchRadius * searchRadius || offset.LengthSquared <= RuneSimulation.COLLISION_EPSILON) continue;
+                    SimVector candidate = offset.Normalized();
+                    double approach = -SimVector.Dot(direction, candidate);
+                    if (approach <= bestApproach) continue;
+                    bestApproach = approach;
+                    normal = candidate;
+                }
+            return normal;
         }
 
         /// <summary>이동 경로를 작은 구간으로 확인하고 벽을 따라 미끄러진 최종 이동 가능 좌표를 반환한다.</summary>

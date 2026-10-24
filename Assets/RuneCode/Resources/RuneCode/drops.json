@@ -46,17 +46,53 @@
       ]
     },
     {
-      "_id": "drop.round.behavior",
+      "_id": "drop.round.behavior.1",
       "_categoryChances": [
         { "_category": "behavior", "_percent": 100 },
         { "_category": "modifier", "_percent": 0 },
         { "_category": "element", "_percent": 0 }
       ],
       "_gradeChances": [
-        { "_category": "behavior", "_grade": "C", "_percent": 30 },
-        { "_category": "behavior", "_grade": "B", "_percent": 40 },
-        { "_category": "behavior", "_grade": "A", "_percent": 20 },
-        { "_category": "behavior", "_grade": "S", "_percent": 10 }
+        { "_category": "behavior", "_grade": "C", "_percent": 75 },
+        { "_category": "behavior", "_grade": "B", "_percent": 25 }
+      ],
+      "_entries": [
+        { "_type": "behavior", "_id": "behavior.launch", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.burst", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.beam", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.slash", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.persist", "_weight": 1 }
+      ]
+    },
+    {
+      "_id": "drop.round.behavior.2",
+      "_categoryChances": [
+        { "_category": "behavior", "_percent": 100 },
+        { "_category": "modifier", "_percent": 0 },
+        { "_category": "element", "_percent": 0 }
+      ],
+      "_gradeChances": [
+        { "_category": "behavior", "_grade": "B", "_percent": 75 },
+        { "_category": "behavior", "_grade": "A", "_percent": 25 }
+      ],
+      "_entries": [
+        { "_type": "behavior", "_id": "behavior.launch", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.burst", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.beam", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.slash", "_weight": 1 },
+        { "_type": "behavior", "_id": "behavior.persist", "_weight": 1 }
+      ]
+    },
+    {
+      "_id": "drop.round.behavior.3",
+      "_categoryChances": [
+        { "_category": "behavior", "_percent": 100 },
+        { "_category": "modifier", "_percent": 0 },
+        { "_category": "element", "_percent": 0 }
+      ],
+      "_gradeChances": [
+        { "_category": "behavior", "_grade": "A", "_percent": 75 },
+        { "_category": "behavior", "_grade": "S", "_percent": 25 }
       ],
       "_entries": [
         { "_type": "behavior", "_id": "behavior.launch", "_weight": 1 },

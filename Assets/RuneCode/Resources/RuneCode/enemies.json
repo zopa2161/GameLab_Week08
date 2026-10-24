@@ -8,7 +8,7 @@
       "_attackInterval": 1,
       "_warningSeconds": 0,
       "_dashSpeed": 0,
-      "_hp": 15,
+      "_hp": 11,
       "_attackRange": 27,
       "_speed": 170,
       "_projectileRadius": 0,
@@ -327,7 +327,7 @@
     },
     {
       "_id": "boss.hydra",
-      "_hp": 1800,
+      "_hp": 900,
       "_speed": 90,
       "_radius": 52,
       "_damage": 12,
@@ -361,6 +361,38 @@
       "_reward": 30,
       "_damage": 8,
       "_burstInterval": 0.16
+    },
+    {
+      "_id": "hexa",
+      "_hp": 1800,
+      "_speed": 0,
+      "_radius": 52,
+      "_damage": 20,
+      "_reward": 100,
+      "_movement": "anchor",
+      "_attack": "contact",
+      "_attackInterval": 1,
+      "_sides": 6,
+      "_dropTable": ""
+    },
+    {
+      "_id": "boss.legolas",
+      "_hp": 480,
+      "_speed": 0,
+      "_radius": 26,
+      "_movement": "sniper",
+      "_attack": "sniper",
+      "_damage": 8,
+      "_attackInterval": 2,
+      "_attackRange": 1200,
+      "_aimSeconds": 0.65,
+      "_lockSeconds": 0.2,
+      "_projectileSpeed": 1800,
+      "_projectileRadius": 20,
+      "_projectileLifetime": 0.75,
+      "_reward": 30,
+      "_sides": 4,
+      "_dropTable": ""
     }
   ]
 }

@@ -207,6 +207,9 @@ namespace RuneCode
 
         /// <summary>이 유닛을 스테이지 엘리트 정의로 생성할지 반환한다.</summary>
         public bool IsElite => _isElite;
+
+        /// <summary>지정 보스 한 기만 포함하는 비엘리트 런타임 편성 항목을 반환한다.</summary>
+        internal static WaveUnit CreateBoss(string enemyId) => new WaveUnit { _enemyId = enemyId, _count = 1 };
     }
 
     [Serializable]
@@ -217,6 +220,10 @@ namespace RuneCode
         [SerializeField] private WaveUnit[] _units;
         public FormationOverride Formation => _formation;
         public IReadOnlyList<WaveUnit> Units => _units;
+
+        /// <summary>원본 진형을 유지하고 편성만 지정 보스 한 기로 바꾼 독립 디버그 웨이브를 반환한다.</summary>
+        internal WaveDefinition WithBoss(string enemyId)
+            => new WaveDefinition { _formation = this._formation, _units = new[] { WaveUnit.CreateBoss(enemyId) } };
         public int UnitCount
         { get { int total = 0; for (int i = 0; i < _units.Length; i++) total += _units[i].Count; return total; } }
     }
@@ -474,13 +481,17 @@ namespace RuneCode
                         {
                             if (unit.IsElite)
                             {
-                                if (unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal))
+                                if (bosses.TryGet(unit.EnemyId, out _) || unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal))
                                     throw new FormatException("보스는 엘리트 유닛이 될 수 없습니다: " + unit.EnemyId + " (스테이지 " + stage.Stage + ")");
                                 if (!stage.TryGetElite(unit.EnemyId, out _))
                                     throw new FormatException("엘리트 유닛의 스테이지 엘리트 정의가 없습니다: " + unit.EnemyId + " (스테이지 " + stage.Stage + ")");
                             }
-                            if (!unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal)) continue;
-                            if (bosses.Get(unit.EnemyId).IsMiniBoss) miniBossCount += unit.Count;
+                            if (!bosses.TryGet(unit.EnemyId, out BossDefinition boss))
+                            {
+                                if (unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal)) bosses.Get(unit.EnemyId);
+                                continue;
+                            }
+                            if (boss.IsMiniBoss) miniBossCount += unit.Count;
                             else bossCount += unit.Count;
                         }
                         if (bossCount != (isBossWave ? 1 : 0))
@@ -494,7 +505,7 @@ namespace RuneCode
                 {
                     if (!eliteIds.Add(elite.EnemyId))
                         throw new FormatException("연속 미션 엘리트 적 ID가 중복입니다: " + elite.EnemyId + " (스테이지 " + stage.Stage + ")");
-                    ValidateEliteDefinition(elite, enemies, drops, "스테이지 " + stage.Stage);
+                    ValidateEliteDefinition(elite, enemies, bosses, drops, "스테이지 " + stage.Stage);
                 }
             }
         }
@@ -583,10 +594,10 @@ namespace RuneCode
         }
 
         /// <summary>엘리트 정의 하나의 대상 적, 보스 종족 제외, 배율, 드롭 확률 범위와 드롭 테이블 참조를 확인한다. location은 오류 메시지의 위치 표기다.</summary>
-        private static void ValidateEliteDefinition(EliteSpawnDefinition elite, EnemyCatalog enemies, DropCatalog drops, string location)
+        private static void ValidateEliteDefinition(EliteSpawnDefinition elite, EnemyCatalog enemies, BossCatalog bosses, DropCatalog drops, string location)
         {
             enemies.Get(elite.EnemyId); // 없는 적 ID면 여기서 오류가 난다.
-            if (elite.EnemyId.StartsWith("boss.")) throw new FormatException("보스는 엘리트 대상이 아닙니다: " + elite.EnemyId + " (" + location + ")");
+            if (bosses.TryGet(elite.EnemyId, out _) || elite.EnemyId.StartsWith("boss.")) throw new FormatException("보스는 엘리트 대상이 아닙니다: " + elite.EnemyId + " (" + location + ")");
             if (!IsFinite(elite.RawHpMultiplier) || !IsFinite(elite.RawRewardMultiplier) || !IsFinite(elite.RawSpeedMultiplier) || !IsFinite(elite.RawRadiusMultiplier)
                 || elite.RawHpMultiplier < 0 || elite.RawRewardMultiplier < 0 || elite.RawSpeedMultiplier < 0 || elite.RawRadiusMultiplier < 0)
                 throw new FormatException("엘리트 배율은 0 이상의 유한값이어야 합니다: " + elite.EnemyId + " (" + location + ")");
