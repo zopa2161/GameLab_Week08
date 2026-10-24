@@ -642,11 +642,11 @@ namespace RuneCode
             if (isDashing) RuneMesh.Line(mesh, point - aim * 44 * _scale, point, 14 * _scale, PLAYER_DASH_TRAIL_COLOR);
 
             float radius = isBench ? Mathf.Max(4.5f, 12 * _scale) : 12 * _scale;
-            RuneMesh.Polygon(mesh, point, radius, isDashing ? PLAYER_DASH_COLOR : PLAYER_COLOR, 3, Mathf.Atan2(aim.y, aim.x));
             RuneMesh.Ring(mesh, point, 17 * _scale, _scale, PLAYER_RING_COLOR);
             float aimLength = Mathf.Max(isBench ? 8 : 0, 27 * _scale);
             float aimWidth = Mathf.Max(isBench ? 1 : 0, 3 * _scale);
             RuneMesh.Line(mesh, point, point + aim * aimLength, aimWidth, PLAYER_AIM_COLOR);
+            RuneMesh.Polygon(mesh, point, radius, isDashing ? PLAYER_DASH_COLOR : PLAYER_COLOR, 3, Mathf.Atan2(aim.y, aim.x));
             if (player.Shield > 0) RuneMesh.Ring(mesh, point, 23 * _scale, 2 * _scale, SHIELD_COLOR);
             if (player.IsBurning(sim.Time)) RuneMesh.Polygon(mesh, point + new Vector2(0, 30 * _scale), 4 * _scale, RuneMesh.ElementColor("fire"), 3);
         }
