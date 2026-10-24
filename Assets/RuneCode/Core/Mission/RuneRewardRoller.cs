@@ -138,9 +138,11 @@ namespace RuneCode
             return candidates;
         }
 
-        /// <summary>후보 룬이 excludedIds에 없고 지정 등급을 지원하는지 반환한다.</summary>
+        /// <summary>후보 룬이 excludedIds에 없고 보상 추첨에서 숨겨지지 않았으며 지정 등급을 지원하는지 반환한다.</summary>
         private static bool IsCandidateAvailable(RuneCatalog runes, ModifierGradeTable modifierGrades, string runeId, string grade, ICollection<string> excludedIds)
-            => (excludedIds == null || !excludedIds.Contains(runeId)) && IsCandidateGradeAvailable(runes, modifierGrades, runeId, grade);
+            => (excludedIds == null || !excludedIds.Contains(runeId))
+                && runes.TryGet(runeId, out RuneDefinition rune) && !rune.IsHiddenFromRewards
+                && IsCandidateGradeAvailable(runes, modifierGrades, runeId, grade);
 
         /// <summary>후보 룬과 등급을 카탈로그로 확인해 활성 행동의 슬롯 등급, Modifier 효과 등급 또는 무등급 전투 속성(일반 속성 제외)이 지원되는지 반환한다.</summary>
         public static bool IsCandidateGradeAvailable(RuneCatalog runes, ModifierGradeTable modifierGrades, string runeId, string grade)

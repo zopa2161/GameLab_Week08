@@ -12,6 +12,7 @@ namespace RuneCode
         private readonly HashSet<string> _selected = new HashSet<string>();
         private readonly Dictionary<string, float> _executedUntil = new Dictionary<string, float>();
         private readonly Dictionary<string, bool[]> _connectablePorts = new Dictionary<string, bool[]>();
+        private readonly Dictionary<string, HashSet<string>> _equippableSlots = new Dictionary<string, HashSet<string>>();
         private readonly Dictionary<string, Vector2> _dragOrigins = new Dictionary<string, Vector2>();
 
         /// <summary>선택된 노드 ID 집합이다.</summary>
@@ -22,6 +23,9 @@ namespace RuneCode
 
         /// <summary>연결 드래그 중 노드 ID별 포트 순번의 연결 가능 여부다.</summary>
         public Dictionary<string, bool[]> ConnectablePorts => _connectablePorts;
+
+        /// <summary>속성·모디를 들고 있는 동안 노드 ID별로 장착 가능한 슬롯 키 집합이다.</summary>
+        public Dictionary<string, HashSet<string>> EquippableSlots => _equippableSlots;
 
         /// <summary>노드 드래그 시작 시점의 선택 노드 그래프 좌표다.</summary>
         public Dictionary<string, Vector2> DragOrigins => _dragOrigins;
@@ -34,6 +38,23 @@ namespace RuneCode
 
         /// <summary>화면 이동을 시작할 때의 화면 이동량이다.</summary>
         public Vector2 PanStart { get; set; }
+        public string SnapFromNode { get; set; }
+        public string SnapFromPort { get; set; }
+        public string SnapToNode { get; set; }
+        public string SnapInsertNode { get; set; }
+        public Vector2 SnapOffset { get; set; }
+        public bool IsSnapConnected { get; set; }
+
+        /// <summary>가까운 퍼즐 결합 후보와 이동 보정량을 비운다.</summary>
+        public void ClearSnap()
+        {
+            SnapFromNode = null;
+            SnapFromPort = null;
+            SnapToNode = null;
+            SnapInsertNode = null;
+            SnapOffset = Vector2.zero;
+            IsSnapConnected = false;
+        }
 
         /// <summary>화면 이동 중인지 나타낸다.</summary>
         public bool IsPanning { get; set; }
@@ -63,6 +84,7 @@ namespace RuneCode
         /// <summary>연결·화면 이동·노드 드래그·영역 선택 상태와 연결 가능 캐시를 초기화한다. 선택과 하이라이트는 유지한다.</summary>
         public void ResetPointer()
         {
+            ClearSnap();
             SourceNode = null;
             IsPanning = false;
             IsNodeDragging = false;

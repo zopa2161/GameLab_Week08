@@ -32,8 +32,5 @@ namespace RuneCode
         /// <summary>재료 룬 ID 3개와 등급으로 합성을 요청하고 성공 시 결과 룬·등급, 실패 시 오류를 반환한다.</summary>
         bool TrySynthesizeRunes(IReadOnlyList<string> materials, string grade,
             out string resultId, out string resultGrade, out string error);
-
-        /// <summary>현재 마법을 시험 도크에서 한 번 시전한다.</summary>
-        void FireTest();
     }
 }

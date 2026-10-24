@@ -332,6 +332,10 @@
       "_value": "전투 복귀"
     },
     {
+      "_key": "ui.startFailedTitle",
+      "_value": "전투를 시작할 수 없습니다"
+    },
+    {
       "_key": "ui.resume",
       "_value": "계속"
     },
@@ -1165,7 +1169,7 @@
     },
     {
       "_key": "ui.mod.amplifyHint",
-      "_value": "등급에 따라 행동의 피해 배율이 높아집니다."
+      "_value": "등급에 따라 행동의 피해 배율과 속도 배율이 높아집니다."
     },
     {
       "_key": "ui.mod.multiHint",
@@ -1686,8 +1690,8 @@
     {"_key": "rune.effect.effectMultiplier", "_value": "피해 <b>×{value}</b>"},
     {"_key": "rune.effect.energyCostMultiplier", "_value": "전력 소비 <b>×{value}</b>"},
     {"_key": "rune.effect.multipleCount", "_value": "생성 개수 <b>{value}</b>"},
-    {"_key": "rune.effect.launchCount", "_value": "발사 행동 수 <b>{value}</b>"},
-    {"_key": "rune.effect.waveCount", "_value": "폭발 반복 횟수 <b>{value}</b>"},
+    {"_key": "rune.effect.launchCount", "_value": ""},
+    {"_key": "rune.effect.waveCount", "_value": ""},
     {"_key": "rune.effect.pierceCount", "_value": "관통 횟수 <b>{value}</b>"},
     {"_key": "rune.effect.radiusMultiplier", "_value": "면적 <b>×{value}</b>"},
     {"_key": "rune.effect.durationMultiplier", "_value": "지속시간 <b>×{value}</b>"},

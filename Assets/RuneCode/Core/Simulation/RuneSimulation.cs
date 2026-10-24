@@ -13,6 +13,9 @@ namespace RuneCode
         internal const double DEGREES_TO_RADIANS = Math.PI / 180;
         private const string BOLT_RUNE_ID = "form.bolt";
         internal const double COLLISION_EPSILON = 0.000001;
+        private const int ROUND_BREAK_DUMMY_COLUMN_COUNT = 3;
+        // 측정 더미와 같이 죽지 않을 만큼 크면서 피해 차감이 체력에 반영되는 값이다.
+        private const double ROUND_BREAK_DUMMY_HP = 1e12;
         private readonly SimulationWorld _world;
         private readonly SimulationFeedback _feedback;
         private readonly SpellRuntimeContext _runtime;
@@ -27,6 +30,7 @@ namespace RuneCode
         private readonly SpellEntitySystem _entities;
         private readonly BattleRules _rules;
         private readonly BenchScenario _bench;
+        private bool _isRoundBreakArenaReady;
         public int Tick => _world.Tick;
         public double Time => _world.Time;
         public SimulationPlayer Player => _world.Player;
@@ -104,6 +108,9 @@ namespace RuneCode
         public int RoundNumber => _world.RoundNumber;
         public int WaveNumber => _world.WaveNumber;
         public bool IsWaitingForNextRound => _world.Stage == MissionStage.RoundBreak;
+
+        /// <summary>라운드 대기 시험장(중앙 플레이어와 오른쪽 허수아비 열) 배치를 마쳤는지 반환한다.</summary>
+        public bool IsRoundBreakArenaReady => _isRoundBreakArenaReady;
         /// <summary>연속 미션 전투 중 현재 웨이브의 살아 있는 적과 미배출·예고·분열 예약 수를 반환하며 대기·종료 상태에서는 0이다.</summary>
         public int RemainingWaveEnemyCount => IsProgressionMission && Stage == MissionStage.Combat ? _spawn.RemainingWaveEnemyCount : 0;
         public bool IsBossStage => _world.IsBossStage;
@@ -211,6 +218,53 @@ namespace RuneCode
         /// <summary>전투 중단 시 예약 노드 실행을 지우고 진행 중 시전 상태를 환급 없이 취소한다.</summary>
         public void CancelPendingSpellExecutions() => _executor.CancelPendingSpellExecutions();
 
+        /// <summary>
+        /// 라운드 대기 중 마법 교체 시 진행 중인 플레이어 시전(빔·예약 실행·실행 잠금·마법 개체)을 환급 없이 정리하고 슬롯 쿨다운을 0으로 되돌린다.
+        /// 라운드 대기가 아니면 false를 반환한다.
+        /// </summary>
+        public bool CancelPlayerSpells()
+        {
+            if (!IsWaitingForNextRound) return false;
+            _feedback.CancelBeamFlashes();
+            _executor.CancelPendingSpellExecutions();
+            _world.SpellEntities.Clear();
+            _world.Player.ResetCooldowns();
+            return true;
+        }
+
+        /// <summary>라운드 대기 중 한 번만 대시를 취소하고 플레이어를 맵 중앙으로 옮긴 뒤 오른쪽에 왼쪽부터 1·2·3개 열로 무반격 허수아비를 배치한다. 이미 배치했거나 대기가 아니면 false.</summary>
+        public bool TryPrepareRoundBreakArena()
+        {
+            if (!IsWaitingForNextRound || _isRoundBreakArenaReady) return false;
+            _world.Player.CancelDash(Time);
+            SimVector center = MapCenter;
+            _world.Player.Move(center);
+            SimulationBalance sim = _world.Balance.Sim;
+            for (int column = 0; column < ROUND_BREAK_DUMMY_COLUMN_COUNT; column++)
+                for (int row = 0; row <= column; row++)
+                {
+                    SimVector position = new SimVector(
+                        center.X + sim.RoundBreakDummyDistance + column * sim.RoundBreakDummyGapX,
+                        center.Y + (row - column * 0.5) * sim.RoundBreakDummyGapY);
+                    _spawn.SpawnBenchDummy(position, ROUND_BREAK_DUMMY_HP);
+                }
+            _isRoundBreakArenaReady = true;
+            return true;
+        }
+
+        /// <summary>다음 전투 구간 시작 전에 허수아비와 그 상태 이상을 보상 없이 제거하고 대기 중 진행하던 플레이어 시전·쿨다운을 정리하며 시험장 배치 상태를 초기화한다.</summary>
+        private void ClearRoundBreakArena()
+        {
+            for (int i = _world.Enemies.Count - 1; i >= 0; i--)
+            {
+                if (!_world.Enemies[i].IsDummy) continue;
+                _statuses.RemoveEnemyStatuses(_world.Enemies[i].Id);
+                _world.Enemies.RemoveAt(i);
+            }
+            CancelPlayerSpells();
+            _isRoundBreakArenaReady = false;
+        }
+
         /// <summary>아직 지급하지 않은 새로 주운 Modifier 드롭 목록을 반환하고 미지급 목록을 비운다.</summary>
         public List<SimulationItemDrop> TakeNewPickedItems() => _loot.TakeNewPickedItems();
 
@@ -228,13 +282,14 @@ namespace RuneCode
         /// <summary>입력 중단 시 기존 빔 홀드와 예약 클릭을 취소하며 다른 행동의 입력 규칙은 유지한다.</summary>
         public void CancelBeamInput() => _beam.CancelBeamInput();
 
-        /// <summary>소강상태에서 다음 라운드 또는 스테이지로 전환하며 이전 피해 표시를 지우고 전력을 최대로 회복한 뒤 첫 웨이브를 시작한다.</summary>
+        /// <summary>소강상태에서 다음 라운드 또는 스테이지로 전환하며 이전 피해 표시와 라운드 대기 시험장 허수아비·대기 중 시전을 정리하고 전력을 최대로 회복한 뒤 첫 웨이브를 시작한다.</summary>
         public bool TryStartNextRound()
         {
             if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak) return false;
             _feedback.ClearDamageNumbers();
             _world.Player.RestoreEnergy(_world.Player.MaxEnergy);
             _loot.ClearClearFeedback();
+            ClearRoundBreakArena();
             if (_world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT)
             {
                 _world.StageNumber++;
@@ -251,6 +306,7 @@ namespace RuneCode
         /// 디버그 라운드 대기 중 지정 스테이지의 미니 보스 또는 최종 보스 라운드 마지막 웨이브로 전환한다. 기본값은 최종 보스다.
         /// isHexaPreview이면 최종 웨이브만 Hexa로 대체하고, 단독 공격 미리보기 또는 isHexaCompositePreview와 지정한 순서(없으면 SimRandom)의 복합 공격을 준비한다.
         /// isHexaSpiralPreview는 4방향 시계 회전 나선 공격을, isHexaAutoPreview는 우선순위·횟수 쿨타임 자동 운영을 준비한다. 유효하지 않은 요청에는 false를 반환한다.
+        /// 라운드 대기 시험장 허수아비와 대기 중 시전을 정리한다.
         /// </summary>
         public bool DebugStartBossWave(int stage, int round = StageCatalog.PROGRESSION_ROUND_COUNT, bool isHexaPreview = false,
             bool isHexaSprayPreview = false, bool isHexaHomingPreview = false, bool isHexaSniperPreview = false,
@@ -274,6 +330,7 @@ namespace RuneCode
                     + (isHexaCompositePreview ? 1 : 0) + (isHexaSpiralPreview ? 1 : 0)
                     + (isHexaAutoPreview ? 1 : 0) > 1)) return false;
             _loot.ClearClearFeedback();
+            ClearRoundBreakArena();
             _world.StageNumber = stage;
             _world.RoundNumber = round;
             _world.WaveNumber = StageCatalog.PROGRESSION_WAVE_COUNT;
@@ -302,7 +359,7 @@ namespace RuneCode
 
         /// <summary>
         /// 디버그 라운드 대기 중 지정 스테이지·라운드의 첫 일반 웨이브로 전환한다. Hexa 두 기와 소환 소유권 시험에 쓸
-        /// 보스가 없는 전투 구간을 만들며 유효하지 않은 요청에는 false를 반환한다.
+        /// 보스가 없는 전투 구간을 만들며 유효하지 않은 요청에는 false를 반환한다. 라운드 대기 시험장 허수아비와 대기 중 시전을 정리한다.
         /// </summary>
         public bool DebugStartNormalWave(int stage = 1, int round = 1)
         {
@@ -310,6 +367,7 @@ namespace RuneCode
                 || stage < 1 || stage > StageCatalog.PROGRESSION_STAGE_COUNT
                 || round < 1 || round > StageCatalog.PROGRESSION_ROUND_COUNT) return false;
             _loot.ClearClearFeedback();
+            ClearRoundBreakArena();
             _world.StageNumber = stage;
             _world.RoundNumber = round;
             _world.WaveNumber = 1;
@@ -350,10 +408,10 @@ namespace RuneCode
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         public bool TryCast(CompiledSpell spell, SimVector aimDirection, int slot = 0) { _world.Player.Aim(aimDirection); return TryCast(spell, slot); }
 
-        /// <summary>입력, 예약된 적 스폰, 전투, 적응 및 전투 종료(전부 처치·사망·보스 제한시간)를 정확히 한 60Hz 틱만큼 갱신한다.</summary>
+        /// <summary>입력, 예약된 적 스폰, 전투, 적응 및 전투 종료(전부 처치·사망·보스 제한시간)를 정확히 한 60Hz 틱만큼 갱신한다. 라운드 대기 중에도 플레이어·마법 틱은 진행하며 적 스폰은 전투 중에만 진행한다.</summary>
         public void Step(SimulationInput input)
         {
-            if (Completed || IsFailed || IsWaitingForNextRound) return;
+            if (Completed || IsFailed) return;
             _executor.AimPoint = input.AimPoint;
             _beam.ReadBeamInput(input, _executor.Loadout);
             bool wasDashing = _world.Player.DashRemaining > 0.000001;
@@ -363,7 +421,7 @@ namespace RuneCode
             if (startedDash) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_START);
             else if (wasDashing && _world.Player.DashRemaining <= 0.000001) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_END);
             if (input.Movement.LengthSquared > 0.000001) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_MOVE);
-            if (_world.IsMission) { _spawn.AdvancePendingSpawns(); _spawn.AdvanceSpawns(); _spawn.AdvanceSplits(); _spawn.RefreshSpawnWarnings(); }
+            if (_world.IsMission && _world.Stage == MissionStage.Combat) { _spawn.AdvancePendingSpawns(); _spawn.AdvanceSpawns(); _spawn.AdvanceSplits(); _spawn.RefreshSpawnWarnings(); }
             _executor.RunScheduled();
             _executor.TryCastAttackSlots(input);
             _statuses.AdvanceStatuses();

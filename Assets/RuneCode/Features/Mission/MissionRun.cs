@@ -186,14 +186,17 @@ namespace RuneCode
 
         /// <summary>
         /// 라운드 대기 중 작업실에서 다시 준비한 마법으로 시전 마법·이름·핵심 노드를 교체하고 새 빌드 스냅샷을 기록한다.
+        /// 교체 전에 진행 중인 플레이어 시전과 쿨다운을 정리하고 입력 상태를 비운다.
         /// 라운드 대기가 아니거나 정산이 끝났으면 바꾸지 않고 false를 반환한다.
         /// </summary>
         public bool TryReplaceSpell(CompiledSpell spell, string spellName)
         {
             if (_settled || !_simulation.IsWaitingForNextRound) return false;
+            _simulation.CancelPlayerSpells();
             _spell = spell;
             _spellName = spellName;
             _simulation.SetLoadout(new[] { spell });
+            ResetRoundInput();
             _coreNodeId = FindCoreNodeId(_session.Spells.Graph);
             _spellBuildId = LocalTelemetry.SaveUsabilityBuild(null, _session.Spells.Graph, new Dictionary<string, object>
             {
@@ -230,6 +233,13 @@ namespace RuneCode
                 ["skill_tree"] = _session.GetSkillTreeLogSnapshot(),
             });
             return true;
+        }
+
+        /// <summary>라운드 대기 중 한 번만 플레이어를 맵 중앙으로 옮기고 시험용 허수아비를 배치한다. 정산이 끝났거나 이미 배치했으면 false를 반환한다.</summary>
+        public bool TryPrepareRoundBreakArena()
+        {
+            if (_settled) return false;
+            return _simulation.TryPrepareRoundBreakArena();
         }
 
         /// <summary>그래프에서 시작 트리거(core.cast) 노드의 ID를 찾아 반환하고 없으면 null을 반환한다.</summary>
@@ -333,13 +343,13 @@ namespace RuneCode
 
         /// <summary>
         /// 이동·대시·줍기 키, 포인터 조준과 시전 입력(isCasting, 좌클릭 유지)을 모아 MaxFrameSteps 제한 안의 고정 스텝만큼 시뮬레이션을 갱신하고,
-        /// 입력·노드 텔레메트리를 기록하고 종료 조건을 확인한다.
+        /// 입력·노드 텔레메트리를 기록하고 종료 조건을 확인한다. 라운드 대기 중에도 스텝을 계속 진행하되 보상 선택 전에는 이동·대시·시전 입력을 막는다.
         /// </summary>
         public void Step(bool isTyping, bool hasPointer, SimVector pointer, bool isCasting, float unscaledDeltaTime,
             bool castPressed = false, bool castReleased = false)
         {
             if (_settled) return;
-            if (_isPaused || _simulation.IsWaitingForNextRound)
+            if (_isPaused)
             {
                 _accumulator = 0; _hasPendingDash = false;
                 _hasPendingCastPress = false; _hasPendingCastRelease = false;
@@ -347,12 +357,20 @@ namespace RuneCode
                 _simulation.CancelBeamInput();
                 return;
             }
+            bool isInputLocked = _simulation.IsWaitingForNextRound && HasClearModifierChoices && !_isClearModifierChosen;
+            if (isInputLocked)
+            {
+                isCasting = false; castPressed = false; castReleased = false;
+                _hasPendingCastPress = false; _hasPendingCastRelease = false; _hasPendingDash = false;
+                _wasCasting = false;
+                _simulation.CancelBeamInput();
+            }
             _hasPendingCastPress |= castPressed || isCasting && !_wasCasting;
             _hasPendingCastRelease |= castReleased || !isCasting && _wasCasting;
             if (isCasting && !_wasCasting)
             {
                 _castRequestCount++;
-                LocalTelemetry.RecordUsabilityEvent("simulation_request", "combat", new Dictionary<string, object>
+                LocalTelemetry.RecordUsabilityEvent("simulation_request", _simulation.IsWaitingForNextRound ? "round_break" : "combat", new Dictionary<string, object>
                 {
                     ["input_method"] = "pointer",
                     ["stage"] = _simulation.StageNumber,
@@ -361,7 +379,7 @@ namespace RuneCode
             _wasCasting = isCasting;
             var keyboard = Keyboard.current;
             var movement = SimVector.Zero;
-            if (!isTyping && keyboard != null)
+            if (!isInputLocked && !isTyping && keyboard != null)
             {
                 movement = new SimVector((keyboard.dKey.isPressed ? 1 : 0) - (keyboard.aKey.isPressed ? 1 : 0),
                     (keyboard.sKey.isPressed ? 1 : 0) - (keyboard.wKey.isPressed ? 1 : 0));
@@ -374,6 +392,7 @@ namespace RuneCode
             var maxSteps = GameData.Balance.Limits.MaxFrameSteps;
             _accumulator = Math.Min(_accumulator + unscaledDeltaTime, FIXED_STEP * maxSteps);
             var steps = 0;
+            bool wasWaitingForNextRound = _simulation.IsWaitingForNextRound;
             while (_accumulator >= FIXED_STEP && steps++ < maxSteps)
             {
                 var aim = hasPointer ? pointer - _simulation.Player.Position : _simulation.Player.AimDirection;
@@ -384,10 +403,16 @@ namespace RuneCode
                 _hasPendingCastRelease = false;
                 _hasPendingDash = false;
                 _accumulator -= FIXED_STEP;
+                // 이번 프레임에 라운드가 끝났으면 남은 스텝을 버려 보상 선택 잠금 전에 이전 입력으로 시전되지 않게 한다.
+                if (!wasWaitingForNextRound && _simulation.IsWaitingForNextRound)
+                {
+                    _accumulator = 0;
+                    break;
+                }
             }
             CaptureNodeTelemetry();
             CollectPickedItems();
-            if (_simulation.IsWaitingForNextRound && !HasClearModifierChoices && !_isClearModifierChosen)
+            if (_simulation.IsWaitingForNextRound && _roundBreakClock == null)
             {
                 SetRoundModifierChoices();
                 CommitRoundRewards();

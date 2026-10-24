@@ -413,6 +413,7 @@ namespace RuneCode
                 _clearChoiceGradeLabels[i].color = gradeColor;
                 _clearChoiceNameLabels[i].richText = true;
                 _clearChoiceDescriptionLabels[i].richText = true;
+                _clearChoiceDescriptionLabels[i].color = Color.white;
                 _clearChoiceNameLabels[i].text = names[i];
                 _clearChoiceDescriptionLabels[i].text = descriptions != null && i < descriptions.Count ? descriptions[i] : string.Empty;
             }

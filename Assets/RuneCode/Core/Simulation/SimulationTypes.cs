@@ -190,6 +190,12 @@ namespace RuneCode
             }
         }
 
+        /// <summary>모든 슬롯의 쿨다운 잔여 시간을 0으로 되돌린다. 쿨다운 표시에 쓰는 지속시간은 건드리지 않는다.</summary>
+        internal void ResetCooldowns()
+        {
+            for (int slot = 0; slot < _cooldowns.Length; slot++) _cooldowns[slot] = 0;
+        }
+
         /// <summary>모든 비용 자원이 충분할 때만 함께 차감하고 하나라도 부족하면 상태를 바꾸지 않은 채 false를 반환한다.</summary>
         internal bool TrySpend(ResourceCostSet costs)
         {

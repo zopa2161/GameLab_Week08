@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 namespace RuneCode
 {
-    /// <summary>독립된 표시용 그래프로 행동 노드 또는 장착 슬롯을 그리는 팔레트 드래그 미리보기다.</summary>
+    /// <summary>팔레트에서 끌어온 룬의 미리보기다. 행동은 표시용 그래프로, 속성·모디는 복제한 팔레트 행으로 그린다.</summary>
     internal sealed class RunePalettePreview : IDisposable
     {
         private readonly RectTransform _root;
@@ -16,6 +16,56 @@ namespace RuneCode
         private readonly Camera _camera;
 
         public Vector2 ScreenPosition => RectTransformUtility.WorldToScreenPoint(_camera, _root.position);
+
+        /// <summary>해당 분류가 팔레트 행 복제 미리보기를 사용하는지 반환한다.</summary>
+        internal static bool UsesRowPreview(string category)
+        {
+            return category == SpellGrammar.CATEGORY_ELEMENT || category == SpellGrammar.CATEGORY_MODIFIER;
+        }
+
+        /// <summary>팔레트 행을 복제해 입력을 받지 않고 포인터를 따라다니는 미리보기를 만든다.</summary>
+        public static RunePalettePreview CreateRow(Canvas canvas, UiRow source)
+        {
+            return new RunePalettePreview(canvas, source);
+        }
+
+        /// <summary>지정 행과 같은 크기의 표시 전용 사각형을 만들어 표시 중인 배경 이미지와 문구를 그대로 복제한다.</summary>
+        private RunePalettePreview(Canvas canvas, UiRow row)
+        {
+            _parent = (RectTransform)canvas.transform;
+            _camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+
+            RectTransform source = (RectTransform)row.transform;
+            _root = CreateRect("RunePalettePreview", _parent);
+            _root.sizeDelta = source.rect.size;
+
+            var background = _root.gameObject.AddComponent<Image>();
+            CopyImage(row.Button.targetGraphic as Image, background);
+
+            var label = (RectTransform)UnityEngine.Object.Instantiate(row.Label.gameObject, _root, false).transform;
+            label.name = "Label";
+            label.GetComponent<Graphic>().raycastTarget = false;
+
+            Vector3 sourceScale = source.lossyScale;
+            Vector3 parentScale = _parent.lossyScale;
+            _root.localScale = new Vector3(sourceScale.x / parentScale.x, sourceScale.y / parentScale.y, 1f);
+            _root.SetAsLastSibling();
+        }
+
+        /// <summary>행의 표시 이미지에서 스프라이트·색·표시 방식을 복제하고 입력을 받지 않게 한다.</summary>
+        private static void CopyImage(Image source, Image target)
+        {
+            target.raycastTarget = false;
+            if (source == null) return;
+            target.sprite = source.sprite;
+            target.type = source.type;
+            target.color = source.color;
+            target.preserveAspect = source.preserveAspect;
+            target.pixelsPerUnitMultiplier = source.pixelsPerUnitMultiplier;
+            target.fillCenter = source.fillCenter;
+            target.fillMethod = source.fillMethod;
+            target.fillAmount = source.fillAmount;
+        }
 
         /// <summary>별도 그래프와 기존 노드 그리기를 사용해 룬 미리보기를 만들고 속성·모드는 슬롯 한 칸만 표시한다.</summary>
         public RunePalettePreview(Canvas canvas, RectTransform source, float zoom, RuneDefinition rune, string grade,

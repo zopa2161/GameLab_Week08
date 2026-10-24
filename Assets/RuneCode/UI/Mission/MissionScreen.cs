@@ -6,7 +6,7 @@ namespace RuneCode
 {
     /// <summary>
     /// 미션 화면 View다. 미션 월드(카메라·월드 표시)·HUD·결과 View를 묶고 진행은 MissionPresenter에 맡긴다.
-    /// 표시할 때마다 새 미션을 시작하거나 작업실에서 보관한 런을 이어 가며, Esc는 UIManager가 열린 팝업이 없을 때 전달한다.
+    /// 작업실은 별도 화면 전환 없이 이 화면 위 오버레이로 두며, Esc는 열린 팝업, 작업실, 미션 순으로 처리한다.
     /// 월드는 UI 캔버스 배율을 받지 않도록 씬 루트에 따로 만들고 화면 표시 여부에 맞춰 켜고 끈다.
     /// </summary>
     public sealed class MissionScreen : UiView
@@ -17,15 +17,24 @@ namespace RuneCode
         [SerializeField] private ResultPanel _resultPanel;
 
         private RuneCodeSession _session;
+        private UIManager _ui;
+        private WorkshopScreen _workshop;
         private MissionPresenter _presenter;
         private MissionWorldView _worldView;
         private DamageVignetteView _damageVignette;
 
-        /// <summary>세션·UI 관리자로 Presenter를 만들고 미션 월드를 생성해 카메라·월드 표시를 연결한다. 이미 초기화했으면 무시한다.</summary>
+        /// <summary>미션 화면 위에 표시하는 작업실 오버레이다. Presenter가 표시·숨김과 닫기 이벤트에 쓴다.</summary>
+        public WorkshopScreen Workshop => _workshop;
+
+        /// <summary>세션·UI 관리자로 작업실 오버레이와 Presenter를 준비하고 미션 월드를 생성해 카메라·월드 표시를 연결한다. 이미 초기화했으면 무시한다.</summary>
         public void Initialize(RuneCodeSession session, UIManager ui)
         {
             if (_presenter != null) return;
             _session = session;
+            _ui = ui;
+            // 작업실은 Presenter보다 먼저 준비해 생성자에서 CloseRequested를 구독할 수 있게 한다.
+            _workshop = ui.GetView<WorkshopScreen>(UiLayer.Screen);
+            _workshop.Initialize(session, ui);
             _damageVignette = DamageVignetteView.Create((RectTransform)transform);
             _presenter = new MissionPresenter(session, ui, this, _hud, _resultPanel);
             _worldView = Instantiate(_worldPrefab);
@@ -59,19 +68,24 @@ namespace RuneCode
         public bool AdvanceEnding(RuneSimulation simulation, float deltaTime)
             => _worldView.AdvanceEnding(simulation, deltaTime);
 
-        /// <summary>Esc 입력을 Presenter에 전달해 일시정지를 연다.</summary>
-        public override bool HandleEscape() => _presenter != null && _presenter.HandleEscape();
+        /// <summary>작업실이 보이면 열린 팝업을 UIManager가 먼저 닫게 하고, 아니면 작업실에 Esc를 전달한다. 작업실이 없으면 Presenter에 전달한다.</summary>
+        public override bool HandleEscape()
+        {
+            if (_workshop.IsVisible) return _ui.IsPopupOpen ? false : _workshop.HandleEscape();
+            return _presenter != null && _presenter.HandleEscape();
+        }
 
-        /// <summary>미션 화면에 들어올 때마다 월드를 켜고 새 미션을 시작하거나 보관한 런을 이어 간다.</summary>
+        /// <summary>미션 화면에 들어올 때마다 월드를 켜고 새 미션을 시작한다.</summary>
         protected override void OnShown()
         {
             _worldView.gameObject.SetActive(true);
             _presenter.Begin();
         }
 
-        /// <summary>미션 화면을 떠날 때 월드를 끈다. 진행 중인 미션은 작업실로 보관한 경우에만 유지한다.</summary>
+        /// <summary>미션 화면을 떠날 때 작업실 오버레이를 먼저 닫고 월드를 끈다. 화면이 숨겨지는 경우는 타이틀 복귀뿐이다.</summary>
         protected override void OnHidden()
         {
+            if (_workshop.IsVisible) _workshop.Hide();
             _presenter.End();
             _worldView.gameObject.SetActive(false);
         }

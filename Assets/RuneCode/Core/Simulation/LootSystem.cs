@@ -112,7 +112,7 @@ namespace RuneCode
             _world.Player.RestoreEnergy(Math.Max(MIN_KILL_ENERGY, amount) + KillEnergyBonus);
         }
 
-        /// <summary>처치된 적과 그 상태 이상을 제거하고 시간제 전투의 처치 통계, 목표 처치 수 집계, 보스 처치 판정과 RAM 오브를 생성한다. 분열형은 미션 중 처치되면 자식 생성을 예약한다.</summary>
+        /// <summary>처치된 적과 그 상태 이상을 제거하고 시간제 전투의 처치 통계, 목표 처치 수 집계, 보스 처치 판정과 RAM 오브를 생성한다. 분열형은 미션 중 처치되면 자식 생성을 예약한다. 미션 더미는 기록·상태 제거·폭발 외의 보상과 처치 집계를 하지 않는다.</summary>
         internal void CleanupEnemies(bool canExplode = true)
         {
             CollectDeadEnemies();
@@ -122,7 +122,7 @@ namespace RuneCode
                 if (enemy.Hexa != null) _enemy.CleanupHexaOwner(enemy);
                 _stats.RecordEnemyEnd(enemy, _world.Time, "killed");
                 int droppedCredits = 0;
-                if (_world.IsMission)
+                if (_world.IsMission && !enemy.IsDummy)
                 {
                     _rules.RecordKillProgress(enemy);
                     if (enemy.Definition.CanSplit) _spawn.EnqueueSplits(enemy);
@@ -138,7 +138,7 @@ namespace RuneCode
                     if (dropTableId != null) RollDropTable(_world.Drops.Get(dropTableId), enemy.Position);
                     _stats.KillCounts.TryGetValue(enemy.Kind, out int count); _stats.KillCounts[enemy.Kind] = count + 1; _killCount++;
                 }
-                GrantKillEnergy(droppedCredits);
+                if (!(_world.IsMission && enemy.IsDummy)) GrantKillEnergy(droppedCredits);
                 _statuses.RemoveEnemyStatuses(enemy.Id);
                 if (canExplode && enemy.Definition.HasTrait(EnemyDefinition.TRAIT_DEATH_EXPLOSION))
                 { _enemy.ExplodeEnemy(enemy); CollectDeadEnemies(); }

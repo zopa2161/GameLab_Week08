@@ -10,7 +10,7 @@ namespace RuneCode
 {
     /// <summary>
     /// Boot 씬의 진입 컴포넌트다. 데이터·세이브·세션과 UIManager를 초기화하고, 화면 전환 요청에 따라
-    /// UIManager로 화면 Prefab(타이틀·작업실·미션)을 표시한다. 화면은 처음 표시할 때 한 번만 초기화하고 재사용한다.
+    /// UIManager로 화면 Prefab(타이틀·미션)을 표시한다. 화면은 처음 표시할 때 한 번만 초기화하고 재사용한다.
     /// </summary>
     public sealed class RuneCodeApp : MonoBehaviour
     {
@@ -101,7 +101,6 @@ namespace RuneCode
             switch (screen)
             {
                 case AppScreen.Title: _ui.ShowScreen<TitleScreen>(view => view.Initialize(_session, _ui)); break;
-                case AppScreen.Workshop: _ui.ShowScreen<WorkshopScreen>(view => view.Initialize(_session, _ui)); break;
                 case AppScreen.Mission: _ui.ShowScreen<MissionScreen>(view => view.Initialize(_session, _ui)); break;
             }
         }

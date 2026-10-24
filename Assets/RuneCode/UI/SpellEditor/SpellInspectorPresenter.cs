@@ -2,31 +2,26 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-using UnityEngine;
-
 namespace RuneCode
 {
     /// <summary>
-    /// 인스펙터 Presenter다.\n 선택 노드의 파라미터 행·보조 정보·삭제 버튼과 컴파일 검증 목록을 정해 인스펙터 View에 표시하고,
-    /// 입력을 편집 세션에 저장한다.\n 효과량은 기능 속성일 때만 보이고, 속성 선택은 잠긴 속성을 건너뛴다.\n
+    /// 인스펙터 Presenter다. 호버 룬·노드의 설명 텍스트를 정해 인스펙터 View에 쌓는다.
+    /// 쌓인 텍스트는 SpellEditorPresenter가 커서 옆 호버 설명으로 표시한다.
     /// </summary>
     public sealed class SpellInspectorPresenter
     {
 
         private readonly ISpellEditor _editor;
         private readonly SpellInspectorView _view;
-        private readonly RuneGraphCanvas _graph;
-        private GraphNode _selected;
         private GraphNode _hoveredNode;
         private RuneDefinition _hoveredRune;
         private string _hoveredGrade;
 
-        /// <summary>편집 세션, 인스펙터 View, 그래프(검증 항목 포커스용)로 Presenter를 만든다.\n</summary>
-        public SpellInspectorPresenter(ISpellEditor editor, SpellInspectorView view, RuneGraphCanvas graph)
+        /// <summary>편집 세션과 인스펙터 View로 Presenter를 만든다.</summary>
+        public SpellInspectorPresenter(ISpellEditor editor, SpellInspectorView view)
         {
             _editor = editor;
             _view = view;
-            _graph = graph;
         }
 
         /// <summary>호버한 룬과 등급의 설명을 표시하고 null이면 기존 선택 내용을 복구한다.\n</summary>
@@ -49,23 +44,9 @@ namespace RuneCode
             Refresh();
         }
 
-        /// <summary>선택 노드를 바꾸고 인스펙터를 다시 그린다.\n</summary>
-        public void Select(GraphNode node)
-        {
-            _hoveredRune = null;
-            _hoveredGrade = null;
-            _hoveredNode = null;
-            _selected = node;
-            Refresh();
-        }
-
-        /// <summary>선택 노드를 해제하고 인스펙터를 다시 그린다.\n</summary>
-        public void ClearSelection() => Select(null);
-
-        /// <summary>선택 노드를 현재 그래프에서 다시 찾아 인스펙터와 검증 목록을 다시 그린다.\n</summary>
+        /// <summary>호버 룬이 있으면 제목과 설명을, 아니면 호버 노드를 그래프에서 다시 찾아 설명을 다시 쌓는다.</summary>
         public void Refresh()
         {
-            if (_selected != null) _selected = _editor.Graph.FindNode(_selected.Id);
             _view.Begin();
             if (_hoveredRune != null)
             {
@@ -74,13 +55,10 @@ namespace RuneCode
                 return;
             }
             if (_hoveredNode != null) _hoveredNode = _editor.Graph.FindNode(_hoveredNode.Id);
-            GraphNode displayedNode = _hoveredNode ?? _selected;
-            if (displayedNode == null) _view.AddEmptyHint(GameData.L("ui.selectNode"));
-            else ShowNode(displayedNode);
-            ShowValidation();
+            if (_hoveredNode != null) ShowNode(_hoveredNode);
         }
 
-        /// <summary>Displays the selected rune, editable parameters, type-specific guidance and stats, and delete action.</summary>
+        /// <summary>노드 룬의 이름·RAM과 슬롯·효과 설명 텍스트를 쌓는다.</summary>
         private void ShowNode(GraphNode node)
         {
             RuneDefinition rune = GameData.Runes.Get(node.RuneId);
@@ -96,10 +74,6 @@ namespace RuneCode
             }
             _view.AddTitle(title + " / " + GameData.Runes.NodeRam(node) + " RAM");
             if (GraphNodeLayout.HasSlots(rune)) ShowSlots(node);
-            foreach (ParameterDefinition parameter in rune.Params)
-            {
-                if (IsParameterVisible(node, parameter)) ShowParameter(node, rune, parameter);
-            }
             if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
             {
                 ShowModifierGrade(node, rune);
@@ -116,7 +90,6 @@ namespace RuneCode
                 else ShowCompiledStats(node, rune);
                 if (rune.Id == "behavior.persist") _view.AddNote(RuneDescriptionBuilder.GetHoverText(rune, null), 60f, 10f);
             }
-            if (rune.Category != SpellGrammar.CATEGORY_CORE) _view.AddButton(GameData.L("ui.delete"), "InspectorDeleteButton", () => _editor.RemoveNode(node.Id));
         }
 
         /// <summary>행동 노드에 장착된 속성과 모디 정보만 표시하며 빈 슬롯과 잠긴 슬롯 안내는 생략한다.\n</summary>
@@ -434,60 +407,15 @@ namespace RuneCode
             return GameData.TryL("resource." + resource, out string value) ? value : resource;
         }
 
-        /// <summary>Modifier 등급 선택 버튼과 현재 등급의 고정 수치 안내를 표시한다.\n</summary>
+        /// <summary>현재 등급과 소지량, 등급색을 적용한 Modifier 효과의 짧은 설명과 장착 가능 행동을 표시한다.</summary>
         private void ShowModifierGrade(GraphNode node, RuneDefinition rune)
         {
             string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
             _editor.TryGetModifierUsage(rune.Id, grade, out int used, out int owned);
             string label = GameData.L("ui.modifierGrade") + " " + grade + " · " + GameData.L("ui.modifierStock")
                 + " " + Math.Max(0, owned - used) + "/" + owned;
-            _view.AddButton(ModifierGradeText.Colorize(label, grade), "InspectorButton", () => SelectNextModifierGrade(node.Id, rune));
+            _view.AddNote(ModifierGradeText.Colorize(label, grade), 24, 4);
             _view.AddNote(ModifierGradeText.Colorize(GameData.L("ui.gradeStats") + " " + string.Join(" · ", RuneDescriptionBuilder.GetGradeLines(rune, grade, true)), grade), 70, 6);
-        }
-
-        /// <summary>소지량이 있는 다음 등급을 찾아 선택 노드에 저장한다.\n</summary>
-        private void SelectNextModifierGrade(string nodeId, RuneDefinition rune)
-        {
-            GraphNode node = _editor.Graph.FindNode(nodeId);
-            IReadOnlyList<string> grades = GameData.ModifierGrades.GetAvailableGrades(rune.Id);
-            if (node == null || grades.Count < 2) return;
-            string currentGrade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
-            int currentIndex = -1;
-            for (int index = 0; index < grades.Count; index++)
-            {
-                if (grades[index] == currentGrade) { currentIndex = index; break; }
-            }
-            for (int step = 1; step < grades.Count; step++)
-            {
-                string grade = grades[(currentIndex + step + grades.Count) % grades.Count];
-                if (!_editor.TryGetModifierUsage(rune.Id, grade, out int used, out int owned) || owned <= used) continue;
-                _editor.SetNodeText(nodeId, SpellGrammar.MODIFIER_GRADE_PARAM, grade);
-                Refresh();
-                return;
-            }
-        }
-
-        /// <summary>파라미터 종류(숫자·프리셋 대상·문자·선택지)에 맞는 행을 표시하고 입력을 편집 세션 저장으로 연결한다.\n</summary>
-        private void ShowParameter(GraphNode node, RuneDefinition rune, ParameterDefinition parameter)
-        {
-            string nodeId = node.Id;
-            string label = GameData.L("param." + parameter.Id);
-            if (parameter.Kind == "number")
-            {
-                bool isScale = rune.Category == SpellGrammar.CATEGORY_MODIFIER;
-                _view.AddNumberRow(label, node.GetNumber(parameter.Id, parameter.DefaultNumber).ToString("0.###"), isScale,
-                    text => { if (float.TryParse(text, out float amount)) _editor.SetNodeNumber(nodeId, parameter.Id, Mathf.Clamp(amount, parameter.Min, parameter.Max)); },
-                    () => StepNumber(nodeId, parameter, -1), () => StepNumber(nodeId, parameter, 1));
-            }
-            else if (parameter.Kind == "text")
-            {
-                _view.AddTextRow(label, node.GetText(parameter.Id, parameter.DefaultText), text => _editor.SetNodeText(nodeId, parameter.Id, text));
-            }
-            else
-            {
-                string current = node.GetText(parameter.Id, parameter.DefaultText);
-                _view.AddEnumRow(label, OptionLabel(parameter.Id, current), () => _editor.SetNodeText(nodeId, parameter.Id, NextOption(parameter, current)));
-            }
         }
 
         /// <summary>Appends compiled behavior range, spawn location, size, and applicable movement speed to the inspector.</summary>
@@ -544,72 +472,6 @@ namespace RuneCode
                 lines.Add(GameData.L("ui.spellTrackSpeed") + " " + stats.Speed.ToString("0.#") + "px/s");
 
             if (lines.Count > 0) _view.AddNote(string.Join("\n", lines), 18 * lines.Count + 16, 6);
-        }
-
-        /// <summary>컴파일 성공 여부, 오류·경고(누르면 해당 노드로 이동)와 조작 안내를 검증 목록에 표시한다.\n</summary>
-        private void ShowValidation()
-        {
-            RectTransform list = _view.BeginValidation();
-            CompileResult result = _editor.CompileResult;
-            if (result.Ok) _view.AddIssue(list, GameData.L("ui.valid"), "ValidationSuccessRow", null);
-            foreach (CompileIssue issue in result.Errors) AddIssue(list, issue, "ValidationErrorRow");
-            foreach (CompileIssue issue in result.Warnings)
-            {
-                if (issue.Code == "W3" || issue.Code == "W8" || issue.Code == "W10" || issue.Code == "W11") continue;
-                AddIssue(list, issue, "ValidationWarningRow");
-            }
-            _view.AddIssue(list, GameData.L("ui.controls"), null, null);
-        }
-
-        /// <summary>검증 항목 하나를 코드·문구로 표시하고 누르면 관련 노드로 그래프를 이동하게 한다.\n</summary>
-        private void AddIssue(RectTransform list, CompileIssue issue, string prefabName)
-        {
-            string nodeId = issue.NodeId;
-            _view.AddIssue(list, issue.Code + " · " + CompileIssueText.Format(issue), prefabName, () => { if (nodeId != null) _graph.FocusNode(nodeId); });
-        }
-
-        /// <summary>수식 배율을 데이터의 한 단계만큼 바꾸고 범위 안으로 제한해 저장한 뒤 인스펙터를 다시 그린다.\n</summary>
-        private void StepNumber(string nodeId, ParameterDefinition parameter, int direction)
-        {
-            GraphNode node = _editor.Graph.FindNode(nodeId);
-            if (node == null) return;
-            float value = node.GetNumber(parameter.Id, parameter.DefaultNumber) + parameter.Step * direction;
-            _editor.SetNodeNumber(nodeId, parameter.Id, Mathf.Clamp(value, parameter.Min, parameter.Max));
-            Refresh();
-        }
-
-        /// <summary>
-        /// 인스펙터에 파라미터를 표시할지 반환한다.\n 효과량·보호막 지속시간은 Functional(회복·보호) 속성 노드와 그 속성의 Apply에서만 표시한다.\n
-        /// 행동 노드의 등급·슬롯 값은 노드 슬롯과 슬롯 목록으로 다루므로 파라미터 행으로 표시하지 않는다.\n
-        /// </summary>
-        private static bool IsParameterVisible(GraphNode node, ParameterDefinition parameter)
-        {
-            if (GraphNodeLayout.HasSlots(GameData.Runes.Get(node.RuneId))
-                && (parameter.Id == SpellGrammar.MODIFIER_GRADE_PARAM
-                    || SpellGrammar.TryParseSlotKey(parameter.Id, out _, out _))) return false;
-            if (parameter.Id != SpellGrammar.POWER_PARAM && parameter.Id != SpellGrammar.BUFF_DURATION_PARAM) return true;
-            if (GameData.Runes.TryGetRuneElement(node.RuneId, out ElementDefinition own)) return own.IsFunctional;
-            return GameData.Runes.TryGetNodeElement(node, out ElementDefinition element) && element.IsFunctional;
-        }
-
-        /// <summary>
-        /// 선택지 파라미터의 다음 값을 반환한다.\n 속성(element)은 해금하지 않은 속성을 건너뛰며, 선택 가능한 값이 없으면 현재 값을 유지한다.\n
-        /// </summary>
-        private string NextOption(ParameterDefinition definition, string current)
-        {
-            int index = 0;
-            for (int i = 0; i < definition.Options.Count; i++)
-            {
-                if (definition.Options[i] == current) index = i;
-            }
-            for (int step = 1; step <= definition.Options.Count; step++)
-            {
-                string candidate = definition.Options[(index + step) % definition.Options.Count];
-                bool isLockedElement = definition.Id == SpellGrammar.ELEMENT_PARAM && GameData.Runes.TryGetElement(candidate, out ElementDefinition element)
-                    && !_editor.IsRuneUnlocked(element.RuneId);
-                if (!isLockedElement) return candidate;
-            }
-            return current;
         }
 
         /// <summary>선택지 값을 한국어 라벨로 반환하고 번역이 없으면 원문 값을 반환한다.\n</summary>

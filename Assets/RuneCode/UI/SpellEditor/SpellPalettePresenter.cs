@@ -6,8 +6,8 @@ using UnityEngine;
 namespace RuneCode
 {
     /// <summary>
-    /// 룬 팔레트와 빠른 검색·슬롯 선택 팝업의 Presenter다. 분류·검색어로 행동·속성·모디를 골라 남은/보유 수와 함께 표시한다.
-    /// 행동 행은 제안 위치(팔레트) 또는 더블클릭 위치(빠른 검색)에 배치하고, 속성·모디 행은 선택한 행동 노드의 빈 슬롯에 장착한다.
+    /// 룬 팔레트와 빠른 검색·등급 선택 팝업의 Presenter다. 분류·검색어로 행동·속성·모디를 골라 남은/보유 수와 함께 표시한다.
+    /// 행동 행은 제안 위치(팔레트) 또는 더블클릭 위치(빠른 검색)에 배치하고, 속성·모디 행은 클릭하면 커서에 붙여 원하는 슬롯에 장착한다.
     /// 보유하지 않은 항목은 숨기고 남은 수가 0인 항목은 표시만 한다.
     /// </summary>
     public sealed class SpellPalettePresenter
@@ -136,34 +136,6 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 지정 속성·모디 슬롯의 선택 팝업을 연다. 장착 가능한 보유 룬과 비어 있음 선택지를 표시한다.
-        /// </summary>
-        public void OpenSlotPicker(string nodeId, string slotKey)
-        {
-            if (_selectMaterial != null) return;
-            if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return;
-            QuickPalettePopup popup = _ui.OpenPopup<QuickPalettePopup>();
-            popup.Begin(true);
-            string category = isElement ? SpellGrammar.CATEGORY_ELEMENT : SpellGrammar.CATEGORY_MODIFIER;
-            string selectedGrade = null;
-            Action<string> onSearch = query => FillSlotPicker(popup, query, nodeId, slotKey, category, selectedGrade);
-            Action<string> onGrade = grade =>
-            {
-                selectedGrade = selectedGrade == grade ? null : grade;
-                popup.ShowGrade(selectedGrade);
-                FillSlotPicker(popup, popup.Query, nodeId, slotKey, category, selectedGrade);
-            };
-            popup.SearchChanged += onSearch;
-            popup.GradeClicked += onGrade;
-            popup.Closed += () =>
-            {
-                popup.SearchChanged -= onSearch;
-                popup.GradeClicked -= onGrade;
-            };
-            FillSlotPicker(popup, popup.Query, nodeId, slotKey, category, selectedGrade);
-        }
-
-        /// <summary>
         /// 행동 노드의 등급 변경 팝업을 연다. 같은 행동의 다른 등급 중 남은 수가 있고 바꿀 수 있는 등급만 표시하며,
         /// 슬롯 한도를 넘어 해제될 룬 수를 함께 표시한다. 표시할 등급이 없으면 상태 문구만 띄운다.
         /// </summary>
@@ -216,34 +188,6 @@ namespace RuneCode
             }
         }
 
-        /// <summary>지정 분류와 등급 필터에 맞는 장착 가능한 룬과 슬롯 비우기 선택지로 선택 결과를 채운다. gradeFilter가 null이면 모든 등급을 표시한다.</summary>
-        private void FillSlotPicker(QuickPalettePopup popup, string query, string nodeId, string slotKey, string category,
-            string gradeFilter)
-        {
-            popup.ClearResults();
-            popup.AddResult(GameData.L("editor.slotEmpty"), () =>
-            {
-                popup.Close();
-                _editor.ClearSlot(nodeId, slotKey);
-            }, category);
-            foreach (RuneDefinition rune in GameData.Runes.All)
-            {
-                if (!IsPaletteRune(rune) || rune.Category != category || !MatchesSearch(rune, query)) continue;
-                foreach (string grade in StockGrades(rune))
-                {
-                    if (gradeFilter != null && grade != gradeFilter) continue;
-                    if (!TryGetStock(rune.Id, grade, out int remaining, out int owned) || remaining <= 0
-                        || !_editor.CanEquipToSlot(nodeId, slotKey, rune.Id, grade)) continue;
-                    string runeId = rune.Id;
-                    popup.AddResult(StockLabel(rune, grade, remaining, owned), () =>
-                    {
-                        popup.Close();
-                        if (_editor.Equip(nodeId, slotKey, runeId, grade)) SoundManager.Instance.PlaySelectSlotItem();
-                    }, rune.Category);
-                }
-            }
-        }
-
         /// <summary>
         /// 팔레트 행을 만든다. 행동 행은 제안 위치에 배치하고, 속성·모디 행은 클릭하면 커서에 붙여 장착 위치를 고르게 한다.
         /// canPlace가 false(남은 수 0)이면 드래그 배치를 막고 누르면 소지량 부족 문구를 띄운다.
@@ -251,12 +195,12 @@ namespace RuneCode
         private void AddPaletteRune(RuneDefinition rune, string grade, string label, bool canPlace)
         {
             string runeId = rune.Id;
-            Action onClick;
-            if (!canPlace) onClick = () => _editor.ReportStatus("editor.stockBlocked");
-            else if (_selectMaterial != null) onClick = () => _selectMaterial?.Invoke(runeId, grade);
+            Action<UiRow> onClick;
+            if (!canPlace) onClick = _ => _editor.ReportStatus("editor.stockBlocked");
+            else if (_selectMaterial != null) onClick = _ => _selectMaterial?.Invoke(runeId, grade);
             else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
-                onClick = () => _view.GraphCanvas.PlaceRune(runeId, _view.GraphCanvas.SuggestPlacement(runeId), grade);
-            else onClick = () => _view.GraphCanvas.PickUpModule(runeId, grade);
+                onClick = _ => _view.GraphCanvas.PlaceRune(runeId, _view.GraphCanvas.SuggestPlacement(runeId), grade);
+            else onClick = row => _view.GraphCanvas.PickUpModule(runeId, grade, row);
             _view.AddPaletteRow(label, ROW_HEIGHT, onClick, runeId, grade, canPlace && _selectMaterial == null);
         }
 
@@ -274,6 +218,18 @@ namespace RuneCode
                 remaining = owned - used;
             }
             return owned > 0;
+        }
+
+        /// <summary>지정 룬·등급의 현재 소지량 기준 팔레트 행 문구를 반환한다. 슬롯에서 집어 든 룬의 드래그 미리보기에 쓴다.</summary>
+        internal string BuildStockLabel(string runeId, string grade)
+        {
+            if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return runeId;
+            if (!TryGetStock(runeId, grade, out int remaining, out int owned))
+            {
+                remaining = 0;
+                owned = 0;
+            }
+            return StockLabel(rune, grade, remaining, owned);
         }
 
         /// <summary>룬 분류별 소지 등급 목록을 반환한다. 행동은 행동 등급표, 모디는 Modifier 등급표, 속성은 빈 등급 하나다.</summary>

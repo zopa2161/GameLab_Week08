@@ -44,7 +44,7 @@ namespace RuneCode
                 while (enemy.IsAlive && burn.NextTickTime <= burn.Until + 0.000001 && _world.Time + 0.000001 >= burn.NextTickTime)
                 {
                     double actual = _simulation.ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false, sourceAction: burn.DamageSourceAction, damageStatus: "burn");
-                    _stats.StatusDamage += actual;
+                    if (!(_world.IsMission && enemy.IsDummy)) _stats.StatusDamage += actual;
                     if (actual > 0) _stats.BurnTickDamageEventCount++;
                     burn.NextTickTime += _world.Balance.Combat.BurnInterval;
                 }

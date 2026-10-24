@@ -113,13 +113,12 @@ namespace RuneCode
         /// <summary>등록된 전환 콜백으로 지정 화면 전환을 요청한다.</summary>
         public void RequestScreen(AppScreen screen) { ScreenRequested?.Invoke(screen); }
 
-        /// <summary>진행 중인 런을 보관 상태로 표시하고 작업실 화면 전환을 요청한다. 미션 화면은 이 표시를 보고 런을 버리지 않는다.</summary>
+        /// <summary>진행 중인 런을 보관 상태로 표시하고 보관 시점의 스테이지와 라운드를 기록한다. 미션 화면은 이 표시를 보고 런을 버리지 않으며, 작업실은 미션 화면 위 오버레이로 표시한다.</summary>
         public void SuspendRunForWorkshop(int stage, int round)
         {
             _isRunSuspended = true;
             _workshopStage = stage;
             _workshopRound = round;
-            RequestScreen(AppScreen.Workshop);
         }
 
         /// <summary>보관 중인 런을 이어 가기 위해 보관 표시를 해제한다.</summary>

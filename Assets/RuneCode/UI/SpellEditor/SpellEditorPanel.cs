@@ -10,8 +10,8 @@ using UnityEngine.UI;
 namespace RuneCode
 {
     /// <summary>
-    /// 비주얼 스크립팅 편집 View다. 마법 제목 줄·지표, 룬 팔레트, 노드 그래프, 인스펙터, 편집 도구줄, 튜토리얼 문구를 표시하고
-    /// 버튼·검색 입력을 이벤트로 알린다. 편집 진행은 SpellEditorPresenter가 하고, 보관함·공유 등은 Popup 층 팝업으로 연다.
+    /// 비주얼 스크립팅 편집 View다. 지표, 룬 팔레트, 노드 그래프, 편집 도구줄, 튜토리얼 문구를 표시하고
+    /// 버튼·검색 입력을 이벤트로 알린다. 편집 진행은 SpellEditorPresenter가 한다.
     /// 레이아웃과 직렬화 참조는 저장된 Prefab에서 직접 관리한다.
     /// </summary>
     public sealed class SpellEditorPanel : MonoBehaviour
@@ -23,13 +23,6 @@ namespace RuneCode
 
         public static readonly string[] CATEGORY_IDS = { "all", SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_ELEMENT, SpellGrammar.CATEGORY_BEHAVIOR, SpellGrammar.CATEGORY_MODIFIER, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD };
 
-        [Header("마법 제목 줄")]
-        [SerializeField] private TextMeshProUGUI _spellTitle;
-        [SerializeField] private Button _libraryButton;
-        [SerializeField] private Button _renameButton;
-        [SerializeField] private Button _saveButton;
-        [SerializeField] private Button _shareButton;
-
         [Header("지표와 팔레트")]
         [SerializeField] private TextMeshProUGUI _metricsText;
         [SerializeField] private TMP_InputField _searchField;
@@ -39,11 +32,8 @@ namespace RuneCode
         [SerializeField] private UiRow _runeRowPrefab;
         [SerializeField] private RunePaletteRowBinding[] _categoryRowPrefabs = Array.Empty<RunePaletteRowBinding>();
 
-        [Header("그래프와 인스펙터")]
+        [Header("그래프")]
         [SerializeField] private RuneGraphCanvas _graphCanvas;
-        [SerializeField] private RectTransform _inspectorPanel;
-        [SerializeField] private SpellParameterRow _parameterRowPrefab;
-        [SerializeField] private UiRow _issueRowPrefab;
 
         [Header("편집 도구줄")]
         [SerializeField] private Button _undoButton;
@@ -62,8 +52,6 @@ namespace RuneCode
         private readonly Dictionary<UiRow, ViewPool<UiRow>> _paletteRows = new Dictionary<UiRow, ViewPool<UiRow>>();
         private SpellInspectorView _inspector;
         private readonly Dictionary<Button, bool> _synthesisButtonStates = new Dictionary<Button, bool>();
-        private CanvasGroup _inspectorInputGroup;
-        private bool _wasInspectorInteractable;
 
         private RectTransform _hoverPanel;
         private TextMeshProUGUI _hoverLabel;
@@ -72,7 +60,7 @@ namespace RuneCode
         /// <summary>노드 그래프 View다.</summary>
         public RuneGraphCanvas GraphCanvas => _graphCanvas;
 
-        /// <summary>인스펙터 표시 도우미다.</summary>
+        /// <summary>호버 설명 텍스트 도우미다.</summary>
         public SpellInspectorView Inspector => _inspector;
 
         /// <summary>그래프 라벨에 쓰는 글꼴이다.</summary>
@@ -80,10 +68,6 @@ namespace RuneCode
 
         public bool IsSynthesisOpen => _presenter != null && _presenter.IsSynthesisOpen;
 
-        public event Action LibraryClicked;
-        public event Action RenameClicked;
-        public event Action SaveClicked;
-        public event Action ShareClicked;
         public event Action UndoClicked;
         public event Action RedoClicked;
         public event Action ArrangeClicked;
@@ -103,7 +87,7 @@ namespace RuneCode
         {
             if (_presenter != null) return;
             if (_font == null) _font = TMP_Settings.defaultFontAsset;
-            _inspector = new SpellInspectorView(_inspectorPanel, new UiFactory(_font, _panelPrefab, _buttonPrefab), _parameterRowPrefab, _issueRowPrefab);
+            _inspector = new SpellInspectorView();
             BindButtons();
             _presenter = new SpellEditorPresenter(editor, host, ui, this);
         }
@@ -122,12 +106,6 @@ namespace RuneCode
             gameObject.SetActive(false);
         }
 
-        /// <summary>도크 실행 하이라이트를 그래프에 표시한다.</summary>
-        public void HighlightNode(string nodeId) => _graphCanvas.Highlight(nodeId);
-
-        /// <summary>마법 제목을 표시한다.</summary>
-        public void SetTitle(string text) => _spellTitle.text = text;
-
         /// <summary>RAM·비용·쿨다운 지표 문구를 표시한다.</summary>
         public void SetMetrics(string text) => _metricsText.text = text;
 
@@ -138,7 +116,7 @@ namespace RuneCode
             _tooltipText.text = text;
         }
 
-        /// <summary>호버한 룬과 등급을 인스펙터에 표시하며 null이면 선택 정보로 복구한다.</summary>
+        /// <summary>호버한 룬과 등급 정보를 Presenter에 전달한다.</summary>
         public void ShowRuneInfo(RuneDefinition rune, string grade)
         {
             _presenter.ShowRuneInfo(rune, grade);
@@ -209,31 +187,22 @@ namespace RuneCode
         /// <summary>검색어를 변경 이벤트 없이 복구한다.</summary>
         public void SetSearchQuery(string query) => _searchField.SetTextWithoutNotify(query ?? "");
 
-        /// <summary>합성 중 편집 도구와 인스펙터의 키보드·포인터 입력을 막고 닫을 때 이전 활성 상태를 복구한다.</summary>
+        /// <summary>합성 중 편집 도구 버튼의 입력을 막고 닫을 때 이전 활성 상태를 복구한다.</summary>
         public void SetSynthesisEditingLocked(bool isLocked)
         {
             if (isLocked)
             {
-                Button[] buttons = { _libraryButton, _renameButton, _saveButton, _shareButton,
-                    _undoButton, _redoButton, _arrangeButton, _copyButton, _pasteButton };
+                Button[] buttons = { _undoButton, _redoButton, _arrangeButton, _copyButton, _pasteButton };
                 foreach (Button button in buttons)
                 {
                     _synthesisButtonStates[button] = button.interactable;
                     button.interactable = false;
                 }
-                if (_inspectorInputGroup == null)
-                {
-                    _inspectorInputGroup = _inspectorPanel.GetComponent<CanvasGroup>();
-                    if (_inspectorInputGroup == null) _inspectorInputGroup = _inspectorPanel.gameObject.AddComponent<CanvasGroup>();
-                }
-                _wasInspectorInteractable = _inspectorInputGroup.interactable;
-                _inspectorInputGroup.interactable = false;
             }
             else
             {
                 foreach (KeyValuePair<Button, bool> state in _synthesisButtonStates) state.Key.interactable = state.Value;
                 _synthesisButtonStates.Clear();
-                _inspectorInputGroup.interactable = _wasInspectorInteractable;
             }
         }
 
@@ -266,6 +235,20 @@ namespace RuneCode
             return RunePaletteRowBinding.Resolve(_categoryRowPrefabs, category, _runeRowPrefab);
         }
 
+        /// <summary>분류별 팔레트 행 프리팹을 임시로 만들어 지정 문구로 채운 뒤 같은 모양의 드래그 미리보기를 반환한다.</summary>
+        internal RunePalettePreview CreatePaletteRowPreview(RuneDefinition rune, string label)
+        {
+            if (_graphCanvas == null) return null;
+            UiRow prefab = RunePaletteRowBinding.Resolve(_categoryRowPrefabs, rune.Category, _runeRowPrefab);
+            UiRow row = Instantiate(prefab, _runeList, false);
+            row.gameObject.SetActive(false);
+            row.Configure(label, SpellPalettePresenter.ROW_HEIGHT, () => { }, 12);
+            if (_runeList.TryGetComponent(out GridLayoutGroup grid)) ((RectTransform)row.transform).sizeDelta = grid.cellSize;
+            RunePalettePreview preview = RunePalettePreview.CreateRow(_graphCanvas.canvas.rootCanvas, row);
+            Destroy(row.gameObject);
+            return preview;
+        }
+
         /// <summary>합성창이 열려 있으면 결과 안내 또는 창을 닫고 입력을 소비한다.</summary>
         public bool HandleSynthesisEscape() => _presenter != null && _presenter.HandleSynthesisEscape();
 
@@ -275,8 +258,8 @@ namespace RuneCode
             foreach (ViewPool<UiRow> rows in _paletteRows.Values) rows.ReleaseAll();
         }
 
-        /// <summary>팔레트 행을 추가하고 클릭·드래그 배치를 룬 등급과 연결한다.</summary>
-        public void AddPaletteRow(string label, float height, Action onClick, string runeId, string grade, bool canPlace)
+        /// <summary>팔레트 행을 추가하고 클릭·드래그 배치를 룬 등급과 연결한다. 클릭 동작에는 생성된 행을 전달한다.</summary>
+        public void AddPaletteRow(string label, float height, Action<UiRow> onClick, string runeId, string grade, bool canPlace)
         {
             string category = GameData.Runes.Get(runeId).Category;
             UiRow prefab = RunePaletteRowBinding.Resolve(_categoryRowPrefabs, category, _runeRowPrefab);
@@ -286,7 +269,7 @@ namespace RuneCode
                 _paletteRows.Add(prefab, rows);
             }
             UiRow row = rows.Get();
-            row.Configure(label, height, onClick, 12);
+            row.Configure(label, height, onClick == null ? null : () => onClick(row), 12);
             RunePaletteDrag drag = row.GetComponent<RunePaletteDrag>();
             if (drag == null) drag = row.gameObject.AddComponent<RunePaletteDrag>();
             drag.Initialize(_graphCanvas, runeId, grade, canPlace, this);
@@ -322,10 +305,6 @@ namespace RuneCode
         /// <summary>편집 버튼과 검색·분류 입력을 화면 이벤트에 연결한다.</summary>
         private void BindButtons()
         {
-            _libraryButton.onClick.AddListener(() => LibraryClicked?.Invoke());
-            _renameButton.onClick.AddListener(() => RenameClicked?.Invoke());
-            _saveButton.onClick.AddListener(() => SaveClicked?.Invoke());
-            _shareButton.onClick.AddListener(() => ShareClicked?.Invoke());
             _undoButton.onClick.AddListener(() => UndoClicked?.Invoke());
             _redoButton.onClick.AddListener(() => RedoClicked?.Invoke());
             _arrangeButton.onClick.AddListener(() => ArrangeClicked?.Invoke());

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.UI;
@@ -43,6 +44,7 @@ namespace RuneCode
         private const float EDGE_ARROW_POSITION = 0.68f;
         private const float SELECTION_LINE_WIDTH = 1f;
         private const float SLOT_CATEGORY_TINT = 0.45f;
+        private const float SLOT_HIGHLIGHT_WIDTH = 2f;
 
         private static readonly Color LOCKED_NODE_COLOR = new Color(1f, 0.25f, 0.25f);
         private static readonly Color LOCKED_NODE_FILL_COLOR = new Color(0.24f, 0.07f, 0.08f);
@@ -110,6 +112,17 @@ namespace RuneCode
             {
                 Vector2 from = _layout.LookupPortPosition(edge.FromNode, edge.FromPort);
                 Vector2 to = _layout.LookupPortPosition(edge.ToNode, edge.ToPort);
+                if ((to - from).sqrMagnitude < _viewport.Zoom * _viewport.Zoom) continue;
+                if (_layout.IsBlockEdge(edge))
+                {
+                    float railX = from.x + GraphNodeLayout.PUZZLE_DEPTH * _viewport.Zoom;
+                    Color rail = _state.Selected.Contains(edge.FromNode) && _state.Selected.Contains(edge.ToNode)
+                        ? Color.white : _style.GetColor(NODE_BORDER_COLOR);
+                    RuneMesh.Line(mesh, from, new Vector2(railX, from.y), NODE_BORDER, rail);
+                    RuneMesh.Line(mesh, new Vector2(railX, from.y), new Vector2(railX, to.y), NODE_BORDER, rail);
+                    RuneMesh.Line(mesh, new Vector2(railX, to.y), to, NODE_BORDER, rail);
+                    continue;
+                }
                 RuneMesh.Line(mesh, from, to, EDGE_WIDTH, _layout.IsDeprecatedEdge(edge) ? _style.GetColor(DEPRECATED_COLOR) : EdgeColor(edge));
                 Vector2 direction = (to - from).normalized;
                 float angle = Mathf.Atan2(direction.y, direction.x);
@@ -125,27 +138,76 @@ namespace RuneCode
             bool isRuneUnlocked = _isRuneUnlocked(node.RuneId);
             Color accent = isRuneUnlocked ? _style.GetCategoryColor(rune.Category) : LOCKED_NODE_COLOR;
             Rect rect = _layout.NodeRect(node, rune);
+            if (rune.Category == SpellGrammar.CATEGORY_FLOW) DrawControlFrame(mesh, node, rect, accent);
             bool isExecuted = _state.ExecutedUntil.TryGetValue(node.Id, out float until) && until > Time.unscaledTime;
 
             Rect border = new Rect(rect.x - NODE_BORDER, rect.y - NODE_BORDER, rect.width + NODE_BORDER * 2, rect.height + NODE_BORDER * 2);
-            RuneMesh.Rect(mesh, border, NodeBorderColor(node, accent, isExecuted, isRuneUnlocked));
+            DrawPuzzleBody(mesh, border, rect, node, rune, NodeBorderColor(node, accent, isExecuted, isRuneUnlocked), false);
             Color fill = isRuneUnlocked
                 ? isExecuted ? _style.GetColor(EXECUTED_FILL_COLOR) : _style.GetColor(NODE_FILL_COLOR)
                 : LOCKED_NODE_FILL_COLOR;
-            RuneMesh.Rect(mesh, rect, fill);
-            RuneMesh.Rect(mesh, new Rect(rect.x, rect.yMax - NODE_ACCENT_HEIGHT * zoom, rect.width, NODE_ACCENT_HEIGHT * zoom), accent);
+            DrawPuzzleBody(mesh, rect, rect, node, rune, fill, true);
+            Rect accentRect = new Rect(rect.x, rect.yMax - NODE_ACCENT_HEIGHT * zoom, rect.width, NODE_ACCENT_HEIGHT * zoom);
+            RuneMesh.Rect(mesh, accentRect, accent);
             Vector2 iconCenter = new Vector2(rect.x + ICON_OFFSET_X * zoom, rect.yMax - ICON_OFFSET_Y * zoom);
             RuneMesh.Polygon(mesh, iconCenter, ICON_RADIUS * zoom, accent, CategoryIconSides(rune.Category));
-            DrawPorts(mesh, node, rune, rect);
+            DrawPorts(mesh, node, rune, rect, fill);
             DrawSlots(mesh, node, rune, fill);
             if (_layout.TryGetGradeButtonRect(node, rune, out Rect gradeButton))
                 RuneMesh.Rect(mesh, gradeButton, Color.Lerp(fill, accent, SLOT_CATEGORY_TINT));
         }
 
-        /// <summary>행동 노드의 속성·모디 슬롯 셀을 카테고리 강조색과 잠금색으로 그린다.</summary>
+        /// <summary>조건·반복 블록의 후속 영역을 감싸는 C자 프레임을 카테고리 색으로 그린다.</summary>
+        private void DrawControlFrame(VertexHelper mesh, GraphNode node, Rect header, Color color)
+        {
+            Rect bounds = _layout.BlockGroupBounds(node.Id);
+            float width = NODE_ACCENT_HEIGHT * _viewport.Zoom;
+            float bottom = bounds.yMin - width * 2;
+            float right = bounds.xMax + width * 2;
+            if (_state.Selected.Contains(node.Id)) color = Color.white;
+            RuneMesh.Rect(mesh, new Rect(header.xMin, bottom, width, header.yMax - bottom), color);
+            RuneMesh.Rect(mesh, new Rect(header.xMin, bottom, right - header.xMin, width), color);
+        }
+
+        /// <summary>실행 입력이 있으면 왼쪽 결합 홈을 제외한 세 사각형으로 본체나 테두리를 그린다.</summary>
+        private void DrawPuzzleBody(VertexHelper mesh, Rect bounds, Rect nodeRect, GraphNode node, RuneDefinition rune,
+            Color color, bool isFill)
+        {
+            PortDefinition input = rune.FindPort(SpellGrammar.EXEC_PORT, SpellGrammar.DIRECTION_IN);
+            if (!GraphNodeLayout.IsPuzzlePort(input))
+            {
+                RuneMesh.Rect(mesh, bounds, color);
+                return;
+            }
+            Vector2 socket = _layout.PortPosition(nodeRect, node, rune, input.Id);
+            float inset = isFill ? NODE_BORDER : 0;
+            float halfHeight = GraphNodeLayout.PUZZLE_HALF_HEIGHT * _viewport.Zoom + inset;
+            float socketEnd = nodeRect.xMin + GraphNodeLayout.PUZZLE_DEPTH * _viewport.Zoom + inset;
+            RuneMesh.Rect(mesh, Rect.MinMaxRect(bounds.xMin, socket.y + halfHeight, bounds.xMax, bounds.yMax), color);
+            RuneMesh.Rect(mesh, Rect.MinMaxRect(bounds.xMin, bounds.yMin, bounds.xMax, socket.y - halfHeight), color);
+            RuneMesh.Rect(mesh, Rect.MinMaxRect(socketEnd, socket.y - halfHeight, bounds.xMax, socket.y + halfHeight), color);
+        }
+
+        /// <summary>출력 탭을 본체와 동일한 두께로 그린다. 입력 홈은 본체 메시의 윤곽을 사용해 중복 테두리를 만들지 않는다.</summary>
+        private void DrawPuzzlePort(VertexHelper mesh, Vector2 point, bool isOutput, Color color, Color fill)
+        {
+            float depth = GraphNodeLayout.PUZZLE_DEPTH * _viewport.Zoom;
+            float halfHeight = GraphNodeLayout.PUZZLE_HALF_HEIGHT * _viewport.Zoom;
+            if (isOutput)
+            {
+                RuneMesh.Rect(mesh, new Rect(point.x, point.y - halfHeight - NODE_BORDER,
+                    depth + NODE_BORDER, (halfHeight + NODE_BORDER) * 2), color);
+                RuneMesh.Rect(mesh, new Rect(point.x - NODE_BORDER, point.y - halfHeight,
+                    depth + NODE_BORDER, halfHeight * 2), fill);
+                return;
+            }
+        }
+
+        /// <summary>행동 노드의 속성·모디 슬롯 셀을 카테고리 강조색과 잠금색으로 그리고, 들고 있는 모듈을 장착할 수 있는 셀에는 흰 테두리를 그린다.</summary>
         private void DrawSlots(VertexHelper mesh, GraphNode node, RuneDefinition rune, Color fill)
         {
             if (!GraphNodeLayout.HasSlots(rune)) return;
+            _state.EquippableSlots.TryGetValue(node.Id, out HashSet<string> equippable);
             foreach (string slotKey in GraphNodeLayout.SlotKeys)
             {
                 if (!_layout.TryGetSlotRect(node, rune, slotKey, out Rect cell)) continue;
@@ -158,11 +220,23 @@ namespace RuneCode
                     color = Color.Lerp(fill, categoryColor, SLOT_CATEGORY_TINT);
                 }
                 RuneMesh.Rect(mesh, cell, color);
+                if (equippable != null && equippable.Contains(slotKey)) DrawSlotOutline(mesh, cell);
             }
         }
 
+        /// <summary>슬롯 셀 안쪽에 화면 두께가 일정한 흰 테두리를 그린다.</summary>
+        private static void DrawSlotOutline(VertexHelper mesh, Rect cell)
+        {
+            float width = Mathf.Min(SLOT_HIGHLIGHT_WIDTH, cell.width * 0.5f);
+            float height = Mathf.Min(SLOT_HIGHLIGHT_WIDTH, cell.height * 0.5f);
+            RuneMesh.Rect(mesh, new Rect(cell.xMin, cell.yMin, cell.width, height), Color.white);
+            RuneMesh.Rect(mesh, new Rect(cell.xMin, cell.yMax - height, cell.width, height), Color.white);
+            RuneMesh.Rect(mesh, new Rect(cell.xMin, cell.yMin, width, cell.height), Color.white);
+            RuneMesh.Rect(mesh, new Rect(cell.xMax - width, cell.yMin, width, cell.height), Color.white);
+        }
+
         /// <summary>노드의 표시 포트를 종류별 모양으로 그리며 연결 드래그 중에는 연결 가능 여부 색으로 표시한다. 지원 중단 포트는 회색이다.</summary>
-        private void DrawPorts(VertexHelper mesh, GraphNode node, RuneDefinition rune, Rect rect)
+        private void DrawPorts(VertexHelper mesh, GraphNode node, RuneDefinition rune, Rect rect, Color fill)
         {
             _state.ConnectablePorts.TryGetValue(node.Id, out bool[] connectable);
             for (int i = 0; i < rune.Ports.Count; i++)
@@ -172,6 +246,14 @@ namespace RuneCode
                 Color color = port.IsDeprecated ? _style.GetColor(DEPRECATED_COLOR) : PortBaseColor(port.Kind);
                 if (_state.IsConnecting) color = connectable != null && connectable[i] ? _style.GetColor(CONNECTABLE_PORT_COLOR) : _style.GetColor(BLOCKED_PORT_COLOR);
                 Vector2 point = _layout.PortPosition(rect, node, rune, port.Id);
+                if (GraphNodeLayout.IsPuzzlePort(port))
+                {
+                    bool isRuneUnlocked = _isRuneUnlocked(node.RuneId);
+                    bool isExecuted = _state.ExecutedUntil.TryGetValue(node.Id, out float until) && until > Time.unscaledTime;
+                    color = NodeBorderColor(node, _style.GetCategoryColor(rune.Category), isExecuted, isRuneUnlocked);
+                    DrawPuzzlePort(mesh, point, port.Direction == SpellGrammar.DIRECTION_OUT, color, fill);
+                    continue;
+                }
                 RuneMesh.Polygon(mesh, point, PORT_RADIUS * _viewport.Zoom, color, PortSides(port.Kind));
             }
         }
@@ -193,12 +275,15 @@ namespace RuneCode
             RuneMesh.Line(mesh, new Vector2(selection.xMin, selection.yMax), new Vector2(selection.xMax, selection.yMax), SELECTION_LINE_WIDTH, _style.GetColor(SELECTION_BORDER_COLOR));
         }
 
-        /// <summary>미해금 표시를 실행 하이라이트와 선택 표시보다 우선해 노드 테두리 색을 반환한다.</summary>
+        /// <summary>선택된 블록은 흰색을 우선하며 그 외에는 잠금·스냅·실행·기본 순으로 테두리 색을 반환한다.</summary>
         private Color NodeBorderColor(GraphNode node, Color accent, bool isExecuted, bool isRuneUnlocked)
         {
+            if (_state.Selected.Contains(node.Id)) return Color.white;
             if (!isRuneUnlocked) return LOCKED_NODE_COLOR;
+            if (node.Id == _state.SnapFromNode || node.Id == _state.SnapToNode || node.Id == _state.SnapInsertNode)
+                return _style.GetColor(CONNECTABLE_PORT_COLOR);
             if (isExecuted) return _style.GetColor(EXECUTED_BORDER_COLOR);
-            return _state.Selected.Contains(node.Id) ? accent : _style.GetColor(NODE_BORDER_COLOR);
+            return _style.GetColor(NODE_BORDER_COLOR);
         }
 
         /// <summary>효과 연결, 체인 연결, 실행 연결 순으로 연결선 색을 반환한다.</summary>

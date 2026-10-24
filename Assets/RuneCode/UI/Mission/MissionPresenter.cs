@@ -9,8 +9,8 @@ using UnityEngine.InputSystem;
 namespace RuneCode
 {
     /// <summary>
-    /// 미션 화면의 Presenter다. 세션에서 시전 마법을 받아 MissionRun(모델)을 만들고 진행·일시정지·재도전·결과를 다루며,
-    /// 매 프레임 시뮬레이션 값을 HUD View에 표시한다. 일시정지·디버그 팝업은 UIManager로 연다.
+    /// 미션 화면의 Presenter다. 세션에서 시전 마법을 받아 MissionRun(모델)을 만들고 진행·일시정지·재도전·결과와
+    /// 작업실 오버레이 표시를 다루며, 매 프레임 시뮬레이션 값을 HUD View에 표시한다. 일시정지·디버그 팝업은 UIManager로 연다.
     /// </summary>
     public sealed class MissionPresenter
     {
@@ -49,6 +49,7 @@ namespace RuneCode
         private double _lastPlayerDamage;
         private bool _isResultShown;
         private bool _hasPresentedChoices;
+        private bool _hasStartFailed;
         private bool _isInitialDebugRoundBreak;
         private bool _isHexaSummonTestActive;
         private int _hexaDebugActionSignature = int.MinValue;
@@ -93,28 +94,26 @@ namespace RuneCode
             _hud.DebugActionClicked += RunDebugAction;
             BuildDebugBosses();
             _result.Bind();
-            _result.ImproveClicked += ReturnToWorkshop;
-            _result.NextStageClicked += SelectNextStageAndReturnToWorkshop;
             _result.RetryClicked += RetryStage;
             _result.ClearModifierChoiceClicked += ChooseClearModifier;
+            screen.Workshop.CloseRequested += CloseWorkshop;
         }
 
         /// <summary>
-        /// 미션 화면에 들어올 때 보관 중인 런이 있으면 다시 준비한 마법으로 이어 가고, 없으면 새 미션을 시작한 뒤 전투 음악으로 전환한다.
-        /// 준비에 실패하면 작업실 전환을 요청하며 보관 중인 런은 그대로 남는다.
+        /// 미션 화면에 들어올 때 새 미션을 시작한 뒤 전투 음악으로 전환한다.
+        /// 준비에 실패하면 실패 표시만 남기고 다음 프레임에 처리하며, 보관 중인 런이 있으면 그대로 둔다.
         /// </summary>
         public void Begin()
         {
-            bool isStarted = _session.IsRunSuspended && _run != null ? ResumeRun() : StartRun();
-            if (!isStarted)
+            if (!StartRun())
             {
-                _session.RequestScreen(AppScreen.Workshop);
+                _hasStartFailed = true;
                 return;
             }
             SoundManager.Instance.SetMusicState(1);
         }
 
-        /// <summary>미션 화면을 떠날 때 빔 음원을 정지하고 기본 음악으로 복원한다. 작업실을 열어 런을 보관 중이면 미션을 유지하고, 아니면 놓는다.</summary>
+        /// <summary>미션 화면이 숨겨질 때 빔 음원을 정지하고 기본 음악으로 복원하며 HUD를 끄고 런을 놓는다.</summary>
         public void End()
         {
             SoundManager soundManager = SoundManager.Instance;
@@ -128,7 +127,7 @@ namespace RuneCode
             _hud.SetWorkshopHighlight(false);
             _hud.SetDebugBossMenu(false, false);
             ResetHexaDebugActions();
-            if (_session.IsRunSuspended) return;
+            // 화면이 숨겨지는 경로는 타이틀 복귀뿐이고 ReturnToTitle이 Hide 전에 보관 표시를 해제하므로 런은 항상 버려진다.
             _run = null;
         }
 
@@ -139,7 +138,17 @@ namespace RuneCode
         public void Tick(float unscaledDeltaTime)
         {
             LocalTelemetry.FlushUsabilityTest();
+            if (_hasStartFailed)
+            {
+                // ShowScreen 처리 도중에는 팝업이 닫히므로 시작 실패 안내는 다음 프레임에 타이틀 복귀와 함께 띄운다.
+                _hasStartFailed = false;
+                _session.ReturnToTitle();
+                _ui.Alert(GameData.L("ui.startFailedTitle"), _session.StatusMessage);
+                return;
+            }
             if (_run == null) return;
+            // 작업실 오버레이가 열려 있는 동안은 미션 진행과 입력·사운드·라운드 처리를 모두 멈춘다.
+            if (_screen.Workshop.IsVisible) return;
             if (_run.IsFinished)
             {
                 if (_pausePopup != null && _pausePopup.IsVisible) return;
@@ -180,6 +189,9 @@ namespace RuneCode
                     ShowSpellOrderOnboarding();
                 }
             }
+            // 보상 카드가 뜬 뒤, 후보가 없으면 대기 진입 즉시 한 번만 중앙 이동과 허수아비 배치를 한다.
+            if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices))
+                _run.TryPrepareRoundBreakArena();
             if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices) && !_ui.IsPopupOpen)
                 OpenTestOnboarding(ONBOARDING_FIRST_CLEAR);
             RenderHud();
@@ -273,9 +285,10 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>팝업·일시정지·종료 중 클릭을 거부하고 대기 중인 같은 미션을 한 번 진행한 뒤 HUD를 즉시 갱신한다.</summary>
+        /// <summary>라운드 대기 중 다음 라운드를 시작한다. 작업실 오버레이가 열려 있으면 무시한다.</summary>
         private void StartNextRound()
         {
+            if (_screen.Workshop.IsVisible) return;
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             if (_run.TryStartNextRound())
             {
@@ -294,13 +307,34 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 라운드 대기 중이고 일시정지·팝업·문자 입력이 없으면 런을 보관하고 작업실로 전환한다.
+        /// 라운드 대기 중이고 일시정지·팝업·문자 입력이 없으면 런을 보관하고 작업실을 미션 화면 위 오버레이로 연다.
         /// 라운드 보상 카드를 고르기 전에도 열 수 있으며 카드는 돌아왔을 때 그대로 남는다.
         /// </summary>
         private void OpenWorkshop()
         {
+            if (_screen.Workshop.IsVisible) return;
             if (!CanOpenWorkshop || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
+            SoundManager.Instance.StopShotBeam();
+            _hud.SetNextRound(false, false);
+            _hud.SetWorkshop(false, false);
+            _hud.SetWorkshopHighlight(false);
+            WorkshopScreen workshop = _screen.Workshop;
+            workshop.transform.SetAsLastSibling();
+            workshop.Show();
+        }
+
+        /// <summary>
+        /// 작업실 오버레이를 닫고 보관 중인 런을 이어 간다. 재개에 실패하면 작업실을 유지하며
+        /// 실패 원인은 세션 상태 문구와 다시 그려진 보상 카드로 남는다.
+        /// </summary>
+        private void CloseWorkshop()
+        {
+            WorkshopScreen workshop = _screen.Workshop;
+            if (!workshop.IsVisible) return;
+            if (!ResumeRun()) return;
+            workshop.Hide();
+            RenderHud();
         }
 
         /// <summary>보스별 첫 배치와 디버그 진입을 구성하고, Hexa 나선·자동 모드와 일반 웨이브 소환 소유권 시험 항목을 추가한다.</summary>
@@ -360,9 +394,10 @@ namespace RuneCode
             return 0;
         }
 
-        /// <summary>디버그 항목에 따라 속성 포함 모드 보상을 표시하거나 보스·일반 웨이브 시험에 진입한다.</summary>
+        /// <summary>디버그 항목에 따라 속성 포함 모드 보상을 표시하거나 보스·일반 웨이브 시험에 진입한다. 작업실 오버레이가 열려 있으면 무시한다.</summary>
         private void StartDebugBoss(int index)
         {
+            if (_screen.Workshop.IsVisible) return;
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             if (_run.IsDebugRewardChoice) return;
             if (index == _debugBossTargets.Count)
@@ -391,9 +426,10 @@ namespace RuneCode
             RenderHud();
         }
 
-        /// <summary>디버그 소환 시험 버튼 순번을 두 기 추가·개체별 소환 시작·개체별 처치로 나눠 실행한다. 시험 중이 아니거나 대상이 사라졌으면 무시한다.</summary>
+        /// <summary>디버그 소환 시험 버튼 순번을 두 기 추가·개체별 소환 시작·개체별 처치로 나눠 실행한다. 시험 중이 아니거나 작업실이 열려 있거나 대상이 사라졌으면 무시한다.</summary>
         private void RunDebugAction(int index)
         {
+            if (_screen.Workshop.IsVisible) return;
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             if (!_isHexaSummonTestActive || index < 0 || index >= _hexaDebugActions.Count) return;
             (HexaDebugActionKind Kind, int EntityId) action = _hexaDebugActions[index];
@@ -537,27 +573,6 @@ namespace RuneCode
             StartRun();
         }
 
-        /// <summary>정산과 보스 보상 선택을 마친 경우 작업실로 이동한다.</summary>
-        private void ReturnToWorkshop()
-        {
-            if (_run == null || !_run.IsFinished) return;
-            if (_run.Simulation.IsProgressionMission && _run.Simulation.Completed) return;
-            if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
-            _session.RequestScreen(AppScreen.Workshop);
-        }
-
-        /// <summary>승리 결과에서 다음 스테이지를 선택하고 노드 강화 작업실로 돌아간다. 클리어나 보상 선택이 끝나지 않았으면 무시한다.</summary>
-        private void SelectNextStageAndReturnToWorkshop()
-        {
-            if (_run == null || !_run.IsFinished || !_run.Simulation.Completed || _run.Simulation.IsProgressionMission) return;
-            if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) return;
-            int nextStage = _run.Simulation.StageNumber + 1;
-            _session.SelectStage(nextStage);
-            if (_session.SelectedStage != nextStage) return;
-            _ui.GetView<WorkshopScreen>(UiLayer.Screen).ShowStageSelectionOnNextEntry();
-            _session.RequestScreen(AppScreen.Workshop);
-        }
-
         /// <summary>
         /// 월드 종료 연출 후 클리어·실패 모두 런 결과 팝업을 열고 제목과 효과음만 결과에 맞춘다.
         /// 팝업의 타이틀 복귀 버튼은 세션의 ReturnToTitle로 이어지며 팝업이 닫힐 때 구독을 푼다.
@@ -589,9 +604,9 @@ namespace RuneCode
                     string grade = _run.ClearModifierGrades[i];
                     names.Add(ModifierGradeText.Colorize(rune.Name, grade));
                     string description = rune.Category == SpellGrammar.CATEGORY_MODIFIER
-                        ? string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false))
+                        ? string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false, true))
                         : RuneDescriptionBuilder.GetDescription(rune);
-                    descriptions.Add(ModifierGradeText.Colorize(description, grade));
+                    descriptions.Add(description);
                 }
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions,
                     _run.ClearModifierGrades, _run.ClearModifierChoices);
@@ -749,7 +764,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 작업실에서 저장한 마법을 다시 검증해 보관 중인 런의 시전 마법을 교체하고 강화 능력치를 반영한 뒤 보관 표시를 해제하고 HUD를 갱신한다.
+        /// 작업실 오버레이를 닫을 때 저장한 마법을 다시 검증해 보관 중인 런의 시전 마법을 교체하고 강화 능력치를 반영한 뒤 보관 표시를 해제하고 HUD를 갱신한다.
         /// 라운드 대기 상태와 고르지 않은 보상 카드는 유지하며, 준비나 교체에 실패하면 false를 반환한다.
         /// </summary>
         private bool ResumeRun()

@@ -1,15 +1,13 @@
 using System;
 
-using UnityEngine;
-
 using UnityEngine.InputSystem;
 
 namespace RuneCode
 {
     /// <summary>
-    /// 비주얼 스크립팅 편집 Presenter다. 편집 세션(ISpellEditor)의 변경을 그래프·제목·지표·인스펙터에 반영하고,
-    /// 제목 줄·도구줄 버튼과 단축키를 편집 명령으로 바꾸며, 보관함·프리셋 대상·이름 변경·공유를 Popup 층 팝업으로 연다.
-    /// 팔레트와 인스펙터는 하위 Presenter가 맡는다.
+    /// 비주얼 스크립팅 편집 Presenter다. 편집 세션(ISpellEditor)의 변경을 그래프·지표에 반영하고,
+    /// 도구줄 버튼과 단축키를 편집 명령으로 바꾸며, 프리셋 대상을 Popup 층 팝업으로 연다.
+    /// 팔레트는 하위 Presenter가 맡는다.
     /// </summary>
     public sealed class SpellEditorPresenter : IDisposable
     {
@@ -36,12 +34,15 @@ namespace RuneCode
             _ui = ui;
             _view = view;
             _palette = new SpellPalettePresenter(editor, ui, view);
-            _inspector = new SpellInspectorPresenter(editor, view.Inspector, view.GraphCanvas);
+            _inspector = new SpellInspectorPresenter(editor, view.Inspector);
             _synthesis = new RuneSynthesisPresenter(editor, host, ui, view, _palette);
             BindView();
-            _view.GraphCanvas.Initialize(_editor, _view.Font, _inspector.Select, ShowTooltip, _palette.OpenQuickPalette, _palette.OpenSlotPicker,
+            _view.GraphCanvas.Initialize(_editor, _view.Font, node => { }, ShowTooltip, _palette.OpenQuickPalette,
                 _palette.OpenGradePicker);
+            _view.GraphCanvas.SetSlotPreviewFactory((rune, grade) =>
+                _view.CreatePaletteRowPreview(rune, _palette.BuildStockLabel(rune.Id, grade)));
             _editor.GraphChanged += OnGraphChanged;
+            _editor.Compiled += OnGraphChanged;
             _editor.SpellSwitched += OnSpellSwitched;
             RefreshAll();
         }
@@ -88,71 +89,63 @@ namespace RuneCode
         {
             _synthesis.Dispose();
             _editor.GraphChanged -= OnGraphChanged;
+            _editor.Compiled -= OnGraphChanged;
             _editor.SpellSwitched -= OnSpellSwitched;
         }
 
         /// <summary>열린 합성 결과 또는 창을 닫고 Esc 처리 여부를 반환한다.</summary>
         public bool HandleSynthesisEscape() => _synthesis.HandleEscape();
 
-        /// <summary>제목 줄·도구줄 버튼 이벤트를 편집 명령과 팝업 열기로 연결한다.</summary>
+        /// <summary>도구줄 버튼 이벤트를 편집 명령으로 연결한다.</summary>
         private void BindView()
         {
-            _view.LibraryClicked += OpenLibrary;
-            _view.RenameClicked += OpenRename;
-            _view.SaveClicked += () => _editor.Save();
-            _view.ShareClicked += OpenShare;
             _view.UndoClicked += _editor.Undo;
             _view.RedoClicked += _editor.Redo;
-            _view.ArrangeClicked += _editor.AutoArrange;
+            _view.ArrangeClicked += _view.GraphCanvas.ArrangeBlocks;
             _view.CopyClicked += () => _editor.CopyNodes(_view.GraphCanvas.SelectedNodes);
-            _view.PasteClicked += _editor.PasteNodes;
+            _view.PasteClicked += _view.GraphCanvas.PasteBlockGroup;
         }
 
-        /// <summary>현재 입력으로 그래프 삭제·복사·붙여넣기·복제·저장·시험·되돌리기 단축키를 실행한다.</summary>
+        /// <summary>현재 입력으로 그래프 삭제·복사·붙여넣기·복제·되돌리기 단축키를 실행한다.</summary>
         private void HandleShortcuts(Keyboard keyboard)
         {
             bool isControlPressed = keyboard.leftCtrlKey.isPressed || keyboard.rightCtrlKey.isPressed;
             RuneGraphCanvas graph = _view.GraphCanvas;
             if (keyboard.deleteKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame) graph.DeleteSelection();
             if (isControlPressed && keyboard.cKey.wasPressedThisFrame) _editor.CopyNodes(graph.SelectedNodes);
-            if (isControlPressed && keyboard.vKey.wasPressedThisFrame) _editor.PasteNodes();
+            if (isControlPressed && keyboard.vKey.wasPressedThisFrame) graph.PasteBlockGroup();
             if (isControlPressed && keyboard.dKey.wasPressedThisFrame)
             {
                 _editor.CopyNodes(graph.SelectedNodes);
-                _editor.PasteNodes();
+                graph.PasteBlockGroup();
             }
-            if (isControlPressed && keyboard.sKey.wasPressedThisFrame) _editor.Save();
-            if (keyboard.digit1Key.wasPressedThisFrame) _host.FireTest();
             if (isControlPressed && keyboard.zKey.wasPressedThisFrame) _editor.Undo();
             if (isControlPressed && keyboard.yKey.wasPressedThisFrame) _editor.Redo();
         }
 
-        /// <summary>제목·팔레트·지표·그래프 뷰와 인스펙터를 현재 편집 상태로 다시 표시한다.</summary>
+        /// <summary>팔레트·지표·그래프 뷰와 인스펙터를 현재 편집 상태로 다시 표시한다.</summary>
         private void RefreshAll()
         {
-            _view.SetTitle(_editor.Graph.Name);
             _palette.Refresh();
             RefreshMetrics();
             _view.GraphCanvas.ResetView();
             _inspector.Refresh();
         }
 
-        /// <summary>그래프 표시·제목·팔레트(Modifier 남은 소지량)·지표·인스펙터를 다시 그린다. GraphChanged 구독자다.</summary>
+        /// <summary>그래프 표시·팔레트(Modifier 남은 소지량)·지표·인스펙터를 다시 그린다. GraphChanged 구독자다.</summary>
         private void OnGraphChanged()
         {
             _view.GraphCanvas.RefreshGraph();
-            _view.SetTitle(_editor.Graph.Name);
             _palette.Refresh();
             RefreshMetrics();
             _inspector.Refresh();
         }
 
-        /// <summary>팝업과 선택을 해제하고 새 마법 기준으로 전체를 다시 표시한다. SpellSwitched 구독자다.</summary>
+        /// <summary>팝업을 닫고 새 마법 기준으로 전체를 다시 표시한다. SpellSwitched 구독자다.</summary>
         private void OnSpellSwitched()
         {
             _ui.CloseAllPopups();
             _synthesis.Close();
-            _inspector.ClearSelection();
             RefreshAll();
         }
 
@@ -240,32 +233,6 @@ namespace RuneCode
         {
             _inspector.PreviewNode(node);
             _view.ShowHoverDescription(node == null ? null : _view.Inspector.Description);
-        }
-
-        /// <summary>보관함 팝업을 열어 마법을 고르거나 새로 만들거나 복제하게 한다.</summary>
-        private void OpenLibrary()
-        {
-            SpellListPopup popup = _ui.OpenPopup<SpellListPopup>();
-            popup.Configure(GameData.L("ui.library"),
-                () => { popup.Close(); _editor.NewSpell(); },
-                () => { popup.Close(); _editor.DuplicateSpell(); });
-            foreach (SpellGraph graph in _editor.Library)
-            {
-                string spellId = graph.Id;
-                popup.AddSpell(graph.Name, graph.Id, () => { popup.Close(); _editor.SelectSpell(spellId); });
-            }
-        }
-
-        /// <summary>이름 변경 팝업을 현재 이름으로 열고 저장하면 마법 이름을 바꾼다.</summary>
-        private void OpenRename()
-        {
-            _ui.OpenPopup<RenamePopup>().Configure(_editor.Graph.Name, name => _editor.Rename(name));
-        }
-
-        /// <summary>공유 팝업을 현재 마법의 RC1 코드로 열고 가져오기하면 입력 코드를 현재 마법에 반영한다.</summary>
-        private void OpenShare()
-        {
-            _ui.OpenPopup<SharePopup>().Configure(_editor.Export(), code => _editor.Import(code));
         }
     }
 }

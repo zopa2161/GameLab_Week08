@@ -112,7 +112,7 @@ namespace RuneCode
             _isHitStopEnabled = isHitStopEnabled;
         }
 
-        /// <summary>시뮬레이션을 진행하지 않고 라운드 회수·승리·사망·시간 초과 연출 시간을 늘리며 완료 여부를 반환한다.</summary>
+        /// <summary>승리·패배·라운드 대기 상태에서 시뮬레이션을 진행하지 않고 연출과 라운드 대기 시간을 늘리며, 지정 시간을 채우면 true를 반환한다.</summary>
         public bool AdvanceEnding(RuneSimulation sim, float deltaTime)
         {
             if (!sim.Completed && !sim.IsFailed && !sim.IsWaitingForNextRound) return true;
@@ -137,7 +137,7 @@ namespace RuneCode
             _beamFlashPresentation.Update(sim, Time.unscaledTime);
             if (_hasRenderedEnding)
             {
-                if (sim.Completed || sim.IsFailed || sim.IsWaitingForNextRound)
+                if (sim.Completed || sim.IsFailed)
                 {
                     RenderEnding(sim);
                     return;
@@ -149,6 +149,8 @@ namespace RuneCode
             }
             UpdateRangePreview(sim);
             DetectImpact(sim);
+            // 전투 중에는 종료 연출 시간을 되돌려 다음 라운드 종료 연출이 0부터 진행되게 한다.
+            if (!sim.IsWaitingForNextRound && !sim.Completed && !sim.IsFailed) _endingElapsed = 0;
             bool isHitStop = !sim.Completed && !sim.IsFailed && _hitStopUntil > Time.unscaledTime && (_isHitStopEnabled?.Invoke() ?? false);
             RenderBeamFlashes(sim, isHitStop);
             if (isHitStop) return;
@@ -189,6 +191,8 @@ namespace RuneCode
             count = 0;
             foreach (SimulationItemDrop drop in sim.ItemDrops) GetView(_itemDropViews, _itemDropPrefab, count++).Apply(drop, sim.Tick - drop.SpawnTick, origin);
             HideFrom(_itemDropViews, count);
+            // 라운드 대기 중에는 남은 오브·드롭이 ClearOrbs/ClearItemDrops 로 옮겨져 일반 루프가 비므로 같은 뷰 풀에 흡수 연출을 덧그린다.
+            if (sim.IsWaitingForNextRound && _endingElapsed < _victoryEndingSeconds) RenderClearAbsorb(sim);
             count = 0;
             foreach (DamageNumber number in sim.DamageNumbers)
             {
@@ -219,7 +223,7 @@ namespace RuneCode
                 GetView(_arcLinkViews, _arcLinkPrefab, count++).Apply(link, sim.Tick - link.Tick, origin);
             }
             HideFrom(_arcLinkViews, count);
-            if (sim.Completed || sim.IsFailed || sim.IsWaitingForNextRound)
+            if (sim.Completed || sim.IsFailed)
             {
                 _hasRenderedEnding = true;
                 RenderEnding(sim);
@@ -238,7 +242,7 @@ namespace RuneCode
             HideFrom(_beamFlashViews, count);
         }
 
-        /// <summary>정지된 전장 위에서 승리 드롭 흡수 또는 패배 시계·붉은 몸체·파편만 표시한다. 보상과 전투 상태는 변경하지 않는다.</summary>
+        /// <summary>최종 승리·패배 시 정지된 전장 위에서 흡수 연출 또는 패배 시계·붉은 몸체·파편만 표시한다. 보상과 전투 상태는 변경하지 않는다.</summary>
         private void RenderEnding(RuneSimulation sim)
         {
             HideFrom(_beamFlashViews, 0);
@@ -251,28 +255,7 @@ namespace RuneCode
             HideFrom(_arcLinkViews, 0);
             if (sim.Completed || sim.IsWaitingForNextRound)
             {
-                float progress = Mathf.Clamp01(_endingElapsed / _victoryEndingSeconds);
-                double blend = progress * progress;
-                int count = 0;
-                foreach (FragmentOrb orb in sim.ClearOrbs)
-                {
-                    OrbView view = GetView(_orbViews, _orbPrefab, count++);
-                    view.Apply(orb, sim.MapCenter);
-                    view.transform.localPosition = MissionWorldSpace.ToWorld(orb.Position + (sim.Player.Position - orb.Position) * blend, sim.MapCenter);
-                    view.transform.localScale = Vector3.one;
-                    MissionWorldSpace.SetVisible(view, progress < 1f);
-                }
-                HideFrom(_orbViews, count);
-                count = 0;
-                foreach (SimulationItemDrop drop in sim.ClearItemDrops)
-                {
-                    ItemDropView view = GetView(_itemDropViews, _itemDropPrefab, count++);
-                    view.Apply(drop, sim.Tick - drop.SpawnTick, sim.MapCenter);
-                    view.transform.localPosition = MissionWorldSpace.ToWorld(drop.Position + (sim.Player.Position - drop.Position) * blend, sim.MapCenter);
-                    view.transform.localScale = Vector3.one;
-                    MissionWorldSpace.SetVisible(view, progress < 1f);
-                }
-                HideFrom(_itemDropViews, count);
+                RenderClearAbsorb(sim);
                 return;
             }
             HideFrom(_orbViews, 0);
@@ -293,6 +276,33 @@ namespace RuneCode
                     4f * (1f - scatter), new Color(1f, 0.12f, 0.15f, 1f - scatter));
                 fragment.transform.localRotation = Quaternion.Euler(0, 0, index * 37f + scatter * 140f);
             }
+        }
+
+        /// <summary>남은 오브·드롭 뷰를 재사용해 플레이어 쪽으로 빨려 들어가는 흡수 연출을 표시한다. 진행도는 종료 연출 시간으로 정하고 1에 도달하면 뷰를 숨긴다.</summary>
+        private void RenderClearAbsorb(RuneSimulation sim)
+        {
+            float progress = Mathf.Clamp01(_endingElapsed / _victoryEndingSeconds);
+            double blend = progress * progress;
+            int count = 0;
+            foreach (FragmentOrb orb in sim.ClearOrbs)
+            {
+                OrbView view = GetView(_orbViews, _orbPrefab, count++);
+                view.Apply(orb, sim.MapCenter);
+                view.transform.localPosition = MissionWorldSpace.ToWorld(orb.Position + (sim.Player.Position - orb.Position) * blend, sim.MapCenter);
+                view.transform.localScale = Vector3.one;
+                MissionWorldSpace.SetVisible(view, progress < 1f);
+            }
+            HideFrom(_orbViews, count);
+            count = 0;
+            foreach (SimulationItemDrop drop in sim.ClearItemDrops)
+            {
+                ItemDropView view = GetView(_itemDropViews, _itemDropPrefab, count++);
+                view.Apply(drop, sim.Tick - drop.SpawnTick, sim.MapCenter);
+                view.transform.localPosition = MissionWorldSpace.ToWorld(drop.Position + (sim.Player.Position - drop.Position) * blend, sim.MapCenter);
+                view.transform.localScale = Vector3.one;
+                MissionWorldSpace.SetVisible(view, progress < 1f);
+            }
+            HideFrom(_itemDropViews, count);
         }
 
         /// <summary>시간 초과일 때 카메라 중앙에 원형 시계와 두 바늘을 표시하거나 숨긴다.</summary>
