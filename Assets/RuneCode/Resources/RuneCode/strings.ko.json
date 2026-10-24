@@ -1545,7 +1545,7 @@
     },
     {
       "_key": "result.clearModifierTargets",
-      "_value": "장착 가능 행동\n{targets}"
+      "_value": "<b>장착 가능 행동</b>\n{targets}"
     },
     {
       "_key": "ui.modifierStock",
@@ -1714,7 +1714,6 @@
     {"_key": "rune.detail.launchSpread", "_value": "발사 행동 퍼짐 <b>{value}°</b>"},
     {"_key": "rune.detail.waveInterval", "_value": "폭발 회차 간격 <b>{value}s</b>"},
     {"_key": "rune.detail.pierceDamage", "_value": "관통 적중당 피해 <b>×{value}</b> · 최소 피해 1"},
-    {"_key": "rune.modifierTargets", "_value": "장착 가능 행동: \n<b>{targets}</b>"},
-    {"_key": "rune.modifierTargetMark", "_value": "<mark=#AAAAAA10 padding=20,20,10,10>{name}</mark>"}
+    {"_key": "rune.modifierTargets", "_value": "장착 가능 행동: \n<b>{targets}</b>"}
   ]
 }
