@@ -49,7 +49,7 @@ namespace RuneCode
         /// <summary>팔레트에서 호버한 룬과 등급을 인스펙터로 전달한다.</summary>
         public void ShowRuneInfo(RuneDefinition rune, string grade)
         {
-            _inspector.PreviewRune(rune, grade);
+            PreviewRuneDescription(rune, grade);
         }
 
         /// <summary>패널이 보일 때 팔레트 필터를 초기화하고 편집을 허용한 뒤 전체를 갱신한다.</summary>
@@ -72,7 +72,11 @@ namespace RuneCode
         /// <summary>팝업·문자 입력이 없으면 프레임마다 단축키를 처리한다.</summary>
         public void Tick()
         {
-            if (_synthesis.IsOpen || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (_synthesis.IsOpen || _ui.IsPopupOpen || UiFactory.IsTyping())
+            {
+                _view.ShowHoverDescription(null);
+                return;
+            }
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null) HandleShortcuts(keyboard);
         }
@@ -187,7 +191,7 @@ namespace RuneCode
         {
             if (node == null)
             {
-                _inspector.PreviewRune(null, null);
+                PreviewRuneDescription(null, null);
                 _view.SetTooltip(GameData.L("ui.executionOrder"));
                 return;
             }
@@ -202,24 +206,38 @@ namespace RuneCode
                     else if (!isElement && SpellGrammar.TryParseStockKey(value, out string modifierId, out slotGrade)) runeId = modifierId;
                 }
                 if (runeId != null && GameData.Runes.TryGet(runeId, out RuneDefinition slotRune))
-                    _inspector.PreviewRune(slotRune, slotGrade);
-                else _inspector.PreviewNode(node);
+                    PreviewRuneDescription(slotRune, slotGrade);
+                else PreviewNodeDescription(node);
                 return;
             }
             RuneDefinition rune = GameData.Runes.Get(node.RuneId);
             if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
             {
                 string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
-                _inspector.PreviewRune(rune, grade);
+                PreviewRuneDescription(rune, grade);
                 _view.SetTooltip(ModifierGradeText.FormatName(rune.Name, grade) + "  ·  " + GameData.L("ui.costMultiplier") + " ×"
                     + GameData.ModifierGrades.GetEnergyMultiplier(rune.Id, grade).ToString("0.##"));
                 return;
             }
-            _inspector.PreviewNode(node);
+            PreviewNodeDescription(node);
             SpellAction action = _editor.CompileResult.Spell?.FindNodeAction(_editor.Graph, node.Id);
             string text = rune.Name;
             if (action?.Stats != null) text += "  ·  " + GameData.L("ui.damage") + " " + action.Stats.Damage.ToString("0.#");
             _view.SetTooltip(text + "  ·  " + GameData.L("ui.nodeCost") + " " + SpellCostText.Format(action?.OwnCosts ?? rune.Costs));
+        }
+
+        /// <summary>호버한 룬과 등급의 인스펙터 설명을 커서 옆에도 표시하며 null이면 호버 안내를 숨긴다.</summary>
+        private void PreviewRuneDescription(RuneDefinition rune, string grade)
+        {
+            _inspector.PreviewRune(rune, grade);
+            _view.ShowHoverDescription(rune == null ? null : _view.Inspector.Description);
+        }
+
+        /// <summary>호버한 노드의 현재 인스펙터 설명과 적용 수치를 커서 옆에 표시한다.</summary>
+        private void PreviewNodeDescription(GraphNode node)
+        {
+            _inspector.PreviewNode(node);
+            _view.ShowHoverDescription(node == null ? null : _view.Inspector.Description);
         }
 
         /// <summary>보관함 팝업을 열어 마법을 고르거나 새로 만들거나 복제하게 한다.</summary>

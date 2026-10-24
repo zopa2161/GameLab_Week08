@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 using TMPro;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace RuneCode
@@ -15,6 +16,9 @@ namespace RuneCode
     /// </summary>
     public sealed class SpellEditorPanel : MonoBehaviour
     {
+        private const float HOVER_WIDTH = 360f;
+        private const float HOVER_PADDING = 12f;
+        private const float HOVER_OFFSET = 18f;
         private static readonly string[] _gradeFilterIds = { "C", "B", "A", "S" };
 
         public static readonly string[] CATEGORY_IDS = { "all", SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_ELEMENT, SpellGrammar.CATEGORY_BEHAVIOR, SpellGrammar.CATEGORY_MODIFIER, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD };
@@ -60,6 +64,9 @@ namespace RuneCode
         private readonly Dictionary<Button, bool> _synthesisButtonStates = new Dictionary<Button, bool>();
         private CanvasGroup _inspectorInputGroup;
         private bool _wasInspectorInteractable;
+
+        private RectTransform _hoverPanel;
+        private TextMeshProUGUI _hoverLabel;
 
 
         /// <summary>노드 그래프 View다.</summary>
@@ -135,6 +142,65 @@ namespace RuneCode
         public void ShowRuneInfo(RuneDefinition rune, string grade)
         {
             _presenter.ShowRuneInfo(rune, grade);
+        }
+
+        /// <summary>인스펙터와 같은 설명을 포인터 옆의 남색 안내창에 표시하며 빈 내용이면 숨긴다.</summary>
+        public void ShowHoverDescription(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                if (_hoverPanel != null) _hoverPanel.gameObject.SetActive(false);
+                return;
+            }
+            if (_hoverPanel == null)
+            {
+                RectTransform parent = (RectTransform)_graphCanvas.canvas.rootCanvas.transform;
+                _hoverPanel = UiFactory.Rect(parent, "RuneHoverDescription", 0, 0, HOVER_WIDTH, 0);
+                Image background = _hoverPanel.gameObject.AddComponent<Image>();
+                background.color = new Color(0.035f, 0.06f, 0.1f, 0.98f);
+                background.raycastTarget = false;
+                _hoverLabel = Instantiate(Resources.Load<TextMeshProUGUI>("RuneCode/UI/Elements/UiText"), _hoverPanel, false);
+                _hoverLabel.font = _font;
+                _hoverLabel.fontSize = 16f;
+                _hoverLabel.enableAutoSizing = true;
+                _hoverLabel.fontSizeMin = 12f;
+                _hoverLabel.fontSizeMax = 16f;
+                _hoverLabel.color = Color.white;
+                _hoverLabel.richText = true;
+                _hoverLabel.raycastTarget = false;
+                _hoverLabel.alignment = TextAlignmentOptions.TopLeft;
+                _hoverLabel.rectTransform.anchorMin = Vector2.zero;
+                _hoverLabel.rectTransform.anchorMax = Vector2.one;
+                _hoverLabel.rectTransform.offsetMin = new Vector2(HOVER_PADDING, HOVER_PADDING);
+                _hoverLabel.rectTransform.offsetMax = new Vector2(-HOVER_PADDING, -HOVER_PADDING);
+            }
+            _hoverLabel.text = text;
+            RectTransform bounds = (RectTransform)_hoverPanel.parent;
+            float width = Mathf.Min(HOVER_WIDTH, bounds.rect.width - HOVER_PADDING * 2f);
+            float height = _hoverLabel.GetPreferredValues(text, width - HOVER_PADDING * 2f, Mathf.Infinity).y + HOVER_PADDING * 2f;
+            _hoverPanel.sizeDelta = new Vector2(width, Mathf.Min(height, bounds.rect.height - HOVER_PADDING * 2f));
+            _hoverPanel.gameObject.SetActive(true);
+            _hoverPanel.SetAsLastSibling();
+            PositionHoverDescription();
+        }
+
+        /// <summary>호버 안내창이 게임 화면을 벗어나지 않도록 포인터 기준 위치를 보정한다.</summary>
+        private void PositionHoverDescription()
+        {
+            if (_hoverPanel == null || !_hoverPanel.gameObject.activeSelf || Mouse.current == null) return;
+            RectTransform parent = (RectTransform)_hoverPanel.parent;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, Mouse.current.position.ReadValue(), null, out Vector2 pointer);
+            Rect bounds = parent.rect;
+            float x = Mathf.Clamp(pointer.x + HOVER_OFFSET, bounds.xMin + HOVER_PADDING,
+                bounds.xMax - _hoverPanel.rect.width - HOVER_PADDING);
+            float y = Mathf.Clamp(pointer.y - HOVER_OFFSET, bounds.yMin + _hoverPanel.rect.height + HOVER_PADDING,
+                bounds.yMax - HOVER_PADDING);
+            _hoverPanel.position = parent.TransformPoint(new Vector3(x, y, 0f));
+        }
+
+        void OnDisable()
+        {
+            if (_hoverPanel != null) _hoverPanel.gameObject.SetActive(false);
         }
 
         /// <summary>현재 팔레트 검색어다.</summary>
@@ -229,10 +295,13 @@ namespace RuneCode
         void Update()
         {
             _presenter?.Tick();
+            if (Mouse.current != null && Mouse.current.leftButton.isPressed) ShowHoverDescription(null);
+            PositionHoverDescription();
         }
 
         void OnDestroy()
         {
+            if (_hoverPanel != null) Destroy(_hoverPanel.gameObject);
             _presenter?.Dispose();
         }
 
