@@ -114,10 +114,11 @@ namespace RuneCode
                 if (_layout.IsBlockEdge(edge))
                 {
                     float railX = from.x + GraphNodeLayout.PUZZLE_DEPTH * _viewport.Zoom;
-                    Color rail = _style.GetColor(EXEC_PORT_COLOR);
-                    RuneMesh.Line(mesh, from, new Vector2(railX, from.y), NODE_ACCENT_HEIGHT * _viewport.Zoom, rail);
-                    RuneMesh.Line(mesh, new Vector2(railX, from.y), new Vector2(railX, to.y), NODE_ACCENT_HEIGHT * _viewport.Zoom, rail);
-                    RuneMesh.Line(mesh, new Vector2(railX, to.y), to, NODE_ACCENT_HEIGHT * _viewport.Zoom, rail);
+                    Color rail = _state.Selected.Contains(edge.FromNode) && _state.Selected.Contains(edge.ToNode)
+                        ? Color.white : _style.GetColor(NODE_BORDER_COLOR);
+                    RuneMesh.Line(mesh, from, new Vector2(railX, from.y), NODE_BORDER, rail);
+                    RuneMesh.Line(mesh, new Vector2(railX, from.y), new Vector2(railX, to.y), NODE_BORDER, rail);
+                    RuneMesh.Line(mesh, new Vector2(railX, to.y), to, NODE_BORDER, rail);
                     continue;
                 }
                 RuneMesh.Line(mesh, from, to, EDGE_WIDTH, _layout.IsDeprecatedEdge(edge) ? _style.GetColor(DEPRECATED_COLOR) : EdgeColor(edge));
@@ -185,23 +186,19 @@ namespace RuneCode
             RuneMesh.Rect(mesh, Rect.MinMaxRect(socketEnd, socket.y - halfHeight, bounds.xMax, socket.y + halfHeight), color);
         }
 
-        /// <summary>출력에는 돌출된 퍼즐 탭을, 입력에는 맞물리는 홈의 윤곽을 기존 실행 포트 색으로 그린다.</summary>
+        /// <summary>출력 탭을 본체와 동일한 두께로 그린다. 입력 홈은 본체 메시의 윤곽을 사용해 중복 테두리를 만들지 않는다.</summary>
         private void DrawPuzzlePort(VertexHelper mesh, Vector2 point, bool isOutput, Color color, Color fill)
         {
             float depth = GraphNodeLayout.PUZZLE_DEPTH * _viewport.Zoom;
             float halfHeight = GraphNodeLayout.PUZZLE_HALF_HEIGHT * _viewport.Zoom;
             if (isOutput)
             {
-                RuneMesh.Rect(mesh, new Rect(point.x, point.y - halfHeight, depth, halfHeight * 2), color);
-                RuneMesh.Rect(mesh, new Rect(point.x - NODE_BORDER, point.y - halfHeight + NODE_BORDER,
-                    depth, halfHeight * 2 - NODE_BORDER * 2), fill);
+                RuneMesh.Rect(mesh, new Rect(point.x, point.y - halfHeight - NODE_BORDER,
+                    depth + NODE_BORDER, (halfHeight + NODE_BORDER) * 2), color);
+                RuneMesh.Rect(mesh, new Rect(point.x - NODE_BORDER, point.y - halfHeight,
+                    depth + NODE_BORDER, halfHeight * 2), fill);
                 return;
             }
-            Vector2 upper = point + new Vector2(depth, halfHeight);
-            Vector2 lower = point + new Vector2(depth, -halfHeight);
-            RuneMesh.Line(mesh, point + Vector2.up * halfHeight, upper, NODE_BORDER, color);
-            RuneMesh.Line(mesh, upper, lower, NODE_BORDER, color);
-            RuneMesh.Line(mesh, lower, point - Vector2.up * halfHeight, NODE_BORDER, color);
         }
 
         /// <summary>행동 노드의 속성·모디 슬롯 셀을 카테고리 강조색과 잠금색으로 그린다.</summary>
@@ -236,7 +233,9 @@ namespace RuneCode
                 Vector2 point = _layout.PortPosition(rect, node, rune, port.Id);
                 if (GraphNodeLayout.IsPuzzlePort(port))
                 {
-                    if (_state.Selected.Contains(node.Id)) color = Color.white;
+                    bool isRuneUnlocked = _isRuneUnlocked(node.RuneId);
+                    bool isExecuted = _state.ExecutedUntil.TryGetValue(node.Id, out float until) && until > Time.unscaledTime;
+                    color = NodeBorderColor(node, _style.GetCategoryColor(rune.Category), isExecuted, isRuneUnlocked);
                     DrawPuzzlePort(mesh, point, port.Direction == SpellGrammar.DIRECTION_OUT, color, fill);
                     continue;
                 }
@@ -247,10 +246,6 @@ namespace RuneCode
         /// <summary>연결 드래그 중이면 시작 포트에서 포인터까지 미리보기 선을 그린다.</summary>
         private void DrawConnectionPreview(VertexHelper mesh)
         {
-            if (_state.SnapFromNode != null)
-                RuneMesh.Line(mesh, _layout.LookupPortPosition(_state.SnapFromNode, _state.SnapFromPort),
-                    _layout.LookupPortPosition(_state.SnapToNode, SpellGrammar.EXEC_PORT), EDGE_WIDTH * 2,
-                    _style.GetColor(CONNECTABLE_PORT_COLOR));
             if (!_state.IsConnecting) return;
             RuneMesh.Line(mesh, _layout.LookupPortPosition(_state.SourceNode, _state.SourcePort), _state.Pointer, EDGE_WIDTH, _style.GetColor(PREVIEW_COLOR));
         }
