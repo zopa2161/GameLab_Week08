@@ -19,14 +19,23 @@ namespace RuneCode
             return previous;
         }
 
-        /// <summary>테이블에서 서로 다른 룬을 최대 count개 추첨해 반환한다. 슬롯마다 분류·등급을 굴리고 아직 고르지 않은 후보 중에서 고르며, 후보가 없으면 그 슬롯을 비운다.</summary>
+        /// <summary>테이블에서 분류·공통 등급을 한 번 추첨하고, 해당 분류·등급의 서로 다른 룬을 최대 count개 반환한다. 남은 후보가 없으면 추첨을 마친다.</summary>
         public static List<DropRoll> DrawChoices(DropTableDefinition table, int stage, int count, IEliteModifierDropSource grades, Func<double> random)
+        {
+            if (count <= 0) return new List<DropRoll>();
+            string category = RollCategory(table.CategoryChances, random);
+            string grade = category == SpellGrammar.CATEGORY_ELEMENT ? "" : RollGrade(GetGradeChances(table, category, stage, grades), random);
+            return DrawChoices(table, category, grade, count, random);
+        }
+
+        /// <summary>분류·보상 등급으로 서로 다른 후보를 최대 count개 반환한다. 모드 선택 보상에는 등급 조건이 맞는 무등급 속성도 참여한다.</summary>
+        public static List<DropRoll> DrawChoices(DropTableDefinition table, string category, string grade, int count, Func<double> random)
         {
             var choices = new List<DropRoll>();
             var chosenIds = new HashSet<string>(StringComparer.Ordinal);
             for (int slot = 0; slot < count; slot++)
             {
-                if (!TryDrawCandidate(table, stage, grades, chosenIds, random, out DropRoll roll)) continue;
+                if (!TryDrawCandidate(table, category, grade, chosenIds, random, out DropRoll roll, true)) break;
                 choices.Add(roll);
                 chosenIds.Add(roll.RuneId);
             }
@@ -48,10 +57,19 @@ namespace RuneCode
         private static bool TryDrawCandidate(DropTableDefinition table, int stage, IEliteModifierDropSource grades, ICollection<string> excludedIds,
             Func<double> random, out DropRoll roll)
         {
-            roll = default;
             string category = RollCategory(table.CategoryChances, random);
             string grade = category == SpellGrammar.CATEGORY_ELEMENT ? "" : RollGrade(GetGradeChances(table, category, stage, grades), random);
-            List<KeyValuePair<string, double>> candidates = CollectCandidates(table, category, grade, GameData.Runes, GameData.ModifierGrades, excludedIds);
+            return TryDrawCandidate(table, category, grade, excludedIds, random, out roll);
+        }
+
+        /// <summary>분류·등급과 제외 ID로 가중치 추첨한다. 선택 보상이면 조건부 속성을 포함하며 속성의 실제 등급은 비워 반환한다.</summary>
+        private static bool TryDrawCandidate(DropTableDefinition table, string category, string grade, ICollection<string> excludedIds,
+            Func<double> random, out DropRoll roll, bool includesRewardElements = false)
+        {
+            roll = default;
+            List<KeyValuePair<string, double>> candidates = includesRewardElements
+                ? CollectChoiceCandidates(table, category, grade, GameData.Runes, GameData.ModifierGrades, excludedIds)
+                : CollectCandidates(table, category, grade, GameData.Runes, GameData.ModifierGrades, excludedIds);
             double totalWeight = 0;
             foreach (KeyValuePair<string, double> candidate in candidates) totalWeight += candidate.Value;
             if (totalWeight <= 0) return false;
@@ -64,8 +82,22 @@ namespace RuneCode
                 picked = candidate.Key;
                 break;
             }
-            roll = new DropRoll(category, picked, grade, 1, 0);
+            string pickedCategory = GameData.Runes.Get(picked).Category;
+            roll = new DropRoll(pickedCategory, picked, pickedCategory == SpellGrammar.CATEGORY_ELEMENT ? "" : grade, 1, 0);
             return true;
+        }
+
+        /// <summary>선택 보상 후보를 수집한다. 모드 보상이면 보상 등급 조건에 맞고 제외 ID에 없는 유효한 무등급 속성 후보도 추가한다.</summary>
+        public static List<KeyValuePair<string, double>> CollectChoiceCandidates(DropTableDefinition table, string category, string grade,
+            RuneCatalog runes, ModifierGradeTable modifierGrades, ICollection<string> excludedIds)
+        {
+            List<KeyValuePair<string, double>> candidates = CollectCandidates(table, category, grade, runes, modifierGrades, excludedIds);
+            if (category != SpellGrammar.CATEGORY_MODIFIER) return candidates;
+            foreach (DropEntry entry in table.Entries)
+                if (entry.Type == SpellGrammar.CATEGORY_ELEMENT && entry.RewardGrade == grade
+                    && IsCandidateAvailable(runes, modifierGrades, entry.Id, "", excludedIds))
+                    candidates.Add(new KeyValuePair<string, double>(entry.Id, entry.Weight));
+            return candidates;
         }
 
         /// <summary>분류의 등급 확률을 반환한다. 테이블에 그 분류의 등급 확률이 없으면 스테이지 행동·Modifier 등급표를 쓴다.</summary>
@@ -94,6 +126,7 @@ namespace RuneCode
             {
                 if (entry.Type != category) continue;
                 hasEntries = true;
+                if (!string.IsNullOrEmpty(entry.RewardGrade)) continue;
                 if (IsCandidateAvailable(runes, modifierGrades, entry.Id, grade, excludedIds))
                     candidates.Add(new KeyValuePair<string, double>(entry.Id, entry.Weight));
             }

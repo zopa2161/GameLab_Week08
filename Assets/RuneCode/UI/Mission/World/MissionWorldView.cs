@@ -32,6 +32,10 @@ namespace RuneCode
         private const int WALL_ORDER = 1;
         private const int WALL_EDGE_ORDER = 2;
         private const int SPAWN_WARNING_ORDER = 10;
+        // 포털은 바닥 표시(스폰 예고 10)보다 위, 플레이어 몸체(59~63)보다 아래에 깔린다.
+        private const int PORTAL_ORDER = 20;
+        private const int ROUND_BREAK_DPS_ORDER = 70;
+        private const float ROUND_BREAK_DPS_GAP_PIXELS = 40f;
         private const int RANGE_SEGMENTS = 96;
         private const float RANGE_LINE_WIDTH = 1.8f;
         private const int RANGE_ORDER = 65;
@@ -44,6 +48,7 @@ namespace RuneCode
         private static readonly Color HealPulseColor = new Color(0.45f, 0.95f, 0.55f);
         private static readonly Color SpawnWarningColor = new Color(0.95f, 0.2f, 0.2f);
         private static readonly Color EliteSpawnWarningColor = new Color(1f, 0.72f, 0.15f);
+        private static readonly Color PortalColor = new Color(0.45f, 0.75f, 1f);
 
         [Header("연결")]
         [SerializeField] private MissionCamera _camera;
@@ -87,9 +92,12 @@ namespace RuneCode
         private Func<RuneSimulation> _simulation;
         private Func<bool> _isShakeEnabled;
         private Func<bool> _isHitStopEnabled;
+        private Func<bool> _isPortalActive;
         private RuneSimulation _observedSimulation;
         private Transform _mapRoot;
         private PlayerView _playerView;
+        private PortalView _portalView;
+        private RoundBreakDpsView _roundBreakDpsView;
         private double _lastDamage;
         private double _lastStatusDamage;
         private double _lastPersistDamage;
@@ -104,12 +112,13 @@ namespace RuneCode
         /// <summary>월드를 따라가는 미션 카메라다. 화면 View가 조준 좌표 변환에 쓴다.</summary>
         public MissionCamera Camera => _camera;
 
-        /// <summary>표시할 시뮬레이션 조회 함수와 화면 흔들림·히트 스톱 설정 조회 함수를 연결한다.</summary>
-        public void Initialize(Func<RuneSimulation> simulation, Func<bool> isShakeEnabled, Func<bool> isHitStopEnabled)
+        /// <summary>표시할 시뮬레이션 조회 함수와 화면 흔들림·히트 스톱 설정 조회 함수, 라운드 대기 포털 진입 가능 여부 조회 함수를 연결한다.</summary>
+        public void Initialize(Func<RuneSimulation> simulation, Func<bool> isShakeEnabled, Func<bool> isHitStopEnabled, Func<bool> isPortalActive)
         {
             _simulation = simulation;
             _isShakeEnabled = isShakeEnabled;
             _isHitStopEnabled = isHitStopEnabled;
+            _isPortalActive = isPortalActive;
         }
 
         /// <summary>승리·패배·라운드 대기 상태에서 시뮬레이션을 진행하지 않고 연출과 라운드 대기 시간을 늘리며, 지정 시간을 채우면 true를 반환한다.</summary>
@@ -131,6 +140,8 @@ namespace RuneCode
                 HideFrom(_beamFlashViews, 0);
                 HideFrom(_rangeLines, 0);
                 HideFrom(_rangePreviews, 0);
+                HidePortal();
+                HideRoundBreakDps();
                 return;
             }
             if (_observedSimulation != sim) BeginSimulation(sim);
@@ -157,6 +168,7 @@ namespace RuneCode
             SimVector origin = sim.MapCenter;
             if (_playerView == null) _playerView = Instantiate(_playerPrefab, transform);
             _playerView.Apply(sim.Player, origin);
+            UpdatePortal(sim, origin);
             int count = 0;
             foreach (string id in _additionalEnemyPrefabs.Keys) _additionalEnemyCounts[id] = 0;
             foreach (SimulationEnemy enemy in sim.Enemies)
@@ -170,6 +182,7 @@ namespace RuneCode
             }
             HideFrom(_enemyViews, count);
             foreach (string id in _additionalEnemyPrefabs.Keys) HideFrom(_additionalEnemyViews[id], _additionalEnemyCounts[id]);
+            UpdateRoundBreakDps(sim, origin);
             count = 0;
             foreach (SimulationSpellEntity spell in sim.SpellEntities) GetView(_spellViews, _spellPrefab, count++).Apply(spell, origin);
             HideFrom(_spellViews, count);
@@ -245,6 +258,8 @@ namespace RuneCode
         /// <summary>최종 승리·패배 시 정지된 전장 위에서 흡수 연출 또는 패배 시계·붉은 몸체·파편만 표시한다. 보상과 전투 상태는 변경하지 않는다.</summary>
         private void RenderEnding(RuneSimulation sim)
         {
+            HidePortal();
+            HideRoundBreakDps();
             HideFrom(_beamFlashViews, 0);
             HideFrom(_rangeLines, 0);
             HideFrom(_rangePreviews, 0);
@@ -395,6 +410,8 @@ namespace RuneCode
             _hasRenderedEnding = false;
             HideFrom(_endingFragments, 0);
             HideFrom(_clockLines, 0);
+            HidePortal();
+            HideRoundBreakDps();
             foreach (OrbView view in _orbViews) view.transform.localScale = Vector3.one;
             foreach (ItemDropView view in _itemDropViews) view.transform.localScale = Vector3.one;
             _observedSimulation = sim;
@@ -507,6 +524,71 @@ namespace RuneCode
             SpawnWarningView warningView = _spawnWarningViews[index];
             MissionWorldSpace.SetVisible(warningView, true);
             return warningView;
+        }
+
+        /// <summary>라운드 대기 포털이 열려 있으면 표시해 위치·반경과 진입 가능 여부를 반영하고, 닫혀 있으면 숨긴다.</summary>
+        private void UpdatePortal(RuneSimulation sim, SimVector origin)
+        {
+            if (!sim.IsRoundBreakPortalOpen) { HidePortal(); return; }
+            PortalView portal = GetPortalView();
+            MissionWorldSpace.SetVisible(portal, true);
+            portal.Apply(sim.RoundBreakPortalPosition, sim.RoundBreakPortalRadius, _isPortalActive?.Invoke() ?? false, origin, Time.unscaledTime);
+        }
+
+        /// <summary>라운드 대기 포털 뷰를 숨긴다. 아직 만들지 않았으면 아무것도 하지 않는다.</summary>
+        private void HidePortal()
+        {
+            if (_portalView != null) MissionWorldSpace.SetVisible(_portalView, false);
+        }
+
+        /// <summary>라운드 대기 포털 뷰를 반환하며 없으면 맵 스프라이트로 고리와 코어를 새로 만든다.</summary>
+        private PortalView GetPortalView()
+        {
+            if (_portalView == null)
+            {
+                _portalView = new GameObject("RoundBreakPortal", typeof(PortalView)).GetComponent<PortalView>();
+                _portalView.Initialize(transform, _squareSprite, _spriteMaterial, PortalColor, PORTAL_ORDER);
+            }
+            return _portalView;
+        }
+
+        /// <summary>라운드 대기 시험장 허수아비 6기의 아래쪽 가운데에 합산 DPS 문구를 표시하고, 시험장이 준비되지 않았거나 허수아비가 없으면 숨긴다.</summary>
+        private void UpdateRoundBreakDps(RuneSimulation sim, SimVector origin)
+        {
+            if (!sim.IsRoundBreakArenaReady) { HideRoundBreakDps(); return; }
+            bool hasDummy = false;
+            double minX = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+            foreach (SimulationEnemy enemy in sim.Enemies)
+            {
+                if (!enemy.IsDummy) continue;
+                hasDummy = true;
+                double radius = enemy.Radius;
+                minX = Math.Min(minX, enemy.Position.X - radius);
+                maxX = Math.Max(maxX, enemy.Position.X + radius);
+                maxY = Math.Max(maxY, enemy.Position.Y + radius);
+            }
+            if (!hasDummy) { HideRoundBreakDps(); return; }
+            SimVector anchor = new SimVector((minX + maxX) * 0.5, maxY + ROUND_BREAK_DPS_GAP_PIXELS);
+            RoundBreakDpsView view = GetRoundBreakDpsView();
+            MissionWorldSpace.SetVisible(view, true);
+            view.Apply(sim.RoundBreakDps, anchor, origin);
+        }
+
+        /// <summary>허수아비 DPS 문구를 숨긴다. 아직 만들지 않았으면 아무것도 하지 않는다.</summary>
+        private void HideRoundBreakDps()
+        {
+            if (_roundBreakDpsView != null) MissionWorldSpace.SetVisible(_roundBreakDpsView, false);
+        }
+
+        /// <summary>허수아비 DPS 문구 뷰를 반환하며 없으면 TMP 문구를 새로 만든다.</summary>
+        private RoundBreakDpsView GetRoundBreakDpsView()
+        {
+            if (_roundBreakDpsView == null)
+            {
+                _roundBreakDpsView = new GameObject("RoundBreakDps", typeof(RoundBreakDpsView)).GetComponent<RoundBreakDpsView>();
+                _roundBreakDpsView.Initialize(transform, ROUND_BREAK_DPS_ORDER);
+            }
+            return _roundBreakDpsView;
         }
 
         /// <summary>목록에서 count번째 이후 뷰를 숨긴다.</summary>

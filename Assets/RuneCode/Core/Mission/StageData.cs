@@ -405,6 +405,22 @@ namespace RuneCode
             return _progressionStages[stage - 1];
         }
 
+        /// <summary>지정 스테이지·라운드가 연결한 선택 보상 테이블의 단일 행동·모드 분류를 반환한다. 혼합 분류는 데이터 오류다.</summary>
+        public string GetRoundRewardCategory(int stage, int round, DropCatalog drops)
+        {
+            string tableId = GetProgressionStage(stage).Rounds[round - 1].RewardDropTable;
+            string category = null;
+            foreach (DropCategoryChance chance in drops.Get(tableId).CategoryChances)
+            {
+                if (chance.Percent <= 0) continue;
+                if (category != null || (chance.Category != DropCatalog.TYPE_MODIFIER && chance.Category != DropCatalog.TYPE_BEHAVIOR))
+                    throw new FormatException("고정 등급 선택 보상은 행동 또는 모드 한 분류만 지원합니다: " + tableId);
+                category = chance.Category;
+            }
+            if (category == null) throw new FormatException("라운드 선택 보상 분류가 없습니다: " + tableId);
+            return category;
+        }
+
         /// <summary>
         /// 스테이지 번호가 쓸 데이터의 스테이지 번호를 반환한다. 20스테이지까지는 그대로, 21스테이지 이후는 11~20 하나로 순환 배치한다.
         /// 21→11, 22→12, … 30→20, 31→11 순서다. 등급표 조회가 이 순환 규칙을 쓴다.
@@ -446,6 +462,20 @@ namespace RuneCode
             ValidateRoot(catalog);
             ValidateRewards(catalog._rewards, enemies);
             ValidateProgression(catalog, enemies, formations, drops, modifierGrades, runes, bosses);
+            int modifierCount = 0;
+            int behaviorCount = 0;
+            for (int stage = 1; stage <= PROGRESSION_STAGE_COUNT; stage++)
+            {
+                for (int round = 1; round <= PROGRESSION_ROUND_COUNT; round++)
+                {
+                    if (stage == PROGRESSION_STAGE_COUNT && round == PROGRESSION_ROUND_COUNT) continue;
+                    if (catalog.GetRoundRewardCategory(stage, round, drops) == DropCatalog.TYPE_MODIFIER) modifierCount++;
+                    else behaviorCount++;
+                }
+            }
+            if (modifierCount != PROGRESSION_STAGE_COUNT * (PROGRESSION_ROUND_COUNT - 2)
+                || behaviorCount != PROGRESSION_STAGE_COUNT * 2 - 1)
+                throw new FormatException("라운드 선택 보상 횟수가 고정 등급 목록과 다릅니다.");
             return catalog;
         }
 
@@ -511,7 +541,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 라운드 선택 보상 테이블이 등록돼 있고 속성 확률이 없으며, 확률이 0보다 큰 행동·강화 분류의 나올 수 있는 등급마다 후보가 선택지 수 이상인지 확인한다.
+        /// 라운드 선택 보상 테이블이 등록돼 있고 속성 확률이 없으며, 행동·모드의 모든 지원 등급마다 후보가 선택지 수 이상인지 확인한다.
         /// location은 오류 메시지의 위치 표기다.
         /// </summary>
         private static void ValidateRewardDropTable(string tableId, DropCatalog drops, RuneCatalog runes, ModifierGradeTable modifierGrades, string location)
@@ -524,9 +554,9 @@ namespace RuneCode
                 if (chance.Percent <= 0) continue;
                 if (chance.Category == DropCatalog.TYPE_ELEMENT)
                     throw new FormatException("라운드 보상 드롭 테이블에는 속성 확률을 둘 수 없습니다: " + tableId + " (" + location + ")");
-                foreach (string grade in table.GetPossibleGrades(chance.Category, runes, modifierGrades))
-                    if (RuneRewardRoller.CollectCandidates(table, chance.Category, grade, runes, modifierGrades, null).Count < ROUND_REWARD_CHOICE_COUNT)
-                        throw new FormatException("라운드 보상 드롭 테이블은 확률이 있는 분류·등급마다 후보가 " + ROUND_REWARD_CHOICE_COUNT + "개 이상이어야 합니다: "
+                foreach (string grade in DropCatalog.GetGradeOrder(chance.Category, runes, modifierGrades))
+                    if (RuneRewardRoller.CollectChoiceCandidates(table, chance.Category, grade, runes, modifierGrades, null).Count < ROUND_REWARD_CHOICE_COUNT)
+                        throw new FormatException("라운드 보상 드롭 테이블은 모든 지원 등급마다 후보가 " + ROUND_REWARD_CHOICE_COUNT + "개 이상이어야 합니다: "
                             + chance.Category + " " + grade + " (" + tableId + ", " + location + ")");
             }
         }

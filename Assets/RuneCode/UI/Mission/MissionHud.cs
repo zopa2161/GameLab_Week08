@@ -10,7 +10,7 @@ namespace RuneCode
 {
     /// <summary>
     /// 미션 화면의 HUD View다. 체력·에너지 막대, 전투 단계, 처치·조각, 전투 목표, 마법 줄과 조각 토스트를 표시하고
-    /// 라운드 시작·작업실·일시정지·디버그 버튼 클릭을 알린다. 표시 값 계산은 MissionPresenter가 한다.
+    /// 작업실·일시정지·디버그 버튼 클릭을 알린다. 표시 값 계산은 MissionPresenter가 한다.
     /// </summary>
     public sealed class MissionHud : MonoBehaviour
     {
@@ -45,7 +45,6 @@ namespace RuneCode
         [Header("버튼")]
         [SerializeField] private Button _pauseButton;
         [SerializeField] private Button _debugButton;
-        [SerializeField] private Button _nextRoundButton;
         [SerializeField] private Button _workshopButton;
 
         [Header("디버그 보스")]
@@ -63,9 +62,6 @@ namespace RuneCode
 
         /// <summary>디버그 버튼을 눌렀을 때 알린다.</summary>
         public event Action DebugClicked;
-
-        /// <summary>소강상태의 다음 라운드 시작 버튼을 눌렀을 때 알린다.</summary>
-        public event Action NextRoundClicked;
 
         /// <summary>소강상태의 작업실 열기 버튼을 눌렀을 때 알린다.</summary>
         public event Action WorkshopClicked;
@@ -90,12 +86,10 @@ namespace RuneCode
             {
                 _pauseButton.onClick.AddListener(() => PauseClicked?.Invoke());
                 _debugButton.onClick.AddListener(() => DebugClicked?.Invoke());
-                _nextRoundButton.onClick.AddListener(() => NextRoundClicked?.Invoke());
                 _workshopButton.onClick.AddListener(() => WorkshopClicked?.Invoke());
                 _isBound = true;
             }
             _debugButton.gameObject.SetActive(isDebugVisible);
-            SetNextRound(false, false);
             SetWorkshop(false, false);
             SetDebugBossMenu(false, false);
         }
@@ -158,13 +152,6 @@ namespace RuneCode
                 TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
                 if (label.text != labels[index]) label.text = labels[index];
             }
-        }
-
-        /// <summary>라운드 대기 여부에 따라 시작 버튼을 표시하고 팝업·일시정지 중에는 입력을 잠근다.</summary>
-        public void SetNextRound(bool isVisible, bool isInteractable)
-        {
-            _nextRoundButton.interactable = isVisible && isInteractable;
-            _nextRoundButton.gameObject.SetActive(isVisible);
         }
 
         /// <summary>작업실 열기 가능 여부에 따라 작업실 버튼을 표시하고 팝업·일시정지 중에는 입력을 잠근다.</summary>

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+
 using UnityEngine;
 
 namespace RuneCode
@@ -135,6 +137,13 @@ namespace RuneCode
         [SerializeField] private float _orbAbsorbRadius;
         [SerializeField] private float _pickupAttractSpeed = 480f;
         [SerializeField] private float _killEnergyCreditRatio;
+
+        [Header("런 선택 보상 등급")]
+        [SerializeField] private string[] _modifierRewardGrades;
+        [SerializeField] private string[] _behaviorRewardGrades;
+        public IReadOnlyList<string> ModifierRewardGrades => _modifierRewardGrades;
+        public IReadOnlyList<string> BehaviorRewardGrades => _behaviorRewardGrades;
+
         public int SlotCost => _slotCost;
         public float DeathRetention => _deathRetention;
         public int BaseCapacity => _baseCapacity;
@@ -189,6 +198,8 @@ namespace RuneCode
         [SerializeField] private float _roundBreakDummyDistance;
         [SerializeField] private float _roundBreakDummyGapX;
         [SerializeField] private float _roundBreakDummyGapY;
+        [SerializeField] private float _roundBreakPortalOffset;
+        [SerializeField] private float _roundBreakPortalRadius;
         [SerializeField] private float _spellVisualSeconds;
         [SerializeField] private float _hitFlashSeconds;
         [SerializeField] private float _damageNumberSeconds;
@@ -220,6 +231,12 @@ namespace RuneCode
 
         /// <summary>라운드 대기 시험장 같은 열 허수아비의 세로 간격(px)이다.</summary>
         public float RoundBreakDummyGapY => _roundBreakDummyGapY;
+
+        /// <summary>라운드 대기 포털이 맵 중앙에서 화면 위쪽으로 떨어진 거리(px)다.</summary>
+        public float RoundBreakPortalOffset => _roundBreakPortalOffset;
+
+        /// <summary>플레이어가 들어갔다고 판정하는 라운드 대기 포털의 반경(px)이다.</summary>
+        public float RoundBreakPortalRadius => _roundBreakPortalRadius;
         public float SpellVisualSeconds => _spellVisualSeconds;
         public float HitFlashSeconds => _hitFlashSeconds;
         public float DamageNumberSeconds => _damageNumberSeconds;
@@ -272,6 +289,9 @@ namespace RuneCode
             if (float.IsNaN(data.Combat.BurnDamageRatio) || float.IsInfinity(data.Combat.BurnDamageRatio)
                 || data.Combat.BurnDamageRatio < 0f || data.Combat.BurnDamageRatio > 1f)
                 throw new FormatException("화상 공격 피해 비율은 0 이상 1 이하의 유한한 숫자여야 합니다.");
+            ValidateRewardGrades(data.Economy.ModifierRewardGrades,
+                StageCatalog.PROGRESSION_STAGE_COUNT * (StageCatalog.PROGRESSION_ROUND_COUNT - 2));
+            ValidateRewardGrades(data.Economy.BehaviorRewardGrades, StageCatalog.PROGRESSION_STAGE_COUNT * 2 - 1);
             float[] values = { data.Player.MaxHp, data.Player.MoveSpeed, data.Player.MaxEnergy, data.Player.EnergyRegen,
                 data.Player.DashDistance, data.Player.DashSeconds, data.Player.DashCooldown, data.Player.HurtInvulnerability,
                 data.Adaptation.ElementLearning, data.Adaptation.FormLearning, data.Adaptation.ElementCap, data.Adaptation.FormCap,
@@ -284,7 +304,8 @@ namespace RuneCode
                 data.Sim.BenchPlayerX, data.Sim.BenchPlayerY, data.Sim.BenchDummyX,
                 data.Sim.BenchDummyY, data.Sim.BenchHp, data.Sim.BenchLineStartX, data.Sim.BenchLineGap, data.Sim.BenchSwarmX,
                 data.Sim.BenchSwarmY, data.Sim.BenchSwarmGapX, data.Sim.BenchSwarmGapY,
-                data.Sim.RoundBreakDummyDistance, data.Sim.RoundBreakDummyGapX, data.Sim.RoundBreakDummyGapY, data.Sim.SpellVisualSeconds,
+                data.Sim.RoundBreakDummyDistance, data.Sim.RoundBreakDummyGapX, data.Sim.RoundBreakDummyGapY,
+                data.Sim.RoundBreakPortalOffset, data.Sim.RoundBreakPortalRadius, data.Sim.SpellVisualSeconds,
                 data.Sim.HitFlashSeconds, data.Sim.DamageNumberSeconds, data.Sim.WandOffset, data.Sim.AreaPlacementRange,
                 data.Sim.ExecutionTimeScale, data.Combat.SeparationAllowance, data.Combat.SeparationStrength,
                 data.Combat.SeparationMaxStep };
@@ -305,12 +326,24 @@ namespace RuneCode
                     || data.Limits.MaxFrameSteps <= 0 || data.Limits.MaxGraphNodes <= 0 || data.Limits.MaxGraphEdges <= 0
                     || data.Sim.BenchHp <= 0f || data.Sim.AreaPlacementRange <= 0f
                     || data.Sim.RoundBreakDummyDistance <= 0f || data.Sim.RoundBreakDummyGapX <= 0f || data.Sim.RoundBreakDummyGapY <= 0f
+                    || data.Sim.RoundBreakPortalOffset <= 0f || data.Sim.RoundBreakPortalRadius <= 0f
+                    || data.Sim.RoundBreakPortalOffset <= data.Sim.RoundBreakPortalRadius
                     || data.Sim.BenchLineCount <= 0 || data.Sim.BenchSwarmColumns <= 0 || data.Sim.BenchSwarmRows <= 0
                     || data.Sim.SpellVisualSeconds <= 0f || data.Sim.DamageNumberSeconds <= 0f
                     || data.Limits.MaxEnemies <= 0 || data.Limits.MaxCompiledActions <= 0
                     || data.Limits.MaxScheduledExecutions <= 0 || data.Limits.MaxActionsPerTick <= 0)
                     throw new FormatException("밸런스 범위가 유효하지 않습니다.");
             return data;
+        }
+
+        /// <summary>시작 지급을 제외한 등급 목록의 길이와 C·B·A·S 값을 검사한다. 유효하지 않으면 데이터 오류를 발생시킨다.</summary>
+        private static void ValidateRewardGrades(IReadOnlyList<string> grades, int count)
+        {
+            if (grades == null || grades.Count != count)
+                throw new FormatException("런 선택 보상 등급 수가 라운드 수와 다릅니다: " + count);
+            foreach (string grade in grades)
+                if (grade != "C" && grade != "B" && grade != "A" && grade != "S")
+                    throw new FormatException("유효하지 않은 런 선택 보상 등급입니다: " + grade);
         }
     }
 }

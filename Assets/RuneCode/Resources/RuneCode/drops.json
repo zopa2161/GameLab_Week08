@@ -41,7 +41,10 @@
         { "_type": "modifier", "_id": "mod.duration", "_weight": 1 },
         { "_type": "modifier", "_id": "mod.speed", "_weight": 1 },
         { "_type": "modifier", "_id": "mod.homing", "_weight": 1 },
-        { "_type": "modifier", "_id": "mod.orbit", "_weight": 1 }
+        { "_type": "modifier", "_id": "mod.orbit", "_weight": 1 },
+        { "_type": "element", "_id": "element.ice", "_weight": 1, "_rewardGrade": "C" },
+        { "_type": "element", "_id": "element.fire", "_weight": 1, "_rewardGrade": "B" },
+        { "_type": "element", "_id": "element.lightning", "_weight": 1, "_rewardGrade": "A" }
       ]
     },
     {

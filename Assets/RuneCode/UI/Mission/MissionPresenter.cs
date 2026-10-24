@@ -75,7 +75,10 @@ namespace RuneCode
 
         /// <summary>라운드 대기 중 보상 선택지를 표시했거나 디버그 최초 대기 상태이면 작업실을 열 수 있는지 반환한다. 일시정지·팝업 입력 잠금은 따로 확인한다.</summary>
         private bool CanOpenWorkshop => _run != null && !_run.IsFinished && _run.IsWaitingForNextRound
-            && (_isInitialDebugRoundBreak || _hasPresentedChoices);
+            && !_run.IsDebugRewardChoice && (_isInitialDebugRoundBreak || _hasPresentedChoices);
+
+        /// <summary>보상 선택을 마쳐 라운드 대기 포털로 다음 라운드에 들어갈 수 있는지 반환한다. 경기장 그래픽이 포털 밝기를 정할 때 읽는다.</summary>
+        public bool IsRoundBreakPortalActive => _run != null && _run.IsNextRoundReady;
 
         /// <summary>세션·UI 관리자와 미션 화면의 View들을 받아 View 이벤트를 연결한다.</summary>
         public MissionPresenter(RuneCodeSession session, UIManager ui, MissionScreen screen, MissionHud hud, ResultPanel result)
@@ -88,7 +91,6 @@ namespace RuneCode
             _hud.Bind(session.IsDebugEnabled);
             _hud.PauseClicked += TogglePause;
             _hud.DebugClicked += OpenDebug;
-            _hud.NextRoundClicked += StartNextRound;
             _hud.WorkshopClicked += OpenWorkshop;
             _hud.DebugBossClicked += StartDebugBoss;
             _hud.DebugActionClicked += RunDebugAction;
@@ -122,7 +124,6 @@ namespace RuneCode
                 soundManager.StopShotBeam();
                 soundManager.SetMusicState(0);
             }
-            _hud.SetNextRound(false, false);
             _hud.SetWorkshop(false, false);
             _hud.SetWorkshopHighlight(false);
             _hud.SetDebugBossMenu(false, false);
@@ -192,6 +193,8 @@ namespace RuneCode
             // 보상 카드가 뜬 뒤, 후보가 없으면 대기 진입 즉시 한 번만 중앙 이동과 허수아비 배치를 한다.
             if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices))
                 _run.TryPrepareRoundBreakArena();
+            // 보상 선택을 마친 뒤 플레이어가 포털에 들어가면 다음 라운드를 시작한다. 막는 조건은 StartNextRound가 확인한다.
+            if (_run.Simulation.IsPlayerInRoundBreakPortal) StartNextRound();
             if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices) && !_ui.IsPopupOpen)
                 OpenTestOnboarding(ONBOARDING_FIRST_CLEAR);
             RenderHud();
@@ -285,7 +288,7 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>라운드 대기 중 다음 라운드를 시작한다. 작업실 오버레이가 열려 있으면 무시한다.</summary>
+        /// <summary>라운드 대기 중 포털에 들어가면 다음 라운드를 시작한다. 작업실 오버레이·팝업·일시정지·문자 입력 중에는 무시한다.</summary>
         private void StartNextRound()
         {
             if (_screen.Workshop.IsVisible) return;
@@ -316,7 +319,6 @@ namespace RuneCode
             if (!CanOpenWorkshop || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
             SoundManager.Instance.StopShotBeam();
-            _hud.SetNextRound(false, false);
             _hud.SetWorkshop(false, false);
             _hud.SetWorkshopHighlight(false);
             WorkshopScreen workshop = _screen.Workshop;
@@ -358,6 +360,7 @@ namespace RuneCode
             labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 자동 모드");
             _debugBossTargets.Add((1, 1, false, true, false, false));
             labels.Add(GameData.L(HexaDefinition.ID) + " 소환 테스트 · 일반 웨이브");
+            labels.Add("모드 보상 선택지 · 속성 포함 (임시)");
             _hud.BuildDebugBosses(labels);
         }
 
@@ -393,11 +396,21 @@ namespace RuneCode
             return 0;
         }
 
-        /// <summary>디버그 라운드 대기 중 선택한 항목의 보스 웨이브 또는 Hexa 소환 시험용 일반 웨이브로 진입하고 이전 보상 카드를 닫는다. 작업실 오버레이가 열려 있으면 무시한다.</summary>
+        /// <summary>디버그 항목에 따라 속성 포함 모드 보상을 표시하거나 보스·일반 웨이브 시험에 진입한다. 작업실 오버레이가 열려 있으면 무시한다.</summary>
         private void StartDebugBoss(int index)
         {
             if (_screen.Workshop.IsVisible) return;
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (_run.IsDebugRewardChoice) return;
+            if (index == _debugBossTargets.Count)
+            {
+                if (_run.DebugShowModifierRewardChoices())
+                {
+                    ShowRoundChoices(isResumed: true);
+                    RenderHud();
+                }
+                return;
+            }
             if (index < 0 || index >= _debugBossTargets.Count) return;
             (int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview) target = _debugBossTargets[index];
             ResetHexaDebugActions();
@@ -593,9 +606,9 @@ namespace RuneCode
                     RuneDefinition rune = GameData.Runes.Get(_run.ClearModifierChoices[i]);
                     string grade = _run.ClearModifierGrades[i];
                     names.Add(ModifierGradeText.Colorize(rune.Name, grade));
-                    string description = rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
-                        ? RuneDescriptionBuilder.GetDescription(rune)
-                        : string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false, true));
+                    string description = rune.Category == SpellGrammar.CATEGORY_MODIFIER
+                        ? string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false, true))
+                        : RuneDescriptionBuilder.GetDescription(rune);
                     descriptions.Add(description);
                     targetTexts.Add(RuneDescriptionBuilder.GetMarkedModifierTargets(rune));
                 }
@@ -681,6 +694,7 @@ namespace RuneCode
             {
                 _result.HideClearModifierChoices();
                 _result.Hide();
+                if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowRoundChoices(isResumed: true);
                 RenderHud();
                 return;
             }
@@ -754,14 +768,15 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 작업실 오버레이를 닫을 때 저장한 마법을 다시 검증해 보관 중인 런의 시전 마법을 교체하고 강화 능력치를 반영한 뒤 보관 표시를 해제하고 HUD를 갱신한다.
-        /// 라운드 대기 상태와 고르지 않은 보상 카드는 유지하며, 준비나 교체에 실패하면 false를 반환한다.
+        /// 작업실 오버레이를 닫을 때 저장한 마법을 다시 검증해 보관 중인 런의 시전 마법을 교체하고 강화 능력치와 허수아비 DPS 초기화를 반영한 뒤
+        /// 보관 표시를 해제하고 HUD를 갱신한다. 라운드 대기 상태와 고르지 않은 보상 카드는 유지하며, 준비나 교체에 실패하면 false를 반환한다.
         /// </summary>
         private bool ResumeRun()
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             if (!_run.TryReplaceSpell(spell, _session.Spells.SpellName)) return false;
             _run.TryApplyUpgradeStats();
+            _run.Simulation.ResetRoundBreakDpsForWorkshopReturn();
             _session.ResumeSuspendedRun();
             // 결과 패널은 화면과 함께 꺼졌다 켜질 뿐 상태가 남으므로, 같은 후보를 다시 그려 선택 포커스만 되살린다.
             if (_hasPresentedChoices && _run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowPendingChoices();
@@ -807,8 +822,6 @@ namespace RuneCode
             int? remainingEnemyCount = sim.IsProgressionMission && !_run.IsFinished && !sim.IsWaitingForNextRound
                 ? sim.RemainingWaveEnemyCount : (int?)null;
             _hud.SetStage(GetStageText(sim), remainingEnemyCount);
-            _hud.SetNextRound(sim.IsWaitingForNextRound && !_run.IsFinished && _run.IsClearModifierChosen,
-                !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetWorkshop(CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
             // 첫 클리어 온보딩 뒤 보상을 고르면 작업실 온보딩 전까지 작업실 버튼을 강조한다.
             _hud.SetWorkshopHighlight(CanOpenWorkshop && _run.IsClearModifierChosen
@@ -825,7 +838,7 @@ namespace RuneCode
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
             _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount + "  ·  " + GameData.L("ui.fragments") + " " + sim.EarnedFragments);
             string objective = _run.IsFinished ? (sim.Completed ? "미션 완료" : sim.IsFailed ? "전투 패배" : "전투 중단")
-                : sim.IsWaitingForNextRound ? "다음 라운드 대기"
+                : sim.IsWaitingForNextRound ? (_run.IsNextRoundReady ? "포털로 이동해 다음 라운드 시작" : "다음 라운드 대기")
                 : (sim.IsBossStage ? "보스를 처치하세요 · " : "") + "남은 적 " + sim.RemainingWaveEnemyCount;
             if (_session.IsDebugEnabled && !_run.IsFinished && !sim.IsWaitingForNextRound)
                 foreach (SimulationEnemy enemy in sim.Enemies)
