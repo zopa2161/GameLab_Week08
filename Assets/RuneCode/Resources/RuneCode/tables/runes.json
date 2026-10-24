@@ -222,11 +222,11 @@
       "_name": "폭발 수치",
       "_category": "internal",
       "_ram": 2,
-      "_energy": 15,
+      "_energy": 12,
       "_energyMult": 1,
       "_unlockType": "start",
       "_stats": {
-        "_damage": 5,
+        "_damage": 10,
         "_speed": 280,
         "_radius": 6,
         "_lifetime": 0.5,
@@ -286,7 +286,7 @@
       "_name": "존",
       "_category": "internal",
       "_ram": 2,
-      "_energy": 16,
+      "_energy": 10,
       "_energyMult": 1,
       "_unlockType": "start",
       "_stats": {
