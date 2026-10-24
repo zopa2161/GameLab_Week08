@@ -65,6 +65,7 @@ namespace RuneCode
         private int _lastNormalScrapPickupEventCount;
         private int _lastBigScrapPickupEventCount;
         private int _lastBigScrapSpawnEventCount;
+        private int _lastRootCastFailures;
         private float _toastUntil;
         private int _lastPickedItemCount;
         private int _pendingToastFragments;
@@ -173,6 +174,13 @@ namespace RuneCode
             double playerDamageBefore = _run.Simulation.Player.DamageReceived + _run.Simulation.Player.ShieldAbsorbed;
             _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
                 isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
+            int rootCastFailures = _run.Simulation.RootCastFailures;
+            if (rootCastFailures > _lastRootCastFailures)
+            {
+                _hud.PlayEnergyShortage();
+                SoundManager.Instance.PlayDisable();
+            }
+            _lastRootCastFailures = rootCastFailures;
             if (!_run.IsPaused && !_run.IsFinished && _run.Simulation.HasAnyActiveBeam())
                 SoundManager.Instance.StartShotBeam();
             else SoundManager.Instance.StopShotBeam();
@@ -708,6 +716,7 @@ namespace RuneCode
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
+            _lastRootCastFailures = _run.Simulation.RootCastFailures;
             _isInitialDebugRoundBreak = _session.IsDebugEnabled && _run.IsWaitingForNextRound;
             ResetHexaDebugActions();
             _lastEnemyDamageEventCount = 0;
