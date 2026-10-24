@@ -40,6 +40,7 @@ namespace RuneCode
             _view.GraphCanvas.Initialize(_editor, _view.Font, node => { }, ShowTooltip, _palette.OpenQuickPalette, _palette.OpenSlotPicker,
                 _palette.OpenGradePicker);
             _editor.GraphChanged += OnGraphChanged;
+            _editor.Compiled += OnGraphChanged;
             _editor.SpellSwitched += OnSpellSwitched;
             RefreshAll();
         }
@@ -86,6 +87,7 @@ namespace RuneCode
         {
             _synthesis.Dispose();
             _editor.GraphChanged -= OnGraphChanged;
+            _editor.Compiled -= OnGraphChanged;
             _editor.SpellSwitched -= OnSpellSwitched;
         }
 
@@ -97,9 +99,9 @@ namespace RuneCode
         {
             _view.UndoClicked += _editor.Undo;
             _view.RedoClicked += _editor.Redo;
-            _view.ArrangeClicked += _editor.AutoArrange;
+            _view.ArrangeClicked += _view.GraphCanvas.ArrangeBlocks;
             _view.CopyClicked += () => _editor.CopyNodes(_view.GraphCanvas.SelectedNodes);
-            _view.PasteClicked += _editor.PasteNodes;
+            _view.PasteClicked += _view.GraphCanvas.PasteBlockGroup;
         }
 
         /// <summary>현재 입력으로 그래프 삭제·복사·붙여넣기·복제·되돌리기 단축키를 실행한다.</summary>
@@ -109,11 +111,11 @@ namespace RuneCode
             RuneGraphCanvas graph = _view.GraphCanvas;
             if (keyboard.deleteKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame) graph.DeleteSelection();
             if (isControlPressed && keyboard.cKey.wasPressedThisFrame) _editor.CopyNodes(graph.SelectedNodes);
-            if (isControlPressed && keyboard.vKey.wasPressedThisFrame) _editor.PasteNodes();
+            if (isControlPressed && keyboard.vKey.wasPressedThisFrame) graph.PasteBlockGroup();
             if (isControlPressed && keyboard.dKey.wasPressedThisFrame)
             {
                 _editor.CopyNodes(graph.SelectedNodes);
-                _editor.PasteNodes();
+                graph.PasteBlockGroup();
             }
             if (isControlPressed && keyboard.zKey.wasPressedThisFrame) _editor.Undo();
             if (isControlPressed && keyboard.yKey.wasPressedThisFrame) _editor.Redo();

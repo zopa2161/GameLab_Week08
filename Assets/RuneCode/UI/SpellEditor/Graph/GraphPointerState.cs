@@ -34,6 +34,23 @@ namespace RuneCode
 
         /// <summary>화면 이동을 시작할 때의 화면 이동량이다.</summary>
         public Vector2 PanStart { get; set; }
+        public string SnapFromNode { get; set; }
+        public string SnapFromPort { get; set; }
+        public string SnapToNode { get; set; }
+        public string SnapInsertNode { get; set; }
+        public Vector2 SnapOffset { get; set; }
+        public bool IsSnapConnected { get; set; }
+
+        /// <summary>가까운 퍼즐 결합 후보와 이동 보정량을 비운다.</summary>
+        public void ClearSnap()
+        {
+            SnapFromNode = null;
+            SnapFromPort = null;
+            SnapToNode = null;
+            SnapInsertNode = null;
+            SnapOffset = Vector2.zero;
+            IsSnapConnected = false;
+        }
 
         /// <summary>화면 이동 중인지 나타낸다.</summary>
         public bool IsPanning { get; set; }
@@ -63,6 +80,7 @@ namespace RuneCode
         /// <summary>연결·화면 이동·노드 드래그·영역 선택 상태와 연결 가능 캐시를 초기화한다. 선택과 하이라이트는 유지한다.</summary>
         public void ResetPointer()
         {
+            ClearSnap();
             SourceNode = null;
             IsPanning = false;
             IsNodeDragging = false;

@@ -29,6 +29,8 @@ namespace RuneCode
         private bool _isEditable;
         private bool _graphDirty;
         private float _compileAt;
+        private bool _isBlockEditing;
+        private bool _hasBlockChanges;
 
         public string SpellId => _editingGraph.Id;
         public string SpellName => _editingGraph.Name;
@@ -67,7 +69,7 @@ namespace RuneCode
         /// <summary>디바운스 예약된 컴파일과 저장을 전달된 현재 시간 기준으로 처리한다.</summary>
         public void Tick(float unscaledTime)
         {
-            if (!_graphDirty || unscaledTime < _compileAt) return;
+            if (_isBlockEditing || !_graphDirty || unscaledTime < _compileAt) return;
             _graphDirty = false;
             Recompile();
             Save();
@@ -624,6 +626,135 @@ namespace RuneCode
             MarkChanged();
         }
 
+        /// <summary>묶음 편집의 시작 그래프를 보관하고 중간 변경의 개별 기록을 중지한다.</summary>
+        public void BeginBlockEdit()
+        {
+            if (_isBlockEditing) return;
+            BeginEdit();
+            _isBlockEditing = true;
+            _hasBlockChanges = false;
+        }
+
+        /// <summary>중간 변경이 있으면 이동·분리·삽입 전체를 한 번의 되돌리기 기록으로 확정한다.</summary>
+        public void EndBlockEdit()
+        {
+            if (!_isBlockEditing) return;
+            _isBlockEditing = false;
+            if (_hasBlockChanges) MarkChanged();
+            _hasBlockChanges = false;
+        }
+
+        /// <summary>자동 정렬 좌표를 현재 편집에 포함하고 단독 되돌리기 단계를 추가하지 않는다.</summary>
+        public void MarkBlockLayoutChanged()
+        {
+            if (!_isBlockEditing) _previousGraph = _editingGraph.Clone();
+            MarkChanged();
+        }
+
+        /// <summary>선택 묶음으로 바깥에서 들어오는 실행 엣지만 제거하고 그래프 표시를 갱신한다.</summary>
+        public void DetachBlockGroup(IEnumerable<string> nodeIds)
+        {
+            if (!_isEditable) return;
+            var group = new HashSet<string>(nodeIds);
+            var removed = new List<string>();
+            foreach (GraphEdge edge in _editingGraph.Edges)
+            {
+                if (!group.Contains(edge.ToNode) || group.Contains(edge.FromNode)) continue;
+                PortDefinition port = GameData.Runes.Get(_editingGraph.FindNode(edge.FromNode).RuneId)
+                    .FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT);
+                if (port != null && port.Kind == SpellGrammar.EXEC_KIND) removed.Add(edge.Id);
+            }
+            foreach (string id in removed) _editingGraph.RemoveEdge(id);
+            if (removed.Count == 0) return;
+            MarkChanged();
+            RaiseGraphChanged();
+        }
+
+        /// <summary>기존 후속을 잃지 않는 삽입 사본을 만들어 연결·순환·RAM 제한을 통과하는지 반환한다.</summary>
+        public bool CanDockBlocks(string fromNode, string fromPort, string rootNode)
+        {
+            return _isEditable && CreateDockCandidate(fromNode, fromPort, rootNode, true) != null;
+        }
+
+        /// <summary>검증된 삽입 사본으로 교체하고 그래프 변경을 기록한다. 실패하면 현재 그래프를 유지한다.</summary>
+        public bool DockBlocks(string fromNode, string fromPort, string rootNode)
+        {
+            if (!_isEditable) return false;
+            SpellGraph candidate = CreateDockCandidate(fromNode, fromPort, rootNode, false);
+            if (candidate == null) { _policy.ReportStatus("editor.invalidConnection"); return false; }
+            _editingGraph = candidate;
+            MarkChanged();
+            RaiseGraphChanged();
+            return true;
+        }
+
+        /// <summary>출력의 기존 후속을 새 묶음 끝으로 옮긴 삽입 사본을 반환한다. 분기 모호성·순환·RAM·개수 제한이 있으면 null이다.</summary>
+        private SpellGraph CreateDockCandidate(string fromId, string portId, string rootId, bool isPreview)
+        {
+            if (_editingGraph.FindNode(fromId) == null || _editingGraph.FindNode(rootId) == null) return null;
+            HashSet<string> group = _editingGraph.GetBlockGroup(new[] { rootId }, GameData.Runes);
+            if (group.Contains(fromId)) return null;
+            SpellGraph candidate = _editingGraph.Clone();
+            var incoming = new List<string>();
+            foreach (GraphEdge edge in candidate.Edges)
+            {
+                if (!group.Contains(edge.ToNode) || group.Contains(edge.FromNode)) continue;
+                PortDefinition port = GameData.Runes.Get(candidate.FindNode(edge.FromNode).RuneId)
+                    .FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT);
+                if (port != null && port.Kind == SpellGrammar.EXEC_KIND) incoming.Add(edge.Id);
+            }
+            foreach (string id in incoming) candidate.RemoveEdge(id);
+            GraphEdge previous = null;
+            foreach (GraphEdge edge in candidate.Edges)
+            {
+                if (edge.FromNode != fromId || edge.FromPort != portId) continue;
+                if (previous != null || group.Contains(edge.ToNode)) return null;
+                previous = edge;
+            }
+            if (previous != null) candidate.RemoveEdge(previous.Id);
+            var first = new GraphEdge(isPreview ? "block-preview-in" : NewId("edge"), fromId, portId, rootId,
+                SpellGrammar.EXEC_PORT, previous?.Order ?? candidate.NextEdgeOrder(fromId, portId));
+            if (!GraphCompiler.CanConnect(candidate, first, GameData.Runes, out _)) return null;
+            candidate.AddEdge(first);
+            if (previous != null)
+            {
+                string tailId = rootId;
+                string tailPort;
+                var visited = new HashSet<string>();
+                while (true)
+                {
+                    if (!visited.Add(tailId)) return null;
+                    RuneDefinition rune = GameData.Runes.Get(candidate.FindNode(tailId).RuneId);
+                    tailPort = FindBlockContinuation(rune);
+                    if (tailPort == null) return null;
+                    GraphEdge next = null;
+                    foreach (GraphEdge edge in candidate.Edges)
+                    {
+                        if (edge.FromNode != tailId || edge.FromPort != tailPort) continue;
+                        if (next != null) return null;
+                        next = edge;
+                    }
+                    if (next == null) break;
+                    tailId = next.ToNode;
+                }
+                var last = new GraphEdge(isPreview ? "block-preview-out" : NewId("edge"), tailId, tailPort,
+                    previous.ToNode, previous.ToPort, 0, previous.IsLegacyEvent);
+                if (!GraphCompiler.CanConnect(candidate, last, GameData.Runes, out _)) return null;
+                candidate.AddEdge(last);
+            }
+            return candidate.Edges.Count <= GameData.Balance.Limits.MaxGraphEdges && _policy.IsWithinRam(candidate)
+                ? candidate : null;
+        }
+
+        /// <summary>기존 의미를 유지하는 기본 후속 포트를 일반 후속·명중 시·반복 완료 순으로 선택해 반환한다.</summary>
+        private static string FindBlockContinuation(RuneDefinition rune)
+        {
+            PortDefinition port = rune.FindPort("next", SpellGrammar.DIRECTION_OUT)
+                ?? rune.FindPort(SpellGrammar.ON_HIT_PORT, SpellGrammar.DIRECTION_OUT)
+                ?? rune.FindPort(SpellGrammar.ON_COMPLETE_PORT, SpellGrammar.DIRECTION_OUT);
+            return port != null && !port.IsDeprecated && port.Kind == SpellGrammar.EXEC_KIND ? port.Id : null;
+        }
+
         /// <summary>노드 드래그 시작 시 마지막 확정 그래프를 되돌리기용 사본으로 보관한다.</summary>
         public void BeginEdit()
         {
@@ -633,6 +764,7 @@ namespace RuneCode
         /// <summary>이전 편집 상태를 최대 50단계 기록하고 자동 컴파일을 예약한다.</summary>
         public void MarkChanged()
         {
+            if (_isBlockEditing) { _hasBlockChanges = true; return; }
             if (_previousGraph != null && ShareCodec.Serialize(_previousGraph) != ShareCodec.Serialize(_editingGraph))
             {
                 _undo.Add(_previousGraph.Clone());
@@ -647,6 +779,7 @@ namespace RuneCode
         /// <summary>이전 그래프 스냅샷으로 되돌리고 현재 상태를 다시 실행 목록에 기록한다.</summary>
         public void Undo()
         {
+            if (_isBlockEditing) return;
             if (_undo.Count == 0 || !_isEditable) return;
             if (!_policy.IsWithinModifierStock(_editingGraph, _undo[_undo.Count - 1]))
             {
@@ -660,6 +793,7 @@ namespace RuneCode
         /// <summary>되돌린 그래프 스냅샷을 복구한다.</summary>
         public void Redo()
         {
+            if (_isBlockEditing) return;
             if (_redo.Count == 0 || !_isEditable) return;
             if (!_policy.IsWithinModifierStock(_editingGraph, _redo[_redo.Count - 1]))
             {
@@ -673,7 +807,7 @@ namespace RuneCode
         /// <summary>선택된 노드와 내부 연결을 별도 사본에 기록한다.</summary>
         public void CopyNodes(IEnumerable<string> nodeIds)
         {
-            var selected = new HashSet<string>(nodeIds);
+            var selected = _editingGraph.GetBlockGroup(nodeIds, GameData.Runes);
             var snapshot = _editingGraph.Clone();
             _copiedNodes.Clear(); _copiedEdges.Clear();
             _copiedNodes.AddRange(snapshot.Nodes.Where(node => selected.Contains(node.Id) && node.RuneId != "core.cast"));
