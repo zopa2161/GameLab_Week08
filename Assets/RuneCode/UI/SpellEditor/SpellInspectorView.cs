@@ -1,6 +1,9 @@
 using System;
-using TMPro;
+using System.Text;
+
 using UnityEngine;
+
+using TMPro;
 
 namespace RuneCode
 {
@@ -21,6 +24,9 @@ namespace RuneCode
         private readonly SpellParameterRow _parameterRowPrefab;
         private readonly UiRow _issueRowPrefab;
         private float _top;
+        private readonly StringBuilder _description = new StringBuilder();
+
+        public string Description => _description.ToString();
 
         /// <summary>인스펙터 패널, UI 생성기, 파라미터 행·검증 행 Prefab으로 도우미를 만든다.</summary>
         public SpellInspectorView(RectTransform panel, UiFactory ui, SpellParameterRow parameterRowPrefab, UiRow issueRowPrefab)
@@ -34,6 +40,7 @@ namespace RuneCode
         /// <summary>인스펙터 내용을 모두 지우고 머리글을 다시 그린다.</summary>
         public void Begin()
         {
+            _description.Clear();
             UiFactory.ClearChildren(_panel);
             _ui.Text(_panel, LEFT, 12, WIDTH, 27, GameData.L("ui.inspector"), 17, FontStyles.Bold, prefabName: "InspectorHeading");
             _top = 50;
@@ -42,6 +49,7 @@ namespace RuneCode
         /// <summary>노드 이름 줄을 추가한다.</summary>
         public void AddTitle(string text)
         {
+            _description.Append("<b>").Append(text).AppendLine("</b>");
             _ui.Text(_panel, LEFT, _top, WIDTH, 28, text, 22, prefabName: "InspectorTitle");
             _top += 37;
         }
@@ -49,6 +57,7 @@ namespace RuneCode
         /// <summary>안내·정보 문구를 내용이 들어갈 높이로 추가하고 실제 높이와 간격만큼 아래로 내려간다.</summary>
         public void AddNote(string text, float height, float spacing)
         {
+            _description.AppendLine(text);
             TextMeshProUGUI note = _ui.Text(_panel, LEFT, _top, WIDTH, height, text, 16, prefabName: "InspectorNote");
             float contentHeight = note.GetPreferredValues(text, WIDTH, Mathf.Infinity).y;
             float actualHeight = Mathf.Max(height, Mathf.Ceil(contentHeight) + 2f);
