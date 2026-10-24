@@ -27,6 +27,8 @@ namespace RuneCode.Editor
         private const string COPY_SUFFIX = ".copy";
 
         private static readonly string[] CATEGORY_LABELS = { "행동", "강화", "속성" };
+        private static readonly string[] REWARD_GRADES = { "", "C", "B", "A", "S" };
+        private static readonly string[] REWARD_GRADE_LABELS = { "일반 드롭", "C 보상", "B 보상", "A 보상", "S 보상" };
 
         private static readonly Color SELECTION_BACKGROUND = new Color(0.24f, 0.44f, 0.76f, 0.35f);
         private static readonly Color UNKNOWN_VALUE_BACKGROUND = new Color(0.95f, 0.75f, 0.2f);
@@ -245,12 +247,13 @@ namespace RuneCode.Editor
                 return;
             }
             DrawIdField(table.FindPropertyRelative("_id"));
+            EditorGUILayout.HelpBox("새 런의 라운드 선택 보상 등급은 balance.json의 고정 목록을 섞어 사용합니다. 아래 등급 확률은 기존 진행과 확률 드롭에 적용되며, 후보 룬과 가중치는 새 런에도 적용됩니다.", MessageType.Info);
             EditorGUILayout.Space(4);
             DrawCategorySection(table.FindPropertyRelative("_categoryChances"));
             EditorGUILayout.Space(4);
             DrawGradeSection(table.FindPropertyRelative("_gradeChances"), DropCatalog.TYPE_BEHAVIOR);
             DrawGradeSection(table.FindPropertyRelative("_gradeChances"), DropCatalog.TYPE_MODIFIER);
-            EditorGUILayout.LabelField("속성은 등급이 없습니다.", EditorStyles.miniLabel);
+            EditorGUILayout.HelpBox("속성 자체에는 등급이 없습니다. 속성 후보의 참여 모드 보상 등급을 지정하면 해당 보상의 모드들과 함께 추첨합니다. 일반 드롭으로 두면 모드 선택지에 참여하지 않습니다.", MessageType.Info);
             EditorGUILayout.Space(4);
             DrawEntriesSection();
         }
@@ -347,7 +350,7 @@ namespace RuneCode.Editor
             GUI.contentColor = previous;
         }
 
-        /// <summary>후보 한 행에 분류 팝업, 분류에 맞는 룬 팝업과 가중치 입력칸을 그린다. 분류를 바꾸면 룬을 그 분류의 첫 룬으로 바꾼다.</summary>
+        /// <summary>후보의 분류·룬·가중치와 속성의 참여 보상 등급을 편집한다. 분류를 바꾸면 룬과 보상 등급 조건을 초기화한다.</summary>
         private void DrawEntryRow(Rect rect, int index)
         {
             SerializedProperty entry = _entriesList.serializedProperty.GetArrayElementAtIndex(index);
@@ -364,6 +367,7 @@ namespace RuneCode.Editor
             {
                 string[] ids = GetRuneIds(type.stringValue);
                 id.stringValue = ids.Length > 0 ? ids[0] : "";
+                entry.FindPropertyRelative("_rewardGrade").stringValue = "";
                 ApplyChanges();
             }
             string[] runeIds = GetRuneIds(type.stringValue);
@@ -371,9 +375,17 @@ namespace RuneCode.Editor
 
             SerializedProperty weight = entry.FindPropertyRelative("_weight");
             double nextWeight = EditorGUI.DoubleField(weightRect, weight.doubleValue);
-            if (nextWeight == weight.doubleValue) return;
-            weight.doubleValue = nextWeight;
-            ApplyChanges();
+            if (nextWeight != weight.doubleValue)
+            {
+                weight.doubleValue = nextWeight;
+                ApplyChanges();
+            }
+            if (type.stringValue == DropCatalog.TYPE_ELEMENT)
+            {
+                Rect gradeRect = new Rect(content.x, content.y + ROW_HEIGHT + FIELD_GAP, content.width, ROW_HEIGHT);
+                Rect popupRect = EditorGUI.PrefixLabel(gradeRect, new GUIContent("참여 모드 보상 등급"));
+                DrawStringPopup(popupRect, entry.FindPropertyRelative("_rewardGrade"), REWARD_GRADES, REWARD_GRADE_LABELS);
+            }
         }
 
         /// <summary>Rect 영역에 문자열 팝업을 그리고 값을 프로퍼티에 반영한다. 목록에 없는 값은 보존하고 배경을 경고색으로 표시한다.</summary>
@@ -462,6 +474,8 @@ namespace RuneCode.Editor
             var list = new ReorderableList(_serialized, entries, true, true, true, true);
             list.drawHeaderCallback = rect => GUI.Label(rect, "후보 (분류 / 룬 / 가중치)");
             list.drawElementCallback = (rect, index, active, focused) => DrawEntryRow(rect, index);
+            list.elementHeightCallback = index => entries.GetArrayElementAtIndex(index).FindPropertyRelative("_type").stringValue == DropCatalog.TYPE_ELEMENT
+                ? (ROW_HEIGHT + FIELD_GAP) * 2 : ROW_HEIGHT + FIELD_GAP;
             list.onChangedCallback = target => ApplyChanges();
             list.onAddCallback = target =>
             {
@@ -473,6 +487,7 @@ namespace RuneCode.Editor
                 entry.FindPropertyRelative("_type").stringValue = category;
                 entry.FindPropertyRelative("_id").stringValue = ids.Length > 0 ? ids[0] : "";
                 entry.FindPropertyRelative("_weight").doubleValue = 1;
+                entry.FindPropertyRelative("_rewardGrade").stringValue = "";
                 ApplyChanges();
             };
             _entriesList = list;

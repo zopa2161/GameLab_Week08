@@ -235,6 +235,20 @@ namespace RuneCode
             return RunePaletteRowBinding.Resolve(_categoryRowPrefabs, category, _runeRowPrefab);
         }
 
+        /// <summary>분류별 팔레트 행 프리팹을 임시로 만들어 지정 문구로 채운 뒤 같은 모양의 드래그 미리보기를 반환한다.</summary>
+        internal RunePalettePreview CreatePaletteRowPreview(RuneDefinition rune, string label)
+        {
+            if (_graphCanvas == null) return null;
+            UiRow prefab = RunePaletteRowBinding.Resolve(_categoryRowPrefabs, rune.Category, _runeRowPrefab);
+            UiRow row = Instantiate(prefab, _runeList, false);
+            row.gameObject.SetActive(false);
+            row.Configure(label, SpellPalettePresenter.ROW_HEIGHT, () => { }, 12);
+            if (_runeList.TryGetComponent(out GridLayoutGroup grid)) ((RectTransform)row.transform).sizeDelta = grid.cellSize;
+            RunePalettePreview preview = RunePalettePreview.CreateRow(_graphCanvas.canvas.rootCanvas, row);
+            Destroy(row.gameObject);
+            return preview;
+        }
+
         /// <summary>합성창이 열려 있으면 결과 안내 또는 창을 닫고 입력을 소비한다.</summary>
         public bool HandleSynthesisEscape() => _presenter != null && _presenter.HandleSynthesisEscape();
 
@@ -244,8 +258,8 @@ namespace RuneCode
             foreach (ViewPool<UiRow> rows in _paletteRows.Values) rows.ReleaseAll();
         }
 
-        /// <summary>팔레트 행을 추가하고 클릭·드래그 배치를 룬 등급과 연결한다.</summary>
-        public void AddPaletteRow(string label, float height, Action onClick, string runeId, string grade, bool canPlace)
+        /// <summary>팔레트 행을 추가하고 클릭·드래그 배치를 룬 등급과 연결한다. 클릭 동작에는 생성된 행을 전달한다.</summary>
+        public void AddPaletteRow(string label, float height, Action<UiRow> onClick, string runeId, string grade, bool canPlace)
         {
             string category = GameData.Runes.Get(runeId).Category;
             UiRow prefab = RunePaletteRowBinding.Resolve(_categoryRowPrefabs, category, _runeRowPrefab);
@@ -255,7 +269,7 @@ namespace RuneCode
                 _paletteRows.Add(prefab, rows);
             }
             UiRow row = rows.Get();
-            row.Configure(label, height, onClick, 12);
+            row.Configure(label, height, onClick == null ? null : () => onClick(row), 12);
             RunePaletteDrag drag = row.GetComponent<RunePaletteDrag>();
             if (drag == null) drag = row.gameObject.AddComponent<RunePaletteDrag>();
             drag.Initialize(_graphCanvas, runeId, grade, canPlace, this);

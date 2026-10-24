@@ -62,6 +62,10 @@ namespace RuneCode
         private GameObject _resultContent;
         private Image _background;
         private Canvas _rewardCanvas;
+        private Image _elementChoiceBackground;
+        private Image[] _choiceModBackgrounds;
+        private Sprite[] _choiceModSprites;
+        private Color[] _choiceModColors;
         private ResultRewardItemView _hoveredRewardItem;
         private readonly Vector3[] _tooltipCorners = new Vector3[4];
         private readonly List<ResultRewardItemView> _rewardViews = new List<ResultRewardItemView>();
@@ -90,10 +94,21 @@ namespace RuneCode
         /// <summary>클리어 Modifier 선택 후보 버튼을 눌렀을 때 후보 순번으로 알린다.</summary>
         public event Action<int> ClearModifierChoiceClicked;
 
-        /// <summary>버튼 클릭을 이벤트로 처음 한 번만 연결한다.</summary>
+        /// <summary>버튼 클릭을 처음 한 번 연결하고 속성 팔레트 배경과 원래 모드 카드 배경을 캐싱한다.</summary>
         public void Bind()
         {
             if (_isBound) return;
+            _elementChoiceBackground = (Image)Resources.Load<UiRow>("RuneCode/UI/Elements/RunePaletteElementRow").Button.targetGraphic;
+            _choiceModBackgrounds = new Image[_clearChoiceModPanels.Length];
+            _choiceModSprites = new Sprite[_clearChoiceModPanels.Length];
+            _choiceModColors = new Color[_clearChoiceModPanels.Length];
+            for (int index = 0; index < _clearChoiceModPanels.Length; index++)
+            {
+                Image background = _clearChoiceModPanels[index].GetComponent<Image>();
+                _choiceModBackgrounds[index] = background;
+                _choiceModSprites[index] = background.sprite;
+                _choiceModColors[index] = background.color;
+            }
             _background = GetComponent<Image>();
             Transform content = _summaryLabel.transform;
             while (content.parent != transform) content = content.parent;
@@ -367,7 +382,7 @@ namespace RuneCode
             tooltipRect.anchoredPosition = new Vector2(x - parent.rect.xMin, y - parent.rect.yMax);
         }
 
-        /// <summary>후보 이름·효과·등급을 카드에 표시하고 같은 순서의 runeIds로 행동·Modifier 패널을 전환해 선택 입력을 받는다.</summary>
+        /// <summary>후보 ID에 맞는 패널과 이름·설명을 표시한다. 속성은 팔레트 배경과 속성 표기를 쓰고 모드는 원래 카드 배경으로 복원한다.</summary>
         public void ShowClearModifierChoices(string title, IReadOnlyList<string> names, IReadOnlyList<string> descriptions,
             IReadOnlyList<string> grades, IReadOnlyList<string> runeIds)
         {
@@ -384,14 +399,17 @@ namespace RuneCode
                 bool hasChoice = names != null && i < names.Count;
                 _clearChoiceCards[i].SetActive(hasChoice);
                 string category = hasChoice ? GameData.Runes.Get(runeIds[i]).Category : string.Empty;
-                _clearChoiceModPanels[i].SetActive(category == SpellGrammar.CATEGORY_MODIFIER);
+                _clearChoiceModPanels[i].SetActive(category == SpellGrammar.CATEGORY_MODIFIER || category == SpellGrammar.CATEGORY_ELEMENT);
                 _clearChoiceBehaviorPanels[i].SetActive(category == SpellGrammar.CATEGORY_BEHAVIOR);
                 if (!hasChoice) continue;
                 if (firstChoice == null) firstChoice = _clearChoiceButtons[i].gameObject;
                 _clearChoiceButtons[i].interactable = true;
                 string grade = grades != null && i < grades.Count ? grades[i] : string.Empty;
+                bool isElement = category == SpellGrammar.CATEGORY_ELEMENT;
+                _choiceModBackgrounds[i].sprite = isElement ? _elementChoiceBackground.sprite : _choiceModSprites[i];
+                _choiceModBackgrounds[i].color = isElement ? _elementChoiceBackground.color : _choiceModColors[i];
                 Color gradeColor = RuneMesh.GradeColor(grade);
-                _clearChoiceGradeLabels[i].text = grade + "급";
+                _clearChoiceGradeLabels[i].text = isElement ? "속성" : grade + "급";
                 _clearChoiceGradeLabels[i].color = gradeColor;
                 _clearChoiceNameLabels[i].richText = true;
                 _clearChoiceDescriptionLabels[i].richText = true;

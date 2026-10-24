@@ -75,7 +75,7 @@ namespace RuneCode
 
         /// <summary>라운드 대기 중 보상 선택지를 표시했거나 디버그 최초 대기 상태이면 작업실을 열 수 있는지 반환한다. 일시정지·팝업 입력 잠금은 따로 확인한다.</summary>
         private bool CanOpenWorkshop => _run != null && !_run.IsFinished && _run.IsWaitingForNextRound
-            && (_isInitialDebugRoundBreak || _hasPresentedChoices);
+            && !_run.IsDebugRewardChoice && (_isInitialDebugRoundBreak || _hasPresentedChoices);
 
         /// <summary>보상 선택을 마쳐 라운드 대기 포털로 다음 라운드에 들어갈 수 있는지 반환한다. 경기장 그래픽이 포털 밝기를 정할 때 읽는다.</summary>
         public bool IsRoundBreakPortalActive => _run != null && _run.IsNextRoundReady;
@@ -360,6 +360,7 @@ namespace RuneCode
             labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 자동 모드");
             _debugBossTargets.Add((1, 1, false, true, false, false));
             labels.Add(GameData.L(HexaDefinition.ID) + " 소환 테스트 · 일반 웨이브");
+            labels.Add("모드 보상 선택지 · 속성 포함 (임시)");
             _hud.BuildDebugBosses(labels);
         }
 
@@ -395,11 +396,21 @@ namespace RuneCode
             return 0;
         }
 
-        /// <summary>디버그 라운드 대기 중 선택한 항목의 보스 웨이브 또는 Hexa 소환 시험용 일반 웨이브로 진입하고 이전 보상 카드를 닫는다. 작업실 오버레이가 열려 있으면 무시한다.</summary>
+        /// <summary>디버그 항목에 따라 속성 포함 모드 보상을 표시하거나 보스·일반 웨이브 시험에 진입한다. 작업실 오버레이가 열려 있으면 무시한다.</summary>
         private void StartDebugBoss(int index)
         {
             if (_screen.Workshop.IsVisible) return;
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (_run.IsDebugRewardChoice) return;
+            if (index == _debugBossTargets.Count)
+            {
+                if (_run.DebugShowModifierRewardChoices())
+                {
+                    ShowRoundChoices(isResumed: true);
+                    RenderHud();
+                }
+                return;
+            }
             if (index < 0 || index >= _debugBossTargets.Count) return;
             (int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview) target = _debugBossTargets[index];
             ResetHexaDebugActions();
@@ -594,9 +605,9 @@ namespace RuneCode
                     RuneDefinition rune = GameData.Runes.Get(_run.ClearModifierChoices[i]);
                     string grade = _run.ClearModifierGrades[i];
                     names.Add(ModifierGradeText.Colorize(rune.Name, grade));
-                    string description = rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
-                        ? RuneDescriptionBuilder.GetDescription(rune)
-                        : string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false, true));
+                    string description = rune.Category == SpellGrammar.CATEGORY_MODIFIER
+                        ? string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false, true))
+                        : RuneDescriptionBuilder.GetDescription(rune);
                     descriptions.Add(description);
                 }
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions,
@@ -681,6 +692,7 @@ namespace RuneCode
             {
                 _result.HideClearModifierChoices();
                 _result.Hide();
+                if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowRoundChoices(isResumed: true);
                 RenderHud();
                 return;
             }

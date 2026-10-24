@@ -51,7 +51,7 @@ namespace RuneCode
         public int Percent => _percent;
     }
 
-    /// <summary>드롭 테이블의 후보 룬 한 항목이다. Weight는 같은 분류 후보 사이의 가중치다.</summary>
+    /// <summary>드롭 후보 룬과 가중치다. RewardGrade가 있는 속성은 해당 등급의 모드 선택 보상에만 참여한다.</summary>
     [Serializable]
     public sealed class DropEntry
     {
@@ -59,9 +59,11 @@ namespace RuneCode
         [SerializeField] private string _type;
         [SerializeField] private string _id;
         [SerializeField] private double _weight;
+        [SerializeField] private string _rewardGrade;
         public string Type => _type;
         public string Id => _id;
         public double Weight => _weight;
+        public string RewardGrade => _rewardGrade;
     }
 
     /// <summary>
@@ -281,6 +283,10 @@ namespace RuneCode
                     errors.Add(entryPath + "._id 비활성이 아니고 " + entry.Type + " 분류인 룬이 없습니다: " + entry.Id);
                 else if (entry.Type == TYPE_ELEMENT && !RuneRewardRoller.IsCandidateGradeAvailable(runes, modifierGrades, entry.Id, ""))
                     errors.Add(entryPath + "._id 보상으로 줄 수 있는 전투 속성 룬이 아닙니다: " + entry.Id);
+                if (!string.IsNullOrEmpty(entry.RewardGrade)
+                    && (entry.Type != TYPE_ELEMENT || !modifierGrades.GradeOrder.Contains(entry.RewardGrade)
+                        || !table.CategoryChances.Any(chance => chance.Category == TYPE_MODIFIER && chance.Percent > 0)))
+                    errors.Add(entryPath + "._rewardGrade 모드 보상 분류가 있는 테이블의 속성에만 C·B·A·S 보상 등급을 지정할 수 있습니다.");
                 if (!entryIds.Add(entry.Id ?? "")) errors.Add(entryPath + "._id 후보 룬이 중복됩니다: " + entry.Id);
                 if (double.IsNaN(entry.Weight) || double.IsInfinity(entry.Weight) || entry.Weight <= 0)
                     errors.Add(entryPath + "._weight 가중치는 0보다 큰 유한값이어야 합니다.");
