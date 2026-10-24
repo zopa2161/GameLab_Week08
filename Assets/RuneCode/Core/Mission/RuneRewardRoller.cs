@@ -19,14 +19,17 @@ namespace RuneCode
             return previous;
         }
 
-        /// <summary>테이블에서 서로 다른 룬을 최대 count개 추첨해 반환한다. 슬롯마다 분류·등급을 굴리고 아직 고르지 않은 후보 중에서 고르며, 후보가 없으면 그 슬롯을 비운다.</summary>
+        /// <summary>테이블에서 분류·공통 등급을 한 번 추첨하고, 해당 분류·등급의 서로 다른 룬을 최대 count개 반환한다. 남은 후보가 없으면 추첨을 마친다.</summary>
         public static List<DropRoll> DrawChoices(DropTableDefinition table, int stage, int count, IEliteModifierDropSource grades, Func<double> random)
         {
             var choices = new List<DropRoll>();
+            if (count <= 0) return choices;
+            string category = RollCategory(table.CategoryChances, random);
+            string grade = category == SpellGrammar.CATEGORY_ELEMENT ? "" : RollGrade(GetGradeChances(table, category, stage, grades), random);
             var chosenIds = new HashSet<string>(StringComparer.Ordinal);
             for (int slot = 0; slot < count; slot++)
             {
-                if (!TryDrawCandidate(table, stage, grades, chosenIds, random, out DropRoll roll)) continue;
+                if (!TryDrawCandidate(table, category, grade, chosenIds, random, out DropRoll roll)) break;
                 choices.Add(roll);
                 chosenIds.Add(roll.RuneId);
             }
@@ -48,9 +51,16 @@ namespace RuneCode
         private static bool TryDrawCandidate(DropTableDefinition table, int stage, IEliteModifierDropSource grades, ICollection<string> excludedIds,
             Func<double> random, out DropRoll roll)
         {
-            roll = default;
             string category = RollCategory(table.CategoryChances, random);
             string grade = category == SpellGrammar.CATEGORY_ELEMENT ? "" : RollGrade(GetGradeChances(table, category, stage, grades), random);
+            return TryDrawCandidate(table, category, grade, excludedIds, random, out roll);
+        }
+
+        /// <summary>지정한 분류·등급을 지원하고 excludedIds에 없는 룬을 가중치로 추첨해 반환한다. 후보가 없으면 false를 반환한다.</summary>
+        private static bool TryDrawCandidate(DropTableDefinition table, string category, string grade, ICollection<string> excludedIds,
+            Func<double> random, out DropRoll roll)
+        {
+            roll = default;
             List<KeyValuePair<string, double>> candidates = CollectCandidates(table, category, grade, GameData.Runes, GameData.ModifierGrades, excludedIds);
             double totalWeight = 0;
             foreach (KeyValuePair<string, double> candidate in candidates) totalWeight += candidate.Value;
