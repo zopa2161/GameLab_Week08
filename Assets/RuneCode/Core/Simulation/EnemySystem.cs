@@ -266,7 +266,7 @@ namespace RuneCode
 
         /// <summary>냉기 감속을 반영하여 적을 벽 충돌 가능한 방향으로 이동시킨다.</summary>
         private void MoveEnemy(SimulationEnemy enemy, SimVector direction, double speed)
-        { double slow = Math.Max(0, 1 - _world.Balance.Combat.ChillSlow * _statuses.GetChillStacks(enemy)); enemy.Move(_world.Map.Move(enemy.Position, direction * (speed * enemy.SpeedMultiplier * slow * RuneSimulation.STEP_SECONDS), enemy.Radius), direction); }
+        { double slow = Math.Max(0, 1 - _world.Balance.Combat.ChillSlow * (1 + _world.ChillEffectBonus) * _statuses.GetChillStacks(enemy)); enemy.Move(_world.Map.Move(enemy.Position, direction * (speed * enemy.SpeedMultiplier * slow * RuneSimulation.STEP_SECONDS), enemy.Radius), direction); }
 
         /// <summary>적 분리에서 밀리지 않는 고정 대상인지 반환한다. 보스, 빙결 중인 적, 돌진 중인 적은 자리를 지키고 상대만 밀어낸다.</summary>
         internal bool IsSeparationFixed(SimulationEnemy enemy) => enemy.Boss != null || _statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze) || _world.Time < enemy.DashUntil;

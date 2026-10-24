@@ -13,6 +13,10 @@ namespace RuneCode
         IReadOnlyList<SpellGraph> Library { get; }
         string ActiveSpellId { get; }
         bool IsEditable { get; }
+        int EventCapacity { get; }
+
+        /// <summary>지정 속성 트리거 포트가 현재 진행에서 해금되었는지 반환한다.</summary>
+        bool IsElementTriggerUnlocked(string portId);
 
         /// <summary>노드·엣지·파라미터가 바뀌어 그래프 표시만 갱신하면 될 때 호출된다.</summary>
         event Action GraphChanged;

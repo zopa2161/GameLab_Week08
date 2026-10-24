@@ -14,6 +14,7 @@ namespace RuneCode
     public sealed class RuneCodeSession
     {
         private const int DEBUG_MODIFIER_STOCK = 9;
+        private const int MAX_EVENT_CAPACITY = 4;
         private const string PLAY_LOG_PARTICIPANT_KEY = "RuneCode.PlayLogParticipantId";
 
         private PlayerSave _save;
@@ -71,6 +72,46 @@ namespace RuneCode
         public float MaxHp => GameData.Balance.Player.MaxHp + GetUpgradeTreeEffectTotal(UpgradeEffectType.MaxHp);
         public float EnergyRegen => GameData.Balance.Player.EnergyRegen + GetUpgradeTreeEffectTotal(UpgradeEffectType.EnergyRegen);
         public float DamageMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.Damage);
+        public float CooldownMultiplier => Mathf.Clamp(1 - GetUpgradeTreeEffectTotal(UpgradeEffectType.CooldownReduction), 0.1f, 1);
+        public int EventCapacity => Mathf.Clamp(Mathf.RoundToInt(GetUpgradeTreeEffectTotal(UpgradeEffectType.EventCapacity)), 0, MAX_EVENT_CAPACITY);
+        public int MaxPurchasedSkillNodes => _upgradeTree.MaxPurchasedNodes;
+        public int PurchasedSkillNodeCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
+                    if (GetUpgradeNodeLevel(node.Id) > node.InitialLevel) count++;
+                return count;
+            }
+        }
+
+        /// <summary>세션 트리의 속성 피해·화상 속도·냉기 감속·전기 연쇄 강화량을 지정 시뮬레이션에 반영한다.</summary>
+        public void ApplyElementUpgrades(RuneSimulation simulation)
+        {
+            simulation.SetElementUpgrades(GetUpgradeTreeEffectTotal(UpgradeEffectType.FireDamage),
+                GetUpgradeTreeEffectTotal(UpgradeEffectType.IceDamage), GetUpgradeTreeEffectTotal(UpgradeEffectType.ArcDamage),
+                GetUpgradeTreeEffectTotal(UpgradeEffectType.BurnSpeed), GetUpgradeTreeEffectTotal(UpgradeEffectType.ChillEffect),
+                Mathf.RoundToInt(GetUpgradeTreeEffectTotal(UpgradeEffectType.ArcTargets)));
+            simulation.SetElementMasteries(GetUpgradeTreeEffectTotal(UpgradeEffectType.BurnSpread) > 0, _upgradeTree.BurnSpreadRadius,
+                GetUpgradeTreeEffectTotal(UpgradeEffectType.FreezeBurst), _upgradeTree.FreezeBurstRadius,
+                GetUpgradeTreeEffectTotal(UpgradeEffectType.LightningStrike), _upgradeTree.LightningHeight);
+            simulation.SetElementTriggers(GetUpgradeTreeEffectTotal(UpgradeEffectType.FireTrigger) > 0,
+                GetUpgradeTreeEffectTotal(UpgradeEffectType.IceTrigger) > 0,
+                GetUpgradeTreeEffectTotal(UpgradeEffectType.ArcTrigger) > 0);
+        }
+
+        /// <summary>지정 속성 포트의 트리 해금 여부를 반환한다. 일반 포트는 항상 허용한다.</summary>
+        public bool IsElementTriggerUnlocked(string portId)
+        {
+            switch (portId)
+            {
+                case SpellGrammar.ON_BURN_PORT: return GetUpgradeTreeEffectTotal(UpgradeEffectType.FireTrigger) > 0;
+                case SpellGrammar.ON_FREEZE_PORT: return GetUpgradeTreeEffectTotal(UpgradeEffectType.IceTrigger) > 0;
+                case SpellGrammar.ON_ARC_HIT_PORT: return GetUpgradeTreeEffectTotal(UpgradeEffectType.ArcTrigger) > 0;
+                default: return true;
+            }
+        }
         public float MoveSpeedMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.MoveSpeed);
         public float ScrapGainMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapGain);
         public float ScrapPickupRangeMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapPickupRange);
@@ -491,6 +532,11 @@ namespace RuneCode
                 reasonKey = "tree.exclusiveLocked";
                 return false;
             }
+            if (currentLevel <= node.InitialLevel && PurchasedSkillNodeCount >= MaxPurchasedSkillNodes)
+            {
+                reasonKey = "tree.nodeLimit";
+                return false;
+            }
             int cost = GetUpgradeNodeCost(nodeId);
             if (cost < 0 || (!_isDebugEnabled && _save.Currency < cost))
             {
@@ -593,6 +639,76 @@ namespace RuneCode
                 ["skill_tree"] = GetSkillTreeLogSnapshot(),
             });
             LocalTelemetry.Record(0, "upgradeTree.purchase", nodeId + ":" + (currentLevel + 1) + ":" + cost);
+            return true;
+        }
+
+        /// <summary>지정한 구매 노드와 선행 조건을 잃은 후속 노드를 해제하고 스크랩을 반환한다. 해제할 구매 기록이 없으면 false를 반환한다.</summary>
+        public bool RefundSkillNode(string nodeId)
+        {
+            UpgradeTreeNodeDefinition selected = _upgradeTree.FindNode(nodeId);
+            if (selected == null || GetUpgradeNodeLevel(nodeId) <= selected.InitialLevel) return false;
+            var refundedNodes = new List<string> { nodeId };
+            int refund = RefundUpgradeNode(selected);
+            bool hasRemovedNode;
+            do
+            {
+                hasRemovedNode = false;
+                foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
+                {
+                    if (GetUpgradeNodeLevel(node.Id) <= node.InitialLevel || node.Prerequisites.Count == 0) continue;
+                    bool hasPrerequisite = false;
+                    foreach (UpgradeTreePrerequisite prerequisite in node.Prerequisites)
+                        if (GetUpgradeNodeLevel(prerequisite.NodeId) >= prerequisite.RequiredLevel)
+                        {
+                            hasPrerequisite = true;
+                            break;
+                        }
+                    if (hasPrerequisite) continue;
+                    refund += RefundUpgradeNode(node);
+                    refundedNodes.Add(node.Id);
+                    hasRemovedNode = true;
+                }
+            } while (hasRemovedNode);
+            _save.Settle(refund, false);
+            PersistProgress();
+            _spells.Recompile();
+            LocalTelemetry.RecordUsabilityEvent("skill_node_refunded", "workshop", new Dictionary<string, object>
+            {
+                ["node_id"] = nodeId, ["refunded_nodes"] = refundedNodes, ["refunded_scrap"] = refund,
+                ["skill_tree"] = GetSkillTreeLogSnapshot(),
+            });
+            return true;
+        }
+
+        /// <summary>노드의 구매 기록을 해제하고 시작 레벨 이후에 지불한 스크랩 합계를 반환한다. 무료 구매한 디버그 모드는 환급하지 않는다.</summary>
+        private int RefundUpgradeNode(UpgradeTreeNodeDefinition node)
+        {
+            int refund = 0;
+            int level = GetUpgradeNodeLevel(node.Id);
+            if (!_isDebugEnabled)
+                for (int index = node.InitialLevel; index < level; index++) refund += node.Levels[index].Cost;
+            _save.SetUpgradeNodeLevel(node.Id, 0);
+            return refund;
+        }
+
+        /// <summary>현재 트리의 구매 레벨을 초기화하고 실제 지불한 스크랩을 반환하며 저장·마법 검증을 갱신한다. 구매한 노드가 없으면 false를 반환한다.</summary>
+        public bool ResetSkillTree()
+        {
+            int purchased = PurchasedSkillNodeCount;
+            if (purchased == 0) return false;
+            int refund = 0;
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
+            {
+                refund += RefundUpgradeNode(node);
+            }
+            _save.Settle(refund, false);
+            PersistProgress();
+            _spells.Recompile();
+            LocalTelemetry.RecordUsabilityEvent("skill_tree_reset", "workshop", new Dictionary<string, object>
+            {
+                ["reset_node_count"] = purchased, ["refunded_scrap"] = refund,
+                ["skill_tree"] = GetSkillTreeLogSnapshot(),
+            });
             return true;
         }
 

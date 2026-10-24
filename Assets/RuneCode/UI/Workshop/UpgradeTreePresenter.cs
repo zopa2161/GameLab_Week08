@@ -23,13 +23,17 @@ namespace RuneCode
             _view.Build();
             _view.NodeClicked += Purchase;
             _view.NodeHovered += OnNodeHovered;
+            _view.ResetClicked += Reset;
+            _view.NodeRefundClicked += Refund;
         }
 
         /// <summary>현재 스크랩, 노드 레벨과 연결선, 열린 툴팁을 세션 상태로 갱신한다.</summary>
         public void Refresh()
         {
-            _view.SetSummary(GameData.L("ui.tree.summary") + "  ·  " + _session.Save.Currency + " " + GameData.L("ui.fragments")
+            _view.SetSummary(GameData.L("ui.tree.summary") + "  ·  스킬 " + _session.PurchasedSkillNodeCount + "/" + _session.MaxPurchasedSkillNodes
+                + "  ·  " + _session.Save.Currency + " " + GameData.L("ui.fragments")
                 + "  ·  " + GameData.L("ui.tree.controls"));
+            _view.SetResetState(_session.PurchasedSkillNodeCount, _session.MaxPurchasedSkillNodes);
             foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
             {
                 if (node != null) RefreshNode(node);
@@ -39,24 +43,19 @@ namespace RuneCode
             if (!string.IsNullOrEmpty(_hoveredNodeId)) RefreshTooltip(_hoveredNodeId);
         }
 
-        /// <summary>트리로 획득한 능력치 열 종류의 누적 증가량을 좌측 상단 표시로 갱신한다.</summary>
+        /// <summary>현재 네 갈래에서 획득한 능력치의 누적 증가량을 좌측 상단 표시로 갱신한다.</summary>
         private void RefreshStatsSummary()
         {
             _statsBuilder.Clear();
-            //AppendStat(UpgradeEffectType.EnergyRegen, "ui.tree.mainboard", "/s");
-            AppendStat(UpgradeEffectType.EnergyRegen, "전력 회복 속도", "/s");
-            //AppendStat(UpgradeEffectType.MaxEnergy, "ui.tree.maxEnergy", " 전력");
-            AppendStat(UpgradeEffectType.MaxEnergy, "ui.tree.maxEnergy", "");
-            AppendStat(UpgradeEffectType.RamCapacity, "ui.tree.ramCapacity", " RAM");
-            //AppendStat(UpgradeEffectType.Damage, "ui.tree.gpu", "%", true);
             AppendStat(UpgradeEffectType.Damage, "마법 피해량 증가", "%", true);
-            AppendStat(UpgradeEffectType.MaxHp, "ui.tree.maxHp", " HP");
-            AppendStat(UpgradeEffectType.MoveSpeed, "ui.tree.moveSpeed", "%", true);
-            //AppendStat(UpgradeEffectType.KillEnergy, "ui.tree.killEnergy", " 전력");
-            AppendStat(UpgradeEffectType.KillEnergy, "ui.tree.killEnergy", "");
-            AppendStat(UpgradeEffectType.ScrapPickupRange, "ui.tree.scrapPickupRange", "%", true);
-            AppendStat(UpgradeEffectType.ScrapGain, "ui.tree.scrapGain", "%", true);
-            AppendStat(UpgradeEffectType.ScrapHeal, "ui.tree.scrapHeal", "%", true);
+            AppendStat(UpgradeEffectType.FireDamage, "화염 대미지", "%", true);
+            AppendStat(UpgradeEffectType.IceDamage, "냉기 대미지", "%", true);
+            AppendStat(UpgradeEffectType.ArcDamage, "전기 대미지", "%", true);
+            AppendStat(UpgradeEffectType.BurnSpeed, "화상 가속", "%", true);
+            AppendStat(UpgradeEffectType.ChillEffect, "냉기 감속", "%", true);
+            AppendStat(UpgradeEffectType.ArcTargets, "전기 연쇄 대상", "명");
+            AppendStat(UpgradeEffectType.EventCapacity, "온 트리거", "개");
+            AppendStat(UpgradeEffectType.CooldownReduction, "쿨타임 감소", "%", true);
             _view.SetStatsSummary(_statsBuilder.ToString());
         }
 
@@ -108,7 +107,9 @@ namespace RuneCode
             int currentLevel = _session.GetUpgradeNodeLevel(nodeId);
             string level = node.EffectType == UpgradeEffectType.RuneUnlock ? null :
                 GameData.L("ui.tree.level") + " " + currentLevel + "/" + node.MaxLevel;
-            _view.ShowTooltip(nodeId, title, GameData.L(node.DescriptionKey), level,
+            string description = GameData.L(node.DescriptionKey);
+            if (currentLevel > node.InitialLevel) description += "\n우클릭: 반환 · 선행 조건이 끊기는 후속 노드도 함께 반환";
+            _view.ShowTooltip(nodeId, title, description, level,
                 NextIncreaseText(node, currentLevel), CostText(node, currentLevel));
         }
 
@@ -118,6 +119,9 @@ namespace RuneCode
             if (currentLevel >= node.MaxLevel) return GameData.L("tree.maxed");
             if (node.EffectType == UpgradeEffectType.RuneUnlock) return GameData.L("ui.tree.unlockEffect");
             if (node.EffectType == UpgradeEffectType.CastSpeed) return GameData.L("ui.tree.pendingEffect");
+            if (node.EffectType == UpgradeEffectType.FireTrigger || node.EffectType == UpgradeEffectType.IceTrigger
+                || node.EffectType == UpgradeEffectType.ArcTrigger || node.EffectType == UpgradeEffectType.BurnSpread)
+                return GameData.L("ui.tree.unlockEffect");
             float amount = node.Levels[currentLevel].Amount;
             string unit;
             switch (node.EffectType)
@@ -126,8 +130,16 @@ namespace RuneCode
                 case UpgradeEffectType.MaxEnergy: unit = " 전력"; break;
                 case UpgradeEffectType.KillEnergy: unit = " 전력/처치"; break;
                 case UpgradeEffectType.RamCapacity: unit = " RAM"; break;
+                case UpgradeEffectType.LightningStrike: unit = " 기본 피해"; break;
                 case UpgradeEffectType.MaxHp: unit = " HP"; break;
                 case UpgradeEffectType.Damage:
+                case UpgradeEffectType.FireDamage:
+                case UpgradeEffectType.IceDamage:
+                case UpgradeEffectType.ArcDamage:
+                case UpgradeEffectType.BurnSpeed:
+                case UpgradeEffectType.ChillEffect:
+                case UpgradeEffectType.FreezeBurst:
+                case UpgradeEffectType.CooldownReduction:
                 case UpgradeEffectType.ScrapHeal:
                 case UpgradeEffectType.ScrapGain:
                 case UpgradeEffectType.ScrapPickupRange:
@@ -145,6 +157,22 @@ namespace RuneCode
         {
             if (currentLevel >= node.MaxLevel) return GameData.L("tree.maxed");
             return GameData.L("ui.tree.cost") + " " + _session.GetUpgradeNodeCost(node.Id) + " " + GameData.L("ui.fragments");
+        }
+
+        /// <summary>구매한 스킬을 초기화하고 노드·능력치·도크와 작업실 표시를 갱신한다.</summary>
+        private void Reset()
+        {
+            if (!_session.ResetSkillTree()) return;
+            Refresh();
+            _onPurchased();
+        }
+
+        /// <summary>지정 노드와 선행 조건을 잃은 후속 노드를 반환하고 트리·능력치·작업실 표시를 갱신한다.</summary>
+        private void Refund(string nodeId)
+        {
+            if (!_session.RefundSkillNode(nodeId)) return;
+            Refresh();
+            _onPurchased();
         }
 
         /// <summary>노드 구매에 성공하면 이전 레벨에 따라 최초 해금 또는 강화 효과음을 재생하고 작업실 표시를 갱신한다.</summary>

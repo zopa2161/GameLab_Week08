@@ -13,21 +13,50 @@ namespace RuneCode
         /// <summary>
         /// 그래프와 해금·RAM·에너지 조건을 검증하고 최악 비용의 실행 트리를 컴파일한다.
         /// modifierStock이 있으면 현재 프리셋의 모디파이어·속성·행동 배치 수가 소지량을 넘을 때 E21 오류로 낸다. null이면 검사하지 않는다.
+        /// eventCapacity보다 호출 마법을 포함한 온 트리거 연결 수가 많으면 E26 오류로 실행을 막는다.
         /// </summary>
         public static CompileResult Compile(SpellGraph graph, RuneCatalog runes, GrammarLimits limits,
             IEnumerable<string> unlocked, int capacity = -1, float maxEnergy = -1f, IEnumerable<SpellGraph> library = null,
-            IReadOnlyDictionary<string, int> modifierStock = null, IReadOnlyDictionary<string, float> maxResourceCosts = null)
+            IReadOnlyDictionary<string, int> modifierStock = null, IReadOnlyDictionary<string, float> maxResourceCosts = null,
+            int eventCapacity = int.MaxValue, float cooldownMultiplier = 1f, IReadOnlyList<string> unlockedElementTriggers = null)
         {
             CompileContext context = new CompileContext(unlocked ?? runes.StartRunes, library, graph, capacity, maxEnergy,
-                maxResourceCosts);
+                maxResourceCosts, cooldownMultiplier, unlockedElementTriggers);
             List<CompileIssue> dependencyErrors = new List<CompileIssue>();
             ValidateSpellDependencies(graph, context.Library, new HashSet<string>(StringComparer.Ordinal),
                 new List<string>(), dependencyErrors);
             if (dependencyErrors.Count > 0) return new CompileResult(dependencyErrors, new List<CompileIssue>(), null);
             CompileResult result = CompileGraph(graph, runes, limits, context);
+            if (CountEventConnections(graph, library) > eventCapacity)
+                result = new CompileResult(result.Errors.Concat(new[] { new CompileIssue("E26", detail: eventCapacity.ToString(CultureInfo.InvariantCulture)) }).ToList(),
+                    result.Warnings, result.Spell);
             List<CompileIssue> stockErrors = modifierStock == null ? null : FindModifierStockIssues(graph, runes, modifierStock);
             if (stockErrors == null || stockErrors.Count == 0) return result;
             return new CompileResult(result.Errors.Concat(stockErrors).ToList(), result.Warnings, result.Spell);
+        }
+
+        /// <summary>그래프와 호출하는 마법의 이벤트 연결 수를 합산한다. 재귀 호출은 경로별로 막으며 연결을 지우면 사용 수가 즉시 줄어든다.</summary>
+        public static int CountEventConnections(SpellGraph graph, IEnumerable<SpellGraph> library = null)
+        {
+            var graphs = new Dictionary<string, SpellGraph>(StringComparer.Ordinal);
+            if (library != null)
+                foreach (SpellGraph item in library)
+                    if (item != null && !string.IsNullOrEmpty(item.Id)) graphs[item.Id] = item;
+            return CountEventConnections(graph, graphs, new HashSet<string>(StringComparer.Ordinal));
+        }
+
+        /// <summary>현재 호출 경로의 중복을 막고 직접 이벤트 엣지와 호출 노드별 하위 사용 수를 반환한다.</summary>
+        private static int CountEventConnections(SpellGraph graph, Dictionary<string, SpellGraph> library, HashSet<string> active)
+        {
+            if (graph == null || !active.Add(graph.Id)) return 0;
+            int count = 0;
+            foreach (GraphEdge edge in graph.Edges)
+                if (SpellGrammar.IsEventPort(edge.FromPort) && !SpellGrammar.IsElementTriggerPort(edge.FromPort)) count++;
+            foreach (GraphNode node in graph.Nodes)
+                if (node.RuneId == "spell.call" && library.TryGetValue(node.GetText("spellId").Trim(), out SpellGraph called))
+                    count += CountEventConnections(called, library, active);
+            active.Remove(graph.Id);
+            return count;
         }
 
         /// <summary>
@@ -208,6 +237,10 @@ namespace RuneCode
             }
             if (cores.Count != 1) errors.Add(new CompileIssue("E1"));
             ValidateEdges(graph, definitions, errors);
+            foreach (GraphEdge edge in graph.Edges)
+                if (SpellGrammar.IsElementTriggerPort(edge.FromPort) && context.UnlockedElementTriggers != null
+                    && !context.UnlockedElementTriggers.Contains(edge.FromPort))
+                    errors.Add(new CompileIssue("E27", edge.FromNode));
             if (!errors.Any(issue => issue.Code == "E3") && HasCycle(graph, nodes)) errors.Add(new CompileIssue("E4"));
             int limit = context.Capacity < 0 ? limits.BaseCapacity : context.Capacity;
             if (ramUsed > limit) errors.Add(new CompileIssue("E7"));
@@ -254,7 +287,8 @@ namespace RuneCode
             GatherTags(root, tags);
             string trigger = cores[0].GetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK);
             CompiledSpell compiled = new CompiledSpell(graph.Name, Signature(graph, root), cores[0].Id, ramUsed, resourceCosts,
-                limits.CooldownBase + limits.CooldownPerRam * ramUsed, entities, tags.ToList(), root, graph.Id, trigger, castCosts);
+                (limits.CooldownBase + limits.CooldownPerRam * ramUsed) * context.CooldownMultiplier,
+                entities, tags.ToList(), root, graph.Id, trigger, castCosts);
             return new CompileResult(errors, warnings, compiled);
         }
 
@@ -491,7 +525,7 @@ namespace RuneCode
                 if (edge.ToNode == id && edge.ToPort == "mod") reachable.Add(edge.FromNode);
                 if (edge.FromNode != id || edge.FromPort == "mod") continue;
                 // onFirstHitOrExpire는 소멸 시에도 실행되어 대상이 없을 수 있으므로 onExpire처럼 대상 없음으로 본다.
-                bool nextHasTarget = edge.FromPort == SpellGrammar.ON_HIT_PORT
+                bool nextHasTarget = edge.FromPort == SpellGrammar.ON_HIT_PORT || SpellGrammar.IsElementTriggerPort(edge.FromPort)
                     || (hasTarget && edge.FromPort != SpellGrammar.ON_EXPIRE_PORT && edge.FromPort != SpellGrammar.ON_FIRST_HIT_OR_EXPIRE_PORT);
                 FindReachable(graph, edge.ToNode, nextHasTarget, reachable, definitions, warnings);
             }
@@ -730,6 +764,9 @@ namespace RuneCode
                     case "if": count = Math.Max(EntityCount(action.Then), EntityCount(action.Else)); break;
                     default: count = EntityCount(action.Next); break;
                 }
+                count = AddBounded(count, EntityCount(action.OnBurn), limit);
+                count = AddBounded(count, EntityCount(action.OnFreeze), limit);
+                count = AddBounded(count, EntityCount(action.OnArcHit), limit);
                 sum = AddBounded(sum, count, limit);
                 if (sum == limit) return int.MaxValue;
             }
@@ -773,6 +810,9 @@ namespace RuneCode
                     case "if": count = AddBounded(count, Math.Max(ActionCount(action.Then, saturation), ActionCount(action.Else, saturation)), saturation); break;
                     default: count = AddBounded(count, ActionCount(action.Next, saturation), saturation); break;
                 }
+                count = AddBounded(count, ActionCount(action.OnBurn, saturation), saturation);
+                count = AddBounded(count, ActionCount(action.OnFreeze, saturation), saturation);
+                count = AddBounded(count, ActionCount(action.OnArcHit, saturation), saturation);
                 sum = AddBounded(sum, count, saturation);
                 if (sum == saturation) return sum;
             }
@@ -803,6 +843,9 @@ namespace RuneCode
                 if (action.CalledSpell != null)
                     foreach (string tag in action.CalledSpell.Tags) tags.Add(tag);
                 GatherTags(action.OnHit, tags);
+                GatherTags(action.OnBurn, tags);
+                GatherTags(action.OnFreeze, tags);
+                GatherTags(action.OnArcHit, tags);
                 GatherTags(action.OnExpire, tags);
                 GatherTags(action.OnFirstHitOrExpire, tags);
                 GatherTags(action.Then, tags);
@@ -849,6 +892,9 @@ namespace RuneCode
                 if (action.Kind == "call")
                     canonical.Append("call:").Append(action.CalledSpellId).Append('=').Append(action.CalledSpell.Signature).Append(';');
                 AppendCallSignatures(action.OnHit, canonical);
+                AppendCallSignatures(action.OnBurn, canonical);
+                AppendCallSignatures(action.OnFreeze, canonical);
+                AppendCallSignatures(action.OnArcHit, canonical);
                 AppendCallSignatures(action.OnExpire, canonical);
                 AppendCallSignatures(action.OnFirstHitOrExpire, canonical);
                 AppendCallSignatures(action.Then, canonical);
@@ -879,6 +925,10 @@ namespace RuneCode
             private readonly HashSet<string> _activeSpellIds = new HashSet<string>(StringComparer.Ordinal);
             private readonly int _capacity;
             private readonly float _maxEnergy;
+            private readonly float _cooldownMultiplier;
+            private readonly IReadOnlyList<string> _unlockedElementTriggers;
+            public float CooldownMultiplier => _cooldownMultiplier;
+            public IReadOnlyList<string> UnlockedElementTriggers => _unlockedElementTriggers;
             private readonly IReadOnlyDictionary<string, float> _maxResourceCosts;
             public HashSet<string> UnlockedIds => _unlockedIds;
             public Dictionary<string, SpellGraph> Library => _library;
@@ -889,7 +939,8 @@ namespace RuneCode
 
             /// <summary>라이브러리·해금·컴파일 캐시와 자원 한도를 컴파일 작업에 보관한다.</summary>
             public CompileContext(IEnumerable<string> unlocked, IEnumerable<SpellGraph> library, SpellGraph current, int capacity,
-                float maxEnergy, IReadOnlyDictionary<string, float> maxResourceCosts)
+                float maxEnergy, IReadOnlyDictionary<string, float> maxResourceCosts, float cooldownMultiplier,
+                IReadOnlyList<string> unlockedElementTriggers)
             {
                 _unlockedIds = new HashSet<string>(unlocked ?? Array.Empty<string>(), StringComparer.Ordinal);
                 _unlockedIds.Add(SpellGrammar.INLINE_RUNE);
@@ -900,6 +951,8 @@ namespace RuneCode
                 if (current != null && !string.IsNullOrEmpty(current.Id)) _library[current.Id] = current;
                 _capacity = capacity;
                 _maxEnergy = maxEnergy;
+                _cooldownMultiplier = cooldownMultiplier;
+                _unlockedElementTriggers = unlockedElementTriggers;
                 _maxResourceCosts = maxResourceCosts;
             }
 

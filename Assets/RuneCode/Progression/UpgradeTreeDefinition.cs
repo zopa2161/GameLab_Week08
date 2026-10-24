@@ -18,7 +18,21 @@ namespace RuneCode
         RuneUnlock,
         ScrapPickupRange,
         KillEnergy,
-        ScrapHeal
+        ScrapHeal,
+        FireDamage,
+        IceDamage,
+        ArcDamage,
+        BurnSpeed,
+        ChillEffect,
+        ArcTargets,
+        EventCapacity,
+        BurnSpread,
+        FreezeBurst,
+        LightningStrike,
+        FireTrigger,
+        IceTrigger,
+        ArcTrigger,
+        CooldownReduction
     }
 
     [Serializable]
@@ -97,7 +111,6 @@ namespace RuneCode
     [CreateAssetMenu(fileName = "UpgradeTree", menuName = "Rune Code/Upgrade Tree")]
     public sealed class UpgradeTreeDefinition : ScriptableObject
     {
-        private const string MAINBOARD_NODE_ID = "upgrade.mainboard";
         private const int MAX_UPGRADE_LEVEL = 99;
         private static readonly HashSet<string> _starterRuneIds = new HashSet<string>
         {
@@ -106,9 +119,19 @@ namespace RuneCode
 
         [SerializeField, HideInInspector] private int _layoutVersion = 1;
         [Header("강화 트리에 배치할 노드")]
+        [SerializeField, Min(1)] private int _maxPurchasedNodes = 10;
         [SerializeField, InspectorName("배치할 노드")] private List<UpgradeTreeNodeDefinition> _nodes = new List<UpgradeTreeNodeDefinition>();
 
+        [Header("속성 최종 효과")]
+        [SerializeField, Min(1)] private float _burnSpreadRadius = 120;
+        [SerializeField, Min(1)] private float _freezeBurstRadius = 120;
+        [SerializeField, Min(1)] private float _lightningHeight = 120;
+
         public int LayoutVersion => _layoutVersion;
+        public int MaxPurchasedNodes => _maxPurchasedNodes;
+        public float BurnSpreadRadius => _burnSpreadRadius;
+        public float FreezeBurstRadius => _freezeBurstRadius;
+        public float LightningHeight => _lightningHeight;
         public IReadOnlyList<UpgradeTreeNodeDefinition> Nodes => _nodes;
 
         /// <summary>ID가 일치하는 강화 노드를 반환하고 찾지 못하면 null을 반환한다.</summary>
@@ -133,6 +156,17 @@ namespace RuneCode
         public bool Validate(out string error)
         {
             error = null;
+            if (!IsPositiveFinite(_burnSpreadRadius) || !IsPositiveFinite(_freezeBurstRadius)
+                || !IsPositiveFinite(_lightningHeight))
+            {
+                error = "속성 최종 효과의 범위·높이는 유한한 양수여야 합니다.";
+                return false;
+            }
+            if (_maxPurchasedNodes < 1)
+            {
+                error = "구매 가능한 스킬 노드 수는 1 이상이어야 합니다.";
+                return false;
+            }
             if (_nodes == null || _nodes.Count == 0)
             {
                 error = "배치할 노드가 없거나 노드 목록이 초기화되지 않았습니다.";
@@ -151,10 +185,12 @@ namespace RuneCode
                     return false;
                 }
 
-            UpgradeTreeNodeDefinition mainboard = FindNode(MAINBOARD_NODE_ID);
-            if (mainboard == null || mainboard.EffectType != UpgradeEffectType.EnergyRegen || mainboard.Prerequisites.Count != 0)
+            bool hasRoot = false;
+            foreach (UpgradeTreeNodeDefinition node in _nodes)
+                if (node.Prerequisites.Count == 0) hasRoot = true;
+            if (!hasRoot)
             {
-                error = "메인보드 전력 회복 노드가 유일한 시작 노드여야 합니다.";
+                error = "강화 트리에는 선행 조건이 없는 시작 노드가 필요합니다.";
                 return false;
             }
 
@@ -173,12 +209,6 @@ namespace RuneCode
 
             foreach (UpgradeTreeNodeDefinition node in _nodes)
             {
-                if ((node.Id == MAINBOARD_NODE_ID && node.Prerequisites.Count != 0) ||
-                    (node.Id != MAINBOARD_NODE_ID && node.Prerequisites.Count < 1))
-                {
-                    error = "메인보드 외의 각 노드는 선행 노드를 하나 이상 가져야 합니다: " + node.Id;
-                    return false;
-                }
                 HashSet<string> parentIds = new HashSet<string>();
                 foreach (UpgradeTreePrerequisite prerequisite in node.Prerequisites)
                 {
@@ -211,6 +241,12 @@ namespace RuneCode
             return ValidateExclusiveGroups(_nodes, out error);
         }
 
+        /// <summary>효과 설정값이 0보다 크고 NaN·무한대가 아닌지 반환한다.</summary>
+        private static bool IsPositiveFinite(float value)
+        {
+            return value > 0 && !float.IsNaN(value) && !float.IsInfinity(value);
+        }
+
         /// <summary>배타 세트 노드의 구성(노드 2개 이상, 선행 노드 1개·동일 부모, 시작 레벨 0, 메인보드 제외)을 검사해 오류를 반환한다.</summary>
         private static bool ValidateExclusiveGroups(IReadOnlyList<UpgradeTreeNodeDefinition> nodes, out string error)
         {
@@ -219,9 +255,9 @@ namespace RuneCode
             foreach (UpgradeTreeNodeDefinition node in nodes)
             {
                 if (node == null || string.IsNullOrWhiteSpace(node.ExclusiveGroupId)) continue;
-                if (node.Id == MAINBOARD_NODE_ID)
+                if (node.Prerequisites.Count == 0)
                 {
-                    error = "메인보드 노드는 배타 세트에 속할 수 없습니다: " + node.Id;
+                    error = "시작 노드는 배타 세트에 속할 수 없습니다: " + node.Id;
                     return false;
                 }
                 if (node.InitialLevel != 0)

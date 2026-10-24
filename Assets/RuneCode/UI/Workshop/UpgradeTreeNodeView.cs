@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 namespace RuneCode
 {
-    public sealed class UpgradeTreeNodeView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    public sealed class UpgradeTreeNodeView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
     {
         [Header("정사각형 노드")]
         [SerializeField] private Image _background;
@@ -33,6 +33,8 @@ namespace RuneCode
         private Action _purchaseAction;
         private Action<bool> _hoverAction;
         private string _nodeId;
+        private Action _refundAction;
+        private bool _canRefund;
 
         public string NodeId => _nodeId;
 
@@ -57,9 +59,22 @@ namespace RuneCode
             _hoverAction = action;
         }
 
+        /// <summary>구매한 노드의 우클릭 반환 요청을 상위 트리 동작에 연결한다.</summary>
+        public void SetRefundAction(Action action)
+        {
+            _refundAction = action;
+        }
+
+        /// <summary>구매한 노드를 우클릭하면 반환을 요청한다. 왼쪽 클릭 구매는 기존 Button이 처리한다.</summary>
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (eventData.button == PointerEventData.InputButton.Right && _canRefund) _refundAction?.Invoke();
+        }
+
         /// <summary>아이콘·구매 상태와 레벨 채움·레벨/MAX 문구를 반영하고 개방·일부 강화 상태에 다음 구매 비용 배지를 표시한다.</summary>
         public void SetContent(UpgradeEffectType effectType, string runeCategory, Sprite sprite, int level, int maxLevel, int nextCost, bool isAvailable, bool isComplete, bool canPurchase, string runeId = null)
         {
+            _canRefund = level > 0;
             _visual.Show(!isAvailable ? 0 : isComplete ? 3 : level > 0 ? 2 : 1);
             _levelFill.gameObject.SetActive(isAvailable && level > 0);
             _levelFill.SetFill(maxLevel > 0 ? (float)level / maxLevel : 0);

@@ -19,6 +19,9 @@ namespace RuneCode
             _effectType = effectType;
             _runeCategory = runeCategory;
             _runeId = runeId;
+            if (effectType == UpgradeEffectType.FireDamage || effectType == UpgradeEffectType.BurnSpeed || effectType == UpgradeEffectType.BurnSpread || effectType == UpgradeEffectType.FireTrigger) _runeId = "element.fire";
+            else if (effectType == UpgradeEffectType.IceDamage || effectType == UpgradeEffectType.ChillEffect || effectType == UpgradeEffectType.FreezeBurst || effectType == UpgradeEffectType.IceTrigger) _runeId = "element.ice";
+            else if (effectType == UpgradeEffectType.ArcDamage || effectType == UpgradeEffectType.ArcTargets || effectType == UpgradeEffectType.LightningStrike || effectType == UpgradeEffectType.ArcTrigger) _runeId = "element.lightning";
             SetVerticesDirty();
         }
 
@@ -54,8 +57,30 @@ namespace RuneCode
                         Path(mesh, center, scale, tint, x,-8, x,-13);
                     break;
                 case UpgradeEffectType.CastSpeed:
+                case UpgradeEffectType.CooldownReduction:
                     DrawChip(mesh, center, scale, tint);
                     Path(mesh, center, scale, tint, 2,6, -3,0, 3,0, -2,-6);
+                    break;
+                case UpgradeEffectType.FireDamage:
+                case UpgradeEffectType.IceDamage:
+                case UpgradeEffectType.ArcDamage:
+                case UpgradeEffectType.BurnSpeed:
+                case UpgradeEffectType.ChillEffect:
+                case UpgradeEffectType.ArcTargets:
+                case UpgradeEffectType.BurnSpread:
+                case UpgradeEffectType.FreezeBurst:
+                case UpgradeEffectType.LightningStrike:
+                case UpgradeEffectType.FireTrigger:
+                case UpgradeEffectType.IceTrigger:
+                case UpgradeEffectType.ArcTrigger:
+                    DrawRune(mesh, center, scale, tint);
+                    break;
+                case UpgradeEffectType.EventCapacity:
+                    Ring(mesh, center, scale, tint, -10, 0, 4);
+                    Ring(mesh, center, scale, tint, 10, 9, 4);
+                    Ring(mesh, center, scale, tint, 10, -9, 4);
+                    Path(mesh, center, scale, tint, -6,0, 0,0, 6,9);
+                    Path(mesh, center, scale, tint, 0,0, 6,-9);
                     break;
                 case UpgradeEffectType.Damage:
                     // GPU 보드, 냉각 팬, 슬롯 접점.

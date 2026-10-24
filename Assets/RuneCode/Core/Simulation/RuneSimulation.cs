@@ -8,6 +8,7 @@ namespace RuneCode
     public sealed class RuneSimulation
     {
         public const int TICK_RATE = CompiledSpell.SIMULATION_TICK_RATE;
+        public const int MASTERY_EFFECT_TICKS = SimulationFeedback.MASTERY_EFFECT_TICKS;
         public const int ARC_LINK_TICKS = 12;
         internal const double STEP_SECONDS = 1.0 / TICK_RATE;
         internal const double DEGREES_TO_RADIANS = Math.PI / 180;
@@ -90,6 +91,7 @@ namespace RuneCode
 
         /// <summary>최근 ARC_LINK_TICKS 동안 발생한 전격 연쇄 구간 목록이다. 표시 전용이다.</summary>
         public IReadOnlyList<ArcLink> ArcLinks => _feedback.ArcLinks;
+        public IReadOnlyList<MasteryEffect> MasteryEffects => _feedback.MasteryEffects;
         public IReadOnlyList<NodeExecutionEvent> NodeEvents => _feedback.NodeEvents;
         public IReadOnlyDictionary<string, int> KillCounts => _stats.KillCounts;
         public AdaptationNet Adaptation => _world.Adaptation;
@@ -189,6 +191,18 @@ namespace RuneCode
         /// <summary>해금한 속성 태그를 노이즈의 무작위 후보로 설정하고 기본 화염 후보를 보존한다.</summary>
         public void SetUnlockedElements(IReadOnlyList<string> elements) => _executor.SetUnlockedElements(elements);
 
+        /// <summary>속성 피해 증가율·화상 가속률·냉기 감속 증가율과 추가 연쇄 대상 수를 현재 월드에 반영한다.</summary>
+        public void SetElementUpgrades(double fireDamage, double iceDamage, double arcDamage, double burnSpeed,
+            double chillEffect, int arcTargets)
+        {
+            _world.FireDamageBonus = fireDamage;
+            _world.IceDamageBonus = iceDamage;
+            _world.ArcDamageBonus = arcDamage;
+            _world.BurnSpeedBonus = burnSpeed;
+            _world.ChillEffectBonus = chillEffect;
+            _world.ArcTargetBonus = arcTargets;
+        }
+
         /// <summary>
         /// 라운드 대기 중에만 강화 능력치(최대 체력·전력, 재생, 피해·이동 속도, 스크랩 획득·줍기·회복, 처치 전력)를 월드·플레이어·전리품에 반영한다.
         /// 최대 체력·전력이 늘면 현재 값도 증가분만큼 오른다. 적용하면 true를 반환한다.
@@ -223,6 +237,51 @@ namespace RuneCode
 
         /// <summary>직접 시전 여부와 슬롯에 관계없이 아직 종료되지 않은 빔 채널이 있는지 반환한다.</summary>
         public bool HasAnyActiveBeam() => _beam.HasAnyActiveBeam();
+
+        /// <summary>최종 트리의 화상 중첩·전이 범위, 빙결 폭발 비율·범위와 5회 타격 번개의 기본 피해·높이를 현재 전투에 설정한다.</summary>
+        public void SetElementMasteries(bool canSpreadBurn, double burnRadius, double freezeRatio, double freezeRadius,
+            double lightningDamage, double lightningHeight)
+        {
+            _world.CanStackAndSpreadBurn = canSpreadBurn;
+            _world.BurnSpreadRadius = burnRadius;
+            _world.FreezeBurstRatio = freezeRatio;
+            _world.FreezeBurstRadius = freezeRadius;
+            _world.LightningStrikeDamage = lightningDamage;
+            _world.LightningHeight = lightningHeight;
+        }
+
+        /// <summary>세션에서 해금한 화상·빙결·전기 5회 타격 트리거를 현재 전투에 반영한다.</summary>
+        public void SetElementTriggers(bool hasFireTrigger, bool hasIceTrigger, bool hasArcTrigger)
+        {
+            _world.HasFireTrigger = hasFireTrigger;
+            _world.HasIceTrigger = hasIceTrigger;
+            _world.HasArcTrigger = hasArcTrigger;
+        }
+
+        /// <summary>속성 사건을 만든 행동의 해금된 후속 분기를 사건 위치에서 마나 없이 실행한다.</summary>
+        internal void RaiseElementTrigger(SpellAction sourceAction, SimulationEnemy enemy, string portId)
+        {
+            if (sourceAction == null) return;
+            IReadOnlyList<SpellAction> actions;
+            switch (portId)
+            {
+                case SpellGrammar.ON_BURN_PORT:
+                    if (!_world.HasFireTrigger) return;
+                    actions = sourceAction.OnBurn;
+                    break;
+                case SpellGrammar.ON_FREEZE_PORT:
+                    if (!_world.HasIceTrigger) return;
+                    actions = sourceAction.OnFreeze;
+                    break;
+                case SpellGrammar.ON_ARC_HIT_PORT:
+                    if (!_world.HasArcTrigger) return;
+                    actions = sourceAction.OnArcHit;
+                    break;
+                default: return;
+            }
+            _executor.Execute(actions, new SpellContext(enemy.Position, _world.Player.AimDirection, enemy, true, null,
+                costMultiplier: 0, caster: _world.Player, isManaPrepaid: true));
+        }
 
         /// <summary>입력 중단 시 기존 빔 홀드와 예약 클릭을 취소하며 다른 행동의 입력 규칙은 유지한다.</summary>
         public void CancelBeamInput() => _beam.CancelBeamInput();
@@ -498,8 +557,21 @@ namespace RuneCode
 
         /// <summary>적응·방패·하한을 반영한 실제 피해를 적용하고 반환한다. 상태 이상 화상 틱이 호출하며 전투 판정기에 위임한다.</summary>
         internal double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
-            double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null)
-            => _combat.ApplyDamage(enemy, damage, element, form, noise, isDot, direction, applyStatus, minimumDamage, sourceAction, damageStatus);
+            double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null, bool isFinalDamage = false)
+            => _combat.ApplyDamage(enemy, damage, element, form, noise, isDot, direction, applyStatus, minimumDamage, sourceAction, damageStatus, isFinalDamage);
+
+        /// <summary>5회 타격 번개가 발동한 적의 머리 위에서 현재 위치로 번개 선분 연출을 남긴다.</summary>
+        internal void ShowLightningStrike(SimulationEnemy enemy)
+        {
+            _feedback.AddArcLink(enemy.Position + new SimVector(0, -_world.LightningHeight), enemy.Position);
+            RecordMasteryEffect(MasteryEffectKind.LightningStrike, enemy.Position + new SimVector(0, -_world.LightningHeight), enemy.Position, enemy.Radius * 2);
+        }
+
+        /// <summary>최종 속성 효과의 시작·끝 위치와 반경을 실제 발동 틱의 표시 기록으로 전달한다.</summary>
+        internal void RecordMasteryEffect(MasteryEffectKind kind, SimVector from, SimVector to, double radius)
+        {
+            _feedback.AddMasteryEffect(kind, from, to, radius);
+        }
 
         /// <summary>적의 상태 이상이 현재 상태 판정 시각에 활성인지 반환한다. 냉기는 스택 보유 여부로 판정한다.</summary>
         public bool HasEnemyStatus(SimulationEnemy enemy, EnemyStatusType type) => _statuses.HasEnemyStatus(enemy, type);

@@ -33,14 +33,17 @@ namespace RuneCode
         private readonly GraphViewport _viewport;
         private readonly Func<SpellGraph> _graph;
         private readonly bool _isReadOnly;
+        private readonly Func<string, bool> _isElementTriggerUnlocked;
         private readonly Dictionary<string, GraphNode> _nodeLookup = new Dictionary<string, GraphNode>();
 
         /// <summary>뷰포트와 현재 그래프 조회 함수로 배치 계산기를 만든다.</summary>
-        public GraphNodeLayout(GraphViewport viewport, Func<SpellGraph> graph, bool isReadOnly = false)
+        public GraphNodeLayout(GraphViewport viewport, Func<SpellGraph> graph, bool isReadOnly = false,
+            Func<string, bool> isElementTriggerUnlocked = null)
         {
             _viewport = viewport;
             _graph = graph;
             _isReadOnly = isReadOnly;
+            _isElementTriggerUnlocked = isElementTriggerUnlocked;
         }
 
         /// <summary>현재 그래프 노드를 ID로 찾는 조회 테이블을 다시 채운다. 연결선 위치 조회 전에 호출한다.</summary>
@@ -215,7 +218,8 @@ namespace RuneCode
         /// <summary>노드에 표시할 포트인지 반환한다. 지원 중단 포트는 기존 연결이 남아 있을 때만 표시한다.</summary>
         public bool IsPortShown(GraphNode node, PortDefinition port)
         {
-            if (!port.IsDeprecated) return true;
+            if (!port.IsDeprecated && (!SpellGrammar.IsElementTriggerPort(port.Id)
+                || (_isElementTriggerUnlocked?.Invoke(port.Id) ?? true))) return true;
             foreach (GraphEdge edge in _graph().Edges)
             {
                 if (edge.FromNode == node.Id && edge.FromPort == port.Id) return true;

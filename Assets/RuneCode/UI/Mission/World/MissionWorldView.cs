@@ -37,6 +37,8 @@ namespace RuneCode
         private const int RANGE_ORDER = 65;
         private const int DEFEAT_FRAGMENT_COUNT = 24;
         private const int CLOCK_SEGMENTS = 40;
+        private const int MASTERY_RING_SEGMENTS = 24;
+        private const int MAX_MASTERY_EFFECTS = 32;
 
         private static readonly Color WallColor = new Color(0.13f, 0.20f, 0.27f);
         private static readonly Color WallEdgeColor = new Color(0.23f, 0.40f, 0.47f);
@@ -98,6 +100,7 @@ namespace RuneCode
         private float _hitStopReadyAt;
         private readonly List<SpriteRenderer> _endingFragments = new List<SpriteRenderer>();
         private readonly List<SpriteRenderer> _clockLines = new List<SpriteRenderer>();
+        private readonly List<SpriteRenderer> _masteryLines = new List<SpriteRenderer>();
         private float _endingElapsed;
         private bool _hasRenderedEnding;
 
@@ -128,12 +131,14 @@ namespace RuneCode
             RuneSimulation sim = _simulation?.Invoke();
             if (sim == null)
             {
+                HideFrom(_masteryLines, 0);
                 HideFrom(_beamFlashViews, 0);
                 HideFrom(_rangeLines, 0);
                 HideFrom(_rangePreviews, 0);
                 return;
             }
             if (_observedSimulation != sim) BeginSimulation(sim);
+            RenderMasteryEffects(sim);
             _beamFlashPresentation.Update(sim, Time.unscaledTime);
             if (_hasRenderedEnding)
             {
@@ -313,6 +318,73 @@ namespace RuneCode
             }
         }
 
+        /// <summary>최종 효과의 실제 발동 기록과 경과 시간으로 이동 불꽃·빙결 충격파·5회 타격 낙뢰를 표시한다.</summary>
+        private void RenderMasteryEffects(RuneSimulation sim)
+        {
+            int count = 0;
+            int first = Mathf.Max(0, sim.MasteryEffects.Count - MAX_MASTERY_EFFECTS);
+            for (int index = first; index < sim.MasteryEffects.Count; index++)
+            {
+                MasteryEffect effect = sim.MasteryEffects[index];
+                float elapsed = sim.Tick - effect.Tick + (sim.Completed || sim.IsWaitingForNextRound ? _endingElapsed * RuneSimulation.TICK_RATE : 0);
+                float progress = elapsed / RuneSimulation.MASTERY_EFFECT_TICKS;
+                if (progress < 0 || progress >= 1) continue;
+                Vector2 from = MissionWorldSpace.ToWorld(effect.From, sim.MapCenter) * MissionWorldSpace.PIXELS_PER_UNIT;
+                Vector2 to = MissionWorldSpace.ToWorld(effect.To, sim.MapCenter) * MissionWorldSpace.PIXELS_PER_UNIT;
+                string element = effect.Kind == MasteryEffectKind.BurnSpread ? "fire" : effect.Kind == MasteryEffectKind.FreezeBurst ? "ice" : "arc";
+                Color tint = RuneMesh.ElementColor(element);
+                tint.a = 1 - progress;
+                if (effect.Kind == MasteryEffectKind.BurnSpread)
+                {
+                    Vector2 head = Vector2.Lerp(from, to, Mathf.Clamp01(progress * 2));
+                    PlaceMasteryLine(ref count, Vector2.Lerp(from, to, Mathf.Clamp01(progress * 2 - 0.25f)), head, 8, tint);
+                    DrawMasteryRing(ref count, head, (float)effect.Radius * (0.2f + progress * 0.6f), 3, tint);
+                }
+                else
+                {
+                    float radius = (float)effect.Radius * Mathf.Sqrt(progress);
+                    DrawMasteryRing(ref count, to, radius, 5 * (1 - progress) + 1, tint);
+                    for (int ray = 0; ray < 8; ray++)
+                    {
+                        Vector2 direction = new Vector2(Mathf.Cos(ray * Mathf.PI / 4), Mathf.Sin(ray * Mathf.PI / 4));
+                        PlaceMasteryLine(ref count, to + direction * radius * 0.5f, to + direction * radius, 3, tint);
+                    }
+                    if (effect.Kind == MasteryEffectKind.LightningStrike)
+                    {
+                        Vector2 previous = from;
+                        for (int step = 1; step <= 6; step++)
+                        {
+                            Vector2 next = Vector2.Lerp(from, to, step / 6f);
+                            if (step < 6) next.x += (step % 2 == 0 ? -1 : 1) * 14 * (1 - progress);
+                            PlaceMasteryLine(ref count, previous, next, 9, tint);
+                            PlaceMasteryLine(ref count, previous, next, 3, new Color(1, 1, 1, tint.a));
+                            previous = next;
+                        }
+                    }
+                }
+            }
+            HideFrom(_masteryLines, count);
+        }
+
+        /// <summary>주어진 중심·반경·두께·색으로 최종 효과의 확장 링을 선분 목록에 그린다.</summary>
+        private void DrawMasteryRing(ref int count, Vector2 center, float radius, float width, Color tint)
+        {
+            for (int segment = 0; segment < MASTERY_RING_SEGMENTS; segment++)
+            {
+                float from = segment * Mathf.PI * 2 / MASTERY_RING_SEGMENTS;
+                float to = (segment + 1) * Mathf.PI * 2 / MASTERY_RING_SEGMENTS;
+                PlaceMasteryLine(ref count, center + new Vector2(Mathf.Cos(from), Mathf.Sin(from)) * radius,
+                    center + new Vector2(Mathf.Cos(to), Mathf.Sin(to)) * radius, width, tint);
+            }
+        }
+
+        /// <summary>기존 월드 스프라이트 자산으로 최종 효과 선분을 생성·재사용하고 픽셀 좌표·두께·색을 적용한다.</summary>
+        private void PlaceMasteryLine(ref int count, Vector2 from, Vector2 to, float width, Color tint)
+        {
+            SpriteRenderer line = GetEndingSprite(_masteryLines, count++, "MasteryEffect");
+            MissionWorldSpace.PlaceLine(line, from, to, width, tint);
+        }
+
         /// <summary>종료 연출의 index번째 스프라이트를 기존 월드 재질·정사각 자산으로 생성하거나 재사용한다.</summary>
         private SpriteRenderer GetEndingSprite(List<SpriteRenderer> views, int index, string label)
         {
@@ -381,6 +453,7 @@ namespace RuneCode
         /// <summary>새 시뮬레이션의 맵을 다시 만들고 피해 감지 기준값을 현재 값으로 맞춘다.</summary>
         private void BeginSimulation(RuneSimulation sim)
         {
+            HideFrom(_masteryLines, 0);
             _endingElapsed = 0;
             _hasRenderedEnding = false;
             HideFrom(_endingFragments, 0);

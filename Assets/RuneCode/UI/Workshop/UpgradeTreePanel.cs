@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 using TMPro;
+using UnityEngine.UI;
 
 namespace RuneCode
 {
@@ -16,6 +17,7 @@ namespace RuneCode
         private const float INITIAL_ZOOM = 0.88f;
         private const float CONTENT_MARGIN = 42;
         private const float CELL_SIZE = 150;
+        private const float MIN_STATS_FONT_SIZE = 11;
         private static readonly Vector2 GRID_ORIGIN = new Vector2(400, -50);
 
         [Header("트리 데이터")]
@@ -41,6 +43,8 @@ namespace RuneCode
         private UpgradeTreeConnectionView[] _connections = Array.Empty<UpgradeTreeConnectionView>();
         private readonly Vector3[] _tooltipCorners = new Vector3[4];
         private string _tooltipNodeId;
+        private Button _resetButton;
+        private TextMeshProUGUI _resetLabel;
 
         /// <summary>표시 중인 트리 자산이다.</summary>
         public UpgradeTreeDefinition Definition => _definition;
@@ -50,11 +54,17 @@ namespace RuneCode
 
         /// <summary>포인터가 노드에 들어오거나(true) 나갈 때(false) 노드 ID와 함께 알린다.</summary>
         public event Action<string, bool> NodeHovered;
+        public event Action ResetClicked;
+        public event Action<string> NodeRefundClicked;
 
         /// <summary>SO 배치 노드에서 노드·연결선 뷰를 생성해 데이터에 연결하고 화면과 연결선을 준비한다.</summary>
         public void Build()
         {
+            if (_resetButton == null) CreateResetButton();
             _nodeViews.Clear();
+            _statsSummary.fontSizeMax = _statsSummary.fontSize;
+            _statsSummary.fontSizeMin = MIN_STATS_FONT_SIZE;
+            _statsSummary.enableAutoSizing = true;
             _hoverPanel.gameObject.SetActive(false);
             ClearGeneratedViews();
             foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
@@ -62,6 +72,22 @@ namespace RuneCode
             CreateConnectionViews();
             ResetContent();
             foreach (UpgradeTreeConnectionView connection in _connections) connection.RefreshLayout();
+        }
+
+        /// <summary>기존 공용 버튼 프리팹과 요약 글꼴로 고정된 초기화 버튼을 만들어 클릭 이벤트에 연결한다.</summary>
+        private void CreateResetButton()
+        {
+            var factory = new UiFactory(_summary.font, null, Resources.Load<GameObject>("RuneCode/UI/Elements/InspectorButton"));
+            _resetButton = factory.Button(transform, 1060, 75, 200, 38, "스킬 초기화", () => ResetClicked?.Invoke(), size: 15);
+            _resetButton.gameObject.name = "ResetSkillTreeButton";
+            _resetLabel = _resetButton.GetComponentInChildren<TextMeshProUGUI>();
+        }
+
+        /// <summary>구매 수와 한도를 초기화 버튼에 표시하고 구매한 노드가 있을 때만 클릭을 허용한다.</summary>
+        public void SetResetState(int purchased, int limit)
+        {
+            _resetButton.interactable = purchased > 0;
+            _resetLabel.text = "스킬 " + purchased + "/" + limit + " · 초기화";
         }
 
         /// <summary>이전 Build에서 생성한 노드·연결선 뷰를 제거해 재진입에 대비한다.</summary>
@@ -172,19 +198,27 @@ namespace RuneCode
             _hoverPanel.anchoredPosition = new Vector2(x, Mathf.Max(left.y, right.y) + 8);
         }
 
-        /// <summary>콘텐츠를 좌상단 기준·초기 배율로 되돌려 루트 노드를 화면 중앙에 두고, 모든 노드가 들어가는 크기로 맞춘다.</summary>
+        /// <summary>콘텐츠를 초기 배율로 되돌리고 네 갈래의 시작 노드를 통계 영역 오른쪽 상단에 정렬하며 전체 노드 크기를 확보한다.</summary>
         private void ResetContent()
         {
             _content.anchorMin = _content.anchorMax = new Vector2(0, 1);
             _content.pivot = new Vector2(0, 1);
-            UpgradeTreeNodeDefinition root = null;
+            float rootLeft = float.MaxValue;
+            float rootRight = float.MinValue;
+            float rootTop = float.MinValue;
             foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
-                if (node != null && node.Prerequisites.Count == 0) { root = node; break; }
-            if (root != null && _nodeViews.TryGetValue(root.Id, out UpgradeTreeNodeView rootView))
             {
-                Vector2 rootCenter = GetNodeBounds(rootView).center;
-                _content.anchoredPosition = new Vector2(_viewport.rect.width * 0.5f - rootCenter.x * INITIAL_ZOOM,
-                    -_viewport.rect.height * 0.5f - rootCenter.y * INITIAL_ZOOM);
+                if (node == null || node.Prerequisites.Count > 0 || !_nodeViews.TryGetValue(node.Id, out UpgradeTreeNodeView rootView)) continue;
+                Rect bounds = GetNodeBounds(rootView);
+                rootLeft = Mathf.Min(rootLeft, bounds.xMin);
+                rootRight = Mathf.Max(rootRight, bounds.xMax);
+                rootTop = Mathf.Max(rootTop, bounds.yMax);
+            }
+            if (rootLeft <= rootRight)
+            {
+                float statsWidth = _statsSummary.rectTransform.rect.width;
+                _content.anchoredPosition = new Vector2((_viewport.rect.width + statsWidth) * 0.5f
+                    - (rootLeft + rootRight) * 0.5f * INITIAL_ZOOM, -CONTENT_MARGIN - rootTop * INITIAL_ZOOM);
             }
             else
             {
@@ -229,6 +263,7 @@ namespace RuneCode
                 return;
             }
             view.SetPurchaseAction(() => NodeClicked?.Invoke(nodeId));
+            view.SetRefundAction(() => NodeRefundClicked?.Invoke(nodeId));
             view.SetHoverAction(isHovered => NodeHovered?.Invoke(nodeId, isHovered));
             _nodeViews.Add(nodeId, view);
         }

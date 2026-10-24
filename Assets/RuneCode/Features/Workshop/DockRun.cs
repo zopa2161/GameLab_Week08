@@ -100,6 +100,7 @@ namespace RuneCode
                     ["scenario"] = Scenario,
                 });
             _session.Spells.Recompile();
+            _session.ApplyElementUpgrades(_dock);
             CompileResult result = _session.Spells.CompileResult;
             if (!result.Ok)
             {
@@ -202,6 +203,7 @@ namespace RuneCode
         /// <summary>세션 마법의 컴파일 결과를 도크 장착 마법으로 반영한다. 컴파일 실패면 장착을 비운다.</summary>
         private void ApplyLoadout()
         {
+            _session.ApplyElementUpgrades(_dock);
             CompileResult result = _session.Spells.CompileResult;
             _dock.SetLoadout(new[] { result.Ok ? result.Spell : null });
         }

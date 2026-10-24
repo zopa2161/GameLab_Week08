@@ -3,7 +3,7 @@ using System.Text;
 
 namespace RuneCode
 {
-    public enum EnemyStatusType { Burn, Chill, Freeze, Emp }
+    public enum EnemyStatusType { Burn, Chill, Freeze, Emp, ArcHitCounter }
 
     public sealed class EnemyStatusEffect
     {
@@ -21,6 +21,8 @@ namespace RuneCode
         private int _stacks;
 
         private double _immuneUntil;
+        private bool _hasTriggered;
+        public bool HasTriggered { get => _hasTriggered; internal set => _hasTriggered = value; }
         public int EnemyId => _enemyId;
         public EnemyStatusType Type => _type;
         public double Until { get => _until; internal set => _until = value; }
@@ -36,6 +38,6 @@ namespace RuneCode
 
         /// <summary>대상 ID, 종류, 만료 시각, 틱 피해와 종류별 진행 값을 결정성 해시 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
-        { state.Append(FormattableString.Invariant($"|{_enemyId}|{_type}|{_until:R}|{_nextTickTime:R}|{_tickDamage:R}|{_sourceForm}|{_isNoise}|{_stacks}|{_immuneUntil:R}")); }
+        { state.Append(FormattableString.Invariant($"|{_enemyId}|{_type}|{_until:R}|{_nextTickTime:R}|{_tickDamage:R}|{_sourceForm}|{_isNoise}|{_stacks}|{_immuneUntil:R}|{_hasTriggered}")); }
     }
 }

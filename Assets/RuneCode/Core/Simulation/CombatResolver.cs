@@ -87,7 +87,7 @@ namespace RuneCode
                     int distanceOrder = (a.Position - enemy.Position).LengthSquared.CompareTo((b.Position - enemy.Position).LengthSquared);
                     return distanceOrder != 0 ? distanceOrder : a.Id.CompareTo(b.Id);
                 });
-                for (int i = 0; i < Math.Min(arc.ArcTargets, chain.Count); i++)
+                for (int i = 0; i < Math.Min(arc.ArcTargets + _world.ArcTargetBonus, chain.Count); i++)
                 {
                     actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action, damageStatus: "arc_chain");
                     _feedback.AddArcLink(enemy.Position, chain[i].Position);
@@ -140,11 +140,14 @@ namespace RuneCode
 
         /// <summary>피해에 적응·이지스 방패와 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
         internal double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
-            double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null)
+            double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null, bool isFinalDamage = false)
         {
             if (!enemy.IsAlive || enemy.IsPatching) return 0;
-            double actual = damage * _world.DamageMultiplier;
-            if (enemy.Hydra == null) actual *= _world.Adaptation.GetMultiplier(element, form);
+            bool wasFrozen = _statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze);
+            double elementBonus = element == "fire" ? _world.FireDamageBonus
+                : element == "ice" ? _world.IceDamageBonus : element == "arc" ? _world.ArcDamageBonus : 0;
+            double actual = isFinalDamage ? damage : damage * _world.DamageMultiplier * (1 + elementBonus);
+            if (!isFinalDamage && enemy.Hydra == null) actual *= _world.Adaptation.GetMultiplier(element, form);
             if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_AEGIS_SHIELD) && !_statuses.HasEnemyStatus(enemy, EnemyStatusType.Emp) && form == "bolt" && !isDot && SimVector.Dot(enemy.Facing, direction * -1) >= Math.Cos(_world.Balance.Combat.AegisAngle * 0.5 * RuneSimulation.DEGREES_TO_RADIANS)) actual *= 1 - _world.Balance.Combat.AegisReduction;
             bool relayAlive = false;
             foreach (SimulationEnemy relay in _world.Enemies)
@@ -167,7 +170,23 @@ namespace RuneCode
                 if (enemy.Hydra == null) _world.Adaptation.Learn(element, form, _runtime.Time, actual, isDot, noise, relayAlive);
             }
             if (enemy.Boss != null && enemy.Boss.IsGovernorPattern && enemy.IsAlive) _enemy.CheckBossPatch(enemy, enemy.Boss);
+            if (actual > 0 && damageStatus != "mastery_lightning" && damageStatus != "freeze_burst")
+            {
+                if (element == "arc") _statuses.RecordArcHit(enemy, sourceAction);
+                if (applyStatus && wasFrozen && _statuses.CanTriggerFreezeBurst(enemy)) ApplyFreezeBurst(enemy, sourceAction);
+            }
             return actual;
+        }
+
+        /// <summary>빙결 적 최대 체력의 설정 비율을 반경 안 적에게 냉기 범위 피해로 적용하고 폭발 표시를 남긴다. 파생 피해는 효과를 재발동하지 않는다.</summary>
+        private void ApplyFreezeBurst(SimulationEnemy source, SpellAction sourceAction)
+        {
+            _feedback.AddMasteryEffect(MasteryEffectKind.FreezeBurst, source.Position, source.Position, _world.FreezeBurstRadius);
+            double damage = source.MaxHp * _world.FreezeBurstRatio;
+            foreach (SimulationEnemy target in _world.Enemies)
+                if (target.IsAlive && SimVector.Distance(source.Position, target.Position) <= _world.FreezeBurstRadius)
+                    ApplyDamage(target, damage, "ice", "burst", false, false, SimVector.Zero, false,
+                        sourceAction: sourceAction, damageStatus: "freeze_burst");
         }
 
         /// <summary>소멸 이벤트를 개체 위치와 대상 없이 실행한다. OnExpire 다음 첫 이벤트 순서다.</summary>

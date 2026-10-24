@@ -1022,6 +1022,29 @@ namespace RuneCode
         internal DamageNumber(SimVector position, double amount, string element, int tick) { _position = position; _amount = amount; _element = element; _tick = tick; }
     }
 
+    public enum MasteryEffectKind { BurnSpread, FreezeBurst, LightningStrike }
+
+    /// <summary>최종 속성 효과의 발동 종류·이동 경로·범위·발동 틱을 두 경기장 표시 방식에 전달한다.</summary>
+    public readonly struct MasteryEffect
+    {
+        private readonly MasteryEffectKind _kind;
+        private readonly SimVector _from;
+        private readonly SimVector _to;
+        private readonly double _radius;
+        private readonly int _tick;
+        public MasteryEffectKind Kind => _kind;
+        public SimVector From => _from;
+        public SimVector To => _to;
+        public double Radius => _radius;
+        public int Tick => _tick;
+
+        /// <summary>종류와 시작·끝 위치, 범위 반경, 발동 틱을 표시 전용 기록으로 보관한다.</summary>
+        internal MasteryEffect(MasteryEffectKind kind, SimVector from, SimVector to, double radius, int tick)
+        {
+            _kind = kind; _from = from; _to = to; _radius = radius; _tick = tick;
+        }
+    }
+
     public readonly struct ArcLink
     {
         private readonly SimVector _from;

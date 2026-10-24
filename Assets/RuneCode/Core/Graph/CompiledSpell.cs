@@ -507,6 +507,9 @@ namespace RuneCode
         private readonly SpellSpawnOrigin _spawnOrigin;
 
         private IReadOnlyList<SpellAction> _onHit = new List<SpellAction>();
+        private IReadOnlyList<SpellAction> _onBurn = new List<SpellAction>();
+        private IReadOnlyList<SpellAction> _onFreeze = new List<SpellAction>();
+        private IReadOnlyList<SpellAction> _onArcHit = new List<SpellAction>();
         private IReadOnlyList<SpellAction> _onExpire = new List<SpellAction>();
         private IReadOnlyList<SpellAction> _onFirstHitOrExpire = new List<SpellAction>();
         private IReadOnlyList<SpellAction> _then = new List<SpellAction>();
@@ -574,6 +577,9 @@ namespace RuneCode
 
         /// <summary>개체 생성 위치 유형이다. 행동 규칙의 값을 장착된 동작 모드가 바꾼 결과다(공전이면 궤도). 행동 규칙이 없으면 지팡이 앞이다.</summary>
         public SpellSpawnOrigin SpawnOrigin => _spawnOrigin;
+        public IReadOnlyList<SpellAction> OnBurn => _onBurn;
+        public IReadOnlyList<SpellAction> OnFreeze => _onFreeze;
+        public IReadOnlyList<SpellAction> OnArcHit => _onArcHit;
         public IReadOnlyList<SpellAction> OnHit => _onHit;
         public IReadOnlyList<SpellAction> OnExpire => _onExpire;
         public IReadOnlyList<SpellAction> OnFirstHitOrExpire => _onFirstHitOrExpire;
@@ -591,6 +597,9 @@ namespace RuneCode
             get
             {
                 yield return _onHit;
+                yield return _onBurn;
+                yield return _onFreeze;
+                yield return _onArcHit;
                 yield return _onExpire;
                 yield return _onFirstHitOrExpire;
                 yield return _then;
@@ -856,6 +865,9 @@ namespace RuneCode
             switch (port)
             {
                 case SpellGrammar.ON_HIT_PORT: _onHit = actions; break;
+                case SpellGrammar.ON_BURN_PORT: _onBurn = actions; break;
+                case SpellGrammar.ON_FREEZE_PORT: _onFreeze = actions; break;
+                case SpellGrammar.ON_ARC_HIT_PORT: _onArcHit = actions; break;
                 case SpellGrammar.ON_EXPIRE_PORT: _onExpire = actions; break;
                 case SpellGrammar.ON_FIRST_HIT_OR_EXPIRE_PORT: _onFirstHitOrExpire = actions; break;
                 case "then": _then = actions; break;
@@ -1115,6 +1127,8 @@ namespace RuneCode
             {
                 if (action.NodeId == nodeId) return isEvent;
                 if (IsEventAction(action.OnHit, nodeId, true) || IsEventAction(action.OnExpire, nodeId, true)
+                    || IsEventAction(action.OnBurn, nodeId, true) || IsEventAction(action.OnFreeze, nodeId, true)
+                    || IsEventAction(action.OnArcHit, nodeId, true)
                     || IsEventAction(action.OnFirstHitOrExpire, nodeId, true)) return true;
                 if (IsEventAction(action.Then, nodeId, isEvent) || IsEventAction(action.Else, nodeId, isEvent)
                     || IsEventAction(action.Body, nodeId, isEvent) || IsEventAction(action.OnComplete, nodeId, isEvent)

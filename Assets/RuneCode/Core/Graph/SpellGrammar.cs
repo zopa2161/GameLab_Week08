@@ -30,6 +30,9 @@ namespace RuneCode
         public const string CHAIN_IN = "in";
         public const string CHAIN_OUT = "next";
         public const string ON_HIT_PORT = "onHit";
+        public const string ON_BURN_PORT = "onBurn";
+        public const string ON_FREEZE_PORT = "onFreeze";
+        public const string ON_ARC_HIT_PORT = "onArcHit";
         public const string ON_EXPIRE_PORT = "onExpire";
         public const string ON_FIRST_HIT_OR_EXPIRE_PORT = "onFirstHitOrExpire";
         public const string ON_COMPLETE_PORT = "onComplete";
@@ -195,8 +198,16 @@ namespace RuneCode
         /// </summary>
         public static bool IsEventPort(string portId)
         {
-            return portId == ON_HIT_PORT || portId == ON_EXPIRE_PORT || portId == ON_FIRST_HIT_OR_EXPIRE_PORT || portId == LEGACY_COMPLETE_PORT;
+            return portId == ON_HIT_PORT || portId == ON_EXPIRE_PORT || portId == ON_FIRST_HIT_OR_EXPIRE_PORT || portId == LEGACY_COMPLETE_PORT
+                || IsElementTriggerPort(portId);
         }
+
+        /// <summary>포트 ID가 트리에서 해금하는 무료 속성 이벤트인지 반환한다.</summary>
+        public static bool IsElementTriggerPort(string portId)
+        {
+            return portId == ON_BURN_PORT || portId == ON_FREEZE_PORT || portId == ON_ARC_HIT_PORT;
+        }
+
 
         /// <summary>룬 ID가 지정 접두사로 시작하면 접두사 뒤 값을, 아니면 null을 반환한다.</summary>
         private static string ValueOf(string runeId, string prefix)

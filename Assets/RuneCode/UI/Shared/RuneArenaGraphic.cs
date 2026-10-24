@@ -158,6 +158,46 @@ namespace RuneCode
             foreach (ArcLink link in sim.ArcLinks) DrawArcLink(mesh, link, sim.Tick - link.Tick);
             DrawPlayer(mesh, sim);
             DrawRangePreview(mesh, sim);
+            DrawMasteryEffects(mesh, sim);
+        }
+
+        /// <summary>도크에서도 실제 발동 기록과 경과 시간에 맞춰 전이 불꽃·빙결 범위·5회 타격 낙뢰를 표시한다.</summary>
+        private void DrawMasteryEffects(UnityEngine.UI.VertexHelper mesh, RuneSimulation sim)
+        {
+            foreach (MasteryEffect effect in sim.MasteryEffects)
+            {
+                float progress = (float)(sim.Tick - effect.Tick) / RuneSimulation.MASTERY_EFFECT_TICKS;
+                if (progress < 0 || progress >= 1) continue;
+                Vector2 from = Point(effect.From);
+                Vector2 to = Point(effect.To);
+                Color tint = RuneMesh.ElementColor(effect.Kind == MasteryEffectKind.BurnSpread ? "fire"
+                    : effect.Kind == MasteryEffectKind.FreezeBurst ? "ice" : "arc");
+                tint.a = 1 - progress;
+                if (effect.Kind == MasteryEffectKind.BurnSpread)
+                {
+                    Vector2 head = Vector2.Lerp(from, to, Mathf.Clamp01(progress * 2));
+                    RuneMesh.Line(mesh, Vector2.Lerp(from, to, Mathf.Clamp01(progress * 2 - 0.25f)), head, 8 * _scale, tint);
+                    RuneMesh.Ring(mesh, head, (float)effect.Radius * (0.2f + progress * 0.6f) * _scale, 3 * _scale, tint);
+                    continue;
+                }
+                float radius = (float)effect.Radius * Mathf.Sqrt(progress) * _scale;
+                RuneMesh.Ring(mesh, to, radius, (5 * (1 - progress) + 1) * _scale, tint);
+                for (int ray = 0; ray < 8; ray++)
+                {
+                    Vector2 direction = new Vector2(Mathf.Cos(ray * Mathf.PI / 4), Mathf.Sin(ray * Mathf.PI / 4));
+                    RuneMesh.Line(mesh, to + direction * radius * 0.5f, to + direction * radius, 3 * _scale, tint);
+                }
+                if (effect.Kind != MasteryEffectKind.LightningStrike) continue;
+                Vector2 previous = from;
+                for (int step = 1; step <= 6; step++)
+                {
+                    Vector2 next = Vector2.Lerp(from, to, step / 6f);
+                    if (step < 6) next.x += (step % 2 == 0 ? -1 : 1) * 14 * (1 - progress) * _scale;
+                    RuneMesh.Line(mesh, previous, next, 9 * _scale, tint);
+                    RuneMesh.Line(mesh, previous, next, 3 * _scale, new Color(1, 1, 1, tint.a));
+                    previous = next;
+                }
+            }
         }
 
         /// <summary>시작 노드 직결 범위의 최대 사거리를 플레이어 중심 흰 점선으로, 생성 위치와 모양은 반투명 채움으로 표시한다.</summary>

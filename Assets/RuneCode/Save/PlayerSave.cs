@@ -9,7 +9,9 @@ namespace RuneCode
     [Serializable]
     public sealed class PlayerSave : ISerializationCallbackReceiver
     {
+        private const int TEMPORARY_START_ELEMENT_STOCK = 1;
         private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
+        private static readonly string[] TEMPORARY_START_ELEMENT_IDS = { "element.fire", "element.ice", "element.lightning" };
         // 기본 마법 메소드 템플릿 ID다. 매직 미사일은 시작 마법 에너지 볼트와 같아 통합했으므로 지금은 비어 있다.
         private static readonly string[] DEFAULT_METHOD_IDS = Array.Empty<string>();
 
@@ -112,7 +114,7 @@ namespace RuneCode
 
         /// <summary>
         /// 소지량 목록(모디·속성·행동)의 null과 잘못된 기록을 정리하고, 행동 소지량이 비어 있으면 behavior.launch 시작 소지량을 넣는다.
-        /// 새 세이브와 이전 세이브 로드에서 호출하며 여러 번 호출해도 결과가 같다. 속성 시작 소지량은 없다.
+        /// 새 세이브와 이전 세이브 로드에서 호출하며 여러 번 호출해도 결과가 같다. 임시로 화염·냉기·전기 속성을 최소 1개씩 지급한다.
         /// </summary>
         private void EnsureStock()
         {
@@ -136,6 +138,11 @@ namespace RuneCode
                 || !GameData.Runes.TryGetRuneElement(stock.RuneId, out ElementDefinition element)
                 || element.Category != SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL || stock.HasGrade);
             MergeDuplicateStock(_elementStock);
+            foreach (string runeId in TEMPORARY_START_ELEMENT_IDS)
+            {
+                int missing = TEMPORARY_START_ELEMENT_STOCK - GetStock(runeId, "");
+                if (missing > 0) AddStock(runeId, "", missing);
+            }
 
             if (_behaviorStock == null) _behaviorStock = new List<ModifierStock>();
             _behaviorStock.RemoveAll(stock => stock == null || !GameData.Runes.TryGet(stock.RuneId, out RuneDefinition rune)

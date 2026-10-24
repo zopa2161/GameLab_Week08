@@ -164,6 +164,8 @@ namespace RuneCode
             // RAM 구간만 노란색 굵게 강조한다.
             string text = RAM_HIGHLIGHT_OPEN + GameData.L("ui.ram") + " " + _host.EquippedRam + " / " + _host.Capacity
                 + RAM_HIGHLIGHT_CLOSE;
+            int eventUsed = GraphCompiler.CountEventConnections(_editor.Graph, _editor.Library);
+            text += "  ·  온 트리거 " + Math.Max(0, _editor.EventCapacity - eventUsed) + " / " + _editor.EventCapacity;
             if (spell == null)
             {
                 _view.SetMetrics(text + "  ·  " + GameData.L("ui.warning"));

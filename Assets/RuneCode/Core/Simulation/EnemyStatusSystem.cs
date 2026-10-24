@@ -6,7 +6,8 @@ namespace RuneCode
     /// <summary>적 상태 이상(화염·냉기·빙결·EMP)의 부여, 틱 진행과 만료를 관리한다.</summary>
     internal sealed class EnemyStatusSystem
     {
-        private const int STATUS_TYPE_COUNT = 4;
+        private const int STATUS_TYPE_COUNT = 5;
+        private const int ARC_HITS_PER_TRIGGER = 5;
         private readonly SimulationWorld _world;
         private readonly SimulationStats _stats;
         private readonly RuneSimulation _simulation;
@@ -46,7 +47,8 @@ namespace RuneCode
                     double actual = _simulation.ApplyDamage(enemy, burn.TickDamage, "fire", burn.SourceForm, burn.IsNoise, true, SimVector.Zero, false, sourceAction: burn.DamageSourceAction, damageStatus: "burn");
                     _stats.StatusDamage += actual;
                     if (actual > 0) _stats.BurnTickDamageEventCount++;
-                    burn.NextTickTime += _world.Balance.Combat.BurnInterval;
+                    if (actual > 0) _simulation.RaiseElementTrigger(burn.DamageSourceAction, enemy, SpellGrammar.ON_BURN_PORT);
+                    burn.NextTickTime += _world.Balance.Combat.BurnInterval / (1 + _world.BurnSpeedBonus);
                 }
             }
             for (int i = _enemyStatuses.Count - 1; i >= 0; i--)
@@ -72,22 +74,24 @@ namespace RuneCode
         {
             if (enemy.Hydra != null && element != "fire") return;
             if (element == "fire") ApplyBurn(enemy, form, noise, sourceDamage, sourceAction);
-            else if (element == "ice") ApplyChill(enemy);
+            else if (element == "ice") ApplyChill(enemy, sourceAction);
             else if (element == "arc") GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = _world.Time + _world.Balance.Combat.EmpSeconds;
         }
 
-        /// <summary>공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 계산하고, 새 화상이거나 기존보다 클 때만 피해·출처를 갱신한다. 재점화 때마다 지속시간은 갱신하며 진행 중인 화상의 다음 틱 시각은 유지한다.</summary>
-        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage, SpellAction sourceAction)
+        /// <summary>공격 피해 비율로 화상을 부여한다. 최종 효과가 있으면 틱 피해를 중첩하고 주변에 이번 화상을 복사하며, 복사본은 재전이하지 않는다.</summary>
+        private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage, SpellAction sourceAction, bool canSpread = true)
         {
             EnemyStatusEffect burn = FindStatus(enemy.Id, EnemyStatusType.Burn);
             bool isNewBurn = burn == null || _world.Time >= burn.Until;
             if (isNewBurn)
             {
                 burn ??= AddStatus(enemy.Id, EnemyStatusType.Burn);
-                burn.NextTickTime = _world.Time + _world.Balance.Combat.BurnInterval;
+                burn.NextTickTime = _world.Time + _world.Balance.Combat.BurnInterval / (1 + _world.BurnSpeedBonus);
             }
             burn.Until = _world.Time + _world.Balance.Combat.BurnSeconds;
             double tickDamage = sourceDamage * _world.Balance.Combat.BurnDamageRatio;
+            if (_world.CanStackAndSpreadBurn && !isNewBurn) tickDamage += burn.TickDamage;
+            burn.Stacks = isNewBurn ? 1 : _world.CanStackAndSpreadBurn ? burn.Stacks + 1 : 1;
             if (isNewBurn || tickDamage > burn.TickDamage)
             {
                 burn.TickDamage = tickDamage;
@@ -95,13 +99,20 @@ namespace RuneCode
                 burn.SourceForm = form;
                 burn.IsNoise = noise;
             }
+            if (!_world.CanStackAndSpreadBurn || !canSpread) return;
+            foreach (SimulationEnemy other in _world.Enemies)
+                if (other != enemy && other.IsAlive && SimVector.Distance(enemy.Position, other.Position) <= _world.BurnSpreadRadius)
+                {
+                    ApplyBurn(other, form, noise, sourceDamage, sourceAction, canSpread: false);
+                    _simulation.RecordMasteryEffect(MasteryEffectKind.BurnSpread, enemy.Position, other.Position, other.Radius * 2);
+                }
         }
 
         /// <summary>
         /// 냉기 스택과 지속시간을 갱신하고, 최대 스택에서 빙결 면역이 아니면 빙결을 부여하며 냉기를 제거한다.
-        /// 빙결 면역 중에는 냉기 스택이 면역 중 상한(백서 기준 2)을 넘지 않는다.
+        /// 빙결 면역 중에는 냉기 스택이 면역 중 상한을 넘지 않으며 새 빙결은 sourceAction의 해금된 무료 후속을 실행한다.
         /// </summary>
-        private void ApplyChill(SimulationEnemy enemy)
+        private void ApplyChill(SimulationEnemy enemy, SpellAction sourceAction)
         {
             CombatBalance combat = _world.Balance.Combat;
             EnemyStatusEffect freeze = FindStatus(enemy.Id, EnemyStatusType.Freeze);
@@ -112,8 +123,10 @@ namespace RuneCode
             if (isImmune || chill.Stacks < combat.ChillMaxStacks) return;
             freeze ??= AddStatus(enemy.Id, EnemyStatusType.Freeze);
             freeze.Until = _world.Time + combat.FreezeSeconds; freeze.ImmuneUntil = freeze.Until + combat.FreezeImmunity;
+            freeze.HasTriggered = false;
             _stats.FreezeStartEventCount++;
             RemoveStatusIndex(chill); _enemyStatuses.Remove(chill);
+            _simulation.RaiseElementTrigger(sourceAction, enemy, SpellGrammar.ON_FREEZE_PORT);
         }
 
         /// <summary>적의 상태 이상이 현재 상태 판정 시각에 활성인지 반환한다. 냉기는 스택 보유 여부로 판정한다.</summary>
@@ -126,6 +139,31 @@ namespace RuneCode
 
         /// <summary>적의 현재 냉기 스택을 반환하며 냉기가 없으면 0을 반환한다.</summary>
         internal int GetChillStacks(SimulationEnemy enemy) => FindStatus(enemy.Id, EnemyStatusType.Chill)?.Stacks ?? 0;
+
+        /// <summary>최종 노드를 해금했고 타격 직전 빙결 상태가 아직 유지 중이면 빙결 폭발 발동 가능 여부를 반환한다.</summary>
+        internal bool CanTriggerFreezeBurst(SimulationEnemy enemy)
+        {
+            EnemyStatusEffect freeze = FindStatus(enemy.Id, EnemyStatusType.Freeze);
+            return _world.FreezeBurstRatio > 0 && freeze != null && _world.Time < freeze.Until;
+        }
+
+        /// <summary>적별 전기 피해 횟수를 누적하고 매 5회째 무료 트리거와 해금된 기본 피해 번개를 발동한다. 번개 자체는 횟수에 포함하지 않는다.</summary>
+        internal void RecordArcHit(SimulationEnemy enemy, SpellAction sourceAction)
+        {
+            if (!_world.HasArcTrigger && _world.LightningStrikeDamage <= 0) return;
+            EnemyStatusEffect counter = GetOrAddStatus(enemy.Id, EnemyStatusType.ArcHitCounter);
+            counter.Until = double.MaxValue;
+            counter.Stacks++;
+            if (counter.Stacks < ARC_HITS_PER_TRIGGER) return;
+            counter.Stacks = 0;
+            _simulation.RaiseElementTrigger(sourceAction, enemy, SpellGrammar.ON_ARC_HIT_PORT);
+            if (_world.LightningStrikeDamage <= 0) return;
+            _simulation.ShowLightningStrike(enemy);
+            double actual = _simulation.ApplyDamage(enemy, _world.LightningStrikeDamage, "arc", "lightning", false, false,
+                SimVector.Zero, false, sourceAction: sourceAction, damageStatus: "mastery_lightning");
+            _stats.StatusDamage += actual;
+            if (actual > 0) _stats.ArcDamageEventCount++;
+        }
 
         /// <summary>적 ID와 종류로 상태 이상을 찾고 없으면 null을 반환한다.</summary>
         private EnemyStatusEffect FindStatus(int enemyId, EnemyStatusType type)

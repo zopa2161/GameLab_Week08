@@ -1189,6 +1189,27 @@
           "_kind": "exec",
           "_direction": "out",
           "_max": 0
+        },
+        {
+          "_order": 10,
+          "_portId": "onBurn",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 11,
+          "_portId": "onFreeze",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 12,
+          "_portId": "onArcHit",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
         }
       ],
       "_params": [
@@ -1329,6 +1350,27 @@
         {
           "_order": 1,
           "_portId": "onHit",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 10,
+          "_portId": "onBurn",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 11,
+          "_portId": "onFreeze",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 12,
+          "_portId": "onArcHit",
           "_kind": "exec",
           "_direction": "out",
           "_max": 0
@@ -1475,6 +1517,27 @@
           "_kind": "exec",
           "_direction": "out",
           "_max": 0
+        },
+        {
+          "_order": 10,
+          "_portId": "onBurn",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 11,
+          "_portId": "onFreeze",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 12,
+          "_portId": "onArcHit",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
         }
       ],
       "_params": [
@@ -1618,6 +1681,27 @@
           "_kind": "exec",
           "_direction": "out",
           "_max": 0
+        },
+        {
+          "_order": 10,
+          "_portId": "onBurn",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 11,
+          "_portId": "onFreeze",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 12,
+          "_portId": "onArcHit",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
         }
       ],
       "_params": [
@@ -1727,6 +1811,27 @@
         {
           "_order": 1,
           "_portId": "onHit",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 10,
+          "_portId": "onBurn",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 11,
+          "_portId": "onFreeze",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        },
+        {
+          "_order": 12,
+          "_portId": "onArcHit",
           "_kind": "exec",
           "_direction": "out",
           "_max": 0

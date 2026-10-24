@@ -61,6 +61,7 @@ namespace RuneCode
         {
             if (port == null) return string.Empty;
             string label = port.Id == SpellGrammar.BODY_PORT ? "shape/method" : port.Id;
+            if (SpellGrammar.IsElementTriggerPort(port.Id)) label = GameData.L("port." + port.Id);
             return port.IsDeprecated ? "<s>" + label + "</s>" : label;
         }
 

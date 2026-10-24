@@ -25,6 +25,7 @@ namespace RuneCode
         private SpellGraph _editingGraph;
         private SpellGraph _previousGraph;
         private CompileResult _compileResult;
+        private IReadOnlyList<string> _unlockedElementTriggers;
         private int _nextId;
         private bool _isEditable;
         private bool _graphDirty;
@@ -37,6 +38,14 @@ namespace RuneCode
         public IReadOnlyList<SpellGraph> Library => _storage.Library;
         public string ActiveSpellId => _storage.ActiveSpellId;
         public bool IsEditable => _isEditable;
+        public int EventCapacity => _policy.GetCompileContext().EventCapacity;
+
+        /// <summary>현재 컴파일 문맥의 해금 포트 목록으로 속성 트리거 사용 가능 여부를 반환한다.</summary>
+        public bool IsElementTriggerUnlocked(string portId)
+        {
+            IReadOnlyList<string> ports = _unlockedElementTriggers;
+            return !SpellGrammar.IsElementTriggerPort(portId) || ports == null || ports.Contains(portId);
+        }
 
         /// <summary>컴파일 결과가 갱신될 때마다 호출된다.</summary>
         public event Action Compiled;
@@ -96,9 +105,10 @@ namespace RuneCode
         public void Recompile()
         {
             var context = _policy.GetCompileContext();
+            _unlockedElementTriggers = context.UnlockedElementTriggers;
             _compileResult = GraphCompiler.Compile(_editingGraph, GameData.Runes, GameData.Balance.Grammar,
                 context.UnlockedRunes, context.Capacity, context.MaxEnergy, context.Library, context.ModifierStock,
-                context.MaxResourceCosts);
+                context.MaxResourceCosts, context.EventCapacity, context.CooldownMultiplier, context.UnlockedElementTriggers);
             RaiseCompiled();
         }
 
@@ -447,6 +457,7 @@ namespace RuneCode
         /// <summary>필요하면 단일 포트의 기존 연결을 교체한 후보의 RAM·문법을 검사하고 성공할 때만 저장한다.</summary>
         public bool Connect(string fromNode, string fromPort, string toNode, string toPort, bool replaceExisting = false)
         {
+            if (!IsElementTriggerUnlocked(fromPort)) { _policy.ReportStatus("editor.elementTriggerLocked"); return false; }
             if (!_isEditable)
             {
                 RecordUsabilityAction("connect_edge", "rejected", new Dictionary<string, object> { ["reason"] = "edit_locked", ["from_node"] = fromNode, ["from_port"] = fromPort, ["to_node"] = toNode, ["to_port"] = toPort });
@@ -468,6 +479,16 @@ namespace RuneCode
                 return false;
             }
             candidate.AddEdge(edge);
+            if (GraphCompiler.CountEventConnections(candidate, _storage.Library) > EventCapacity)
+            {
+                _policy.ReportStatus("editor.eventCapacityBlocked");
+                RecordUsabilityAction("connect_edge", "rejected", new Dictionary<string, object>
+                {
+                    ["reason"] = "event_capacity_blocked", ["event_capacity"] = EventCapacity,
+                    ["from_node"] = fromNode, ["from_port"] = fromPort, ["to_node"] = toNode, ["to_port"] = toPort,
+                });
+                return false;
+            }
             if (!_policy.IsWithinRam(candidate))
             {
                 _policy.ReportStatus("editor.ramBlocked");
@@ -477,7 +498,7 @@ namespace RuneCode
             var context = _policy.GetCompileContext();
             CompileResult result = GraphCompiler.Compile(candidate, GameData.Runes, GameData.Balance.Grammar,
                 context.UnlockedRunes, context.Capacity, context.MaxEnergy, context.Library, context.ModifierStock,
-                context.MaxResourceCosts);
+                context.MaxResourceCosts, context.EventCapacity, context.CooldownMultiplier, context.UnlockedElementTriggers);
             if (result.Errors.Any(issue => issue.Code == "E2" || issue.Code == "E3" || issue.Code == "E4" || issue.Code == "E5" || issue.Code == "E6"))
             {
                 _policy.ReportStatus("editor.invalidConnection");
@@ -493,12 +514,15 @@ namespace RuneCode
         /// <summary>기존 연결 교체 옵션을 반영한 후보의 포트·슬롯·수식 제한을 검사해 연결 가능 여부를 반환한다.</summary>
         public bool CanConnectPorts(string fromNode, string fromPort, string toNode, string toPort, bool replaceExisting = false)
         {
+            if (!IsElementTriggerUnlocked(fromPort)) return false;
             if (!_isEditable) return false;
             var candidate = CreateConnectionCandidate(fromNode, fromPort, toNode, toPort, replaceExisting);
             if (candidate.Edges.Count >= GameData.Balance.Limits.MaxGraphEdges) return false;
             GraphEdge edge = new GraphEdge("preview", fromNode, fromPort, toNode, toPort,
                 candidate.NextEdgeOrder(fromNode, fromPort));
-            return GraphCompiler.CanConnect(candidate, edge, GameData.Runes, out _);
+            if (!GraphCompiler.CanConnect(candidate, edge, GameData.Runes, out _)) return false;
+            candidate.AddEdge(edge);
+            return GraphCompiler.CountEventConnections(candidate, _storage.Library) <= EventCapacity;
         }
 
         /// <summary>연결 검사용 사본을 만들고 교체 요청 시 단일 연결 포트에 걸린 다른 엣지만 제거한다. 실제 그래프는 유지한다.</summary>

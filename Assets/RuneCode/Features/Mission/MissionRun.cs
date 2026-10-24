@@ -155,6 +155,7 @@ namespace RuneCode
                 progressionStage: save.ProgressionStage, progressionRound: save.ProgressionRound, progressionHp: resumeHp));
             _simulation.SetLoadout(new[] { spell });
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
+            session.ApplyElementUpgrades(_simulation);
             _coreNodeId = FindCoreNodeId(session.Spells.Graph);
             _spellBuildId = LocalTelemetry.SaveUsabilityBuild(null, session.Spells.Graph, new Dictionary<string, object>
             {
@@ -213,6 +214,7 @@ namespace RuneCode
                 _session.DamageMultiplier, _session.MoveSpeedMultiplier, _session.ScrapGainMultiplier,
                 _session.ScrapPickupRangeMultiplier, _session.ScrapHealRatio, _session.KillEnergyBonus)) return false;
             _simulation.SetUnlockedElements(_session.GetUnlockedElements());
+            _session.ApplyElementUpgrades(_simulation);
             LocalTelemetry.RecordUsabilityEvent("upgrade_stats_applied", "round_break", new Dictionary<string, object>
             {
                 ["combat_id"] = _testCombatId,

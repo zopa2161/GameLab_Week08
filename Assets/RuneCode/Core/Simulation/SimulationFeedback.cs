@@ -6,10 +6,14 @@ namespace RuneCode
     internal sealed class SimulationFeedback
     {
         private const int MAX_BEAM_FLASHES = 128;
+        private const int MAX_MASTERY_EFFECTS = 64;
+        internal const int MASTERY_EFFECT_TICKS = 36;
         private readonly SimulationWorld _world;
         private readonly List<DamageNumber> _damageNumbers = new List<DamageNumber>();
         private readonly List<HealPulse> _healPulses = new List<HealPulse>();
         private readonly List<ArcLink> _arcLinks = new List<ArcLink>();
+        private readonly List<MasteryEffect> _masteryEffects = new List<MasteryEffect>();
+        internal IReadOnlyList<MasteryEffect> MasteryEffects => _masteryEffects;
         private readonly List<SimulationBeamFlash> _beamFlashes = new List<SimulationBeamFlash>();
         private readonly List<NodeExecutionEvent> _nodeEvents = new List<NodeExecutionEvent>();
         private readonly List<SpawnWarning> _spawnWarnings = new List<SpawnWarning>();
@@ -48,6 +52,13 @@ namespace RuneCode
         internal void AddArcLink(SimVector from, SimVector to)
             => _arcLinks.Add(new ArcLink(from, to, _world.Tick));
 
+        /// <summary>최종 속성 효과의 발동 경로와 범위를 기록하고 표시 전용 버퍼의 개수 상한을 유지한다.</summary>
+        internal void AddMasteryEffect(MasteryEffectKind kind, SimVector from, SimVector to, double radius)
+        {
+            if (_masteryEffects.Count >= MAX_MASTERY_EFFECTS) _masteryEffects.RemoveAt(0);
+            _masteryEffects.Add(new MasteryEffect(kind, from, to, radius, _world.Tick));
+        }
+
         /// <summary>노드 실행 이벤트 표시를 목록 끝에 추가한다.</summary>
         internal void AddNodeEvent(string nodeId)
             => _nodeEvents.Add(new NodeExecutionEvent(nodeId, _world.Tick));
@@ -76,6 +87,7 @@ namespace RuneCode
             _damageNumbers.Clear();
             _healPulses.Clear();
             _arcLinks.Clear();
+            _masteryEffects.Clear();
             _nodeEvents.Clear();
         }
 
@@ -85,6 +97,8 @@ namespace RuneCode
         /// <summary>표시 수명이 지난 피해 숫자, 체력 회복 표시, 전격 연쇄 구간, 노드 이벤트를 제거한다.</summary>
         internal void Trim()
         {
+            for (int i = _masteryEffects.Count - 1; i >= 0; i--)
+                if (_world.Tick - _masteryEffects[i].Tick > MASTERY_EFFECT_TICKS) _masteryEffects.RemoveAt(i);
             for (int i = _damageNumbers.Count - 1; i >= 0; i--) if (_world.Tick - _damageNumbers[i].Tick > _world.Balance.Sim.DamageNumberSeconds * RuneSimulation.TICK_RATE) _damageNumbers.RemoveAt(i);
             for (int i = _healPulses.Count - 1; i >= 0; i--) if (_world.Tick - _healPulses[i].Tick > _world.Balance.Sim.DamageNumberSeconds * RuneSimulation.TICK_RATE) _healPulses.RemoveAt(i);
             for (int i = _arcLinks.Count - 1; i >= 0; i--) if (_world.Tick - _arcLinks[i].Tick > RuneSimulation.ARC_LINK_TICKS) _arcLinks.RemoveAt(i);

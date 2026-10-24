@@ -80,7 +80,8 @@ namespace RuneCode
             _slotPicker = slotPicker;
             _gradePicker = gradePicker;
             _viewport = new GraphViewport(rectTransform);
-            _layout = new GraphNodeLayout(_viewport, () => _editor.Graph);
+            _layout = new GraphNodeLayout(_viewport, () => _editor.Graph,
+                isElementTriggerUnlocked: _editor.IsElementTriggerUnlocked);
             _painter = new GraphMeshPainter(_viewport, _layout, _state,
                 Resources.Load<GraphVisualStyle>("RuneCode/UI/Elements/GraphVisualStyle"), _editor.IsRuneUnlocked);
             _labels = new GraphNodeLabels(rectTransform, font, _viewport, _layout, _painter);

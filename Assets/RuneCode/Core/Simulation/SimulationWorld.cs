@@ -55,6 +55,21 @@ namespace RuneCode
 
         /// <summary>전투 공통 피해 배율이다.</summary>
         internal double DamageMultiplier { get; private set; }
+        internal double FireDamageBonus { get; set; }
+        internal double IceDamageBonus { get; set; }
+        internal double ArcDamageBonus { get; set; }
+        internal double BurnSpeedBonus { get; set; }
+        internal double ChillEffectBonus { get; set; }
+        internal int ArcTargetBonus { get; set; }
+        internal bool CanStackAndSpreadBurn { get; set; }
+        internal double BurnSpreadRadius { get; set; }
+        internal double FreezeBurstRatio { get; set; }
+        internal double FreezeBurstRadius { get; set; }
+        internal double LightningStrikeDamage { get; set; }
+        internal bool HasFireTrigger { get; set; }
+        internal bool HasIceTrigger { get; set; }
+        internal bool HasArcTrigger { get; set; }
+        internal double LightningHeight { get; set; }
 
         /// <summary>플레이어 이동 속도 배율이다.</summary>
         internal double MoveSpeedMultiplier { get; private set; }

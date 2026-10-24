@@ -26,7 +26,9 @@ namespace RuneCode
                     && (rune.Category == SpellGrammar.CATEGORY_MODIFIER || rune.Category == SpellGrammar.CATEGORY_ELEMENT
                         || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)).Select(rune => rune.Id));
             return new SpellCompileContext(unlockedRunes, _session.Capacity, _session.MaxEnergy, _session.Save.Library,
-                _session.Save.CreateStockMap());
+                _session.Save.CreateStockMap(), eventCapacity: _session.EventCapacity, cooldownMultiplier: _session.CooldownMultiplier,
+                unlockedElementTriggers: new[] { SpellGrammar.ON_BURN_PORT, SpellGrammar.ON_FREEZE_PORT, SpellGrammar.ON_ARC_HIT_PORT }
+                    .Where(_session.IsElementTriggerUnlocked).ToArray());
         }
 
         /// <summary>룬의 해금 여부를 반환한다. 비활성 룬은 false이고, 모디·속성·행동은 소지량 검사로 배치를 제한하므로 true다.</summary>
@@ -56,10 +58,12 @@ namespace RuneCode
         /// <summary>
         /// 현재 그래프를 후보로 바꿨을 때 수가 늘어나는 소지 키마다 후보의 배치 수가 프리셋 소지량 이하인지 반환한다.
         /// 프리셋별로 소지량을 관리하므로 다른 마법에 배치된 수는 합산하지 않는다. 이미 초과한 키라도 늘리지 않는 편집(다른 노드 배치 등)은 막지 않는다.
+        /// 온 트리거는 호출 마법을 포함한 연결 수를 현재 트리의 공용 한도와 비교한다.
         /// </summary>
         public bool IsWithinModifierStock(SpellGraph current, SpellGraph candidate)
         {
             if (candidate == null) return false;
+            if (GraphCompiler.CountEventConnections(candidate, _session.Save.Library) > _session.EventCapacity) return false;
             Dictionary<string, int> stock = _session.Save.CreateStockMap();
             Dictionary<string, int> before = GraphCompiler.CountStockUsage(current, GameData.Runes);
             foreach (KeyValuePair<string, int> pair in GraphCompiler.CountStockUsage(candidate, GameData.Runes))
