@@ -52,6 +52,7 @@ namespace RuneCode
         private bool _hasPresentedChoices;
         private bool _hasStartFailed;
         private bool _isInitialDebugRoundBreak;
+        private bool _isWaitingForPortalExit;
         private bool _isHexaSummonTestActive;
         private int _hexaDebugActionSignature = int.MinValue;
         private int _lastFragments;
@@ -83,8 +84,12 @@ namespace RuneCode
             && (_screen.Workshop.IsVisible || !_run.HasClearModifierChoices || _run.IsClearModifierChosen)
             && (!_screen.Workshop.IsVisible || !_screen.Workshop.SpellEditor.IsSynthesisOpen);
 
-        /// <summary>보상 선택을 마쳐 라운드 대기 포털로 다음 라운드에 들어갈 수 있는지 반환한다. 경기장 그래픽이 포털 밝기를 정할 때 읽는다.</summary>
-        public bool IsRoundBreakPortalActive => _run != null && _run.IsNextRoundReady;
+        /// <summary>대기 포털이 준비됐고 테스트 모드의 첫 편집창 방문을 마쳐 포털을 표시할 수 있는지 반환한다.</summary>
+        public bool IsRoundBreakPortalVisible => _run != null && _run.Simulation.IsRoundBreakPortalOpen
+            && !_session.IsTestEditorVisitRequired;
+
+        /// <summary>보상 선택과 편집창 방문을 마치고 최초 개방 위치에서 벗어나는 대기도 끝나 포털로 진입할 수 있는지 반환한다.</summary>
+        public bool IsRoundBreakPortalActive => _run != null && _run.IsNextRoundReady && !_isWaitingForPortalExit;
 
         /// <summary>세션·UI 관리자와 미션 화면의 View들을 받아 View 이벤트를 연결한다.</summary>
         public MissionPresenter(RuneCodeSession session, UIManager ui, MissionScreen screen, MissionHud hud, ResultPanel result)
@@ -203,6 +208,7 @@ namespace RuneCode
             if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices))
                 _run.TryPrepareRoundBreakArena();
             // 보상 선택을 마친 뒤 플레이어가 포털에 들어가면 다음 라운드를 시작한다. 막는 조건은 StartNextRound가 확인한다.
+            if (_isWaitingForPortalExit && !_run.Simulation.IsPlayerInRoundBreakPortal) _isWaitingForPortalExit = false;
             if (_run.Simulation.IsPlayerInRoundBreakPortal) StartNextRound();
             if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices) && !_ui.IsPopupOpen)
                 OpenTestOnboarding(ONBOARDING_FIRST_CLEAR);
@@ -297,11 +303,12 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>라운드 대기 중 포털에 들어가면 다음 라운드를 시작한다. 작업실 오버레이·팝업·일시정지·문자 입력 중에는 무시한다.</summary>
+        /// <summary>진입 가능한 포털에 들어가면 다음 라운드를 시작한다. 최초 개방 위치 이탈 대기와 작업실·팝업·일시정지·문자 입력 중에는 무시한다.</summary>
         private void StartNextRound()
         {
             if (_screen.Workshop.IsVisible) return;
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (!IsRoundBreakPortalActive) return;
             if (_run.TryStartNextRound())
             {
                 _isInitialDebugRoundBreak = false;
@@ -772,6 +779,7 @@ namespace RuneCode
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
+            _isWaitingForPortalExit = false;
             _isInitialDebugRoundBreak = _session.IsDebugEnabled && _run.IsWaitingForNextRound;
             ResetHexaDebugActions();
             _lastEnemyDamageEventCount = 0;
@@ -841,7 +849,10 @@ namespace RuneCode
             if (!_run.TryReplaceSpell(spell, _session.Spells.SpellName)) return false;
             _run.TryApplyUpgradeStats();
             _run.Simulation.ResetRoundBreakDpsForWorkshopReturn();
+            bool wasEditorVisitRequired = _session.IsTestEditorVisitRequired;
             _session.ResumeSuspendedRun();
+            if (wasEditorVisitRequired && !_session.IsTestEditorVisitRequired)
+                _isWaitingForPortalExit = _run.Simulation.IsPlayerInRoundBreakPortal;
             // 결과 패널은 화면과 함께 꺼졌다 켜질 뿐 상태가 남으므로, 같은 후보를 다시 그려 선택 포커스만 되살린다.
             if (_hasPresentedChoices && _run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowPendingChoices();
             OpenTestOnboarding(ONBOARDING_ROUND_RETURN);
@@ -906,6 +917,10 @@ namespace RuneCode
             string objective = _run.IsFinished ? (sim.Completed ? "미션 완료" : sim.IsFailed ? "전투 패배" : "전투 중단")
                 : sim.IsWaitingForNextRound ? (_run.IsNextRoundReady ? "포털로 이동해 다음 라운드 시작" : "다음 라운드 대기")
                 : (sim.IsBossStage ? "보스를 처치하세요 · " : "") + "남은 적 " + sim.RemainingWaveEnemyCount;
+            if (!_run.IsFinished && sim.IsWaitingForNextRound && _run.IsClearModifierChosen && _session.IsTestEditorVisitRequired)
+                objective = "편집창에서 획득한 보상을 장착하세요";
+            else if (_isWaitingForPortalExit)
+                objective = "포털 밖으로 나간 뒤 다시 들어가세요";
             if (_session.IsDebugEnabled && !_run.IsFinished && !sim.IsWaitingForNextRound)
                 foreach (SimulationEnemy enemy in sim.Enemies)
                 {

@@ -93,6 +93,7 @@ namespace RuneCode
         private Func<bool> _isShakeEnabled;
         private Func<bool> _isHitStopEnabled;
         private Func<bool> _isPortalActive;
+        private Func<bool> _isPortalVisible;
         private RuneSimulation _observedSimulation;
         private Transform _mapRoot;
         private PlayerView _playerView;
@@ -112,13 +113,15 @@ namespace RuneCode
         /// <summary>월드를 따라가는 미션 카메라다. 화면 View가 조준 좌표 변환에 쓴다.</summary>
         public MissionCamera Camera => _camera;
 
-        /// <summary>표시할 시뮬레이션 조회 함수와 화면 흔들림·히트 스톱 설정 조회 함수, 라운드 대기 포털 진입 가능 여부 조회 함수를 연결한다.</summary>
-        public void Initialize(Func<RuneSimulation> simulation, Func<bool> isShakeEnabled, Func<bool> isHitStopEnabled, Func<bool> isPortalActive)
+        /// <summary>시뮬레이션과 화면 효과 설정, 라운드 대기 포털의 진입 가능 여부와 표시 여부 조회 함수를 연결한다.</summary>
+        public void Initialize(Func<RuneSimulation> simulation, Func<bool> isShakeEnabled, Func<bool> isHitStopEnabled,
+            Func<bool> isPortalActive, Func<bool> isPortalVisible)
         {
             _simulation = simulation;
             _isShakeEnabled = isShakeEnabled;
             _isHitStopEnabled = isHitStopEnabled;
             _isPortalActive = isPortalActive;
+            _isPortalVisible = isPortalVisible;
         }
 
         /// <summary>승리·패배·라운드 대기 상태에서 시뮬레이션을 진행하지 않고 연출과 라운드 대기 시간을 늘리며, 지정 시간을 채우면 true를 반환한다.</summary>
@@ -526,10 +529,10 @@ namespace RuneCode
             return warningView;
         }
 
-        /// <summary>라운드 대기 포털이 열려 있으면 표시해 위치·반경과 진입 가능 여부를 반영하고, 닫혀 있으면 숨긴다.</summary>
+        /// <summary>대기 포털이 준비되고 표시가 허용됐으면 위치·반경과 진입 가능 여부를 반영하고, 그 외에는 숨긴다.</summary>
         private void UpdatePortal(RuneSimulation sim, SimVector origin)
         {
-            if (!sim.IsRoundBreakPortalOpen) { HidePortal(); return; }
+            if (!sim.IsRoundBreakPortalOpen || !_isPortalVisible()) { HidePortal(); return; }
             PortalView portal = GetPortalView();
             MissionWorldSpace.SetVisible(portal, true);
             portal.Apply(sim.RoundBreakPortalPosition, sim.RoundBreakPortalRadius, _isPortalActive?.Invoke() ?? false, origin, Time.unscaledTime);

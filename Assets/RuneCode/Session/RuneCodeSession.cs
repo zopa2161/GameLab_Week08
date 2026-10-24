@@ -31,6 +31,8 @@ namespace RuneCode
         private int _workshopStage;
         private int _workshopRound;
         private int _testOnboardingChapter;
+        private bool _hasEnteredTestEditorDuringWorkshop;
+        private bool _hasCompletedTestEditorVisit;
 
         private string _dockScenario = "dummy_single";
         private int _dockDummyCount = 1;
@@ -47,6 +49,9 @@ namespace RuneCode
 
         /// <summary>테스트 모드에서 마지막으로 띄운 온보딩 챕터 번호다. 아직 띄우지 않았으면 0이다.</summary>
         public int TestOnboardingChapter => _testOnboardingChapter;
+
+        /// <summary>테스트 모드에서 첫 편집창 방문과 정상 복귀를 마칠 때까지 다음 라운드 포털을 잠그는지 반환한다.</summary>
+        public bool IsTestEditorVisitRequired => _isTestMode && !_hasCompletedTestEditorVisit;
 
         /// <summary>디버그·테스트처럼 저장 슬롯에 쓰지 않는 메모리 진행인지 반환한다.</summary>
         public bool IsMemorySession => _isDebugEnabled || _isTestMode;
@@ -117,13 +122,23 @@ namespace RuneCode
         public void SuspendRunForWorkshop(int stage, int round)
         {
             _isRunSuspended = true;
+            _hasEnteredTestEditorDuringWorkshop = false;
             _workshopStage = stage;
             _workshopRound = round;
         }
 
-        /// <summary>보관 중인 런을 이어 가기 위해 보관 표시를 해제한다.</summary>
+        /// <summary>온보딩의 편집창 안내 단계에서 실제 편집창 탭에 들어왔음을 기록한다. 테스트 모드의 작업실 방문 중에만 적용한다.</summary>
+        public void RecordTestEditorVisit()
+        {
+            if (IsTestEditorVisitRequired && _isRunSuspended) _hasEnteredTestEditorDuringWorkshop = true;
+        }
+
+        /// <summary>검증을 마친 런의 보관 표시를 해제하고, 이번 작업실에서 테스트 편집창을 방문했다면 최초 방문을 완료한다.</summary>
         public void ResumeSuspendedRun()
         {
+            if (_isRunSuspended && IsTestEditorVisitRequired && _hasEnteredTestEditorDuringWorkshop)
+                _hasCompletedTestEditorVisit = true;
+            _hasEnteredTestEditorDuringWorkshop = false;
             _isRunSuspended = false;
         }
 
@@ -231,6 +246,8 @@ namespace RuneCode
             _isDebugEnabled = false;
             _isTestMode = true;
             _testOnboardingChapter = 0;
+            _hasEnteredTestEditorDuringWorkshop = false;
+            _hasCompletedTestEditorVisit = false;
             _save = PlayerSave.CreateNew();
             RestorePurchasedRuneUnlocks(_save);
             _spells.Reload();
@@ -644,6 +661,7 @@ namespace RuneCode
         /// <summary>현재 모드에 맞는 새 진행으로 바꾸고 보관 중인 런을 버린 뒤 편집 세션을 다시 연다. 일반 진행은 _normalSave도 함께 바꾸고 디버그면 룬을 전부 해금한다.</summary>
         private void RenewSave()
         {
+            _hasEnteredTestEditorDuringWorkshop = false;
             _save = PlayerSave.CreateNew();
             if (_isDebugEnabled) PrepareDebugSave();
             else if (_isTestMode) RestorePurchasedRuneUnlocks(_save);

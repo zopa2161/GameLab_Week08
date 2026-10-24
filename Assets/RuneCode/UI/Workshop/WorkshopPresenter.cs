@@ -48,8 +48,6 @@ namespace RuneCode
         {
             LocalTelemetry.BeginUsabilityEditingEpisode(_session.GetWorkshopLogSnapshot);
             SetTab(tab);
-            // 온보딩은 순서대로만 열리므로 둘 중 다음 차례인 챕터 하나만 뜬다.
-            if (!ShowWorkshopOnboarding(ONBOARDING_WORKSHOP_ENTER)) ShowWorkshopOnboarding(ONBOARDING_UPGRADE_TREE);
         }
 
         /// <summary>테스트 모드에서 chapter가 다음 순서면 도움말 챕터를 안내 팝업으로 열고 순서를 넘겼으면 true를 반환한다. 챕터가 없으면 경고만 남긴다.</summary>
@@ -123,7 +121,7 @@ namespace RuneCode
             return _session.TrySynthesizeRunes(materials, grade, out resultId, out resultGrade, out error);
         }
 
-        /// <summary>탭을 바꾸고 진입한 탭의 내용과 헤더를 갱신한다. 에디터 탭을 떠나면 편집 패널을 닫는다.</summary>
+        /// <summary>탭의 내용과 헤더를 갱신한다. 편집창 진입 시 차례가 된 온보딩을 표시하고 테스트 방문을 기록하며, 편집창을 떠나면 편집 패널을 닫는다.</summary>
         public void SetTab(string tab)
         {
             if (_selectedTab != tab)
@@ -137,6 +135,11 @@ namespace RuneCode
             else _view.SpellEditor.Hide();
             if (tab == WorkshopScreen.TAB_TREE) _upgradeTree.Refresh();
             RefreshHeader();
+            if (tab == WorkshopScreen.TAB_EDITOR && !_ui.IsPopupOpen)
+            {
+                if (!ShowWorkshopOnboarding(ONBOARDING_WORKSHOP_ENTER)) ShowWorkshopOnboarding(ONBOARDING_UPGRADE_TREE);
+                if (_session.TestOnboardingChapter >= ONBOARDING_WORKSHOP_ENTER) _session.RecordTestEditorVisit();
+            }
         }
 
         /// <summary>헤더 도움말 버튼으로 가장 최근에 개방된 항목을 선택한 도움말을 연다.</summary>
