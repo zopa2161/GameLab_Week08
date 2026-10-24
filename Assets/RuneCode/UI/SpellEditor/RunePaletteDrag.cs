@@ -54,6 +54,7 @@ namespace RuneCode
             ClearPreview();
             if (eventData.button != PointerEventData.InputButton.Left || !_canPlace || _graph == null
                 || !GameData.Runes.TryGet(_runeId, out RuneDefinition rune)) return;
+            _graph.CancelPickedModule();
             ClearHover();
             _preview = _graph.CreatePalettePreview(rune, _grade);
             _preview?.Move(eventData.position);

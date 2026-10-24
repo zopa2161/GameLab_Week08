@@ -245,7 +245,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 팔레트 행을 만든다. 행동 행은 누르면 제안 위치에 배치하고, 속성·모디 행은 선택한 행동 노드의 첫 빈 슬롯에 장착한다.
+        /// 팔레트 행을 만든다. 행동 행은 제안 위치에 배치하고, 속성·모디 행은 클릭하면 커서에 붙여 장착 위치를 고르게 한다.
         /// canPlace가 false(남은 수 0)이면 드래그 배치를 막고 누르면 소지량 부족 문구를 띄운다.
         /// </summary>
         private void AddPaletteRune(RuneDefinition rune, string grade, string label, bool canPlace)
@@ -256,25 +256,8 @@ namespace RuneCode
             else if (_selectMaterial != null) onClick = () => _selectMaterial?.Invoke(runeId, grade);
             else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
                 onClick = () => _view.GraphCanvas.PlaceRune(runeId, _view.GraphCanvas.SuggestPlacement(runeId), grade);
-            else onClick = () => EquipToSelected(runeId, grade);
+            else onClick = () => _view.GraphCanvas.PickUpModule(runeId, grade);
             _view.AddPaletteRow(label, ROW_HEIGHT, onClick, runeId, grade, canPlace && _selectMaterial == null);
-        }
-
-        /// <summary>선택한 행동 노드 하나의 첫 빈 슬롯에 속성·모디를 장착한다. 선택이 없거나 빈 슬롯이 없으면 상태 문구를 띄운다.</summary>
-        private void EquipToSelected(string runeId, string grade)
-        {
-            string nodeId = _view.GraphCanvas.SelectedBehaviorNodeId;
-            if (nodeId == null)
-            {
-                _editor.ReportStatus("editor.selectBehavior");
-                return;
-            }
-            if (!_editor.TryFindEquipSlot(nodeId, runeId, grade, out string slotKey))
-            {
-                _editor.ReportStatus("editor.slotBlocked");
-                return;
-            }
-            if (_editor.Equip(nodeId, slotKey, runeId, grade)) SoundManager.Instance.PlaySelectSlotItem();
         }
 
         /// <summary>남은 수(remaining)와 보유 수(owned)를 구하고 보유 수가 1 이상이면 true를 반환한다. 합성 모드에서는 보관함 전체 배치를 제외한 미사용 수량, 평소에는 현재 프리셋 배치를 제외한 수량을 반환한다.</summary>
