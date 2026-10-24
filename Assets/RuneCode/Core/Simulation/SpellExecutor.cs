@@ -126,7 +126,7 @@ namespace RuneCode
         /// </summary>
         internal bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false)
         {
-            if (spell == null || slot < 0 || slot >= _loadout.Length || (_world.Stage != MissionStage.Bench && _world.Stage != MissionStage.Combat)) return false;
+            if (spell == null || slot < 0 || slot >= _loadout.Length || (_world.Stage != MissionStage.Bench && _world.Stage != MissionStage.Combat && _world.Stage != MissionStage.RoundBreak)) return false;
             if (_world.IsMission && slot != 0) return false;
             if (_world.Player.Cooldowns[slot] > 0.000001 || _world.Player.IsSpellRunning(slot)) return false;
             double executionSeconds = spell.GetEstimatedExecutionSeconds(_world.Balance.Sim.ExecutionTimeScale);

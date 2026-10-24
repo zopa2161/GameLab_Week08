@@ -211,6 +211,20 @@ namespace RuneCode
         /// <summary>전투 중단 시 예약 노드 실행을 지우고 진행 중 시전 상태를 환급 없이 취소한다.</summary>
         public void CancelPendingSpellExecutions() => _executor.CancelPendingSpellExecutions();
 
+        /// <summary>
+        /// 라운드 대기 중 마법 교체 시 진행 중인 플레이어 시전(빔·예약 실행·실행 잠금·마법 개체)을 환급 없이 정리하고 슬롯 쿨다운을 0으로 되돌린다.
+        /// 라운드 대기가 아니면 false를 반환한다.
+        /// </summary>
+        public bool CancelPlayerSpells()
+        {
+            if (!IsWaitingForNextRound) return false;
+            _feedback.CancelBeamFlashes();
+            _executor.CancelPendingSpellExecutions();
+            _world.SpellEntities.Clear();
+            _world.Player.ResetCooldowns();
+            return true;
+        }
+
         /// <summary>아직 지급하지 않은 새로 주운 Modifier 드롭 목록을 반환하고 미지급 목록을 비운다.</summary>
         public List<SimulationItemDrop> TakeNewPickedItems() => _loot.TakeNewPickedItems();
 
@@ -349,10 +363,10 @@ namespace RuneCode
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         public bool TryCast(CompiledSpell spell, SimVector aimDirection, int slot = 0) { _world.Player.Aim(aimDirection); return TryCast(spell, slot); }
 
-        /// <summary>입력, 예약된 적 스폰, 전투, 적응 및 전투 종료(전부 처치·사망·보스 제한시간)를 정확히 한 60Hz 틱만큼 갱신한다.</summary>
+        /// <summary>입력, 예약된 적 스폰, 전투, 적응 및 전투 종료(전부 처치·사망·보스 제한시간)를 정확히 한 60Hz 틱만큼 갱신한다. 라운드 대기 중에도 플레이어·마법 틱은 진행하며 적 스폰은 전투 중에만 진행한다.</summary>
         public void Step(SimulationInput input)
         {
-            if (Completed || IsFailed || IsWaitingForNextRound) return;
+            if (Completed || IsFailed) return;
             _executor.AimPoint = input.AimPoint;
             _beam.ReadBeamInput(input, _executor.Loadout);
             bool wasDashing = _world.Player.DashRemaining > 0.000001;
@@ -362,7 +376,7 @@ namespace RuneCode
             if (startedDash) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_START);
             else if (wasDashing && _world.Player.DashRemaining <= 0.000001) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_END);
             if (input.Movement.LengthSquared > 0.000001) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_MOVE);
-            if (_world.IsMission) { _spawn.AdvancePendingSpawns(); _spawn.AdvanceSpawns(); _spawn.AdvanceSplits(); _spawn.RefreshSpawnWarnings(); }
+            if (_world.IsMission && _world.Stage == MissionStage.Combat) { _spawn.AdvancePendingSpawns(); _spawn.AdvanceSpawns(); _spawn.AdvanceSplits(); _spawn.RefreshSpawnWarnings(); }
             _executor.RunScheduled();
             _executor.TryCastAttackSlots(input);
             _statuses.AdvanceStatuses();
