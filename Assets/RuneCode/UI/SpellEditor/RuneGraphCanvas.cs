@@ -34,8 +34,8 @@ namespace RuneCode
         private Action<GraphNode> _selectionChanged;
         private Action<GraphNode, string> _hoverChanged;
         private Action<Vector2> _quickPlacement;
-        private Action<string, string> _slotPicker;
         private Action<string> _gradePicker;
+        private Func<RuneDefinition, string, RunePalettePreview> _slotPreviewFactory;
         private GraphViewport _viewport;
         private GraphNodeLayout _layout;
         private GraphMeshPainter _painter;
@@ -49,6 +49,10 @@ namespace RuneCode
         private RunePalettePreview _pickedModulePreview;
         private string _pickedRuneId;
         private string _pickedGrade;
+        private string _pickedSourceNodeId;
+        private string _pickedSourceSlotKey;
+        private bool _isPickupPressActive;
+        private bool _isSlotPickupDragged;
         private int _moduleInputFrame = -1;
         private bool _hasDetachedDrag;
 
@@ -75,18 +79,16 @@ namespace RuneCode
         private bool HasGraph => _editor != null && _editor.Graph != null;
 
         /// <summary>
-        /// 편집 세션, 글꼴과 선택·포인터 진입·빠른 배치·슬롯 선택(노드 ID, 슬롯 키)·등급 변경(노드 ID) 콜백을 연결하고 그래프를 표시한다.
+        /// 편집 세션, 글꼴과 선택·포인터 진입·빠른 배치·등급 변경(노드 ID) 콜백을 연결하고 그래프를 표시한다.
         /// </summary>
         public void Initialize(ISpellEditor editor, TMP_FontAsset font, Action<GraphNode> selectionChanged,
-            Action<GraphNode, string> hoverChanged, Action<Vector2> quickPlacement, Action<string, string> slotPicker,
-            Action<string> gradePicker)
+            Action<GraphNode, string> hoverChanged, Action<Vector2> quickPlacement, Action<string> gradePicker)
         {
             _editor = editor;
             _font = font;
             _selectionChanged = selectionChanged;
             _hoverChanged = hoverChanged;
             _quickPlacement = quickPlacement;
-            _slotPicker = slotPicker;
             _gradePicker = gradePicker;
             _viewport = new GraphViewport(rectTransform);
             _layout = new GraphNodeLayout(_viewport, () => _editor.Graph);
@@ -98,6 +100,12 @@ namespace RuneCode
             _placement = new GraphPlacement(() => _editor, _viewport);
             raycastTarget = true;
             ResetView();
+        }
+
+        /// <summary>슬롯에서 집어 든 룬의 드래그 미리보기를 만드는 팩토리를 지정한다. 지정하지 않으면 슬롯 한 칸 미리보기를 쓴다.</summary>
+        internal void SetSlotPreviewFactory(Func<RuneDefinition, string, RunePalettePreview> factory)
+        {
+            _slotPreviewFactory = factory;
         }
 
         /// <summary>그래프 전체가 보이도록 화면 위치와 배율을 맞추고 표시를 갱신한다.</summary>
@@ -240,7 +248,7 @@ namespace RuneCode
             _state.ResetPointer();
         }
 
-        /// <summary>커서에 붙인 모듈 미리보기와 장착 대기를 제거하고 취소한 항목이 있으면 true를 반환한다.</summary>
+        /// <summary>커서에 붙인 모듈 미리보기와 장착·이동 대기를 제거하고 취소한 항목이 있으면 true를 반환한다.</summary>
         public bool CancelPickedModule()
         {
             if (!HasPickedModule) return false;
@@ -248,6 +256,10 @@ namespace RuneCode
             _pickedModulePreview = null;
             _pickedRuneId = null;
             _pickedGrade = null;
+            _pickedSourceNodeId = null;
+            _pickedSourceSlotKey = null;
+            _isPickupPressActive = false;
+            _isSlotPickupDragged = false;
             _moduleInputFrame = Time.frameCount;
             return true;
         }
@@ -311,6 +323,89 @@ namespace RuneCode
             bool isEquipped = _editor.Equip(node.Id, emptySlot, runeId, grade);
             if (isEquipped) SoundManager.Instance.PlaySelectSlotItem();
             return isEquipped;
+        }
+
+        /// <summary>
+        /// 지정 슬롯에 장착된 속성·모디를 커서에 붙인다. 이후 다른 슬롯에 놓으면 옮겨 장착하고,
+        /// 그래프 빈 공간에 놓으면 원래 슬롯을 비워 팔레트로 돌려보낸다.
+        /// 슬롯이 비어 있거나 잠겼거나 편집할 수 없으면 false를 반환한다.
+        /// </summary>
+        private bool TryPickUpSlot(GraphNode node, string slotKey)
+        {
+            if (!HasGraph || !_editor.IsEditable || Mouse.current == null) return false;
+            string value = node.GetText(slotKey, null);
+            if (string.IsNullOrEmpty(value) || !SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return false;
+            string runeId;
+            string grade = null;
+            if (isElement)
+            {
+                if (!GameData.Runes.TryGetElement(value, out ElementDefinition element)) return false;
+                runeId = element.RuneId;
+            }
+            else if (!SpellGrammar.TryParseStockKey(value, out runeId, out grade)) return false;
+            if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return false;
+
+            CancelPickedModule();
+            _pickedModulePreview = _slotPreviewFactory != null ? _slotPreviewFactory(rune, grade) : CreatePalettePreview(rune, grade);
+            if (_pickedModulePreview == null) return false;
+            _pickedRuneId = runeId;
+            _pickedGrade = grade;
+            _pickedSourceNodeId = node.Id;
+            _pickedSourceSlotKey = slotKey;
+            _isPickupPressActive = true;
+            _pickedModulePreview.Move(Mouse.current.position.ReadValue());
+            _moduleInputFrame = Time.frameCount;
+            _state.ResetPointer();
+            return true;
+        }
+
+        /// <summary>
+        /// 슬롯에서 집어 든 룬을 화면 좌표에 놓는다. 다른 슬롯이면 원래 슬롯을 비우고 옮겨 장착하며,
+        /// 그래프 빈 공간이면 원래 슬롯을 비워 팔레트로 돌려보낸다. 편집 영역 밖이나 장착할 수 없는 위치에서는 원래 상태를 유지한다.
+        /// </summary>
+        private void DropPickedSlotItem(string sourceNodeId, string sourceSlotKey, string runeId, string grade, Vector2 screen)
+        {
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, screen, null, out Vector2 point);
+            if (!rectTransform.rect.Contains(point)) return;
+            if (_layout.FindSlot(point, out GraphNode targetNode, out string targetKey)
+                && SpellGrammar.TryParseSlotKey(targetKey, out _, out _))
+            {
+                if (targetNode.Id == sourceNodeId && targetKey == sourceSlotKey) return;
+                MoveSlotItem(sourceNodeId, sourceSlotKey, targetNode.Id, targetKey, runeId, grade);
+                return;
+            }
+            GraphNode node = _layout.FindNodeAt(point);
+            if (node == null)
+            {
+                _editor.ClearSlot(sourceNodeId, sourceSlotKey);
+                return;
+            }
+            if (!GraphNodeLayout.HasSlots(GameData.Runes.Get(node.RuneId))
+                || !_editor.TryFindEquipSlot(node.Id, runeId, grade, out string emptySlot)
+                || (node.Id == sourceNodeId && emptySlot == sourceSlotKey)) return;
+            MoveSlotItem(sourceNodeId, sourceSlotKey, node.Id, emptySlot, runeId, grade);
+        }
+
+        /// <summary>
+        /// 원래 슬롯을 비우고 대상 슬롯에 같은 룬을 장착한다. 장착에 실패하면 원래 슬롯을 복구하며,
+        /// 두 변경은 되돌리기 한 단계로 묶는다. 장착에 성공하면 true를 반환한다.
+        /// </summary>
+        private bool MoveSlotItem(string sourceNodeId, string sourceSlotKey, string targetNodeId, string targetSlotKey,
+            string runeId, string grade)
+        {
+            _editor.BeginBlockEdit();
+            try
+            {
+                if (!_editor.ClearSlot(sourceNodeId, sourceSlotKey)) return false;
+                if (_editor.Equip(targetNodeId, targetSlotKey, runeId, grade))
+                {
+                    SoundManager.Instance.PlaySelectSlotItem();
+                    return true;
+                }
+                _editor.Equip(sourceNodeId, sourceSlotKey, runeId, grade);
+                return false;
+            }
+            finally { _editor.EndBlockEdit(); }
         }
 
         void Update()
@@ -417,10 +512,15 @@ namespace RuneCode
             RefreshMeshes();
         }
 
-        /// <summary>포인터 이동에 맞춰 화면 위치, 선택 노드 위치 또는 연결 미리보기·영역 선택을 갱신한다.</summary>
+        /// <summary>포인터 이동에 맞춰 화면 위치, 선택 노드 위치 또는 연결 미리보기·영역 선택을 갱신한다. 집어 든 룬을 끌면 드롭으로 처리한다.</summary>
         public void OnDrag(PointerEventData eventData)
         {
-            if (HasPickedModule || _moduleInputFrame == Time.frameCount) return;
+            if (HasPickedModule)
+            {
+                if (_isPickupPressActive) _isSlotPickupDragged = true;
+                return;
+            }
+            if (_moduleInputFrame == Time.frameCount) return;
             _state.Pointer = Local(eventData);
             if (_state.IsPanning) _viewport.SetPan(_state.PanStart + _state.Pointer - _state.DragStart);
             if (_state.IsNodeDragging) MoveDraggedNodes();
@@ -428,16 +528,36 @@ namespace RuneCode
             else RefreshMeshes();
         }
 
-        /// <summary>연결 시도와 영역 선택을 확정하고, 노드를 실제로 옮겼으면 편집 세션에 변경을 알린다.</summary>
+        /// <summary>
+        /// 연결 시도와 영역 선택을 확정하고, 노드를 실제로 옮겼으면 편집 세션에 변경을 알린다.
+        /// 커서에 붙인 룬은 클릭으로 집은 경우 그대로 유지하고, 드래그로 집었거나 다음 클릭이면 놓는다.
+        /// </summary>
         public void OnPointerUp(PointerEventData eventData)
         {
-            if (_moduleInputFrame == Time.frameCount) return;
+            if (_moduleInputFrame == Time.frameCount)
+            {
+                // 집기와 같은 프레임에 버튼을 놓은 경우에도 클릭으로 집은 상태를 유지한다.
+                _isPickupPressActive = false;
+                _isSlotPickupDragged = false;
+                return;
+            }
             if (HasPickedModule)
             {
+                if (_isPickupPressActive)
+                {
+                    bool isDragged = _isSlotPickupDragged;
+                    _isPickupPressActive = false;
+                    _isSlotPickupDragged = false;
+                    if (!isDragged) return;
+                }
                 string runeId = _pickedRuneId;
                 string grade = _pickedGrade;
+                string sourceNodeId = _pickedSourceNodeId;
+                string sourceSlotKey = _pickedSourceSlotKey;
                 CancelPickedModule();
-                if (eventData.button == PointerEventData.InputButton.Left) DropSlotItem(runeId, grade, eventData.position);
+                if (eventData.button != PointerEventData.InputButton.Left) return;
+                if (!string.IsNullOrEmpty(sourceSlotKey)) DropPickedSlotItem(sourceNodeId, sourceSlotKey, runeId, grade, eventData.position);
+                else DropSlotItem(runeId, grade, eventData.position);
                 return;
             }
             _state.Pointer = Local(eventData);
@@ -469,15 +589,14 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 슬롯 셀 좌클릭을 처리한다. 잠기지 않은 속성·모디 셀은 슬롯 선택을 연다.
-        /// 처리했으면 true, 잠긴 셀·슬롯 밖이면 노드 선택으로 넘기도록 false를 반환한다.
+        /// 슬롯 셀 좌클릭을 처리한다. 장착된 속성·모디가 있으면 커서에 붙이고 true를 반환한다.
+        /// 처리하지 못한 잠긴 셀·빈 슬롯·슬롯 밖이면 노드 선택으로 넘기도록 false를 반환한다.
         /// </summary>
         private bool TryHandleSlotClick(Vector2 point)
         {
             if (!_layout.FindSlot(point, out GraphNode node, out string slotKey)) return false;
             if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return false;
-            _slotPicker(node.Id, slotKey);
-            return true;
+            return TryPickUpSlot(node, slotKey);
         }
 
         /// <summary>그래프 드래그를 수신하도록 Unity 이벤트 시스템에 알린다.</summary>
