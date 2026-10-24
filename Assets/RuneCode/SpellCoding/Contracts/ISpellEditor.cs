@@ -38,8 +38,8 @@ namespace RuneCode
         /// <summary>지정 좌표에 행동 노드를 지정 등급(비면 기본 등급)으로 배치한다. 행동 외 룬은 배치하지 않는다.</summary>
         void AddRune(string runeId, float x, float y, string grade = null);
 
-        /// <summary>행동 노드에서 지정 속성·모디를 장착할 수 있는 첫 빈 슬롯 키를 찾는다. 없으면 false를 반환한다.</summary>
-        bool TryFindEquipSlot(string nodeId, string runeId, string grade, out string slotKey);
+        /// <summary>행동 노드에서 장착 가능한 첫 빈 슬롯 키를 찾는다. 실패하면 false를 반환하며 reportFailure가 true면 원인을 표시한다.</summary>
+        bool TryFindEquipSlot(string nodeId, string runeId, string grade, out string slotKey, bool reportFailure = false);
 
         /// <summary>행동 노드의 지정 슬롯에 속성·모디를 장착할 수 있는지 반환한다.</summary>
         bool CanEquipToSlot(string nodeId, string slotKey, string runeId, string grade);

@@ -73,8 +73,10 @@ namespace RuneCode
             if (_synthesis.IsOpen || _ui.IsPopupOpen || UiFactory.IsTyping())
             {
                 _view.ShowHoverDescription(null);
+                _view.GraphCanvas.CancelPickedModule();
                 return;
             }
+            if (_view.GraphCanvas.HasPickedModule) return;
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null) HandleShortcuts(keyboard);
         }

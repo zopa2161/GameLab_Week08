@@ -45,6 +45,13 @@ namespace RuneCode
         private string _hoveredSlot;
         private bool _isHoverValid;
 
+        private RunePalettePreview _pickedModulePreview;
+        private string _pickedRuneId;
+        private string _pickedGrade;
+        private int _moduleInputFrame = -1;
+
+        public bool HasPickedModule => _pickedModulePreview != null;
+
         /// <summary>선택된 노드 ID 집합이다.</summary>
         public IReadOnlyCollection<string> SelectedNodes => _state.Selected;
 
@@ -94,6 +101,7 @@ namespace RuneCode
         /// <summary>그래프 전체가 보이도록 화면 위치와 배율을 맞추고 표시를 갱신한다.</summary>
         public void ResetView()
         {
+            CancelPickedModule();
             if (HasGraph && _layout.TryGetGraphBounds(out Vector2 minimum, out Vector2 maximum)) _viewport.Fit(minimum, maximum);
             RefreshGraph();
         }
@@ -158,19 +166,72 @@ namespace RuneCode
                 _font, _editor.Library, _editor.IsRuneUnlocked);
         }
 
+        /// <summary>팔레트에서 클릭한 속성·모디를 커서에 붙이고 다음 그래프 클릭 해제 시 기존 드롭 규칙으로 장착하도록 준비한다.</summary>
+        public void PickUpModule(string runeId, string grade)
+        {
+            CancelPickedModule();
+            if (!HasGraph || !_editor.IsEditable || Mouse.current == null
+                || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return;
+            if (rune.Category != SpellGrammar.CATEGORY_ELEMENT && rune.Category != SpellGrammar.CATEGORY_MODIFIER) return;
+            _pickedModulePreview = CreatePalettePreview(rune, grade);
+            _pickedRuneId = runeId;
+            _pickedGrade = grade;
+            _pickedModulePreview?.Move(Mouse.current.position.ReadValue());
+            _moduleInputFrame = Time.frameCount;
+            _state.ResetPointer();
+        }
+
+        /// <summary>커서에 붙인 모듈 미리보기와 장착 대기를 제거하고 취소한 항목이 있으면 true를 반환한다.</summary>
+        public bool CancelPickedModule()
+        {
+            if (!HasPickedModule) return false;
+            _pickedModulePreview.Dispose();
+            _pickedModulePreview = null;
+            _pickedRuneId = null;
+            _pickedGrade = null;
+            _moduleInputFrame = Time.frameCount;
+            return true;
+        }
+
+        /// <summary>커서 모듈을 포인터 위치로 옮기고 우클릭·편집 영역 밖 클릭·편집 불가 상태에서 장착 대기를 취소한다.</summary>
+        private void UpdatePickedModule()
+        {
+            if (!HasPickedModule) return;
+            Mouse mouse = Mouse.current;
+            if (mouse == null || !_editor.IsEditable)
+            {
+                CancelPickedModule();
+                return;
+            }
+            Vector2 screen = mouse.position.ReadValue();
+            _pickedModulePreview.Move(screen);
+            if (_moduleInputFrame == Time.frameCount) return;
+            if (mouse.rightButton.wasPressedThisFrame
+                || (mouse.leftButton.wasPressedThisFrame && !TryGetGraphPoint(screen, out _))) CancelPickedModule();
+        }
+
+        protected override void OnDisable()
+        {
+            CancelPickedModule();
+            base.OnDisable();
+        }
+
+        void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus) CancelPickedModule();
+        }
+
         /// <summary>
-        /// 화면 좌표에 속성·모디를 놓는다. 같은 종류의 잠기지 않은 슬롯 위면 그 슬롯에(교체 포함), 행동 노드 본문 위면 첫 빈 슬롯에 장착한다.
+        /// 화면 좌표에 속성·모디를 놓는다. 슬롯 위면 해당 슬롯의 장착 가능 여부를 검사하고, 행동 노드 본문 위면 첫 빈 슬롯에 장착한다.
         /// 장착 성공 시 선택 효과음을 재생하고 true를 반환하며, 장착하지 못하면 false를 반환한다.
         /// </summary>
         public bool DropSlotItem(string runeId, string grade, Vector2 screen)
         {
-            if (!HasGraph || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return false;
+            if (!HasGraph || !GameData.Runes.TryGet(runeId, out _)) return false;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, screen, null, out Vector2 point);
             if (!rectTransform.rect.Contains(point)) return false;
-            bool isElement = rune.Category == SpellGrammar.CATEGORY_ELEMENT;
             if (_layout.FindSlot(point, out GraphNode slotNode, out string slotKey)
-                && SpellGrammar.TryParseSlotKey(slotKey, out bool isElementSlot, out _) && isElementSlot == isElement
-                && !GraphNodeLayout.IsSlotLocked(slotNode, slotKey))
+                && SpellGrammar.TryParseSlotKey(slotKey, out _, out _))
             {
                 bool isSlotEquipped = _editor.Equip(slotNode.Id, slotKey, runeId, grade);
                 if (isSlotEquipped) SoundManager.Instance.PlaySelectSlotItem();
@@ -178,11 +239,7 @@ namespace RuneCode
             }
             GraphNode node = _layout.FindNodeAt(point);
             if (node == null || !GraphNodeLayout.HasSlots(GameData.Runes.Get(node.RuneId))) return false;
-            if (!_editor.TryFindEquipSlot(node.Id, runeId, grade, out string emptySlot))
-            {
-                _editor.ReportStatus("editor.slotBlocked");
-                return false;
-            }
+            if (!_editor.TryFindEquipSlot(node.Id, runeId, grade, out string emptySlot, true)) return false;
             bool isEquipped = _editor.Equip(node.Id, emptySlot, runeId, grade);
             if (isEquipped) SoundManager.Instance.PlaySelectSlotItem();
             return isEquipped;
@@ -190,6 +247,7 @@ namespace RuneCode
 
         void Update()
         {
+            UpdatePickedModule();
             if (_state.ExecutedUntil.Count == 0) return;
             _expiredHighlights.Clear();
             foreach (var pair in _state.ExecutedUntil)
@@ -215,6 +273,7 @@ namespace RuneCode
         /// <summary>포인터 위치에서 연결, 노드 선택·드래그, 화면 이동, 연결선 삭제 또는 영역 선택을 시작한다.</summary>
         public void OnPointerDown(PointerEventData eventData)
         {
+            if (HasPickedModule || _moduleInputFrame == Time.frameCount) return;
             _state.Pointer = Local(eventData);
             _state.DragStart = _state.Pointer;
             _state.PanStart = _viewport.Pan;
@@ -293,6 +352,7 @@ namespace RuneCode
         /// <summary>포인터 이동에 맞춰 화면 위치, 선택 노드 위치 또는 연결 미리보기·영역 선택을 갱신한다.</summary>
         public void OnDrag(PointerEventData eventData)
         {
+            if (HasPickedModule || _moduleInputFrame == Time.frameCount) return;
             _state.Pointer = Local(eventData);
             if (_state.IsPanning) _viewport.SetPan(_state.PanStart + _state.Pointer - _state.DragStart);
             if (_state.IsNodeDragging) MoveDraggedNodes();
@@ -303,6 +363,15 @@ namespace RuneCode
         /// <summary>연결 시도와 영역 선택을 확정하고, 노드를 실제로 옮겼으면 편집 세션에 변경을 알린다.</summary>
         public void OnPointerUp(PointerEventData eventData)
         {
+            if (_moduleInputFrame == Time.frameCount) return;
+            if (HasPickedModule)
+            {
+                string runeId = _pickedRuneId;
+                string grade = _pickedGrade;
+                CancelPickedModule();
+                if (eventData.button == PointerEventData.InputButton.Left) DropSlotItem(runeId, grade, eventData.position);
+                return;
+            }
             _state.Pointer = Local(eventData);
             TryCompleteConnection();
             if (_state.IsBoxSelecting) SelectNodesInBox();
@@ -349,6 +418,7 @@ namespace RuneCode
         /// <summary>마우스 위치를 중심으로 그래프를 확대·축소한다.</summary>
         public void OnScroll(PointerEventData eventData)
         {
+            if (HasPickedModule) return;
             _viewport.ZoomAt(Local(eventData), eventData.scrollDelta.y > 0);
             LayoutLabels();
         }
