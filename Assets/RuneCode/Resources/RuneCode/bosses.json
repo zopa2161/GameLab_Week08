@@ -55,11 +55,11 @@
         "_waveSeconds": 0.55,
         "_waveWidth": 24,
         "_waveDamage": 18,
-        "_spinWarning": 0.9,
-        "_spinLength": 230,
+        "_spinWarning": 1,
+        "_spinLength": 172.5,
         "_spinSeconds": 0.1,
-        "_spinDashBodyLengths": 5,
-        "_spinDashSeconds": 0.6
+        "_spinDashBodyLengths": 4.166666666666667,
+        "_spinDashSeconds": 0.5
       }
     },
     {
