@@ -1,0 +1,167 @@
+{
+    "_schemaVersion": 1,
+    "_suite": {
+        "_schemaVersion": 1,
+        "_profile": {
+            "_profileId": "max_tree",
+            "_ramCapacity": 21,
+            "_maxEnergy": 250.0,
+            "_energyRegen": 55.0,
+            "_startEnergyRatio": 1.0,
+            "_damageMultiplier": 1.0,
+            "_isInvulnerable": true
+        },
+        "_grades": [
+            "B"
+        ],
+        "_chainLengths": [
+            2,
+            3
+        ],
+        "_presets": [
+            {
+                "_presetId": "L1",
+                "_behaviorId": "behavior.launch",
+                "_modifierIds": [
+                    "mod.multi",
+                    "mod.homing"
+                ],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "L2",
+                "_behaviorId": "behavior.launch",
+                "_modifierIds": [
+                    "mod.multi",
+                    "mod.pierce",
+                    "mod.homing"
+                ],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "M",
+                "_behaviorId": "behavior.beam",
+                "_modifierIds": [
+                    "mod.multi",
+                    "mod.homing"
+                ],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "B1",
+                "_behaviorId": "behavior.burst",
+                "_modifierIds": [
+                    "mod.multi"
+                ],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "P1",
+                "_behaviorId": "behavior.persist",
+                "_modifierIds": [
+                    "mod.multi"
+                ],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "P2",
+                "_behaviorId": "behavior.persist",
+                "_modifierIds": [
+                    "mod.multi",
+                    "mod.duration"
+                ],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "S",
+                "_behaviorId": "behavior.slash",
+                "_modifierIds": [
+                    "mod.multi"
+                ],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "B2",
+                "_behaviorId": "behavior.burst",
+                "_modifierIds": [],
+                "_elementId": ""
+            },
+            {
+                "_presetId": "P9",
+                "_behaviorId": "behavior.launch",
+                "_modifierIds": [],
+                "_elementId": ""
+            }
+        ],
+        "_conditions": [
+            {
+                "_conditionId": "single_near",
+                "_situation": "single",
+                "_distance": 140.0,
+                "_durationSeconds": 30.0,
+                "_inputMode": "holdAttack",
+                "_seed": 1,
+                "_repeatCount": 3
+            },
+            {
+                "_conditionId": "single_mid",
+                "_situation": "single",
+                "_distance": 480.0,
+                "_durationSeconds": 30.0,
+                "_inputMode": "holdAttack",
+                "_seed": 1,
+                "_repeatCount": 3
+            },
+            {
+                "_conditionId": "swarm_near",
+                "_situation": "swarm",
+                "_distance": 140.0,
+                "_durationSeconds": 30.0,
+                "_inputMode": "holdAttack",
+                "_seed": 1,
+                "_repeatCount": 3
+            },
+            {
+                "_conditionId": "swarm_mid",
+                "_situation": "swarm",
+                "_distance": 480.0,
+                "_durationSeconds": 30.0,
+                "_inputMode": "holdAttack",
+                "_seed": 1,
+                "_repeatCount": 3
+            },
+            {
+                "_conditionId": "pentagon_near",
+                "_situation": "pentagon",
+                "_distance": 140.0,
+                "_durationSeconds": 30.0,
+                "_inputMode": "holdAttack",
+                "_seed": 1,
+                "_repeatCount": 3
+            },
+            {
+                "_conditionId": "pentagon_mid",
+                "_situation": "pentagon",
+                "_distance": 480.0,
+                "_durationSeconds": 30.0,
+                "_inputMode": "holdAttack",
+                "_seed": 1,
+                "_repeatCount": 3
+            }
+        ],
+        "_excludedRuneIds": [
+            "element.fire",
+            "element.lightning",
+            "element.ice",
+            "mod.knockback",
+            "mod.orbit",
+            "mod.beamEmpower",
+            "mod.amplify",
+            "mod.saving"
+        ]
+    },
+    "_exclusions": {
+        "_schemaVersion": 1,
+        "_entries": []
+    }
+}

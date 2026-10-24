@@ -131,6 +131,18 @@ namespace RuneCode
         public IReadOnlyDictionary<string, double> ResourceCostsSpent => _stats.ResourceCostsSpent;
         public int PeakSpellEntities => _stats.PeakSpellEntities;
         public int NodeExecutionCount => _stats.NodeExecutionCount;
+        /// <summary>루트 시전 시도 횟수다. 쿨다운을 시작해 true를 반환한 시전만 센다.</summary>
+        public int RootCastAttempts => _stats.RootCastAttempts;
+        /// <summary>루트 첫 행동의 자원 지불에 성공한 시전 횟수다. 비용이 0이라 항상 성공하는 경우도 포함한다.</summary>
+        public int RootCastSuccesses => _stats.RootCastSuccesses;
+        /// <summary>루트 첫 행동의 자원 지불이 자원 부족으로 실패한 시전 횟수다.</summary>
+        public int RootCastFailures => _stats.RootCastFailures;
+        /// <summary>루트 첫 행동 지불이 처음 실패한 틱이다. 실패가 없으면 -1이다.</summary>
+        public int FirstRootCastFailureTick => _stats.FirstRootCastFailureTick;
+        /// <summary>초 버킷별 실제 피해 누적값이다. 인덱스가 경과 초를 뜻한다.</summary>
+        public IReadOnlyList<double> DamageBySecond => _stats.DamageBySecond;
+        /// <summary>적 ID별 실제 피해 누적값이다.</summary>
+        public IReadOnlyDictionary<int, double> DamageByEnemyId => _stats.DamageByEnemyId;
         public bool AdaptationEnabled => Adaptation.Enabled;
         public bool DebugInvulnerable => _world.DebugInvulnerable;
         /// <summary>저격수 또는 Hexa 저격 하위 공격의 저장된 조준 경로를 벽과 원본 사거리로 제한한 끝점을 반환한다.</summary>
@@ -373,8 +385,8 @@ namespace RuneCode
             TrimFeedback();
         }
 
-        /// <summary>독립 시험의 시드·상태·통계·시나리오 적을 초기화한다. dummyCount가 0이면 기존 일렬 배치 기본 수를 사용한다.</summary>
-        public void ResetBench(string scenario, int dummyCount = 0)
+        /// <summary>독립 시험의 시드·상태·통계·시나리오 적을 초기화한다. dummyCount가 0이면 기존 일렬 배치 기본 수를 사용하고, 측정 시나리오에서만 measurementDistance를 적 거리로 쓴다.</summary>
+        public void ResetBench(string scenario, int dummyCount = 0, double measurementDistance = 0)
         {
             _feedback.ClearBeamFlashes();
             _loot.ClearClearFeedback();
@@ -388,7 +400,7 @@ namespace RuneCode
             SimulationBalance bench = _world.Balance.Sim;
             _world.Map = new MissionMap(_world.Sector.BenchTiles, _world.Sector.TileSize); _world.Player = new SimulationPlayer(_world.MaxHp, _world.MaxEnergy, new SimVector(bench.BenchPlayerX, bench.BenchPlayerY));
             Adaptation.Clear(); Adaptation.SetEnabled(scenario == "adapt_loop");
-            _bench.PlaceEnemies(dummyCount);
+            _bench.PlaceEnemies(dummyCount, measurementDistance);
         }
 
         /// <summary>디버그 기능에서 지정한 적을 추가한다. 엘리트는 체력·보상 2배, 속도 1.2배, 반경 2배와 현재 스테이지의 드롭 테이블을 사용한다.</summary>
@@ -622,6 +634,9 @@ namespace RuneCode
         /// <summary>장착된 행동을 순회하고 노드별 실제 피해와 OnHit 후속 생성 누계를 로그용 복사본으로 반환한다.</summary>
         public IReadOnlyList<Dictionary<string, object>> GetActionCombatLogSnapshot()
             => _stats.GetActionCombatLogSnapshot(_executor.Loadout);
+
+        /// <summary>노드 ID별 실제 피해 합계(직접 및 상태이상)를 반환한다. 같은 노드 ID의 행동은 합산하고 기록이 없으면 0이다.</summary>
+        public double GetNodeDamage(string nodeId) => _stats.GetNodeDamage(nodeId);
 
     }
 }

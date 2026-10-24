@@ -144,6 +144,7 @@ namespace RuneCode
                 caster: _world.Player, randomState: new SpellRandomState());
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
             ExecuteRootBranches(spell.Root, context, tracker);
+            RecordRootCastPayment(rootCast);
             return true;
         }
 
@@ -174,7 +175,7 @@ namespace RuneCode
             for (int slot = 0; slot < _loadout.Length; slot++) TryCastTriggered(_loadout[slot], trigger, slot);
         }
 
-        /// <summary>현재 틱에 도달한 노드 완료와 연속 회차 예약을 등록 순서대로 적용한다.</summary>
+        /// <summary>현재 틱에 도달한 노드 완료와 폭발 회차 예약을 등록 순서대로 적용한다.</summary>
         internal void RunScheduled()
         {
             for (int i = 0; i < _scheduled.Count;)
@@ -192,7 +193,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>연속 회차 예약을 위치·조준 재계산과 함께 비용 없이 실행하고 완료 추적을 해제한다.</summary>
+        /// <summary>폭발 회차 예약을 위치·조준 재계산과 함께 비용 없이 실행하고 완료 추적을 해제한다.</summary>
         private void RunSequenceWave(ScheduledExecution pending)
         {
             pending.Tracker.BeginDispatch();
@@ -269,8 +270,10 @@ namespace RuneCode
             if (!_beam.TrySpendBeamCosts(costs))
             {
                 active?.Stop();
+                RecordRootFirstActionPayment(tracker, action, isPaid: false);
                 return;
             }
+            RecordRootFirstActionPayment(tracker, action, isPaid: true);
             RecordNode(action.NodeId);
             if (active != null)
             {
@@ -315,8 +318,10 @@ namespace RuneCode
                     }
                     if (!TrySpendFor(action, context))
                     {
+                        RecordRootFirstActionPayment(tracker, action, isPaid: false);
                         continue;
                     }
+                    RecordRootFirstActionPayment(tracker, action, isPaid: true);
                     RecordNode(action.NodeId);
                     tracker.Acquire();
                     if (durationTicks == 0) CompleteAction(action, context, tracker);
@@ -383,6 +388,28 @@ namespace RuneCode
         }
 
         /// <summary>
+        /// 루트 시전 시도와 첫 행동 자원 지불 결과를 통계에 기록한다. 지불 지점 전에 틱당·예약 상한으로 버려진 시전은 시도에만 포함한다.
+        /// 첫 실패 틱은 이 지점의 _world.Tick으로 확정한다.
+        /// </summary>
+        private void RecordRootCastPayment(RootSpellExecution rootCast)
+        {
+            _stats.RootCastAttempts++;
+            if (rootCast.FirstActionPayment > 0) _stats.RootCastSuccesses++;
+            else if (rootCast.FirstActionPayment < 0)
+            {
+                _stats.RootCastFailures++;
+                if (_stats.FirstRootCastFailureTick < 0) _stats.FirstRootCastFailureTick = _world.Tick;
+            }
+        }
+
+        /// <summary>루트 첫 행동의 자원 지불 결과를 루트 실행 플래그에 기록한다. 이벤트 후속과 루트의 예약 분기는 첫 행동이 아니므로 제외된다.</summary>
+        private static void RecordRootFirstActionPayment(ExecutionTracker tracker, SpellAction action, bool isPaid)
+        {
+            RootSpellExecution root = tracker.RootCast;
+            if (root != null && root.IsFirstRootAction(action)) root.RecordFirstActionPayment(isPaid);
+        }
+
+        /// <summary>
         /// 최초 행동의 onHit 전력 선결제와 나머지 노드 자원 비용을 함께 차감하고 성공 여부를 반환한다. 선결제 후속은 전력을 다시 내지 않는다.
         /// 비용이 0이면 항상 성공한다.
         /// </summary>
@@ -402,14 +429,14 @@ namespace RuneCode
         /// <summary>
         /// 행동 실행 동작에 따라 개체 수만큼 배치·예열 시간을 정해 마법 개체를 생성하고 생성 직후 처리를 실행한다.
         /// 배치는 배치 모드(행동 배치 전) → 행동 PlaceSpawn → 배치 모드(행동 배치 후) 순서다. 이벤트 앵커와 노이즈 속성을 반영한다.
-        /// wave가 0이면 첫 회차로 부착 노드를 기록하고 연속의 남은 회차를 예약하며, 0보다 크면 기록·재예약 없이 개체만 다시 만든다.
+        /// wave가 0이면 첫 회차로 부착 노드를 기록하고 폭발에 장착한 다중의 남은 회차를 예약하며, 0보다 크면 기록·재예약 없이 개체만 다시 만든다.
         /// </summary>
         private void SpawnForm(SpellAction action, SpellContext context, ExecutionTracker tracker, int wave = 0)
         {
             if (wave == 0)
             {
                 foreach (string attachedNodeId in action.AttachedNodeIds) RecordNode(attachedNodeId);
-                ScheduleSequenceWaves(action, context, tracker);
+                ScheduleWaves(action, context, tracker);
             }
             string element = action.Noise ? ChooseNoiseElement(context) : action.Element;
             SpellStats stats = action.Stats.Apply(context.Modifiers);
@@ -463,10 +490,10 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 연속 모드가 붙은 spawn의 남은 회차를 회차 간격 뒤로 예약한다. 빔에는 적용하지 않으며,
+        /// 폭발에 장착한 다중이 붙은 spawn의 남은 회차를 회차 간격 뒤로 예약한다. 빔에는 적용하지 않으며,
         /// 예약 상한을 넘은 회차는 추적을 걸지 않고 버리고 dropped 실행 수만 센다.
         /// </summary>
-        private void ScheduleSequenceWaves(SpellAction action, SpellContext context, ExecutionTracker tracker)
+        private void ScheduleWaves(SpellAction action, SpellContext context, ExecutionTracker tracker)
         {
             if (action.WaveCount <= 1 || action.Form == BeamBehaviorRules.BEAM_KIND) return;
             int waveTicks = Math.Max(1, GetExecutionDelayTicks(action.WaveInterval * _world.Balance.Sim.ExecutionTimeScale));

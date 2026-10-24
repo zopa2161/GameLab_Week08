@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 using UnityEngine;
@@ -29,9 +30,14 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _nextPageLabel;
         [SerializeField] private TextMeshProUGUI _pageLabel;
 
+        [Header("다음 버튼 대기")]
+        [SerializeField, Min(0)] private float _nextPageDelaySeconds;
+        [SerializeField] private RectTransform _nextPageProgress;
+
         private IReadOnlyList<EncyclopediaPage> _pages;
         private Action _closeRequested;
         private int _pageIndex;
+        private Coroutine _nextPageWait;
 
         // 영상과 이미지는 같은 영역(_videoRoot)과 RawImage(_videoImage)에 번갈아 표시한다.
         [Header("영상·이미지")]
@@ -53,6 +59,7 @@ namespace RuneCode
 
         void OnDisable()
         {
+            CancelNextPageWait();
             StopVideo();
             if (_videoTexture != null) _videoTexture.Release();
         }
@@ -79,6 +86,7 @@ namespace RuneCode
         /// <summary>마지막 페이지에서 닫기 동작이 있으면 호출하고, 아니면 다음 페이지로 넘긴다.</summary>
         private void HandleNext()
         {
+            if (!_nextPageButton.interactable) return;
             int pageCount = _pages?.Count ?? 0;
             if (_closeRequested != null && _pageIndex >= pageCount - 1) _closeRequested();
             else ShowPage(_pageIndex + 1);
@@ -87,6 +95,7 @@ namespace RuneCode
         /// <summary>pageIndex의 본문·영상·이미지와 페이지 버튼 상태를 갱신하고 본문 스크롤을 맨 위로 올린다.</summary>
         private void ShowPage(int pageIndex)
         {
+            CancelNextPageWait();
             int pageCount = _pages?.Count ?? 0;
             _pageIndex = pageCount > 0 ? Mathf.Clamp(pageIndex, 0, pageCount - 1) : 0;
             EncyclopediaPage page = pageCount > 0 ? _pages[_pageIndex] : null;
@@ -109,6 +118,32 @@ namespace RuneCode
             Canvas.ForceUpdateCanvases();
             _bodyScroll.StopMovement();
             _bodyScroll.verticalNormalizedPosition = 1;
+            if (_nextPageDelaySeconds > 0f && _nextPageButton.interactable)
+                _nextPageWait = StartCoroutine(WaitForNextPage());
+        }
+
+        /// <summary>일시정지와 무관한 시간으로 대기선을 채우며 다음 버튼을 잠그고, 설정한 대기 시간이 끝나면 입력을 허용한다.</summary>
+        private IEnumerator WaitForNextPage()
+        {
+            _nextPageButton.interactable = false;
+            _nextPageProgress.anchorMax = new Vector2(0f, 1f);
+            float elapsed = 0f;
+            while (elapsed < _nextPageDelaySeconds)
+            {
+                yield return null;
+                elapsed += Time.unscaledDeltaTime;
+                _nextPageProgress.anchorMax = new Vector2(Mathf.Clamp01(elapsed / _nextPageDelaySeconds), 1f);
+            }
+            _nextPageButton.interactable = true;
+            _nextPageWait = null;
+        }
+
+        /// <summary>페이지 전환 또는 창 비활성화 시 진행 중인 다음 버튼 대기를 중지한다.</summary>
+        private void CancelNextPageWait()
+        {
+            if (_nextPageWait == null) return;
+            StopCoroutine(_nextPageWait);
+            _nextPageWait = null;
         }
 
         /// <summary>

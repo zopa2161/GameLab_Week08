@@ -161,10 +161,10 @@ namespace RuneCode
         /// <summary>Beam Shape의 고정 길이(px)다. Beam Shape가 아닌 룬은 0이다.</summary>
         public float BeamLength => _beamLength;
 
-        /// <summary>연속 모드가 행동을 반복하는 회차 수다. 데이터가 없으면 0이다.</summary>
+        /// <summary>회차를 만드는 모드가 행동을 반복하는 회차 수다. 데이터가 없으면 0이다.</summary>
         public int WaveCount => _waveCount;
 
-        /// <summary>연속 모드의 회차 사이 간격(초)이다. 데이터가 없으면 0이다.</summary>
+        /// <summary>회차를 만드는 모드의 회차 사이 간격(초)이다. 데이터가 없으면 0이다.</summary>
         public float WaveInterval => _waveInterval;
 
         /// <summary>룬 데이터의 수치 항목으로 효과 수치를 만든다. JSON에 없는 필드는 배율이면 1, 그 외는 0이다.</summary>

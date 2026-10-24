@@ -17,12 +17,12 @@ namespace RuneCode
         public const string SPEED_MULTIPLIER_EFFECT = "speedMultiplier";
         public const string ORBIT_PATH_EFFECT = "orbitPath";
         public const string KNOCKBACK_DISTANCE_EFFECT = "knockbackDistance";
-        public const string WAVE_COUNT_EFFECT = "waveCount";
         public const string BEAM_EMPOWER_MULTIPLIER_EFFECT = "beamEmpowerMultiplier";
 
         private const string TABLE_FILE = "elite_modifier_drops.json";
         private const string LAUNCH_COUNT_KEY = "_launchGradeValues";
         private const string LAUNCH_SPREAD_KEY = "_launchSpreadAngles";
+        private const string WAVE_COUNT_KEY = "_waveGradeValues";
         private const string ENERGY_MULT_BY_GRADE_KEY = "_energyMultByGrade";
         private const string BEAM_MANA_MULT_BY_GRADE_KEY = "_beamEmpowerManaMultByGrade";
         private const string BEAM_SIZE_MULT_BY_GRADE_KEY = "_beamEmpowerSizeMultByGrade";
@@ -207,12 +207,17 @@ namespace RuneCode
             return TryGetIntegerValue(modifierId, grade, out value);
         }
 
-        /// <summary>연속 회차 수 등급 값을 읽는다. 효과 종류가 waveCount가 아니거나 값이 없으면 false를 반환한다.</summary>
-        public bool TryGetWaveCount(string modifierId, string grade, out int value)
+        /// <summary>폭발에 장착한 다중의 등급별 회차 수를 읽는다. multipleCount 효과가 아니거나 해당 등급 값이 숫자가 아니면 false를 반환한다.</summary>
+        public bool TryGetWaveGradeCount(string modifierId, string grade, out int value)
         {
             value = 0;
-            if (GetEffectType(modifierId) != WAVE_COUNT_EFFECT) return false;
-            return TryGetIntegerValue(modifierId, grade, out value);
+            if (GetEffectType(modifierId) != MULTIPLE_COUNT_EFFECT || string.IsNullOrEmpty(grade)
+                || !_effects.TryGetValue(modifierId, out ModifierGradeEffect effect)
+                || effect.WaveGradeValues == null
+                || !effect.WaveGradeValues.TryGetValue(grade, out object rawValue)
+                || !(rawValue is double number)) return false;
+            value = (int)number;
+            return true;
         }
 
         /// <summary>발사 Behavior 전용 등급 값이 있으면 반환한다. 없으면 false를 반환한다.</summary>
@@ -330,10 +335,12 @@ namespace RuneCode
                     : ReadGradeValues(row, modifierId, gradeOrder, log);
                 if (!HasAvailableValue(values)) log.Add(modifierId, "_gradeValues", "값이 있는 등급이 하나 이상 있어야 합니다.");
                 ValidateGradeValueTypes(modifierId, effectType, values, rune, log);
-                Dictionary<string, object> launchValues = ReadLaunchGradeValues(row, modifierId, effectType, gradeOrder, values, log, LAUNCH_COUNT_KEY);
+                Dictionary<string, object> launchValues = ReadOptionalGradeValues(row, modifierId, effectType, gradeOrder, values, log, LAUNCH_COUNT_KEY);
                 if (launchValues != null) ValidateGradeValueTypes(modifierId, effectType, launchValues, rune, log, LAUNCH_COUNT_KEY);
-                Dictionary<string, object> spreadAngles = ReadLaunchGradeValues(row, modifierId, effectType, gradeOrder, values, log, LAUNCH_SPREAD_KEY);
+                Dictionary<string, object> spreadAngles = ReadOptionalGradeValues(row, modifierId, effectType, gradeOrder, values, log, LAUNCH_SPREAD_KEY);
                 if (spreadAngles != null) ValidateSpreadAngles(modifierId, spreadAngles, log);
+                Dictionary<string, object> waveValues = ReadOptionalGradeValues(row, modifierId, effectType, gradeOrder, values, log, WAVE_COUNT_KEY);
+                if (waveValues != null) ValidateGradeValueTypes(modifierId, effectType, waveValues, rune, log, WAVE_COUNT_KEY);
                 Dictionary<string, object> pierceMultipliers = null;
                 if (effectType == PIERCE_COUNT_EFFECT)
                 {
@@ -353,7 +360,7 @@ namespace RuneCode
                 if (effectType == EFFECT_MULTIPLIER_EFFECT && row.ContainsKey(AMPLIFY_SPEED_MULT_BY_GRADE_KEY))
                     amplifySpeedMultipliers = ReadEnergyMultipliers(row, modifierId, gradeOrder, log, AMPLIFY_SPEED_MULT_BY_GRADE_KEY);
                 result.Add(modifierId, new ModifierGradeEffect(name, effectType, values, energyMultipliers, launchValues, spreadAngles,
-                    pierceMultipliers, beamManaMultipliers, beamSizeMultipliers, amplifySpeedMultipliers));
+                    pierceMultipliers, beamManaMultipliers, beamSizeMultipliers, amplifySpeedMultipliers, waveValues));
                 modifierOrder.Add(modifierId);
             }
             return result;
@@ -414,10 +421,10 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 선택 필드인 발사 전용 등급 값(key)을 읽는다. multipleCount에만 허용하고,
+        /// 선택 필드인 등급 값(key)을 읽는다. multipleCount에만 허용하고,
         /// 값이 있는 등급은 _gradeValues와 같아야 한다. 필드가 없거나 null이면 null을 반환한다. 값 타입은 호출부가 검사한다.
         /// </summary>
-        private static Dictionary<string, object> ReadLaunchGradeValues(Dictionary<string, object> row, string modifierId,
+        private static Dictionary<string, object> ReadOptionalGradeValues(Dictionary<string, object> row, string modifierId,
             string effectType, IReadOnlyList<string> gradeOrder, Dictionary<string, object> gradeValues, TableErrorLog log, string key)
         {
             if (Get(row, key) == null) return null;
@@ -462,7 +469,7 @@ namespace RuneCode
             bool isKnownEffect = effectType == EFFECT_MULTIPLIER_EFFECT || effectType == MULTIPLE_COUNT_EFFECT || effectType == PIERCE_COUNT_EFFECT
                 || effectType == RADIUS_MULTIPLIER_EFFECT || effectType == DURATION_MULTIPLIER_EFFECT || effectType == SPEED_MULTIPLIER_EFFECT
                 || effectType == HOMING_TIER_EFFECT || effectType == ORBIT_PATH_EFFECT || effectType == KNOCKBACK_DISTANCE_EFFECT
-                || effectType == WAVE_COUNT_EFFECT || effectType == ENERGY_COST_MULTIPLIER_EFFECT || effectType == BEAM_EMPOWER_MULTIPLIER_EFFECT;
+                || effectType == ENERGY_COST_MULTIPLIER_EFFECT || effectType == BEAM_EMPOWER_MULTIPLIER_EFFECT;
             if (!isKnownEffect) log.Add(modifierId, "_effectType", "지원하지 않는 효과 종류입니다: " + effectType);
             foreach (KeyValuePair<string, object> pair in values)
             {
@@ -479,7 +486,7 @@ namespace RuneCode
                     if (!(pair.Value is double number) || number <= 0d || number > float.MaxValue)
                         log.Add(modifierId, field, "float 범위의 양수 숫자여야 합니다.");
                 }
-                else if (effectType == MULTIPLE_COUNT_EFFECT || effectType == WAVE_COUNT_EFFECT)
+                else if (effectType == MULTIPLE_COUNT_EFFECT)
                 {
                     if (!(pair.Value is double number) || number < 1d || number > int.MaxValue || number != Math.Truncate(number))
                         log.Add(modifierId, field, "양의 정수여야 합니다.");
@@ -699,7 +706,7 @@ namespace RuneCode
         }
     }
 
-    /// <summary>Modifier 하나의 등급 효과, 에너지 배율과 선택적인 발사 전용 등급값을 보관한다.</summary>
+    /// <summary>Modifier 하나의 등급 효과, 에너지 배율과 선택적인 발사 전용·폭발 회차 등급값을 보관한다.</summary>
     internal sealed class ModifierGradeEffect
     {
         public string Name { get; }
@@ -717,14 +724,18 @@ namespace RuneCode
         /// <summary>발사 Behavior 다중 탄의 등급별 좌우 최대 퍼짐 각도다. 없으면 null이며 룬 기본 퍼짐 각도를 쓴다.</summary>
         public IReadOnlyDictionary<string, object> LaunchSpreadAngles { get; }
 
-        /// <summary>검증이 끝난 Modifier 효과 값과 등급 에너지 배율을 보관한다.</summary>
+        /// <summary>폭발에 장착한 다중의 등급별 회차 수다. 없으면 null이며 룬 수치의 회차 수를 쓴다.</summary>
+        public IReadOnlyDictionary<string, object> WaveGradeValues { get; }
+
+        /// <summary>검증이 끝난 Modifier 효과 값과 등급 에너지 배율, 선택적인 효과 증폭 속도 배율·회차 등급값을 보관한다.</summary>
         public ModifierGradeEffect(string name, string effectType, IReadOnlyDictionary<string, object> gradeValues,
             IReadOnlyDictionary<string, float> energyMultipliersByGrade,
             IReadOnlyDictionary<string, object> launchGradeValues = null, IReadOnlyDictionary<string, object> launchSpreadAngles = null,
             IReadOnlyDictionary<string, object> pierceDamageMultipliers = null,
             IReadOnlyDictionary<string, float> beamEmpowerManaMultipliers = null,
             IReadOnlyDictionary<string, float> beamEmpowerSizeMultipliers = null,
-            IReadOnlyDictionary<string, float> amplifySpeedMultipliers = null)
+            IReadOnlyDictionary<string, float> amplifySpeedMultipliers = null,
+            IReadOnlyDictionary<string, object> waveGradeValues = null)
         {
             Name = name;
             EffectType = effectType;
@@ -736,6 +747,7 @@ namespace RuneCode
             AmplifySpeedMultipliers = amplifySpeedMultipliers;
             LaunchGradeValues = launchGradeValues;
             LaunchSpreadAngles = launchSpreadAngles;
+            WaveGradeValues = waveGradeValues;
         }
     }
 

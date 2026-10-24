@@ -162,7 +162,7 @@ namespace RuneCode
                 if (sourceAction != null) _stats.GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
                 _stats.EnemyDamageEventCount++;
                 enemy.SetDamageTags(element, form);
-                _stats.RecordEnemyDamage(actual, _world.Tick);
+                _stats.RecordEnemyDamage(actual, _world.Tick, enemy.Id);
                 _feedback.AddDamageNumber(enemy.Position, actual, element);
                 if (enemy.Hydra == null) _world.Adaptation.Learn(element, form, _runtime.Time, actual, isDot, noise, relayAlive);
             }

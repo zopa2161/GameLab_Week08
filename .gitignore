@@ -111,6 +111,9 @@ InitTestScene*.unity*
 # Personal notes (not shared)
 /[Aa]ssets/Docs~/
 
+# DPS measurement results (local only)
+/[Aa]ssets/RuneCode/Editor/DpsMeasurement/Results~/
+
 
 # 테이블 편집기 빌드 산출물
 tools/TableEditor/bin/

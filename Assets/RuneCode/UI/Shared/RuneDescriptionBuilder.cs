@@ -17,6 +17,7 @@ namespace RuneCode
         private const string MODIFIER_TARGETS_KEY = "rune.modifierTargets";
         private const string HOMING_NONE_KEY = "rune.effect.homingNone";
         private const string LAUNCH_COUNT_KEY = "rune.effect.launchCount";
+        private const string WAVE_COUNT_KEY = "rune.effect.waveCount";
         private const string NAME_SEPARATOR = " · ";
         private const string NUMBER_FORMAT = "0.##";
         private const string ANGLE_FORMAT = "0.#";
@@ -26,7 +27,7 @@ namespace RuneCode
         {
             "behavior.launch", "behavior.burst", "behavior.persist", "behavior.beam", "behavior.slash"
         };
-        private static readonly string[] DAMAGE_TRADE_OFF_RUNE_IDS = { "mod.multi", "mod.sequence", "mod.expand" };
+        private static readonly string[] DAMAGE_TRADE_OFF_RUNE_IDS = { "mod.multi", "mod.expand" };
 
         /// <summary>룬의 짧은 설명 한 문장을 rune.{id}.desc 키에서 반환한다. 화염은 전투 밸런스의 화상 수치를 넣는다.</summary>
         public static string GetDescription(RuneDefinition rune)
@@ -42,7 +43,8 @@ namespace RuneCode
 
         /// <summary>
         /// Modifier 등급의 효과 문구를 줄 단위로 반환한다. isDetailed면 비용·보조 수치를 더하고 colorValues면 등급 수치만 등급 색으로 표시한다.
-        /// 등급 값이 없는 Modifier나 등급이 없는 룬은 빈 목록이고, 유도 단계가 없는 등급은 유도 없음 한 줄이다.
+        /// 다중은 발사 전용 개수와 폭발 회차 수를 함께 표시하며, 등급 값이 없는 Modifier나 등급이 없는 룬은 빈 목록이고
+        /// 유도 단계가 없는 등급은 유도 없음 한 줄이다.
         /// </summary>
         public static List<string> GetGradeLines(RuneDefinition rune, string grade, bool isDetailed, bool colorValues = false)
         {
@@ -55,6 +57,8 @@ namespace RuneCode
             if (rune.Id == "mod.multi" && grades.TryGetLaunchGradeValues(rune.Id, out _)
                 && grades.TryGetCountValue(rune.Id, grade, true, out int launchCount))
                 AddLines(lines, GameData.Format(LAUNCH_COUNT_KEY, ("value", GradeNumber(launchCount, NUMBER_FORMAT, grade, colorValues))));
+            if (rune.Id == "mod.multi" && grades.TryGetWaveGradeCount(rune.Id, grade, out int waveCount))
+                AddLines(lines, GameData.Format(WAVE_COUNT_KEY, ("value", GradeNumber(waveCount, NUMBER_FORMAT, grade, colorValues))));
             if (isDetailed) AddDetailLines(lines, rune, grade, effectType);
             return lines;
         }
@@ -126,7 +130,6 @@ namespace RuneCode
                     return;
                 case ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT:
                 case ModifierGradeTable.MULTIPLE_COUNT_EFFECT:
-                case ModifierGradeTable.WAVE_COUNT_EFFECT:
                 case ModifierGradeTable.PIERCE_COUNT_EFFECT:
                 case ModifierGradeTable.RADIUS_MULTIPLIER_EFFECT:
                 case ModifierGradeTable.DURATION_MULTIPLIER_EFFECT:
@@ -137,7 +140,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>인스펙터용 비용 배율과 다중·연속·확장·관통·밀어내기·공전의 보조 수치를 lines에 더한다.</summary>
+        /// <summary>인스펙터용 비용 배율과 다중(폭발 회차 포함)·확장·관통·밀어내기·공전의 보조 수치를 lines에 더한다.</summary>
         private static void AddDetailLines(List<string> lines, RuneDefinition rune, string grade, string effectType)
         {
             ModifierGradeTable grades = GameData.ModifierGrades;
