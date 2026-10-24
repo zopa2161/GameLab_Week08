@@ -15,7 +15,6 @@ namespace RuneCode
         private const string EFFECT_KEY_PREFIX = "rune.effect.";
         private const string DETAIL_KEY_PREFIX = "rune.detail.";
         private const string MODIFIER_TARGETS_KEY = "rune.modifierTargets";
-        private const string MODIFIER_TARGET_MARK_KEY = "rune.modifierTargetMark";
         private const string CLEAR_MODIFIER_TARGETS_KEY = "result.clearModifierTargets";
         private const string HOMING_NONE_KEY = "rune.effect.homingNone";
         private const string LAUNCH_COUNT_KEY = "rune.effect.launchCount";
@@ -87,15 +86,12 @@ namespace RuneCode
             return names.Count == 0 ? null : GameData.Format(MODIFIER_TARGETS_KEY, ("targets", string.Join(NAME_SEPARATOR, names)));
         }
 
-        /// <summary>보상 선택 카드용으로 장착 가능 행동 이름을 단어별 배경 태그로 감싼 두 줄 문구를 반환하고 대상이 없으면 빈 문자열을 반환한다.</summary>
-        public static string GetMarkedModifierTargets(RuneDefinition rune)
+        /// <summary>보상 선택 카드용으로 장착 가능 행동 이름을 가운뎃점으로 묶은 두 줄 문구를 반환하고 대상이 없으면 빈 문자열을 반환한다.</summary>
+        public static string GetClearChoiceModifierTargets(RuneDefinition rune)
         {
             List<string> names = GetModifierTargetNames(rune);
-            if (names.Count == 0) return string.Empty;
-            var marked = new List<string>(names.Count);
-            foreach (string name in names)
-                marked.Add(GameData.Format(MODIFIER_TARGET_MARK_KEY, ("name", name)));
-            return GameData.Format(CLEAR_MODIFIER_TARGETS_KEY, ("targets", string.Join(" ", marked)));
+            return names.Count == 0 ? string.Empty
+                : GameData.Format(CLEAR_MODIFIER_TARGETS_KEY, ("targets", string.Join(NAME_SEPARATOR, names)));
         }
 
         /// <summary>호버 문구를 반환한다. 등급 색 이름, 짧은 설명, 등급 색 수치를 포함한 간략 등급 효과, 장착 가능 행동 순서로 잇는다.</summary>
