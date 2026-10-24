@@ -555,7 +555,7 @@ namespace RuneCode
                 if (chance.Category == DropCatalog.TYPE_ELEMENT)
                     throw new FormatException("라운드 보상 드롭 테이블에는 속성 확률을 둘 수 없습니다: " + tableId + " (" + location + ")");
                 foreach (string grade in DropCatalog.GetGradeOrder(chance.Category, runes, modifierGrades))
-                    if (RuneRewardRoller.CollectCandidates(table, chance.Category, grade, runes, modifierGrades, null).Count < ROUND_REWARD_CHOICE_COUNT)
+                    if (RuneRewardRoller.CollectChoiceCandidates(table, chance.Category, grade, runes, modifierGrades, null).Count < ROUND_REWARD_CHOICE_COUNT)
                         throw new FormatException("라운드 보상 드롭 테이블은 모든 지원 등급마다 후보가 " + ROUND_REWARD_CHOICE_COUNT + "개 이상이어야 합니다: "
                             + chance.Category + " " + grade + " (" + tableId + ", " + location + ")");
             }
