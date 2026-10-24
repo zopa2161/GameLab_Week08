@@ -33,6 +33,7 @@ namespace RuneCode
         public string _category;
         public string _shape;
         public bool _disabled;
+        public bool _hiddenFromRewards;
         public int _ram;
         public float _energy;
         public float _executionSeconds;
