@@ -37,8 +37,10 @@ namespace RuneCode
             _inspector = new SpellInspectorPresenter(editor, view.Inspector);
             _synthesis = new RuneSynthesisPresenter(editor, host, ui, view, _palette);
             BindView();
-            _view.GraphCanvas.Initialize(_editor, _view.Font, node => { }, ShowTooltip, _palette.OpenQuickPalette, _palette.OpenSlotPicker,
+            _view.GraphCanvas.Initialize(_editor, _view.Font, node => { }, ShowTooltip, _palette.OpenQuickPalette,
                 _palette.OpenGradePicker);
+            _view.GraphCanvas.SetSlotPreviewFactory((rune, grade) =>
+                _view.CreatePaletteRowPreview(rune, _palette.BuildStockLabel(rune.Id, grade)));
             _editor.GraphChanged += OnGraphChanged;
             _editor.Compiled += OnGraphChanged;
             _editor.SpellSwitched += OnSpellSwitched;
