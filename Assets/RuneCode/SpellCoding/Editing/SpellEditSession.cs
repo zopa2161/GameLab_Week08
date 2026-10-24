@@ -472,10 +472,10 @@ namespace RuneCode
                 && rune.Category == SpellGrammar.CATEGORY_BEHAVIOR;
         }
 
-        /// <summary>슬롯·형태를 바꾼 후보가 연결된 노드라면 장착 RAM을 검사하고 통과하면 편집 그래프로 확정한다.</summary>
+        /// <summary>슬롯·형태를 바꾼 노드가 시작에서 실행 가능하면 장착 RAM을 검사하고 통과하면 편집 그래프로 확정한다.</summary>
         private bool CommitSlotCandidate(SpellGraph candidate, string nodeId)
         {
-            if (candidate.IsNodeConnected(nodeId) && !_policy.IsWithinRam(candidate)) { _policy.ReportStatus("editor.ramBlocked"); return false; }
+            if (candidate.GetExecutableNodeIds(GameData.Runes).Contains(nodeId) && !_policy.IsWithinRam(candidate)) { _policy.ReportStatus("editor.ramBlocked"); return false; }
             _editingGraph = candidate;
             MarkChanged(); RaiseGraphChanged();
             return true;

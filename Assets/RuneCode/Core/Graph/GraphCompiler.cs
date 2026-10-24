@@ -188,6 +188,7 @@ namespace RuneCode
             Dictionary<string, RuneDefinition> definitions = new Dictionary<string, RuneDefinition>(StringComparer.Ordinal);
             List<GraphNode> cores = new List<GraphNode>();
             int ramUsed = chainRam;
+            var executableNodes = graph.GetExecutableNodeIds(runes);
             foreach (GraphNode node in graph.Nodes)
             {
                 if (node == null || string.IsNullOrEmpty(node.Id) || !nodes.TryAdd(node.Id, node)
@@ -197,7 +198,7 @@ namespace RuneCode
                     continue;
                 }
                 definitions[node.Id] = rune;
-                if (graph.IsNodeConnected(node.Id)) ramUsed += rune.Ram;
+                if (executableNodes.Contains(node.Id)) ramUsed += rune.Ram;
                 if (rune.Category == "core") cores.Add(node);
                 bool isAllowedRune = !rune.IsDisabled && (rune.Category == SpellGrammar.CATEGORY_CORE
                     || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR || rune.Category == SpellGrammar.CATEGORY_INTERNAL);

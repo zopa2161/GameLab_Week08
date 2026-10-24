@@ -1008,13 +1008,14 @@ namespace RuneCode
             }
         }
 
-        /// <summary>그래프에서 엣지에 연결된 룬의 RAM만 합산한다.</summary>
+        /// <summary>시작 노드에서 실행 가능한 룬과 장착 슬롯의 RAM만 합산한다.</summary>
         private int GetGraphRam(SpellGraph graph)
         {
             if (graph == null) return 0;
             var ram = 0;
+            var executableNodes = graph.GetExecutableNodeIds(GameData.Runes);
             foreach (GraphNode node in graph.Nodes)
-                if (graph.IsNodeConnected(node.Id)) ram += GameData.Runes.NodeRam(node);
+                if (executableNodes.Contains(node.Id)) ram += GameData.Runes.NodeRam(node);
             return ram;
         }
 

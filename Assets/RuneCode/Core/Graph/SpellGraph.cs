@@ -232,6 +232,36 @@ namespace RuneCode
             return result;
         }
 
+        /// <summary>시작 노드에서 활성 실행 포트로 도달하는 노드 ID를 반환한다. 분리된 묶음과 순환 중복은 제외한다.</summary>
+        public HashSet<string> GetExecutableNodeIds(RuneCatalog runes)
+        {
+            var reachable = new HashSet<string>();
+            var pending = new Queue<GraphNode>();
+            foreach (GraphNode node in _nodes)
+            {
+                if (node == null || !runes.TryGet(node.RuneId, out RuneDefinition rune)
+                    || rune.IsDisabled || rune.Category != SpellGrammar.CATEGORY_CORE) continue;
+                if (reachable.Add(node.Id)) pending.Enqueue(node);
+            }
+            while (pending.Count > 0)
+            {
+                GraphNode source = pending.Dequeue();
+                RuneDefinition sourceRune = runes.Get(source.RuneId);
+                foreach (GraphEdge edge in _edges)
+                {
+                    if (edge == null || edge.FromNode != source.Id) continue;
+                    PortDefinition output = sourceRune.FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT);
+                    if (output == null || output.IsDeprecated || output.Kind != SpellGrammar.EXEC_KIND) continue;
+                    GraphNode target = FindNode(edge.ToNode);
+                    if (target == null || !runes.TryGet(target.RuneId, out RuneDefinition targetRune) || targetRune.IsDisabled) continue;
+                    PortDefinition input = targetRune.FindPort(edge.ToPort, SpellGrammar.DIRECTION_IN);
+                    if (input == null || input.IsDeprecated || input.Kind != SpellGrammar.EXEC_KIND) continue;
+                    if (reachable.Add(target.Id)) pending.Enqueue(target);
+                }
+            }
+            return reachable;
+        }
+
         /// <summary>지정한 노드에 연결된 그래프 엣지가 하나라도 있는지 반환한다.</summary>
         public bool IsNodeConnected(string id)
         {

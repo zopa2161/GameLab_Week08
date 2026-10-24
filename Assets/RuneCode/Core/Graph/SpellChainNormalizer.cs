@@ -12,7 +12,7 @@ namespace RuneCode
     {
         /// <summary>
         /// behavior 노드를 Inline Magic으로 교체한 컴파일용 그래프를 반환한다. 교체 대상이 없으면 원본을 그대로 반환한다.
-        /// 연결된 behavior 노드의 행동·장착 룬 RAM 합계를 chainRam으로, 등급·슬롯·속성·모디 오류를
+        /// 시작 노드에서 실행 가능한 behavior 노드의 행동·장착 룬 RAM 합계를 chainRam으로, 등급·슬롯·속성·모디 오류를
         /// errors에 추가하고, behavior 노드 ID가 키인 합성 Modifier 노드 목록을 slotModifiers로 돌려준다.
         /// </summary>
         public static SpellGraph Normalize(SpellGraph graph, RuneCatalog runes,
@@ -24,11 +24,12 @@ namespace RuneCode
             if (graph?.Nodes == null || graph.Edges == null) return graph;
             var replacements = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
             int errorCount = errors.Count;
+            var executableNodes = graph.GetExecutableNodeIds(runes);
             foreach (GraphNode node in graph.Nodes)
             {
                 if (node == null || string.IsNullOrEmpty(node.Id) || !runes.TryGet(node.RuneId, out RuneDefinition rune)) continue;
                 if (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled) continue;
-                if (graph.IsNodeConnected(node.Id)) chainRam += runes.NodeRam(node);
+                if (executableNodes.Contains(node.Id)) chainRam += runes.NodeRam(node);
                 if (!NormalizeBehaviorNode(node, rune, runes, errors, slotModifiers, out GraphNode inline)) continue;
                 replacements[node.Id] = inline;
             }
