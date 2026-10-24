@@ -210,6 +210,28 @@ namespace RuneCode
             return null;
         }
 
+        /// <summary>시작 노드들과 활성 실행 출력으로 이어지는 모든 후속 노드 ID를 중복 없이 반환한다.</summary>
+        public HashSet<string> GetBlockGroup(IEnumerable<string> roots, RuneCatalog runes)
+        {
+            var result = new HashSet<string>();
+            var pending = new Queue<string>();
+            foreach (string root in roots)
+                if (FindNode(root) != null && result.Add(root)) pending.Enqueue(root);
+            while (pending.Count > 0)
+            {
+                string id = pending.Dequeue();
+                RuneDefinition rune = runes.Get(FindNode(id).RuneId);
+                foreach (GraphEdge edge in _edges)
+                {
+                    if (edge.FromNode != id) continue;
+                    PortDefinition port = rune.FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT);
+                    if (port == null || port.IsDeprecated || port.Kind != SpellGrammar.EXEC_KIND) continue;
+                    if (FindNode(edge.ToNode) != null && result.Add(edge.ToNode)) pending.Enqueue(edge.ToNode);
+                }
+            }
+            return result;
+        }
+
         /// <summary>지정한 노드에 연결된 그래프 엣지가 하나라도 있는지 반환한다.</summary>
         public bool IsNodeConnected(string id)
         {

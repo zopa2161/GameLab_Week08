@@ -13,7 +13,7 @@ namespace RuneCode
         internal static string BuildNameText(GraphNode node)
         {
             RuneDefinition rune = GameData.Runes.Get(node.RuneId);
-            string name = rune.Name;
+            string name = node.RuneId == SpellGrammar.CORE_RUNE ? "시작" : rune.Name;
             if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
             {
                 string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
@@ -26,9 +26,10 @@ namespace RuneCode
             return "<b>" + name + "</b>";
         }
 
-        /// <summary>이름·RAM·핵심 설정 요약을 기존 비행동 노드 라벨 문구로 반환한다.</summary>
+        /// <summary>시작 노드는 이름만, 그 외 비행동 노드는 이름·RAM·핵심 설정 요약을 라벨 문구로 반환한다.</summary>
         internal static string BuildLegacyText(GraphNode node, IEnumerable<SpellGraph> library)
         {
+            if (node.RuneId == SpellGrammar.CORE_RUNE) return BuildNameText(node);
             var builder = new StringBuilder();
             builder.Append(BuildNameText(node)).Append("  ")
                 .Append(GameData.Runes.NodeRam(node)).Append(" ").Append(GameData.L("ui.ram"));
@@ -61,6 +62,14 @@ namespace RuneCode
         {
             if (port == null) return string.Empty;
             string label = port.Id == SpellGrammar.BODY_PORT ? "shape/method" : port.Id;
+            if (port.Id == SpellGrammar.EXEC_PORT) label = "실행";
+            else if (port.Id == SpellGrammar.ON_HIT_PORT) label = "명중 시";
+            else if (port.Id == SpellGrammar.BODY_PORT) label = "내부 실행";
+            else if (port.Id == "then") label = "조건 참";
+            else if (port.Id == "else") label = "조건 거짓";
+            else if (port.Id == "next") label = "다음";
+            else if (port.Id == SpellGrammar.ON_COMPLETE_PORT) label = "완료 후";
+            else if (port.Id == SpellGrammar.ON_EXPIRE_PORT) label = "소멸 시";
             return port.IsDeprecated ? "<s>" + label + "</s>" : label;
         }
 

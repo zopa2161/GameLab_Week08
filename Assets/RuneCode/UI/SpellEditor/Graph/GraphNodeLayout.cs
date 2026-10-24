@@ -13,6 +13,15 @@ namespace RuneCode
     {
         public const float NODE_WIDTH = 160f;
         public const float NODE_BASE_HEIGHT = 51f;
+        public const float PUZZLE_DEPTH = 12f;
+        public const float PUZZLE_HALF_HEIGHT = 10f;
+
+        /// <summary>실행 입력과 사건·제어 출력 중 퍼즐 결합부로 표시할 활성 포트인지 반환한다.</summary>
+        public static bool IsPuzzlePort(PortDefinition port)
+        {
+            return port != null && !port.IsDeprecated && port.Kind == SpellGrammar.EXEC_KIND
+                && (port.Direction == SpellGrammar.DIRECTION_IN || port.Direction == SpellGrammar.DIRECTION_OUT);
+        }
 
         private const float PORT_SPACING = 23f;
         private const float PORT_TOP_OFFSET = 52f;
@@ -41,6 +50,98 @@ namespace RuneCode
             _viewport = viewport;
             _graph = graph;
             _isReadOnly = isReadOnly;
+        }
+
+        /// <summary>활성 실행 연결을 따라 후속 묶음을 배치한다. resetRoots가 true이면 독립 묶음도 세로로 정렬하며 위치 변경 여부를 반환한다.</summary>
+        public bool ArrangeBlockGroups(bool resetRoots = false)
+        {
+            SpellGraph graph = _graph();
+            var incoming = new HashSet<string>();
+            foreach (GraphEdge edge in graph.Edges)
+                if (IsBlockEdge(edge)) incoming.Add(edge.ToNode);
+            var visited = new HashSet<string>();
+            bool changed = false;
+            float nextRootY = 55;
+            foreach (GraphNode root in graph.Nodes)
+            {
+                if (incoming.Contains(root.Id)) continue;
+                if (resetRoots) changed |= MoveBlock(root, 35, nextRootY);
+                float bottom = ArrangeBlock(root, visited, ref changed);
+                nextRootY = bottom + 40;
+            }
+            return changed;
+        }
+
+        /// <summary>유효한 실행 출력 엣지인지 반환한다. 지원 중단·효과 연결은 블록 묶음 배치에서 제외한다.</summary>
+        public bool IsBlockEdge(GraphEdge edge)
+        {
+            GraphNode source = _graph().FindNode(edge.FromNode);
+            if (source == null) return false;
+            PortDefinition port = GameData.Runes.Get(source.RuneId).FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT);
+            return port != null && !port.IsDeprecated && port.Kind == SpellGrammar.EXEC_KIND;
+        }
+
+        /// <summary>한 블록의 출력 순서와 분기별 전체 높이로 후속을 겹치지 않게 배치하고 가장 아래 그래프 좌표를 반환한다.</summary>
+        private float ArrangeBlock(GraphNode node, HashSet<string> visited, ref bool changed)
+        {
+            RuneDefinition rune = GameData.Runes.Get(node.RuneId);
+            float bottom = node.Y + NodeHeight(node, rune);
+            if (!visited.Add(node.Id)) return bottom;
+            var outgoing = new List<GraphEdge>();
+            foreach (GraphEdge edge in _graph().Edges)
+                if (edge.FromNode == node.Id && IsBlockEdge(edge)) outgoing.Add(edge);
+            outgoing.Sort((left, right) =>
+            {
+                int order = IndexOfPort(rune, left.FromPort).CompareTo(IndexOfPort(rune, right.FromPort));
+                return order != 0 ? order : left.Order.CompareTo(right.Order);
+            });
+            float branchBottom = float.MinValue;
+            foreach (GraphEdge edge in outgoing)
+            {
+                GraphNode child = _graph().FindNode(edge.ToNode);
+                if (child == null || visited.Contains(child.Id)) continue;
+                RuneDefinition childRune = GameData.Runes.Get(child.RuneId);
+                Rect parentRect = NodeRect(node, rune);
+                Rect childRect = NodeRect(child, childRune);
+                float outputY = (parentRect.yMax - PortPosition(parentRect, node, rune, edge.FromPort).y) / _viewport.Zoom;
+                float inputY = (childRect.yMax - PortPosition(childRect, child, childRune, edge.ToPort).y) / _viewport.Zoom;
+                bool isNested = edge.FromPort == SpellGrammar.BODY_PORT || edge.FromPort == "then" || edge.FromPort == "else";
+                float childY = isNested ? bottom + 20 : node.Y + outputY - inputY;
+                childY = Mathf.Max(childY, branchBottom);
+                changed |= MoveBlock(child, node.X + (isNested ? 32 : NODE_WIDTH), childY);
+                branchBottom = ArrangeBlock(child, visited, ref changed) + 24;
+                bottom = Mathf.Max(bottom, branchBottom - 24);
+            }
+            return bottom;
+        }
+
+        /// <summary>좌표 차이가 작은 부동소수점 흔들림이면 유지하고, 그 외에는 블록 위치를 바꿔 변경 여부를 반환한다.</summary>
+        private static bool MoveBlock(GraphNode node, float x, float y)
+        {
+            if (Mathf.Abs(node.X - x) < 0.01f && Mathf.Abs(node.Y - y) < 0.01f) return false;
+            node.Move(x, y);
+            return true;
+        }
+
+        /// <summary>제어 블록과 내부 실행·조건 분기의 캔버스 사각형을 반환한다. 완료 후 후속은 감싸는 프레임에서 제외한다.</summary>
+        public Rect BlockGroupBounds(string nodeId)
+        {
+            var nestedRoots = new List<string>();
+            foreach (GraphEdge edge in _graph().Edges)
+                if (edge.FromNode == nodeId && (edge.FromPort == SpellGrammar.BODY_PORT
+                    || edge.FromPort == "then" || edge.FromPort == "else") && IsBlockEdge(edge)) nestedRoots.Add(edge.ToNode);
+            HashSet<string> group = _graph().GetBlockGroup(nestedRoots, GameData.Runes);
+            group.Add(nodeId);
+            Vector2 minimum = new Vector2(float.MaxValue, float.MaxValue);
+            Vector2 maximum = new Vector2(float.MinValue, float.MinValue);
+            foreach (string id in group)
+            {
+                GraphNode node = _graph().FindNode(id);
+                Rect bounds = NodeRect(node, GameData.Runes.Get(node.RuneId));
+                minimum = Vector2.Min(minimum, bounds.min);
+                maximum = Vector2.Max(maximum, bounds.max);
+            }
+            return Rect.MinMaxRect(minimum.x, minimum.y, maximum.x, maximum.y);
         }
 
         /// <summary>현재 그래프 노드를 ID로 찾는 조회 테이블을 다시 채운다. 연결선 위치 조회 전에 호출한다.</summary>
@@ -274,7 +375,8 @@ namespace RuneCode
                 Rect rect = NodeRect(node, rune);
                 foreach (PortDefinition port in rune.Ports)
                 {
-                    if (IsPortShown(node, port) && Vector2.Distance(point, PortPosition(rect, node, rune, port.Id)) < radius)
+                    float hitRadius = IsPuzzlePort(port) ? Mathf.Max(radius, PUZZLE_DEPTH * _viewport.Zoom + MIN_PORT_HIT_RADIUS) : radius;
+                    if (IsPortShown(node, port) && Vector2.Distance(point, PortPosition(rect, node, rune, port.Id)) < hitRadius)
                     {
                         foundNode = node;
                         foundPort = port;

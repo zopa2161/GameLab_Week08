@@ -24,6 +24,7 @@ namespace RuneCode
 
         [Header("연결 판정")]
         [SerializeField, Min(0f)] private float _connectionSnapPadding = 24f;
+        [SerializeField, Min(0f)] private float _puzzleSnapDistance = 42f;
 
         private readonly GraphPointerState _state = new GraphPointerState();
         private readonly List<string> _expiredHighlights = new List<string>();
@@ -49,6 +50,7 @@ namespace RuneCode
         private string _pickedRuneId;
         private string _pickedGrade;
         private int _moduleInputFrame = -1;
+        private bool _hasDetachedDrag;
 
         public bool HasPickedModule => _pickedModulePreview != null;
 
@@ -110,6 +112,7 @@ namespace RuneCode
         public void RefreshGraph()
         {
             if (!HasGraph) return;
+            if (!_hasDetachedDrag && _editor.IsEditable && _layout.ArrangeBlockGroups()) _editor.MarkBlockLayoutChanged();
             HashSet<string> existing = _labels.Refresh(_editor.Graph, _editor.Library, _editor.CompileResult.Spell);
             _state.Selected.RemoveWhere(id => !existing.Contains(id));
             _isHoverValid = false;
@@ -130,7 +133,7 @@ namespace RuneCode
             if (node == null) return;
             _viewport.CenterOn(new Vector2(node.X + GraphNodeLayout.NODE_WIDTH / 2, node.Y));
             _state.Selected.Clear();
-            _state.Selected.Add(nodeId);
+            _state.Selected.UnionWith(_editor.Graph.GetBlockGroup(new[] { nodeId }, GameData.Runes));
             _selectionChanged(node);
             RefreshGraph();
         }
@@ -138,10 +141,33 @@ namespace RuneCode
         /// <summary>선택한 노드와 그 연결을 삭제한다. 삭제할 수 없는 시전 노드는 편집 세션이 남긴다.</summary>
         public void DeleteSelection()
         {
-            foreach (string id in new List<string>(_state.Selected)) _editor.RemoveNode(id);
+            HashSet<string> group = _editor.Graph.GetBlockGroup(_state.Selected, GameData.Runes);
+            _editor.BeginBlockEdit();
+            foreach (string id in group) _editor.RemoveNode(id);
+            _editor.EndBlockEdit();
             _state.Selected.Clear();
             _selectionChanged(null);
             RefreshGraph();
+        }
+
+        /// <summary>복사한 후속 묶음을 붙여넣고 새 블록들을 선택하며 자동 배치까지 되돌리기 한 단계로 묶는다.</summary>
+        public void PasteBlockGroup()
+        {
+            var previous = new HashSet<string>();
+            foreach (GraphNode node in _editor.Graph.Nodes) previous.Add(node.Id);
+            _editor.BeginBlockEdit();
+            try
+            {
+                _editor.PasteNodes();
+                var added = new HashSet<string>();
+                foreach (GraphNode node in _editor.Graph.Nodes)
+                    if (!previous.Contains(node.Id)) added.Add(node.Id);
+                if (added.Count == 0) return;
+                _state.Selected.Clear();
+                _state.Selected.UnionWith(added);
+                RefreshGraph();
+            }
+            finally { _editor.EndBlockEdit(); }
         }
 
         /// <summary>화면 좌표가 편집 영역 안에 있으면 true와 함께 배치할 그래프 좌표를 반환한다.</summary>
@@ -156,7 +182,33 @@ namespace RuneCode
         public Vector2 SuggestPlacement(string runeId) => _placement.Suggest(runeId);
 
         /// <summary>그래프 좌표에 행동 노드를 지정 등급으로 배치한다.</summary>
-        public void PlaceRune(string runeId, Vector2 position, string grade = null) => _placement.Place(runeId, position, grade);
+        public void PlaceRune(string runeId, Vector2 position, string grade = null)
+        {
+            _editor.BeginBlockEdit();
+            try
+            {
+                int previousCount = _editor.Graph.Nodes.Count;
+                _placement.Place(runeId, position, grade);
+                if (_editor.Graph.Nodes.Count <= previousCount) return;
+                GraphNode added = _editor.Graph.Nodes[_editor.Graph.Nodes.Count - 1];
+                string[] movingIds = { added.Id };
+                UpdatePuzzleSnap(movingIds);
+                CommitPuzzleSnap(movingIds);
+                _state.ClearSnap();
+                RefreshGraph();
+            }
+            finally { _editor.EndBlockEdit(); }
+        }
+
+        /// <summary>독립된 실행 묶음과 내부 분기를 정렬하고 전체 배치를 되돌리기 한 단계로 기록한다.</summary>
+        public void ArrangeBlocks()
+        {
+            if (!_editor.IsEditable) return;
+            _editor.BeginBlockEdit();
+            if (_layout.ArrangeBlockGroups(true)) _editor.MarkChanged();
+            _editor.EndBlockEdit();
+            RefreshGraph();
+        }
 
         /// <summary>실제 편집 데이터와 분리된 팔레트 미리보기를 현재 글꼴과 그래프 배율로 생성한다.</summary>
         internal RunePalettePreview CreatePalettePreview(RuneDefinition rune, string grade)
@@ -213,12 +265,21 @@ namespace RuneCode
         protected override void OnDisable()
         {
             CancelPickedModule();
+            _editor?.EndBlockEdit();
+            _hasDetachedDrag = false;
+            _state.ResetPointer();
             base.OnDisable();
         }
 
         void OnApplicationFocus(bool hasFocus)
         {
-            if (!hasFocus) CancelPickedModule();
+            if (!hasFocus)
+            {
+                CancelPickedModule();
+                _editor?.EndBlockEdit();
+                _hasDetachedDrag = false;
+                _state.ResetPointer();
+            }
         }
 
         /// <summary>
@@ -375,9 +436,15 @@ namespace RuneCode
             _state.Pointer = Local(eventData);
             TryCompleteConnection();
             if (_state.IsBoxSelecting) SelectNodesInBox();
-            if (_state.IsNodeDragging && Vector2.Distance(_state.Pointer, _state.DragStart) > NODE_DRAG_THRESHOLD)
+            if (_state.IsNodeDragging && _editor.IsEditable
+                && (_hasDetachedDrag || Vector2.Distance(_state.Pointer, _state.DragStart) > NODE_DRAG_THRESHOLD))
             {
+                if (!_hasDetachedDrag) MoveDraggedNodes();
+                UpdatePuzzleSnap(_state.DragOrigins.Keys);
+                CommitPuzzleSnap(_state.DragOrigins.Keys);
+                _layout.ArrangeBlockGroups();
                 _editor.MarkChanged();
+                _editor.EndBlockEdit();
                 if (LocalTelemetry.IsUsabilityTestActive)
                     LocalTelemetry.RecordUsabilityEvent("editor_action_result", "editor", new Dictionary<string, object>
                     {
@@ -387,7 +454,9 @@ namespace RuneCode
                         ["node_ids"] = new List<string>(_state.Selected),
                     });
             }
+            _editor.EndBlockEdit();
             _labels.SetFrontNode(null);
+            _hasDetachedDrag = false;
             _state.ResetPointer();
             RefreshGraph();
         }
@@ -559,11 +628,12 @@ namespace RuneCode
         /// <summary>클릭한 노드로 선택을 갱신하고 선택된 노드들의 드래그 시작 좌표를 저장한다.</summary>
         private void BeginNodeDrag(GraphNode clicked, bool isShift)
         {
-            // Shift 없이 선택 밖 노드를 누르면 단일 선택, Shift를 누르면 선택을 토글한다.
             HashSet<string> selected = _state.Selected;
-            if (!isShift && !selected.Contains(clicked.Id)) selected.Clear();
-            if (isShift && selected.Contains(clicked.Id)) selected.Remove(clicked.Id);
-            else selected.Add(clicked.Id);
+            HashSet<string> group = _editor.Graph.GetBlockGroup(new[] { clicked.Id }, GameData.Runes);
+            if (!isShift) selected.Clear();
+            if (isShift && selected.Contains(clicked.Id)) selected.ExceptWith(group);
+            else selected.UnionWith(group);
+            selected.UnionWith(_editor.Graph.GetBlockGroup(selected, GameData.Runes));
             _selectionChanged(clicked);
 
             _state.IsNodeDragging = true;
@@ -575,14 +645,106 @@ namespace RuneCode
             }
             _labels.SetFrontNode(_state.DragOrigins.ContainsKey(clicked.Id) ? clicked.Id : null);
             LayoutLabels();
-            _editor.BeginEdit();
+            _hasDetachedDrag = false;
         }
 
         /// <summary>드래그 시작 이후 포인터 이동량만큼 선택된 노드들을 그래프 좌표에서 옮긴다.</summary>
         private void MoveDraggedNodes()
         {
+            if (!_editor.IsEditable || Vector2.Distance(_state.Pointer, _state.DragStart) <= NODE_DRAG_THRESHOLD) return;
+            if (!_hasDetachedDrag)
+            {
+                _editor.BeginBlockEdit();
+                _hasDetachedDrag = true;
+                _editor.DetachBlockGroup(_state.DragOrigins.Keys);
+            }
             Vector2 difference = (_state.Pointer - _state.DragStart) / _viewport.Zoom;
-            foreach (var pair in _state.DragOrigins) _layout.FindNode(pair.Key)?.Move(pair.Value.x + difference.x, pair.Value.y - difference.y);
+            foreach (var pair in _state.DragOrigins) _editor.Graph.FindNode(pair.Key)?.Move(pair.Value.x + difference.x, pair.Value.y - difference.y);
+            _editor.MarkChanged();
+            UpdatePuzzleSnap(_state.DragOrigins.Keys);
+        }
+
+        /// <summary>이동 중인 노드 집합과 외부 노드 사이에서 반경 안의 가장 가까운 유효 퍼즐 결합을 선택한다.</summary>
+        private void UpdatePuzzleSnap(ICollection<string> movingIds)
+        {
+            _state.ClearSnap();
+            if (!_editor.IsEditable) return;
+            float closest = _puzzleSnapDistance * _viewport.Zoom;
+            closest *= closest;
+            foreach (string id in movingIds)
+            {
+                GraphNode moving = _editor.Graph.FindNode(id);
+                if (moving == null) continue;
+                foreach (GraphNode stationary in _editor.Graph.Nodes)
+                {
+                    if (movingIds.Contains(stationary.Id)) continue;
+                    bool isHead = true;
+                    foreach (GraphEdge edge in _editor.Graph.Edges)
+                        if (edge.ToNode == moving.Id && movingIds.Contains(edge.FromNode) && _layout.IsBlockEdge(edge)) { isHead = false; break; }
+                    if (isHead) ConsiderPuzzleSnap(stationary, moving, false, ref closest);
+                    ConsiderPuzzleSnap(moving, stationary, true, ref closest);
+                }
+            }
+        }
+
+        /// <summary>출력·입력 포트 거리와 기존 연결·문법을 검사하고 더 가까운 결합 후보와 이동 보정량을 저장한다.</summary>
+        private void ConsiderPuzzleSnap(GraphNode from, GraphNode to, bool isOutputMoving, ref float closest)
+        {
+            RuneDefinition fromRune = GameData.Runes.Get(from.RuneId);
+            RuneDefinition toRune = GameData.Runes.Get(to.RuneId);
+            PortDefinition input = toRune.FindPort(SpellGrammar.EXEC_PORT, SpellGrammar.DIRECTION_IN);
+            if (!GraphNodeLayout.IsPuzzlePort(input)) return;
+            foreach (PortDefinition output in fromRune.Ports)
+            {
+                if (output.Direction != SpellGrammar.DIRECTION_OUT || !GraphNodeLayout.IsPuzzlePort(output)) continue;
+                Vector2 fromPoint = _layout.PortPosition(_layout.NodeRect(from, fromRune), from, fromRune, output.Id);
+                Vector2 toPoint = _layout.PortPosition(_layout.NodeRect(to, toRune), to, toRune, input.Id);
+                Vector2 offset = fromPoint - toPoint;
+                float distance = offset.sqrMagnitude;
+                if (distance >= closest) continue;
+                bool isConnected = false;
+                bool isOccupied = false;
+                string insertNode = null;
+                foreach (GraphEdge edge in _editor.Graph.Edges)
+                {
+                    bool isSameOutput = edge.FromNode == from.Id && edge.FromPort == output.Id;
+                    bool isSameInput = edge.ToNode == to.Id && edge.ToPort == input.Id;
+                    if (isSameOutput && isSameInput) isConnected = true;
+                    else if (isOutputMoving && (isSameOutput || isSameInput)) isOccupied = true;
+                    if (isSameOutput && !isSameInput) insertNode = edge.ToNode;
+                }
+                if (isOccupied || (!isConnected && !_editor.CanDockBlocks(from.Id, output.Id, to.Id))) continue;
+                closest = distance;
+                _state.SnapFromNode = from.Id;
+                _state.SnapFromPort = output.Id;
+                _state.SnapToNode = to.Id;
+                _state.SnapInsertNode = insertNode;
+                _state.SnapOffset = (isOutputMoving ? -offset : offset) / _viewport.Zoom;
+                _state.IsSnapConnected = isConnected;
+            }
+        }
+
+        /// <summary>선택 후보의 포트가 맞닿도록 이동 집합을 정렬하고 기존 연결 규칙으로 연결한다. 거부되면 보정 이동만 복구한다.</summary>
+        private void CommitPuzzleSnap(ICollection<string> movingIds)
+        {
+            if (_state.SnapFromNode == null) return;
+            Vector2 offset = _state.SnapOffset;
+            foreach (string id in movingIds)
+            {
+                GraphNode node = _editor.Graph.FindNode(id);
+                node.Move(node.X + offset.x, node.Y - offset.y);
+            }
+            if (_state.IsSnapConnected)
+            {
+                _editor.MarkChanged();
+                return;
+            }
+            if (_editor.DockBlocks(_state.SnapFromNode, _state.SnapFromPort, _state.SnapToNode)) return;
+            foreach (string id in movingIds)
+            {
+                GraphNode node = _editor.Graph.FindNode(id);
+                node.Move(node.X - offset.x, node.Y + offset.y);
+            }
         }
 
         /// <summary>Shift가 없으면 기존 선택을 해제하고 영역 선택을 시작한다.</summary>
@@ -601,6 +763,7 @@ namespace RuneCode
             {
                 if (area.Overlaps(_layout.NodeRect(candidate, GameData.Runes.Get(candidate.RuneId)))) _state.Selected.Add(candidate.Id);
             }
+            _state.Selected.UnionWith(_editor.Graph.GetBlockGroup(_state.Selected, GameData.Runes));
         }
 
         /// <summary>화면 포인터를 그래프 RectTransform의 로컬 좌표로 변환한다.</summary>
