@@ -14,8 +14,8 @@ namespace RuneCode
     public sealed class WorkshopPresenter : ISpellEditorHost, IDisposable
     {
         private const float STATUS_TOAST_DURATION = 4f;
-        private const int ONBOARDING_WORKSHOP_ENTER = 3;
-        private const int ONBOARDING_UPGRADE_TREE = 6;
+        private const int ONBOARDING_WORKSHOP_ENTER = 4;
+        private const int ONBOARDING_UPGRADE_TREE = 7;
 
         private readonly RuneCodeSession _session;
         private readonly UIManager _ui;
@@ -23,6 +23,7 @@ namespace RuneCode
         private readonly UpgradeTreePresenter _upgradeTree;
 
         private string _selectedTab = WorkshopScreen.TAB_EDITOR;
+        public string SelectedTab => _selectedTab;
         private long _observedStatusRevision;
         private float _statusExpiresAt;
         private Vector2 _lastMouseScreenPosition;
@@ -42,14 +43,11 @@ namespace RuneCode
             _session.Spells.Compiled += RecordCompileResult;
         }
 
-        /// <summary>작업실에 들어올 때 에디터 탭을 갱신하고, 테스트 모드의 작업실 온보딩 차례면 띄운다.</summary>
-        public void Enter()
+        /// <summary>작업실에 들어올 때 요청한 탭을 갱신하고 테스트 모드의 작업실 온보딩 차례면 띄운다.</summary>
+        public void Enter(string tab = WorkshopScreen.TAB_EDITOR)
         {
-            _selectedTab = WorkshopScreen.TAB_EDITOR;
             LocalTelemetry.BeginUsabilityEditingEpisode(_session.GetWorkshopLogSnapshot);
-            ShowEditorTab();
-            // 온보딩은 순서대로만 열리므로 둘 중 다음 차례인 챕터 하나만 뜬다.
-            if (!ShowWorkshopOnboarding(ONBOARDING_WORKSHOP_ENTER)) ShowWorkshopOnboarding(ONBOARDING_UPGRADE_TREE);
+            SetTab(tab);
         }
 
         /// <summary>테스트 모드에서 chapter가 다음 순서면 도움말 챕터를 안내 팝업으로 열고 순서를 넘겼으면 true를 반환한다. 챕터가 없으면 경고만 남긴다.</summary>
@@ -123,8 +121,8 @@ namespace RuneCode
             return _session.TrySynthesizeRunes(materials, grade, out resultId, out resultGrade, out error);
         }
 
-        /// <summary>탭을 바꾸고 진입한 탭의 내용과 헤더를 갱신한다. 에디터 탭을 떠나면 편집 패널을 닫는다.</summary>
-        private void SetTab(string tab)
+        /// <summary>탭의 내용과 헤더를 갱신한다. 편집창 진입 시 차례가 된 온보딩을 표시하고 테스트 방문을 기록하며, 편집창을 떠나면 편집 패널을 닫는다.</summary>
+        public void SetTab(string tab)
         {
             if (_selectedTab != tab)
                 LocalTelemetry.RecordUsabilityEvent("workshop_tab_switch", "workshop", new Dictionary<string, object>
@@ -137,18 +135,17 @@ namespace RuneCode
             else _view.SpellEditor.Hide();
             if (tab == WorkshopScreen.TAB_TREE) _upgradeTree.Refresh();
             RefreshHeader();
+            if (tab == WorkshopScreen.TAB_EDITOR && !_ui.IsPopupOpen)
+            {
+                if (!ShowWorkshopOnboarding(ONBOARDING_WORKSHOP_ENTER)) ShowWorkshopOnboarding(ONBOARDING_UPGRADE_TREE);
+                if (_session.TestOnboardingChapter >= ONBOARDING_WORKSHOP_ENTER) _session.RecordTestEditorVisit();
+            }
         }
 
         /// <summary>헤더 도움말 버튼으로 가장 최근에 개방된 항목을 선택한 도움말을 연다.</summary>
         private void OpenHelp()
         {
             _ui.OpenPopup<EncyclopediaPopup>().Configure(GameData.Encyclopedia, _session.UnlockedHelpCount, 0);
-        }
-
-        /// <summary>에디터 탭으로 전환하고 헤더를 갱신한다.</summary>
-        private void ShowEditorTab()
-        {
-            SetTab(WorkshopScreen.TAB_EDITOR);
         }
 
         /// <summary>구매 등으로 진행이 바뀌면 트리·헤더를 갱신한다.</summary>

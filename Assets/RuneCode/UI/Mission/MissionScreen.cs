@@ -40,7 +40,8 @@ namespace RuneCode
             _worldView = Instantiate(_worldPrefab);
             _worldView.name = _worldPrefab.name;
             _worldView.Camera.Initialize(() => _presenter.Simulation);
-            _worldView.Initialize(() => _presenter.Simulation, () => _session.ScreenShake, () => _session.HitStop, () => _presenter.IsRoundBreakPortalActive);
+            _worldView.Initialize(() => _presenter.Simulation, () => _session.ScreenShake, () => _session.HitStop,
+                () => _presenter.IsRoundBreakPortalActive, () => _presenter.IsRoundBreakPortalVisible);
             _worldView.gameObject.SetActive(false);
         }
 

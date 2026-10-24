@@ -25,8 +25,9 @@ namespace RuneCode
         private const double PLAYER_DAMAGE_EPSILON = 0.000001;
         private const int ONBOARDING_BATTLE_START = 1;
         private const int ONBOARDING_FIRST_CLEAR = 2;
-        private const int ONBOARDING_ROUND_RETURN = 4;
-        private const int ONBOARDING_SPELL_ORDER = 5;
+        private const int ONBOARDING_EDIT_WINDOW = 3;
+        private const int ONBOARDING_ROUND_RETURN = 5;
+        private const int ONBOARDING_SPELL_ORDER = 6;
         private const int ONBOARDING_SPELL_ORDER_STAGE = 1;
         private const int ONBOARDING_SPELL_ORDER_ROUND = 3;
         private const int MAX_HEXA_DEBUG_TARGETS = 2;
@@ -51,6 +52,7 @@ namespace RuneCode
         private bool _hasPresentedChoices;
         private bool _hasStartFailed;
         private bool _isInitialDebugRoundBreak;
+        private bool _isWaitingForPortalExit;
         private bool _isHexaSummonTestActive;
         private int _hexaDebugActionSignature = int.MinValue;
         private int _lastFragments;
@@ -78,8 +80,17 @@ namespace RuneCode
         private bool CanOpenWorkshop => _run != null && !_run.IsFinished && _run.IsWaitingForNextRound
             && !_run.IsDebugRewardChoice && (_isInitialDebugRoundBreak || _hasPresentedChoices);
 
-        /// <summary>보상 선택을 마쳐 라운드 대기 포털로 다음 라운드에 들어갈 수 있는지 반환한다. 경기장 그래픽이 포털 밝기를 정할 때 읽는다.</summary>
-        public bool IsRoundBreakPortalActive => _run != null && _run.IsNextRoundReady;
+        /// <summary>단축키·바로가기 버튼이 기존 진입 조건과 보상·팝업·문자 입력·합성창 잠금을 만족하는지 반환한다.</summary>
+        private bool CanToggleWorkshop => CanOpenWorkshop && !_run.IsPaused && !_ui.IsPopupOpen && !UiFactory.IsTyping()
+            && (_screen.Workshop.IsVisible || !_run.HasClearModifierChoices || _run.IsClearModifierChosen)
+            && (!_screen.Workshop.IsVisible || !_screen.Workshop.SpellEditor.IsSynthesisOpen);
+
+        /// <summary>대기 포털이 준비됐고 테스트 모드의 첫 편집창 방문을 마쳐 포털을 표시할 수 있는지 반환한다.</summary>
+        public bool IsRoundBreakPortalVisible => _run != null && _run.Simulation.IsRoundBreakPortalOpen
+            && !_session.IsTestEditorVisitRequired;
+
+        /// <summary>보상 선택과 편집창 방문을 마치고 최초 개방 위치에서 벗어나는 대기도 끝나 포털로 진입할 수 있는지 반환한다.</summary>
+        public bool IsRoundBreakPortalActive => _run != null && _run.IsNextRoundReady && !_isWaitingForPortalExit;
 
         /// <summary>세션·UI 관리자와 미션 화면의 View들을 받아 View 이벤트를 연결한다.</summary>
         public MissionPresenter(RuneCodeSession session, UIManager ui, MissionScreen screen, MissionHud hud, ResultPanel result)
@@ -93,6 +104,7 @@ namespace RuneCode
             _hud.PauseClicked += TogglePause;
             _hud.DebugClicked += OpenDebug;
             _hud.WorkshopClicked += OpenWorkshop;
+            _hud.WorkshopTabClicked += ToggleWorkshopTab;
             _hud.DebugBossClicked += StartDebugBoss;
             _hud.DebugActionClicked += RunDebugAction;
             BuildDebugBosses();
@@ -126,6 +138,7 @@ namespace RuneCode
                 soundManager.SetMusicState(0);
             }
             _hud.SetWorkshop(false, false);
+            _hud.SetWorkshopShortcuts(false);
             _hud.SetWorkshopHighlight(false);
             _hud.SetDebugBossMenu(false, false);
             ResetHexaDebugActions();
@@ -149,6 +162,7 @@ namespace RuneCode
                 return;
             }
             if (_run == null) return;
+            if (HandleWorkshopShortcuts()) return;
             // 작업실 오버레이가 열려 있는 동안은 미션 진행과 입력·사운드·라운드 처리를 모두 멈춘다.
             if (_screen.Workshop.IsVisible) return;
             if (_run.IsFinished)
@@ -202,6 +216,7 @@ namespace RuneCode
             if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices))
                 _run.TryPrepareRoundBreakArena();
             // 보상 선택을 마친 뒤 플레이어가 포털에 들어가면 다음 라운드를 시작한다. 막는 조건은 StartNextRound가 확인한다.
+            if (_isWaitingForPortalExit && !_run.Simulation.IsPlayerInRoundBreakPortal) _isWaitingForPortalExit = false;
             if (_run.Simulation.IsPlayerInRoundBreakPortal) StartNextRound();
             if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices) && !_ui.IsPopupOpen)
                 OpenTestOnboarding(ONBOARDING_FIRST_CLEAR);
@@ -296,11 +311,12 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>라운드 대기 중 포털에 들어가면 다음 라운드를 시작한다. 작업실 오버레이·팝업·일시정지·문자 입력 중에는 무시한다.</summary>
+        /// <summary>진입 가능한 포털에 들어가면 다음 라운드를 시작한다. 최초 개방 위치 이탈 대기와 작업실·팝업·일시정지·문자 입력 중에는 무시한다.</summary>
         private void StartNextRound()
         {
             if (_screen.Workshop.IsVisible) return;
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
+            if (!IsRoundBreakPortalActive) return;
             if (_run.TryStartNextRound())
             {
                 _isInitialDebugRoundBreak = false;
@@ -322,16 +338,51 @@ namespace RuneCode
         /// 라운드 보상 카드를 고르기 전에도 열 수 있으며 카드는 돌아왔을 때 그대로 남는다.
         /// </summary>
         private void OpenWorkshop()
+            => OpenWorkshopTab(WorkshopScreen.TAB_EDITOR);
+
+        /// <summary>현재 작업실 진입 조건으로 런을 보관하고 지정 탭의 오버레이를 연다. 이미 열려 있으면 유지한다.</summary>
+        private void OpenWorkshopTab(string tab)
         {
             if (_screen.Workshop.IsVisible) return;
             if (!CanOpenWorkshop || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
             SoundManager.Instance.StopShotBeam();
             _hud.SetWorkshop(false, false);
+            _hud.SetWorkshopShortcuts(false);
             _hud.SetWorkshopHighlight(false);
             WorkshopScreen workshop = _screen.Workshop;
             workshop.transform.SetAsLastSibling();
-            workshop.Show();
+            workshop.ShowForTab(tab);
+        }
+
+        /// <summary>수정 키와 텍스트 입력이 없을 때 Tab·C는 편집기, V는 강화 트리를 토글하고 처리한 프레임인지 반환한다.</summary>
+        private bool HandleWorkshopShortcuts()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null || !Application.isFocused || !CanToggleWorkshop
+                || keyboard.ctrlKey.isPressed || keyboard.altKey.isPressed || keyboard.shiftKey.isPressed
+                || keyboard.leftMetaKey.isPressed || keyboard.rightMetaKey.isPressed) return false;
+            string tab;
+            if (keyboard.tabKey.wasPressedThisFrame || keyboard.cKey.wasPressedThisFrame) tab = WorkshopScreen.TAB_EDITOR;
+            else if (keyboard.vKey.wasPressedThisFrame) tab = WorkshopScreen.TAB_TREE;
+            else return false;
+            ToggleWorkshopTab(tab);
+            return true;
+        }
+
+        /// <summary>지정 탭이 열려 있으면 기존 검증 경로로 닫고 다른 탭이면 전환하며, 닫혀 있으면 지정 탭으로 연다.</summary>
+        private void ToggleWorkshopTab(string tab)
+        {
+            if (!CanToggleWorkshop) return;
+            WorkshopScreen workshop = _screen.Workshop;
+            if (!workshop.IsVisible)
+            {
+                OpenWorkshopTab(tab);
+                return;
+            }
+            workshop.SpellEditor.GraphCanvas.CancelPickedModule();
+            if (workshop.SelectedTab == tab) CloseWorkshop();
+            else workshop.ShowForTab(tab);
         }
 
         /// <summary>
@@ -703,6 +754,7 @@ namespace RuneCode
                 _result.HideClearModifierChoices();
                 _result.Hide();
                 if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowRoundChoices(isResumed: true);
+                if (_run.IsClearModifierChosen) ShowFirstRewardOnboarding();
                 RenderHud();
                 return;
             }
@@ -711,11 +763,31 @@ namespace RuneCode
             _result.FocusReward(_run.ClearModifierChoices[index], _run.ClearModifierGrades[index]);
         }
 
+        /// <summary>테스트 모드의 첫 보상 선택 후 편집창 진입 안내를 표시하고, 같은 런에서 팝업을 닫으면 안내 진행을 넘기고 HUD를 갱신한다.</summary>
+        private void ShowFirstRewardOnboarding()
+        {
+            if (!_session.IsTestMode || _session.TestOnboardingChapter != ONBOARDING_FIRST_CLEAR) return;
+            EncyclopediaEntry entry = GameData.Encyclopedia?.FindChapter(ONBOARDING_EDIT_WINDOW);
+            if (entry == null)
+            {
+                Debug.LogWarning("게임 도움말 JSON에 온보딩 챕터가 없습니다: " + ONBOARDING_EDIT_WINDOW);
+                return;
+            }
+            MissionRun run = _run;
+            OnboardingPopup popup = _ui.OpenPopup<OnboardingPopup>();
+            popup.Configure(entry.Title, entry.Pages);
+            popup.Closed += () =>
+            {
+                if (_run == run && _session.TryAdvanceTestOnboarding(ONBOARDING_EDIT_WINDOW)) RenderHud();
+            };
+        }
+
         /// <summary>세션에서 시전 마법을 준비받아 새 미션을 만들고 HUD·결과 View를 시작 상태로 되돌린다. 이어하기로 고르지 않은 라운드 후보가 남으면 종료 연출 없이 카드 선택창을 즉시 연다. 실패하면 false를 반환한다.</summary>
         private bool StartRun()
         {
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
+            _isWaitingForPortalExit = false;
             _lastRootCastFailures = _run.Simulation.RootCastFailures;
             _isInitialDebugRoundBreak = _session.IsDebugEnabled && _run.IsWaitingForNextRound;
             ResetHexaDebugActions();
@@ -786,7 +858,10 @@ namespace RuneCode
             if (!_run.TryReplaceSpell(spell, _session.Spells.SpellName)) return false;
             _run.TryApplyUpgradeStats();
             _run.Simulation.ResetRoundBreakDpsForWorkshopReturn();
+            bool wasEditorVisitRequired = _session.IsTestEditorVisitRequired;
             _session.ResumeSuspendedRun();
+            if (wasEditorVisitRequired && !_session.IsTestEditorVisitRequired)
+                _isWaitingForPortalExit = _run.Simulation.IsPlayerInRoundBreakPortal;
             // 결과 패널은 화면과 함께 꺼졌다 켜질 뿐 상태가 남으므로, 같은 후보를 다시 그려 선택 포커스만 되살린다.
             if (_hasPresentedChoices && _run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowPendingChoices();
             OpenTestOnboarding(ONBOARDING_ROUND_RETURN);
@@ -832,9 +907,11 @@ namespace RuneCode
                 ? sim.RemainingWaveEnemyCount : (int?)null;
             _hud.SetStage(GetStageText(sim), remainingEnemyCount);
             _hud.SetWorkshop(CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
+            _hud.SetWorkshopShortcuts(CanToggleWorkshop);
             // 첫 클리어 온보딩 뒤 보상을 고르면 작업실 온보딩 전까지 작업실 버튼을 강조한다.
             _hud.SetWorkshopHighlight(CanOpenWorkshop && _run.IsClearModifierChosen
-                && _session.TestOnboardingChapter == ONBOARDING_FIRST_CLEAR);
+                && _session.TestOnboardingChapter >= ONBOARDING_FIRST_CLEAR
+                && _session.TestOnboardingChapter <= ONBOARDING_EDIT_WINDOW);
             if (_run.IsFinished || sim.IsWaitingForNextRound) ResetHexaDebugActions();
             bool isDebugMenuVisible = _session.IsDebugEnabled && CanOpenWorkshop;
             bool isDebugActionsVisible = _session.IsDebugEnabled && _isHexaSummonTestActive
@@ -849,6 +926,10 @@ namespace RuneCode
             string objective = _run.IsFinished ? (sim.Completed ? "미션 완료" : sim.IsFailed ? "전투 패배" : "전투 중단")
                 : sim.IsWaitingForNextRound ? (_run.IsNextRoundReady ? "포털로 이동해 다음 라운드 시작" : "다음 라운드 대기")
                 : (sim.IsBossStage ? "보스를 처치하세요 · " : "") + "남은 적 " + sim.RemainingWaveEnemyCount;
+            if (!_run.IsFinished && sim.IsWaitingForNextRound && _run.IsClearModifierChosen && _session.IsTestEditorVisitRequired)
+                objective = "편집창에서 획득한 보상을 장착하세요";
+            else if (_isWaitingForPortalExit)
+                objective = "포털 밖으로 나간 뒤 다시 들어가세요";
             if (_session.IsDebugEnabled && !_run.IsFinished && !sim.IsWaitingForNextRound)
                 foreach (SimulationEnemy enemy in sim.Enemies)
                 {
