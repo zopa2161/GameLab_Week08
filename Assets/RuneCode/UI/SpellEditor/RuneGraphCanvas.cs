@@ -41,6 +41,7 @@ namespace RuneCode
         private GraphNodeLabels _labels;
         private GraphMeshLayer _overlayLayer;
         private GraphPlacement _placement;
+        private RectTransform _deleteZone;
         private GraphNode _hoveredNode;
         private string _hoveredSlot;
         private bool _isHoverValid;
@@ -54,6 +55,7 @@ namespace RuneCode
         private bool _isSlotPickupDragged;
         private int _moduleInputFrame = -1;
         private bool _hasDetachedDrag;
+        private bool _isBehaviorDrag;
 
         public bool HasPickedModule => _pickedModulePreview != null;
 
@@ -107,10 +109,17 @@ namespace RuneCode
             _slotPreviewFactory = factory;
         }
 
+        /// <summary>행동 노드를 끌어다 놓으면 삭제되는 드롭 영역을 지정한다.</summary>
+        internal void SetDeleteZone(RectTransform zone)
+        {
+            _deleteZone = zone;
+        }
+
         /// <summary>그래프 전체가 보이도록 화면 위치와 배율을 맞추고 표시를 갱신한다.</summary>
         public void ResetView()
         {
             CancelPickedModule();
+            SetDeleteZoneVisible(false);
             if (HasGraph && _layout.TryGetGraphBounds(out Vector2 minimum, out Vector2 maximum)) _viewport.Fit(minimum, maximum);
             RefreshGraph();
         }
@@ -345,6 +354,8 @@ namespace RuneCode
             CancelPickedModule();
             _editor?.EndBlockEdit();
             _hasDetachedDrag = false;
+            _isBehaviorDrag = false;
+            SetDeleteZoneVisible(false);
             _state.ResetPointer();
             base.OnDisable();
         }
@@ -356,8 +367,23 @@ namespace RuneCode
                 CancelPickedModule();
                 _editor?.EndBlockEdit();
                 _hasDetachedDrag = false;
+                _isBehaviorDrag = false;
+                SetDeleteZoneVisible(false);
                 _state.ResetPointer();
             }
+        }
+
+        /// <summary>삭제 드롭 영역을 지정 상태로 표시하거나 숨긴다. 영역이 지정되지 않았으면 아무것도 하지 않는다.</summary>
+        private void SetDeleteZoneVisible(bool isVisible)
+        {
+            if (_deleteZone != null) _deleteZone.gameObject.SetActive(isVisible);
+        }
+
+        /// <summary>화면 좌표가 표시 중인 삭제 드롭 영역 안에 있으면 true를 반환한다.</summary>
+        private bool IsPointerInDeleteZone(Vector2 screenPoint)
+        {
+            return _deleteZone != null && _deleteZone.gameObject.activeSelf
+                && RectTransformUtility.RectangleContainsScreenPoint(_deleteZone, screenPoint, null);
         }
 
         /// <summary>
@@ -621,6 +647,21 @@ namespace RuneCode
                 && (_hasDetachedDrag || Vector2.Distance(_state.Pointer, _state.DragStart) > NODE_DRAG_THRESHOLD))
             {
                 if (!_hasDetachedDrag) MoveDraggedNodes();
+                if (_isBehaviorDrag && IsPointerInDeleteZone(eventData.position))
+                {
+                    HashSet<string> group = _editor.Graph.GetBlockGroup(_state.DragOrigins.Keys, GameData.Runes);
+                    foreach (string id in group) _editor.RemoveNode(id);
+                    _state.Selected.Clear();
+                    _selectionChanged(null);
+                    _editor.EndBlockEdit();
+                    _labels.SetFrontNode(null);
+                    _hasDetachedDrag = false;
+                    _isBehaviorDrag = false;
+                    SetDeleteZoneVisible(false);
+                    _state.ResetPointer();
+                    RefreshGraph();
+                    return;
+                }
                 UpdatePuzzleSnap(_state.DragOrigins.Keys);
                 CommitPuzzleSnap(_state.DragOrigins.Keys);
                 _layout.ArrangeBlockGroups();
@@ -636,6 +677,8 @@ namespace RuneCode
                     });
             }
             _editor.EndBlockEdit();
+            SetDeleteZoneVisible(false);
+            _isBehaviorDrag = false;
             _labels.SetFrontNode(null);
             _hasDetachedDrag = false;
             _state.ResetPointer();
@@ -736,6 +779,8 @@ namespace RuneCode
             _labels.SetFrontNode(_state.DragOrigins.ContainsKey(clicked.Id) ? clicked.Id : null);
             LayoutLabels();
             _hasDetachedDrag = false;
+            _isBehaviorDrag = GameData.Runes.Get(clicked.RuneId).Category == SpellGrammar.CATEGORY_BEHAVIOR;
+            SetDeleteZoneVisible(false);
         }
 
         /// <summary>드래그 시작 이후 포인터 이동량만큼 선택된 노드들을 그래프 좌표에서 옮긴다.</summary>
@@ -747,6 +792,7 @@ namespace RuneCode
                 _editor.BeginBlockEdit();
                 _hasDetachedDrag = true;
                 _editor.DetachBlockGroup(_state.DragOrigins.Keys);
+                SetDeleteZoneVisible(_isBehaviorDrag);
             }
             Vector2 difference = (_state.Pointer - _state.DragStart) / _viewport.Zoom;
             foreach (var pair in _state.DragOrigins) _editor.Graph.FindNode(pair.Key)?.Move(pair.Value.x + difference.x, pair.Value.y - difference.y);

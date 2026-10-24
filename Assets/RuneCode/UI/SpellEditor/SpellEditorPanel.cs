@@ -19,6 +19,11 @@ namespace RuneCode
         private const float HOVER_WIDTH = 360f;
         private const float HOVER_PADDING = 12f;
         private const float HOVER_OFFSET = 18f;
+        private const float DELETE_ZONE_WIDTH = 456f;
+        private const float DELETE_ZONE_HEIGHT = 109f;
+        private const float DELETE_ZONE_BOTTOM_MARGIN = 16f;
+        private const string DELETE_ZONE_SPRITE_PATH = "RuneCode/UI/Skins/ButtonDestructive";
+
         private static readonly string[] _gradeFilterIds = { "C", "B", "A", "S" };
 
         public static readonly string[] CATEGORY_IDS = { "all", SpellGrammar.CATEGORY_SHAPE, SpellGrammar.CATEGORY_ELEMENT, SpellGrammar.CATEGORY_BEHAVIOR, SpellGrammar.CATEGORY_MODIFIER, SpellGrammar.CATEGORY_FLOW, SpellGrammar.CATEGORY_METHOD };
@@ -55,6 +60,7 @@ namespace RuneCode
 
         private RectTransform _hoverPanel;
         private TextMeshProUGUI _hoverLabel;
+        private RectTransform _deleteZone;
 
 
         /// <summary>노드 그래프 View다.</summary>
@@ -89,7 +95,30 @@ namespace RuneCode
             if (_font == null) _font = TMP_Settings.defaultFontAsset;
             _inspector = new SpellInspectorView();
             BindButtons();
+            CreateDeleteZone();
             _presenter = new SpellEditorPresenter(editor, host, ui, this);
+            _graphCanvas.SetDeleteZone(_deleteZone);
+        }
+
+        /// <summary>행동 노드를 끌어다 놓으면 삭제되는 드롭 영역을 패널 하단 중앙에 만들고 숨긴다.</summary>
+        private void CreateDeleteZone()
+        {
+            _deleteZone = UiFactory.Rect(transform, "DeleteNodeDropZone", 0f, 0f, DELETE_ZONE_WIDTH, DELETE_ZONE_HEIGHT);
+            _deleteZone.anchorMin = _deleteZone.anchorMax = new Vector2(0.5f, 0f);
+            _deleteZone.pivot = new Vector2(0.5f, 0f);
+            _deleteZone.anchoredPosition = new Vector2(0f, DELETE_ZONE_BOTTOM_MARGIN);
+            _deleteZone.sizeDelta = new Vector2(DELETE_ZONE_WIDTH, DELETE_ZONE_HEIGHT);
+
+            Image image = _deleteZone.gameObject.AddComponent<Image>();
+            Sprite sprite = Resources.Load<Sprite>(DELETE_ZONE_SPRITE_PATH);
+            if (sprite != null)
+            {
+                image.sprite = sprite;
+                image.type = Image.Type.Sliced;
+            }
+            image.raycastTarget = false;
+            _deleteZone.SetAsLastSibling();
+            _deleteZone.gameObject.SetActive(false);
         }
 
         /// <summary>패널을 표시하고 편집을 허용한 뒤 전체를 갱신한다.</summary>
