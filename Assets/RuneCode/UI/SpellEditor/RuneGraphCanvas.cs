@@ -23,7 +23,6 @@ namespace RuneCode
         private const float NODE_DRAG_THRESHOLD = 1f;
 
         [Header("연결 판정")]
-        [SerializeField, Min(0f)] private float _connectionSnapPadding = 24f;
         [SerializeField, Min(0f)] private float _puzzleSnapDistance = 42f;
 
         private readonly GraphPointerState _state = new GraphPointerState();
@@ -494,7 +493,7 @@ namespace RuneCode
             _painter.Paint(mesh, HasGraph ? _editor.Graph : null);
         }
 
-        /// <summary>포인터 위치에서 연결, 노드 선택·드래그, 화면 이동, 연결선 삭제 또는 영역 선택을 시작한다.</summary>
+        /// <summary>포인터 위치에서 블록 선택·드래그, 화면 이동 또는 영역 선택을 시작한다.</summary>
         public void OnPointerDown(PointerEventData eventData)
         {
             if (HasPickedModule || _moduleInputFrame == Time.frameCount) return;
@@ -544,14 +543,7 @@ namespace RuneCode
             if (eventData.button == PointerEventData.InputButton.Right)
             {
                 if (_layout.FindSlot(_state.Pointer, out GraphNode clearNode, out string clearKey) && _editor.ClearSlot(clearNode.Id, clearKey)) return;
-                if (TryRemoveEdgeAt(_state.Pointer)) RefreshGraph();
-                else _state.IsPanning = true;
-                return;
-            }
-            if (_layout.FindPort(_state.Pointer, out GraphNode portNode, out PortDefinition port))
-            {
-                BeginConnection(portNode, port);
-                RefreshMeshes();
+                _state.IsPanning = true;
                 return;
             }
 
@@ -563,6 +555,8 @@ namespace RuneCode
             if (TryHandleSlotClick(_state.Pointer)) return;
 
             GraphNode clicked = _layout.FindNodeAt(_state.Pointer);
+            if (clicked == null && _layout.FindPort(_state.Pointer, out GraphNode portNode, out PortDefinition port)
+                && GraphNodeLayout.IsPuzzlePort(port)) clicked = portNode;
             if (clicked != null) BeginNodeDrag(clicked, IsShiftPressed());
             else if (eventData.clickCount >= 2)
             {
@@ -573,7 +567,7 @@ namespace RuneCode
             RefreshMeshes();
         }
 
-        /// <summary>포인터 이동에 맞춰 화면 위치, 선택 노드 위치 또는 연결 미리보기·영역 선택을 갱신한다. 집어 든 룬을 끌면 드롭으로 처리한다.</summary>
+        /// <summary>포인터 이동에 맞춰 화면 위치, 선택 노드 위치 또는 영역 선택을 갱신한다. 집어 든 룬을 끌면 드롭으로 처리한다.</summary>
         public void OnDrag(PointerEventData eventData)
         {
             if (HasPickedModule)
@@ -590,7 +584,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 연결 시도와 영역 선택을 확정하고, 노드를 실제로 옮겼으면 편집 세션에 변경을 알린다.
+        /// 퍼즐 결합과 영역 선택을 확정하고, 노드를 실제로 옮겼으면 편집 세션에 변경을 알린다.
         /// 커서에 붙인 룬은 클릭으로 집은 경우 그대로 유지하고, 드래그로 집었거나 다음 클릭이면 놓는다.
         /// </summary>
         public void OnPointerUp(PointerEventData eventData)
@@ -622,7 +616,6 @@ namespace RuneCode
                 return;
             }
             _state.Pointer = Local(eventData);
-            TryCompleteConnection();
             if (_state.IsBoxSelecting) SelectNodesInBox();
             if (_state.IsNodeDragging && _editor.IsEditable
                 && (_hasDetachedDrag || Vector2.Distance(_state.Pointer, _state.DragStart) > NODE_DRAG_THRESHOLD))
@@ -720,96 +713,6 @@ namespace RuneCode
             SetVerticesDirty();
             _labels.RefreshMeshes();
             _overlayLayer.SetVerticesDirty();
-        }
-
-        /// <summary>포인터 근처 연결선을 찾아 삭제하고 삭제 여부를 반환한다.</summary>
-        private bool TryRemoveEdgeAt(Vector2 point)
-        {
-            GraphEdge edge = _layout.FindEdgeAt(point);
-            if (edge == null) return false;
-            _editor.RemoveEdge(edge.Id);
-            return true;
-        }
-
-        /// <summary>지정 포트를 연결 시작점으로 저장하고 다른 포트의 연결 가능 여부를 계산해 둔다.</summary>
-        private void BeginConnection(GraphNode node, PortDefinition port)
-        {
-            _state.SourceNode = node.Id;
-            _state.SourcePort = port.Id;
-            _state.IsSourceOutput = port.Direction == SpellGrammar.DIRECTION_OUT;
-            CacheConnectablePorts();
-        }
-
-        /// <summary>
-        /// 연결 시작 포트 기준으로 모든 노드 포트의 연결 가능 여부를 노드 ID별 포트 순번 배열로 저장한다.
-        /// 연결 드래그 동안 그래프가 바뀌지 않으므로 메시 재구성마다 규칙 검사를 반복하지 않는다.
-        /// </summary>
-        private void CacheConnectablePorts()
-        {
-            _state.ConnectablePorts.Clear();
-            string oppositeDirection = _state.IsSourceOutput ? SpellGrammar.DIRECTION_IN : SpellGrammar.DIRECTION_OUT;
-            foreach (GraphNode node in _editor.Graph.Nodes)
-            {
-                IReadOnlyList<PortDefinition> ports = GameData.Runes.Get(node.RuneId).Ports;
-                var connectable = new bool[ports.Count];
-                for (int i = 0; i < ports.Count; i++)
-                {
-                    if (ports[i].Direction != oppositeDirection) continue;
-                    connectable[i] = _state.IsSourceOutput
-                        ? _editor.CanConnectPorts(_state.SourceNode, _state.SourcePort, node.Id, ports[i].Id, true)
-                        : _editor.CanConnectPorts(node.Id, ports[i].Id, _state.SourceNode, _state.SourcePort, true);
-                }
-                _state.ConnectablePorts[node.Id] = connectable;
-            }
-        }
-
-        /// <summary>포인터 근처의 유효 포트를 찾아 방향에 맞춰 연결하고 점유된 단일 포트의 연결을 교체한다.</summary>
-        private void TryCompleteConnection()
-        {
-            if (!_state.IsConnecting) return;
-            if (!rectTransform.rect.Contains(_state.Pointer) || !TryFindConnectionTarget(out GraphNode node, out PortDefinition port)) return;
-            if (_state.IsSourceOutput) _editor.Connect(_state.SourceNode, _state.SourcePort, node.Id, port.Id, true);
-            else _editor.Connect(node.Id, port.Id, _state.SourceNode, _state.SourcePort, true);
-        }
-
-        /// <summary>정확히 가리킨 포트를 우선하며 노드 본체와 주변 여백에서는 가장 가까운 연결 가능 포트를 반환한다.</summary>
-        private bool TryFindConnectionTarget(out GraphNode foundNode, out PortDefinition foundPort)
-        {
-            if (_layout.FindPort(_state.Pointer, out foundNode, out foundPort) && foundNode.Id != _state.SourceNode)
-            {
-                return _state.IsSourceOutput
-                    ? _editor.CanConnectPorts(_state.SourceNode, _state.SourcePort, foundNode.Id, foundPort.Id, true)
-                    : _editor.CanConnectPorts(foundNode.Id, foundPort.Id, _state.SourceNode, _state.SourcePort, true);
-            }
-
-            foundNode = null;
-            foundPort = null;
-            float closestNodeDistance = float.PositiveInfinity;
-            float closestPortDistance = float.PositiveInfinity;
-            IReadOnlyList<GraphNode> nodes = _editor.Graph.Nodes;
-            for (int n = nodes.Count - 1; n >= 0; n--)
-            {
-                GraphNode node = nodes[n];
-                if (node.Id == _state.SourceNode || !_state.ConnectablePorts.TryGetValue(node.Id, out bool[] connectable)) continue;
-                RuneDefinition rune = GameData.Runes.Get(node.RuneId);
-                Rect rect = _layout.NodeRect(node, rune);
-                Vector2 nearest = new Vector2(Mathf.Clamp(_state.Pointer.x, rect.xMin, rect.xMax),
-                    Mathf.Clamp(_state.Pointer.y, rect.yMin, rect.yMax));
-                float nodeDistance = (_state.Pointer - nearest).sqrMagnitude;
-                if (nodeDistance > _connectionSnapPadding * _connectionSnapPadding || nodeDistance > closestNodeDistance) continue;
-                for (int p = 0; p < rune.Ports.Count; p++)
-                {
-                    PortDefinition port = rune.Ports[p];
-                    if (!connectable[p] || !_layout.IsPortShown(node, port)) continue;
-                    float portDistance = (_state.Pointer - _layout.PortPosition(rect, node, rune, port.Id)).sqrMagnitude;
-                    if (nodeDistance == closestNodeDistance && portDistance >= closestPortDistance) continue;
-                    closestNodeDistance = nodeDistance;
-                    closestPortDistance = portDistance;
-                    foundNode = node;
-                    foundPort = port;
-                }
-            }
-            return foundNode != null;
         }
 
         /// <summary>클릭한 노드로 선택을 갱신하고 선택된 노드들의 드래그 시작 좌표를 저장한다.</summary>
