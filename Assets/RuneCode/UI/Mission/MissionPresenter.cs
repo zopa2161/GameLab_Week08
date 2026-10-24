@@ -610,7 +610,7 @@ namespace RuneCode
                         ? string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false, true))
                         : RuneDescriptionBuilder.GetDescription(rune);
                     descriptions.Add(description);
-                    targetTexts.Add(RuneDescriptionBuilder.GetMarkedModifierTargets(rune));
+                    targetTexts.Add(RuneDescriptionBuilder.GetClearChoiceModifierTargets(rune));
                 }
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions, targetTexts,
                     _run.ClearModifierGrades, _run.ClearModifierChoices);

@@ -880,7 +880,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: -100, y: -244}
+  m_AnchoredPosition: {x: -100, y: -240}
   m_SizeDelta: {x: 200, y: 144}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &5808069385569670015
@@ -922,8 +922,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4290361785
-  m_fontColor: {r: 0.7264151, g: 0.7264151, b: 0.7264151, a: 1}
+    rgba: 4293779148
+  m_fontColor: {r: 0.8, g: 0.87058824, b: 0.92941177, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -950,10 +950,10 @@ MonoBehaviour:
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 256
   m_textAlignment: 65535
-  m_characterSpacing: 0
+  m_characterSpacing: -10
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
-  m_lineSpacing: 0
+  m_lineSpacing: 45
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
@@ -1271,7 +1271,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: -100, y: -244}
+  m_AnchoredPosition: {x: -100, y: -240}
   m_SizeDelta: {x: 200, y: 144}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &2687845897604890089
@@ -1302,7 +1302,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\uC7A5\uCC29 \uAC00\uB2A5 \uD589\uB3D9\n<mark=#AAAAAA10 padding=20,20,10,10>\n\uBC1C\uC0AC</mark>
+  m_text: "\uC7A5\uCC29 \uAC00\uB2A5 \uD589\uB3D9\n<mark=#EDDBCC10 padding=20,20,10,10>\n\uBC1C\uC0AC</mark>
     <mark=#AAAAAA10 padding=20,20,10,10>\uBE54</mark> <mark=#AAAAAA10 padding=20,20,10,10>\uD3ED\uBC1C</mark>
     <mark=#AAAAAA10 padding=20,20,10,10>\uC794\uB958</mark> <mark=#AAAAAA10 padding=20,20,10,10>\uCC38\uACA9</mark>\n\n"
   m_isRightToLeft: 0
@@ -1313,8 +1313,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4290361785
-  m_fontColor: {r: 0.7264151, g: 0.7264151, b: 0.7264151, a: 1}
+    rgba: 4293779148
+  m_fontColor: {r: 0.8, g: 0.87058824, b: 0.92941177, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -1341,10 +1341,10 @@ MonoBehaviour:
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 256
   m_textAlignment: 65535
-  m_characterSpacing: 0
+  m_characterSpacing: -10
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
-  m_lineSpacing: 0
+  m_lineSpacing: 45
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
@@ -2760,7 +2760,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: -100, y: -244}
+  m_AnchoredPosition: {x: -100, y: -240}
   m_SizeDelta: {x: 200, y: 144}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &1699175530847203001
@@ -2791,7 +2791,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\uC7A5\uCC29 \uAC00\uB2A5 \uD589\uB3D9\n<mark=#AAAAAA10 padding=20,20,10,10>\n\uBC1C\uC0AC</mark>
+  m_text: "<b>\uC7A5\uCC29 \uAC00\uB2A5 \uD589\uB3D9</b><mark=#AAAAAA10 padding=20,20,10,10>\n\uBC1C\uC0AC</mark>
     <mark=#AAAAAA10 padding=20,20,10,10>\uBE54</mark> <mark=#AAAAAA10 padding=20,20,10,10>\uD3ED\uBC1C</mark>
     <mark=#AAAAAA10 padding=20,20,10,10>\uC794\uB958</mark> <mark=#AAAAAA10 padding=20,20,10,10>\uCC38\uACA9</mark>\n\n"
   m_isRightToLeft: 0
@@ -2802,8 +2802,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4290361785
-  m_fontColor: {r: 0.7264151, g: 0.7264151, b: 0.7264151, a: 1}
+    rgba: 4293779148
+  m_fontColor: {r: 0.8, g: 0.87058824, b: 0.92941177, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -2830,10 +2830,10 @@ MonoBehaviour:
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 256
   m_textAlignment: 65535
-  m_characterSpacing: 0
+  m_characterSpacing: -10
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
-  m_lineSpacing: 0
+  m_lineSpacing: 45
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
