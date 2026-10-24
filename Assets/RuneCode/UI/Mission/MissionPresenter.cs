@@ -77,6 +77,11 @@ namespace RuneCode
         private bool CanOpenWorkshop => _run != null && !_run.IsFinished && _run.IsWaitingForNextRound
             && !_run.IsDebugRewardChoice && (_isInitialDebugRoundBreak || _hasPresentedChoices);
 
+        /// <summary>단축키·바로가기 버튼이 기존 진입 조건과 보상·팝업·문자 입력·합성창 잠금을 만족하는지 반환한다.</summary>
+        private bool CanToggleWorkshop => CanOpenWorkshop && !_run.IsPaused && !_ui.IsPopupOpen && !UiFactory.IsTyping()
+            && (_screen.Workshop.IsVisible || !_run.HasClearModifierChoices || _run.IsClearModifierChosen)
+            && (!_screen.Workshop.IsVisible || !_screen.Workshop.SpellEditor.IsSynthesisOpen);
+
         /// <summary>보상 선택을 마쳐 라운드 대기 포털로 다음 라운드에 들어갈 수 있는지 반환한다. 경기장 그래픽이 포털 밝기를 정할 때 읽는다.</summary>
         public bool IsRoundBreakPortalActive => _run != null && _run.IsNextRoundReady;
 
@@ -92,6 +97,7 @@ namespace RuneCode
             _hud.PauseClicked += TogglePause;
             _hud.DebugClicked += OpenDebug;
             _hud.WorkshopClicked += OpenWorkshop;
+            _hud.WorkshopTabClicked += ToggleWorkshopTab;
             _hud.DebugBossClicked += StartDebugBoss;
             _hud.DebugActionClicked += RunDebugAction;
             BuildDebugBosses();
@@ -125,6 +131,7 @@ namespace RuneCode
                 soundManager.SetMusicState(0);
             }
             _hud.SetWorkshop(false, false);
+            _hud.SetWorkshopShortcuts(false);
             _hud.SetWorkshopHighlight(false);
             _hud.SetDebugBossMenu(false, false);
             ResetHexaDebugActions();
@@ -148,6 +155,7 @@ namespace RuneCode
                 return;
             }
             if (_run == null) return;
+            if (HandleWorkshopShortcuts()) return;
             // 작업실 오버레이가 열려 있는 동안은 미션 진행과 입력·사운드·라운드 처리를 모두 멈춘다.
             if (_screen.Workshop.IsVisible) return;
             if (_run.IsFinished)
@@ -314,16 +322,51 @@ namespace RuneCode
         /// 라운드 보상 카드를 고르기 전에도 열 수 있으며 카드는 돌아왔을 때 그대로 남는다.
         /// </summary>
         private void OpenWorkshop()
+            => OpenWorkshopTab(WorkshopScreen.TAB_EDITOR);
+
+        /// <summary>현재 작업실 진입 조건으로 런을 보관하고 지정 탭의 오버레이를 연다. 이미 열려 있으면 유지한다.</summary>
+        private void OpenWorkshopTab(string tab)
         {
             if (_screen.Workshop.IsVisible) return;
             if (!CanOpenWorkshop || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
             _session.SuspendRunForWorkshop(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
             SoundManager.Instance.StopShotBeam();
             _hud.SetWorkshop(false, false);
+            _hud.SetWorkshopShortcuts(false);
             _hud.SetWorkshopHighlight(false);
             WorkshopScreen workshop = _screen.Workshop;
             workshop.transform.SetAsLastSibling();
-            workshop.Show();
+            workshop.ShowForTab(tab);
+        }
+
+        /// <summary>수정 키와 텍스트 입력이 없을 때 Tab·C는 편집기, V는 강화 트리를 토글하고 처리한 프레임인지 반환한다.</summary>
+        private bool HandleWorkshopShortcuts()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null || !Application.isFocused || !CanToggleWorkshop
+                || keyboard.ctrlKey.isPressed || keyboard.altKey.isPressed || keyboard.shiftKey.isPressed
+                || keyboard.leftMetaKey.isPressed || keyboard.rightMetaKey.isPressed) return false;
+            string tab;
+            if (keyboard.tabKey.wasPressedThisFrame || keyboard.cKey.wasPressedThisFrame) tab = WorkshopScreen.TAB_EDITOR;
+            else if (keyboard.vKey.wasPressedThisFrame) tab = WorkshopScreen.TAB_TREE;
+            else return false;
+            ToggleWorkshopTab(tab);
+            return true;
+        }
+
+        /// <summary>지정 탭이 열려 있으면 기존 검증 경로로 닫고 다른 탭이면 전환하며, 닫혀 있으면 지정 탭으로 연다.</summary>
+        private void ToggleWorkshopTab(string tab)
+        {
+            if (!CanToggleWorkshop) return;
+            WorkshopScreen workshop = _screen.Workshop;
+            if (!workshop.IsVisible)
+            {
+                OpenWorkshopTab(tab);
+                return;
+            }
+            workshop.SpellEditor.GraphCanvas.CancelPickedModule();
+            if (workshop.SelectedTab == tab) CloseWorkshop();
+            else workshop.ShowForTab(tab);
         }
 
         /// <summary>
@@ -823,6 +866,7 @@ namespace RuneCode
                 ? sim.RemainingWaveEnemyCount : (int?)null;
             _hud.SetStage(GetStageText(sim), remainingEnemyCount);
             _hud.SetWorkshop(CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
+            _hud.SetWorkshopShortcuts(CanToggleWorkshop);
             // 첫 클리어 온보딩 뒤 보상을 고르면 작업실 온보딩 전까지 작업실 버튼을 강조한다.
             _hud.SetWorkshopHighlight(CanOpenWorkshop && _run.IsClearModifierChosen
                 && _session.TestOnboardingChapter == ONBOARDING_FIRST_CLEAR);

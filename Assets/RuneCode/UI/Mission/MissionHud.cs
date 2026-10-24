@@ -47,6 +47,10 @@ namespace RuneCode
         [SerializeField] private Button _debugButton;
         [SerializeField] private Button _workshopButton;
 
+        [Header("작업실 바로가기")]
+        [SerializeField] private Button _editorButton;
+        [SerializeField] private Button _upgradeTreeButton;
+
         [Header("디버그 보스")]
         [SerializeField] private RectTransform _debugBossRoot;
         [SerializeField] private Button _debugBossButtonTemplate;
@@ -65,6 +69,9 @@ namespace RuneCode
 
         /// <summary>소강상태의 작업실 열기 버튼을 눌렀을 때 알린다.</summary>
         public event Action WorkshopClicked;
+
+        /// <summary>편집창 또는 강화 트리 바로가기를 눌렀을 때 대상 탭 ID를 알린다.</summary>
+        public event Action<string> WorkshopTabClicked;
 
         /// <summary>디버그 보스 바로 상대하기 버튼을 눌렀을 때 버튼 순번을 알린다.</summary>
         public event Action<int> DebugBossClicked;
@@ -87,10 +94,13 @@ namespace RuneCode
                 _pauseButton.onClick.AddListener(() => PauseClicked?.Invoke());
                 _debugButton.onClick.AddListener(() => DebugClicked?.Invoke());
                 _workshopButton.onClick.AddListener(() => WorkshopClicked?.Invoke());
+                _editorButton.onClick.AddListener(() => WorkshopTabClicked?.Invoke(WorkshopScreen.TAB_EDITOR));
+                _upgradeTreeButton.onClick.AddListener(() => WorkshopTabClicked?.Invoke(WorkshopScreen.TAB_TREE));
                 _isBound = true;
             }
             _debugButton.gameObject.SetActive(isDebugVisible);
             SetWorkshop(false, false);
+            SetWorkshopShortcuts(false);
             SetDebugBossMenu(false, false);
         }
 
@@ -159,6 +169,13 @@ namespace RuneCode
         {
             _workshopButton.interactable = isVisible && isInteractable;
             _workshopButton.gameObject.SetActive(isVisible);
+        }
+
+        /// <summary>하단 작업실 바로가기 두 버튼의 입력 가능 상태를 함께 설정한다. 전투 중에도 버튼 위치와 단축키 표시는 유지한다.</summary>
+        public void SetWorkshopShortcuts(bool isInteractable)
+        {
+            _editorButton.interactable = isInteractable;
+            _upgradeTreeButton.interactable = isInteractable;
         }
 
         /// <summary>작업실 버튼에 외곽선과 크기 맥동 강조를 켜거나 끈다. 끄면 원래 크기로 되돌린다. 외곽선은 처음 켤 때 만든다.</summary>

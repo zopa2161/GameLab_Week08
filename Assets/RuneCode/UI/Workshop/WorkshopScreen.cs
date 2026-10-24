@@ -37,9 +37,11 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _status;
 
         private WorkshopPresenter _presenter;
+        private string _entryTab = TAB_EDITOR;
 
         public SpellEditorPanel SpellEditor => _spellEditor;
         public UpgradeTreePanel UpgradeTree => _upgradeTreePanel;
+        public string SelectedTab => _presenter.SelectedTab;
 
         /// <summary>탭 버튼을 눌렀을 때 탭 ID와 함께 알린다.</summary>
         public event Action<string> TabClicked;
@@ -71,6 +73,17 @@ namespace RuneCode
             _treeRoot.gameObject.SetActive(tab == TAB_TREE);
             for (int i = 0; i < TABS.Length; i++)
                 _tabButtons[i].GetComponent<TabButton>().SetSelected(TABS[i] == tab);
+        }
+
+        /// <summary>닫혀 있으면 지정 탭으로 바로 열고, 이미 열려 있으면 기존 Presenter 경로로 탭만 전환한다.</summary>
+        public void ShowForTab(string tab)
+        {
+            if (IsVisible) _presenter.SetTab(tab);
+            else
+            {
+                _entryTab = tab;
+                Show();
+            }
         }
 
         /// <summary>집어 든 모듈을 먼저 취소하고 합성창을 닫은 뒤, 그 외에는 오버레이 닫기를 알리고 Esc 입력을 소비한다.</summary>
@@ -117,8 +130,12 @@ namespace RuneCode
             statusRect.SetAsLastSibling();
         }
 
-        /// <summary>작업실 진입을 알린다.</summary>
-        protected override void OnShown() => _presenter.Enter();
+        /// <summary>요청한 탭으로 작업실에 진입하고 다음 일반 열기의 기본 탭을 편집기로 복원한다.</summary>
+        protected override void OnShown()
+        {
+            _presenter.Enter(_entryTab);
+            _entryTab = TAB_EDITOR;
+        }
 
         /// <summary>작업실을 떠날 때 Presenter에 퇴장을 알린다.</summary>
         protected override void OnHidden() => _presenter.Exit();
