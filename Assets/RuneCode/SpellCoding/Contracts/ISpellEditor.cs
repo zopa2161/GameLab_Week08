@@ -83,6 +83,24 @@ namespace RuneCode
         /// <summary>노드 드래그 시작 시 되돌리기 기준 스냅샷을 기록한다.</summary>
         void BeginEdit();
 
+        /// <summary>묶음의 이동·분리·삽입을 되돌리기 한 단계로 묶기 시작한다.</summary>
+        void BeginBlockEdit();
+
+        /// <summary>블록 편집 중의 변경을 되돌리기 한 단계로 확정한다.</summary>
+        void EndBlockEdit();
+
+        /// <summary>자동 배치 변경을 현재 편집 기록에 포함하고 별도의 되돌리기 단계는 만들지 않는다.</summary>
+        void MarkBlockLayoutChanged();
+
+        /// <summary>묶음 바깥에서 들어오는 실행 연결만 끊고 내부 연결은 보존한다.</summary>
+        void DetachBlockGroup(IEnumerable<string> nodeIds);
+
+        /// <summary>후속 연결 보존을 포함해 블록 묶음을 출력에 삽입할 수 있는지 반환한다.</summary>
+        bool CanDockBlocks(string fromNode, string fromPort, string rootNode);
+
+        /// <summary>묶음을 지정 출력에 붙이고 기존 후속은 삽입한 묶음의 끝으로 연결한다.</summary>
+        bool DockBlocks(string fromNode, string fromPort, string rootNode);
+
         /// <summary>그래프가 직접 변경되었음을 알리고 되돌리기 기록과 컴파일을 예약한다.</summary>
         void MarkChanged();
 
