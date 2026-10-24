@@ -245,6 +245,7 @@ namespace RuneCode.Editor
                 return;
             }
             DrawIdField(table.FindPropertyRelative("_id"));
+            EditorGUILayout.HelpBox("새 런의 라운드 선택 보상 등급은 balance.json의 고정 목록을 섞어 사용합니다. 아래 등급 확률은 기존 진행과 확률 드롭에 적용되며, 후보 룬과 가중치는 새 런에도 적용됩니다.", MessageType.Info);
             EditorGUILayout.Space(4);
             DrawCategorySection(table.FindPropertyRelative("_categoryChances"));
             EditorGUILayout.Space(4);

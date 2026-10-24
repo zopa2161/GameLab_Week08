@@ -265,6 +265,8 @@ namespace RuneCode
             int completedStage = _simulation.StageNumber;
             int completedRound = _simulation.RoundNumber;
             if (!_simulation.TryStartNextRound()) return false;
+            if (_session.IsDebugEnabled)
+                _session.SkipRoundRewardsBefore(_simulation.StageNumber, _simulation.RoundNumber);
             EndRoundBreak(completedStage, completedRound, "next_round_clicked");
             return true;
         }
@@ -287,6 +289,7 @@ namespace RuneCode
             if (!_simulation.DebugStartBossWave(stage, round, isHexaPreview, isHexaSprayPreview, isHexaHomingPreview,
                 isHexaSniperPreview, isHexaCompositePreview, compositeFirst, compositeSecond, isHexaSpiralPreview,
                 isHexaAutoPreview)) return false;
+            _session.SkipRoundRewardsBefore(stage, round);
             EndRoundBreak(completedStage, completedRound, "debug_boss_clicked");
             return true;
         }
@@ -376,7 +379,7 @@ namespace RuneCode
             }
             CaptureNodeTelemetry();
             CollectPickedItems();
-            if (_simulation.IsWaitingForNextRound && !HasClearModifierChoices)
+            if (_simulation.IsWaitingForNextRound && !HasClearModifierChoices && !_isClearModifierChosen)
             {
                 SetRoundModifierChoices();
                 CommitRoundRewards();
@@ -391,10 +394,22 @@ namespace RuneCode
             if (_simulation.Completed || _simulation.IsFailed) FinishMission();
         }
 
-        /// <summary>라운드 종료 시 해당 라운드의 보상 드롭 테이블과 시뮬레이션 난수로 후보와 등급을 한 번 추첨한다.</summary>
+        /// <summary>라운드 보상 후보를 만든다. 새 런은 저장된 다음 등급을 사용하고 기존 진행은 확률표를 쓰며, 소비는 라운드 기록과 함께 처리한다.</summary>
         private void SetRoundModifierChoices()
         {
-            if (!_simulation.TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades)) return;
+            string category = null;
+            string grade = null;
+            if (_session.Save.UsesFixedRewardGrades)
+            {
+                category = GameData.Stages.GetRoundRewardCategory(_simulation.StageNumber, _simulation.RoundNumber, GameData.Drops);
+                if (!_session.Save.TryGetNextRewardGrade(category, out grade))
+                {
+                    _isClearModifierChosen = true;
+                    return;
+                }
+            }
+            if (!_simulation.TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades, category, grade))
+                throw new InvalidOperationException("라운드 선택 보상 후보가 없습니다.");
             _clearModifierChoices = candidates;
             _clearModifierGrades = grades;
             _isClearModifierChosen = false;
@@ -611,6 +626,7 @@ namespace RuneCode
             int completedStage = _simulation.StageNumber;
             int completedRound = _simulation.RoundNumber;
             if (!_simulation.DebugStartNormalWave(stage, round)) return false;
+            _session.SkipRoundRewardsBefore(stage, round);
             EndRoundBreak(completedStage, completedRound, "debug_normal_wave_clicked");
             return true;
         }

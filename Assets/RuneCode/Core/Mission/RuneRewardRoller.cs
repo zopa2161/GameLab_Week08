@@ -22,10 +22,16 @@ namespace RuneCode
         /// <summary>테이블에서 분류·공통 등급을 한 번 추첨하고, 해당 분류·등급의 서로 다른 룬을 최대 count개 반환한다. 남은 후보가 없으면 추첨을 마친다.</summary>
         public static List<DropRoll> DrawChoices(DropTableDefinition table, int stage, int count, IEliteModifierDropSource grades, Func<double> random)
         {
-            var choices = new List<DropRoll>();
-            if (count <= 0) return choices;
+            if (count <= 0) return new List<DropRoll>();
             string category = RollCategory(table.CategoryChances, random);
             string grade = category == SpellGrammar.CATEGORY_ELEMENT ? "" : RollGrade(GetGradeChances(table, category, stage, grades), random);
+            return DrawChoices(table, category, grade, count, random);
+        }
+
+        /// <summary>지정한 분류·공통 등급으로 테이블의 후보와 가중치를 사용해 서로 다른 룬을 최대 count개 반환한다.</summary>
+        public static List<DropRoll> DrawChoices(DropTableDefinition table, string category, string grade, int count, Func<double> random)
+        {
+            var choices = new List<DropRoll>();
             var chosenIds = new HashSet<string>(StringComparer.Ordinal);
             for (int slot = 0; slot < count; slot++)
             {

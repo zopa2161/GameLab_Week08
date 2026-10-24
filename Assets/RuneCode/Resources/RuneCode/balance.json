@@ -63,6 +63,8 @@
     "_maxLibrary": 30,
     "_modifierStartStock": 0,
     "_behaviorStartStock": 1,
+    "_modifierRewardGrades": ["C", "C", "C", "C", "B", "B", "B", "A", "A", "A", "S", "S"],
+    "_behaviorRewardGrades": ["C", "B", "B", "A", "S"],
     "_orbAbsorbRadius": 80,
     "_pickupAttractSpeed": 480,
     "_killEnergyCreditRatio": 0.3

@@ -728,12 +728,22 @@ namespace RuneCode
         public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, int stageNumber, int roundNumber,
             double hp, double maxHp, IReadOnlyList<string> roundChoiceIds, IReadOnlyList<string> roundChoiceGrades, bool persist = true)
         {
+            if (roundChoiceIds != null && roundChoiceIds.Count > 0)
+                _save.ConsumeRewardGrade(GameData.Runes.Get(roundChoiceIds[0]).Category, roundChoiceGrades[0]);
             _save.Settle(fragments, false);
             foreach (SimulationItemDrop drop in drops)
                 GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup", persist: false);
             if (drops.Count > 0) _spells.Recompile();
             _save.RecordProgressionRound(stageNumber, roundNumber, hp, maxHp, roundChoiceIds, roundChoiceGrades);
             if (persist) PersistProgress();
+        }
+
+        /// <summary>디버그 진입 라운드 앞의 고정 보상을 지급 없이 소비하고 대기 후보를 지운 뒤 저장 정책에 따라 보관한다.</summary>
+        public void SkipRoundRewardsBefore(int stage, int round)
+        {
+            if (!_isDebugEnabled) return;
+            _save.SkipRewardGradesBefore(stage, round);
+            PersistProgress();
         }
 
         /// <summary>저장된 연속 미션 보상 후보 index를 하나 지급하고 후보 삭제와 소지량 변경을 한 번에 저장한다.</summary>
