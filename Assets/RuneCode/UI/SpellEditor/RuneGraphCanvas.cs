@@ -233,6 +233,34 @@ namespace RuneCode
             return RunePalettePreview.CreateRow(canvas.rootCanvas, source);
         }
 
+        /// <summary>팔레트 블록의 화면 위치와 등급으로 표시 전용 노드를 만들고 앞쪽 우선 연결 후보를 갱신한다. 실제 그래프는 변경하지 않는다.</summary>
+        internal void UpdatePaletteSnap(string runeId, string grade, Vector2 screen, Vector2 previewScreen)
+        {
+            _state.ClearSnap();
+            if (HasGraph && _editor.IsEditable && TryGetGraphPoint(screen, out _))
+            {
+                TryGetGraphPoint(previewScreen, out Vector2 point);
+                var moving = new GraphNode("palette-snap-preview", runeId, point.x, point.y);
+                moving.SetText(SpellGrammar.MODIFIER_GRADE_PARAM,
+                    string.IsNullOrEmpty(grade) ? SpellGrammar.DEFAULT_BEHAVIOR_GRADE : grade);
+                float closest = _puzzleSnapDistance * _viewport.Zoom;
+                closest *= closest;
+                foreach (GraphNode stationary in _editor.Graph.Nodes)
+                    ConsiderPuzzleSnap(stationary, moving, false, ref closest, moving);
+                if (_state.SnapFromNode == null)
+                    foreach (GraphNode stationary in _editor.Graph.Nodes)
+                        ConsiderPuzzleSnap(moving, stationary, true, ref closest, moving);
+            }
+            RefreshMeshes();
+        }
+
+        /// <summary>팔레트 드래그 종료 시 연결 후보와 테두리 표시를 제거한다.</summary>
+        internal void ClearPaletteSnap()
+        {
+            _state.ClearSnap();
+            if (HasGraph) RefreshMeshes();
+        }
+
         /// <summary>지정 룬·등급을 들고 있는 동안 장착 가능한 슬롯을 계산하고 표시 메시를 갱신한다.</summary>
         internal void ShowEquippableSlots(string runeId, string grade)
         {
@@ -823,31 +851,35 @@ namespace RuneCode
             UpdatePuzzleSnap(_state.DragOrigins.Keys);
         }
 
-        /// <summary>이동 중인 노드 집합과 외부 노드 사이에서 반경 안의 가장 가까운 유효 퍼즐 결합을 선택한다.</summary>
+        /// <summary>이동 묶음 앞쪽의 유효 결합을 우선하고 없으면 뒤쪽에서 가장 가까운 결합을 선택한다.</summary>
         private void UpdatePuzzleSnap(ICollection<string> movingIds)
         {
             _state.ClearSnap();
             if (!_editor.IsEditable) return;
             float closest = _puzzleSnapDistance * _viewport.Zoom;
             closest *= closest;
-            foreach (string id in movingIds)
+            for (int pass = 0; pass < 2; pass++)
             {
-                GraphNode moving = _editor.Graph.FindNode(id);
-                if (moving == null) continue;
-                foreach (GraphNode stationary in _editor.Graph.Nodes)
+                foreach (string id in movingIds)
                 {
-                    if (movingIds.Contains(stationary.Id)) continue;
-                    bool isHead = true;
-                    foreach (GraphEdge edge in _editor.Graph.Edges)
-                        if (edge.ToNode == moving.Id && movingIds.Contains(edge.FromNode) && _layout.IsBlockEdge(edge)) { isHead = false; break; }
-                    if (isHead) ConsiderPuzzleSnap(stationary, moving, false, ref closest);
-                    ConsiderPuzzleSnap(moving, stationary, true, ref closest);
+                    GraphNode moving = _editor.Graph.FindNode(id);
+                    if (moving == null) continue;
+                    foreach (GraphNode stationary in _editor.Graph.Nodes)
+                    {
+                        if (movingIds.Contains(stationary.Id)) continue;
+                        bool isHead = true;
+                        foreach (GraphEdge edge in _editor.Graph.Edges)
+                            if (edge.ToNode == moving.Id && movingIds.Contains(edge.FromNode) && _layout.IsBlockEdge(edge)) { isHead = false; break; }
+                        if (pass == 0 && isHead) ConsiderPuzzleSnap(stationary, moving, false, ref closest);
+                        if (pass == 1) ConsiderPuzzleSnap(moving, stationary, true, ref closest);
+                    }
                 }
+                if (_state.SnapFromNode != null) break;
             }
         }
 
         /// <summary>출력·입력 포트 거리와 기존 연결·문법을 검사하고 더 가까운 결합 후보와 이동 보정량을 저장한다.</summary>
-        private void ConsiderPuzzleSnap(GraphNode from, GraphNode to, bool isOutputMoving, ref float closest)
+        private void ConsiderPuzzleSnap(GraphNode from, GraphNode to, bool isOutputMoving, ref float closest, GraphNode previewNode = null)
         {
             RuneDefinition fromRune = GameData.Runes.Get(from.RuneId);
             RuneDefinition toRune = GameData.Runes.Get(to.RuneId);
@@ -872,12 +904,13 @@ namespace RuneCode
                     else if (isOutputMoving && (isSameOutput || isSameInput)) isOccupied = true;
                     if (isSameOutput && !isSameInput) insertNode = edge.ToNode;
                 }
-                if (isOccupied || (!isConnected && !_editor.CanDockBlocks(from.Id, output.Id, to.Id))) continue;
+                if (isOccupied || (!isConnected && !_editor.CanDockBlocks(from.Id, output.Id, to.Id, previewNode))) continue;
                 closest = distance;
                 _state.SnapFromNode = from.Id;
                 _state.SnapFromPort = output.Id;
                 _state.SnapToNode = to.Id;
                 _state.SnapInsertNode = insertNode;
+                _state.SnapHighlightNode = isOutputMoving ? to.Id : from.Id;
                 _state.SnapOffset = (isOutputMoving ? -offset : offset) / _viewport.Zoom;
                 _state.IsSnapConnected = isConnected;
             }

@@ -671,9 +671,9 @@ namespace RuneCode
         }
 
         /// <summary>기존 후속을 잃지 않는 삽입 사본을 만들어 연결·순환·RAM 제한을 통과하는지 반환한다.</summary>
-        public bool CanDockBlocks(string fromNode, string fromPort, string rootNode)
+        public bool CanDockBlocks(string fromNode, string fromPort, string rootNode, GraphNode previewNode = null)
         {
-            return _isEditable && CreateDockCandidate(fromNode, fromPort, rootNode, true) != null;
+            return _isEditable && CreateDockCandidate(fromNode, fromPort, rootNode, true, previewNode) != null;
         }
 
         /// <summary>검증된 삽입 사본으로 교체하고 그래프 변경을 기록한다. 실패하면 현재 그래프를 유지한다.</summary>
@@ -689,12 +689,13 @@ namespace RuneCode
         }
 
         /// <summary>출력의 기존 후속을 새 묶음 끝으로 옮긴 삽입 사본을 반환한다. 분기 모호성·순환·RAM·개수 제한이 있으면 null이다.</summary>
-        private SpellGraph CreateDockCandidate(string fromId, string portId, string rootId, bool isPreview)
+        private SpellGraph CreateDockCandidate(string fromId, string portId, string rootId, bool isPreview, GraphNode previewNode = null)
         {
-            if (_editingGraph.FindNode(fromId) == null || _editingGraph.FindNode(rootId) == null) return null;
-            HashSet<string> group = _editingGraph.GetBlockGroup(new[] { rootId }, GameData.Runes);
-            if (group.Contains(fromId)) return null;
             SpellGraph candidate = _editingGraph.Clone();
+            if (previewNode != null) candidate.AddNode(previewNode.Clone(previewNode.Id));
+            if (candidate.FindNode(fromId) == null || candidate.FindNode(rootId) == null) return null;
+            HashSet<string> group = candidate.GetBlockGroup(new[] { rootId }, GameData.Runes);
+            if (group.Contains(fromId)) return null;
             var incoming = new List<string>();
             foreach (GraphEdge edge in candidate.Edges)
             {

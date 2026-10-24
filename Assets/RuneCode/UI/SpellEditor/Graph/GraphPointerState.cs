@@ -42,6 +42,7 @@ namespace RuneCode
         public string SnapFromPort { get; set; }
         public string SnapToNode { get; set; }
         public string SnapInsertNode { get; set; }
+        public string SnapHighlightNode { get; set; }
         public Vector2 SnapOffset { get; set; }
         public bool IsSnapConnected { get; set; }
 
@@ -52,6 +53,7 @@ namespace RuneCode
             SnapFromPort = null;
             SnapToNode = null;
             SnapInsertNode = null;
+            SnapHighlightNode = null;
             SnapOffset = Vector2.zero;
             IsSnapConnected = false;
         }

@@ -96,7 +96,7 @@ namespace RuneCode
         void DetachBlockGroup(IEnumerable<string> nodeIds);
 
         /// <summary>후속 연결 보존을 포함해 블록 묶음을 출력에 삽입할 수 있는지 반환한다.</summary>
-        bool CanDockBlocks(string fromNode, string fromPort, string rootNode);
+        bool CanDockBlocks(string fromNode, string fromPort, string rootNode, GraphNode previewNode = null);
 
         /// <summary>묶음을 지정 출력에 붙이고 기존 후속은 삽입한 묶음의 끝으로 연결한다.</summary>
         bool DockBlocks(string fromNode, string fromPort, string rootNode);

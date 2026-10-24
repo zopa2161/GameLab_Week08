@@ -55,6 +55,7 @@ namespace RuneCode
         private readonly GraphNodeLayout _layout;
         private readonly GraphPointerState _state;
         private readonly Func<string, bool> _isRuneUnlocked;
+        private readonly List<float> _snapOutputHeights = new List<float>();
 
         /// <summary>뷰포트·노드 배치·편집 상태와 룬 해금 판정으로 그래프 그리기 도구를 만든다.</summary>
         public GraphMeshPainter(GraphViewport viewport, GraphNodeLayout layout, GraphPointerState state, GraphVisualStyle style,
@@ -84,12 +85,68 @@ namespace RuneCode
             DrawNode(mesh, node);
         }
 
-        /// <summary>연결 미리보기와 영역 선택을 최상단 레이어 메시에 그린다.</summary>
+        /// <summary>연결 대상 테두리·연결 미리보기와 영역 선택을 최상단 레이어 메시에 그린다.</summary>
         public void PaintOverlay(VertexHelper mesh)
         {
             mesh.Clear();
+            DrawSnapOutline(mesh);
             DrawConnectionPreview(mesh);
             DrawBoxSelection(mesh);
+        }
+
+        /// <summary>현재 연결 대상의 외곽과 입력 홈을 채움 없이 최상단에 그려 인접 블록에 테두리가 가려지지 않게 한다.</summary>
+        private void DrawSnapOutline(VertexHelper mesh)
+        {
+            if (_state.SnapHighlightNode == null) return;
+            GraphNode node = _layout.FindNode(_state.SnapHighlightNode);
+            if (node == null || _state.Selected.Contains(node.Id) || !_isRuneUnlocked(node.RuneId)) return;
+            RuneDefinition rune = GameData.Runes.Get(node.RuneId);
+            Rect rect = _layout.NodeRect(node, rune);
+            Color color = _style.GetColor(CONNECTABLE_PORT_COLOR);
+            float halfBorder = NODE_BORDER * 0.5f;
+            float left = rect.xMin - halfBorder;
+            float right = rect.xMax + halfBorder;
+            float top = rect.yMax + halfBorder;
+            float bottom = rect.yMin - halfBorder;
+            RuneMesh.Line(mesh, new Vector2(left, top), new Vector2(right, top), NODE_BORDER, color);
+            RuneMesh.Line(mesh, new Vector2(left, bottom), new Vector2(right, bottom), NODE_BORDER, color);
+            _snapOutputHeights.Clear();
+            foreach (PortDefinition port in rune.Ports)
+            {
+                if (port.Direction != SpellGrammar.DIRECTION_OUT || !GraphNodeLayout.IsPuzzlePort(port)
+                    || !_layout.IsPortShown(node, port)) continue;
+                _snapOutputHeights.Add(_layout.PortPosition(rect, node, rune, port.Id).y);
+            }
+            _snapOutputHeights.Sort();
+            float cursor = top;
+            float halfHeight = GraphNodeLayout.PUZZLE_HALF_HEIGHT * _viewport.Zoom + halfBorder;
+            float tip = rect.xMax + GraphNodeLayout.PUZZLE_DEPTH * _viewport.Zoom + halfBorder;
+            for (int index = _snapOutputHeights.Count - 1; index >= 0; index--)
+            {
+                float outputTop = _snapOutputHeights[index] + halfHeight;
+                float outputBottom = _snapOutputHeights[index] - halfHeight;
+                RuneMesh.Line(mesh, new Vector2(right, cursor), new Vector2(right, outputTop), NODE_BORDER, color);
+                RuneMesh.Line(mesh, new Vector2(right, outputTop), new Vector2(tip, outputTop), NODE_BORDER, color);
+                RuneMesh.Line(mesh, new Vector2(tip, outputTop), new Vector2(tip, outputBottom), NODE_BORDER, color);
+                RuneMesh.Line(mesh, new Vector2(tip, outputBottom), new Vector2(right, outputBottom), NODE_BORDER, color);
+                cursor = outputBottom;
+            }
+            RuneMesh.Line(mesh, new Vector2(right, cursor), new Vector2(right, bottom), NODE_BORDER, color);
+            PortDefinition input = rune.FindPort(SpellGrammar.EXEC_PORT, SpellGrammar.DIRECTION_IN);
+            if (!GraphNodeLayout.IsPuzzlePort(input))
+            {
+                RuneMesh.Line(mesh, new Vector2(left, bottom), new Vector2(left, top), NODE_BORDER, color);
+                return;
+            }
+            Vector2 socket = _layout.PortPosition(rect, node, rune, input.Id);
+            float upper = socket.y + halfHeight;
+            float lower = socket.y - halfHeight;
+            float inset = rect.xMin + GraphNodeLayout.PUZZLE_DEPTH * _viewport.Zoom + halfBorder;
+            RuneMesh.Line(mesh, new Vector2(left, top), new Vector2(left, upper), NODE_BORDER, color);
+            RuneMesh.Line(mesh, new Vector2(left, upper), new Vector2(inset, upper), NODE_BORDER, color);
+            RuneMesh.Line(mesh, new Vector2(inset, upper), new Vector2(inset, lower), NODE_BORDER, color);
+            RuneMesh.Line(mesh, new Vector2(inset, lower), new Vector2(left, lower), NODE_BORDER, color);
+            RuneMesh.Line(mesh, new Vector2(left, lower), new Vector2(left, bottom), NODE_BORDER, color);
         }
 
         /// <summary>배경과 화면 이동·배율에 맞춘 격자 점을 그린다.</summary>
@@ -280,7 +337,7 @@ namespace RuneCode
         {
             if (_state.Selected.Contains(node.Id)) return Color.white;
             if (!isRuneUnlocked) return LOCKED_NODE_COLOR;
-            if (node.Id == _state.SnapFromNode || node.Id == _state.SnapToNode || node.Id == _state.SnapInsertNode)
+            if (node.Id == _state.SnapHighlightNode)
                 return _style.GetColor(CONNECTABLE_PORT_COLOR);
             if (isExecuted) return _style.GetColor(EXECUTED_BORDER_COLOR);
             return _style.GetColor(NODE_BORDER_COLOR);
