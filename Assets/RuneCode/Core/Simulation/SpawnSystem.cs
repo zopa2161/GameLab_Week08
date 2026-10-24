@@ -363,10 +363,10 @@ namespace RuneCode
         /// <summary>무반격 더미 적을 지정한 위치와 체력으로 생성한다.</summary>
         internal SimulationEnemy SpawnBenchDummy(SimVector position, double hp) => SpawnEnemy("enemy.scout", position, true, hp);
 
-        /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부, 캐리어 소유자와 소환한 Hexa ID로 적을 생성하고 공격 일정을 설정한다. 엘리트는 체력·보상·이동 속도·반경 배율을 적용하며 캐리어 자식의 보상은 0으로 설정한다.</summary>
+        /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부, 캐리어 소유자와 소환한 Hexa ID로 적을 생성하고 공격 일정을 설정한다. 엘리트는 체력·보상·이동 속도·반경 배율을 적용하며 캐리어 자식의 보상은 0으로 설정한다. 라운드 대기 중에는 무반격 더미 생성만 허용한다.</summary>
         internal SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0, int summonerId = 0)
         {
-            if (_world.IsMission && _world.Stage != MissionStage.Combat || _world.Enemies.Count >= _world.EnemyLimit) return null;
+            if (_world.IsMission && _world.Stage != MissionStage.Combat && !(isDummy && _world.Stage == MissionStage.RoundBreak) || _world.Enemies.Count >= _world.EnemyLimit) return null;
             EnemyDefinition definition = _world.EnemyCatalog.Get(id);
             double hpMultiplier = _world.IsMission ? _world.Stages.GetHpMultiplier(_world.StageNumber) : 1;
             if (_world.IsProgressionMission)
@@ -394,7 +394,7 @@ namespace RuneCode
             if (boss != null && boss.IsGovernorPattern && !boss.IsMiniBoss)
             { BossHazard hazard = boss.GetHazard(2); enemy.ReinforcementAt = _world.Time + boss.Reinforcement.Interval; enemy.HazardAt = _world.Time + hazard.Interval; enemy.HazardRemaining = hazard.Count; }
             enemy.Observe(_world.Time); _world.Enemies.Add(enemy);
-            _stats.RecordEnemySpawn(_world, enemy); if (_world.IsMission) _spawnedEnemies++; return enemy;
+            _stats.RecordEnemySpawn(_world, enemy); if (_world.IsMission && !isDummy) _spawnedEnemies++; return enemy;
         }
     }
 }

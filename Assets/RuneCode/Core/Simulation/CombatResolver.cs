@@ -94,7 +94,7 @@ namespace RuneCode
                 }
                 if (actual > 0) _stats.ArcDamageEventCount++;
             }
-            if (entity.Behavior.AccumulatesPersistDamage) _stats.PersistDamage += actual;
+            if (entity.Behavior.AccumulatesPersistDamage && !(_world.IsMission && enemy.IsDummy)) _stats.PersistDamage += actual;
         }
 
         /// <summary>
@@ -159,10 +159,15 @@ namespace RuneCode
             if (applyStatus) _statuses.ApplyStatus(enemy, element, form, noise, damage, sourceAction);
             if (actual > 0)
             {
-                if (sourceAction != null) _stats.GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
+                // 미션 더미 피해는 행동별·적별 통계 누계에서 제외한다.
+                bool isMissionDummy = _world.IsMission && enemy.IsDummy;
+                if (!isMissionDummy)
+                {
+                    if (sourceAction != null) _stats.GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
+                    _stats.RecordEnemyDamage(actual, _world.Tick, enemy.Id);
+                }
                 _stats.EnemyDamageEventCount++;
                 enemy.SetDamageTags(element, form);
-                _stats.RecordEnemyDamage(actual, _world.Tick, enemy.Id);
                 _feedback.AddDamageNumber(enemy.Position, actual, element);
                 if (enemy.Hydra == null) _world.Adaptation.Learn(element, form, _runtime.Time, actual, isDot, noise, relayAlive);
             }

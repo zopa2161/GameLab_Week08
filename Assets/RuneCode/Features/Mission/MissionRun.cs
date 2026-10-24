@@ -227,6 +227,13 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>라운드 대기 중 한 번만 플레이어를 맵 중앙으로 옮기고 시험용 허수아비를 배치한다. 정산이 끝났거나 이미 배치했으면 false를 반환한다.</summary>
+        public bool TryPrepareRoundBreakArena()
+        {
+            if (_settled) return false;
+            return _simulation.TryPrepareRoundBreakArena();
+        }
+
         /// <summary>그래프에서 시작 트리거(core.cast) 노드의 ID를 찾아 반환하고 없으면 null을 반환한다.</summary>
         private static string FindCoreNodeId(SpellGraph graph)
         {

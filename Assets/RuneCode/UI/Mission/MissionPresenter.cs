@@ -180,6 +180,9 @@ namespace RuneCode
                     ShowSpellOrderOnboarding();
                 }
             }
+            // 보상 카드가 뜬 뒤, 후보가 없으면 대기 진입 즉시 한 번만 중앙 이동과 허수아비 배치를 한다.
+            if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices))
+                _run.TryPrepareRoundBreakArena();
             if (_run.IsWaitingForNextRound && (_hasPresentedChoices || !_run.HasClearModifierChoices) && !_ui.IsPopupOpen)
                 OpenTestOnboarding(ONBOARDING_FIRST_CLEAR);
             RenderHud();
