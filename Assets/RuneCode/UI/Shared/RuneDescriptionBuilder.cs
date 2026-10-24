@@ -15,6 +15,8 @@ namespace RuneCode
         private const string EFFECT_KEY_PREFIX = "rune.effect.";
         private const string DETAIL_KEY_PREFIX = "rune.detail.";
         private const string MODIFIER_TARGETS_KEY = "rune.modifierTargets";
+        private const string MODIFIER_TARGET_MARK_KEY = "rune.modifierTargetMark";
+        private const string CLEAR_MODIFIER_TARGETS_KEY = "result.clearModifierTargets";
         private const string HOMING_NONE_KEY = "rune.effect.homingNone";
         private const string LAUNCH_COUNT_KEY = "rune.effect.launchCount";
         private const string WAVE_COUNT_KEY = "rune.effect.waveCount";
@@ -65,24 +67,42 @@ namespace RuneCode
             return lines;
         }
 
-        /// <summary>Modifier가 실제로 효과를 내는 행동 이름을 팔레트 순서로 묶어 반환하고 Modifier가 아니면 null을 반환한다.</summary>
-        public static string GetModifierTargets(RuneDefinition rune)
+        /// <summary>Modifier가 실제로 효과를 내는 행동 이름을 팔레트 순서로 모아 반환하고 Modifier가 아니면 빈 목록을 반환한다.</summary>
+        public static List<string> GetModifierTargetNames(RuneDefinition rune)
         {
-            if (rune.Category != SpellGrammar.CATEGORY_MODIFIER) return null;
             var names = new List<string>();
+            if (rune.Category != SpellGrammar.CATEGORY_MODIFIER) return names;
             foreach (string behaviorId in BEHAVIOR_DISPLAY_ORDER)
             {
                 if (GameData.Runes.IsModifierCompatible(rune.Id, behaviorId) && GameData.Runes.TryGet(behaviorId, out RuneDefinition behavior))
                     names.Add(behavior.Name);
             }
+            return names;
+        }
+
+        /// <summary>허용 행동 이름을 가운뎃점으로 묶은 장착 가능 행동 문구를 반환하고 대상이 없으면 null을 반환한다.</summary>
+        public static string GetModifierTargets(RuneDefinition rune)
+        {
+            List<string> names = GetModifierTargetNames(rune);
             return names.Count == 0 ? null : GameData.Format(MODIFIER_TARGETS_KEY, ("targets", string.Join(NAME_SEPARATOR, names)));
         }
 
-        /// <summary>호버 문구를 반환한다. 등급 색 이름, 짧은 설명, 간략 등급 수치, 장착 가능 행동 순서로 잇는다.</summary>
+        /// <summary>보상 선택 카드용으로 장착 가능 행동 이름을 단어별 배경 태그로 감싼 두 줄 문구를 반환하고 대상이 없으면 빈 문자열을 반환한다.</summary>
+        public static string GetMarkedModifierTargets(RuneDefinition rune)
+        {
+            List<string> names = GetModifierTargetNames(rune);
+            if (names.Count == 0) return string.Empty;
+            var marked = new List<string>(names.Count);
+            foreach (string name in names)
+                marked.Add(GameData.Format(MODIFIER_TARGET_MARK_KEY, ("name", name)));
+            return GameData.Format(CLEAR_MODIFIER_TARGETS_KEY, ("targets", string.Join(" ", marked)));
+        }
+
+        /// <summary>호버 문구를 반환한다. 등급 색 이름, 짧은 설명, 등급 색 수치를 포함한 간략 등급 효과, 장착 가능 행동 순서로 잇는다.</summary>
         public static string GetHoverText(RuneDefinition rune, string grade)
         {
             string text = ModifierGradeText.FormatName(rune.Name, grade) + NAME_SEPARATOR + GetDescription(rune);
-            List<string> lines = GetGradeLines(rune, grade, false);
+            List<string> lines = GetGradeLines(rune, grade, false, true);
             if (lines.Count > 0) text += "\n" + string.Join(NAME_SEPARATOR, lines);
             string targets = GetModifierTargets(rune);
             if (targets != null) text += "\n\n" + targets;

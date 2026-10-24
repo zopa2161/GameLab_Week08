@@ -600,6 +600,7 @@ namespace RuneCode
             {
                 var names = new List<string>();
                 var descriptions = new List<string>();
+                var targetTexts = new List<string>();
                 for (int i = 0; i < _run.ClearModifierChoices.Count; i++)
                 {
                     RuneDefinition rune = GameData.Runes.Get(_run.ClearModifierChoices[i]);
@@ -609,8 +610,9 @@ namespace RuneCode
                         ? string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false, true))
                         : RuneDescriptionBuilder.GetDescription(rune);
                     descriptions.Add(description);
+                    targetTexts.Add(RuneDescriptionBuilder.GetMarkedModifierTargets(rune));
                 }
-                _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions,
+                _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions, targetTexts,
                     _run.ClearModifierGrades, _run.ClearModifierChoices);
             }
             else _result.HideClearModifierChoices();

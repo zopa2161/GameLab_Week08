@@ -55,6 +55,7 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI[] _clearChoiceGradeLabels;
         [SerializeField] private TextMeshProUGUI[] _clearChoiceNameLabels;
         [SerializeField] private TextMeshProUGUI[] _clearChoiceDescriptionLabels;
+        [SerializeField] private TextMeshProUGUI[] _clearChoiceTargetLabels;
         [SerializeField] private GameObject[] _clearChoiceModPanels;
         [SerializeField] private GameObject[] _clearChoiceBehaviorPanels;
 
@@ -382,9 +383,9 @@ namespace RuneCode
             tooltipRect.anchoredPosition = new Vector2(x - parent.rect.xMin, y - parent.rect.yMax);
         }
 
-        /// <summary>후보 ID에 맞는 패널과 이름·설명을 표시한다. 속성은 팔레트 배경과 속성 표기를 쓰고 모드는 원래 카드 배경으로 복원한다.</summary>
+        /// <summary>후보 이름·효과·장착 가능 행동·등급을 카드에 표시하고 같은 순서의 runeIds로 행동·Modifier 패널을 전환해 선택 입력을 받는다.</summary>
         public void ShowClearModifierChoices(string title, IReadOnlyList<string> names, IReadOnlyList<string> descriptions,
-            IReadOnlyList<string> grades, IReadOnlyList<string> runeIds)
+            IReadOnlyList<string> targetTexts, IReadOnlyList<string> grades, IReadOnlyList<string> runeIds)
         {
             HideRewardTooltip();
             _clearChoicePopup.SetActive(true);
@@ -416,6 +417,8 @@ namespace RuneCode
                 _clearChoiceDescriptionLabels[i].color = Color.white;
                 _clearChoiceNameLabels[i].text = names[i];
                 _clearChoiceDescriptionLabels[i].text = descriptions != null && i < descriptions.Count ? descriptions[i] : string.Empty;
+                _clearChoiceTargetLabels[i].richText = true;
+                _clearChoiceTargetLabels[i].text = targetTexts != null && i < targetTexts.Count ? targetTexts[i] : string.Empty;
             }
             if (EventSystem.current != null && firstChoice != null)
                 EventSystem.current.SetSelectedGameObject(firstChoice);
