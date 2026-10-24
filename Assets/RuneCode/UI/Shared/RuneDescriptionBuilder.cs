@@ -21,6 +21,8 @@ namespace RuneCode
         private const string NAME_SEPARATOR = " · ";
         private const string NUMBER_FORMAT = "0.##";
         private const string ANGLE_FORMAT = "0.#";
+        private const string GRADE_VALUE_START = "\uE000";
+        private const string GRADE_VALUE_END = "\uE001";
 
         // 장착 가능 행동은 행동 규칙 등록 순서와 무관하게 팔레트 순서로 표시한다.
         private static readonly string[] BEHAVIOR_DISPLAY_ORDER =
@@ -42,22 +44,23 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// Modifier 등급의 효과 문구를 줄 단위로 반환한다. isDetailed가 true면 비용 배율과 룬별 보조 수치를 더한다.
-        /// 다중은 발사 전용 개수와 폭발 회차 수를 추가하며, 등급 값이 없는 Modifier나 등급이 없는 룬은 빈 목록이고 유도 단계가 없는 등급은 유도 없음 한 줄이다.
+        /// Modifier 등급의 효과 문구를 줄 단위로 반환한다. isDetailed면 비용·보조 수치를 더하고 colorValues면 등급 수치와 같은 표시 구간의 단위까지 등급 색으로 표시한다.
+        /// 다중은 발사 전용 개수와 폭발 회차 수를 함께 표시하며, 등급 값이 없는 Modifier나 등급이 없는 룬은 빈 목록이고
+        /// 유도 단계가 없는 등급은 유도 없음 한 줄이다.
         /// </summary>
-        public static List<string> GetGradeLines(RuneDefinition rune, string grade, bool isDetailed)
+        public static List<string> GetGradeLines(RuneDefinition rune, string grade, bool isDetailed, bool colorValues = false)
         {
             var lines = new List<string>();
             if (rune.Category != SpellGrammar.CATEGORY_MODIFIER || string.IsNullOrEmpty(grade)) return lines;
             ModifierGradeTable grades = GameData.ModifierGrades;
             string effectType = grades.GetEffectType(rune.Id);
             object gradeValue = grades.GetGradeValue(rune.Id, grade);
-            AddEffectLines(lines, rune, grade, effectType, gradeValue);
+            AddEffectLines(lines, rune, grade, effectType, gradeValue, colorValues);
             if (rune.Id == "mod.multi" && grades.TryGetLaunchGradeValues(rune.Id, out _)
                 && grades.TryGetCountValue(rune.Id, grade, true, out int launchCount))
-                AddLines(lines, GameData.Format(LAUNCH_COUNT_KEY, ("value", launchCount)));
+                AddGradeLines(lines, GameData.Format(LAUNCH_COUNT_KEY, ("value", GradeNumber(launchCount, NUMBER_FORMAT, colorValues))), grade, colorValues);
             if (rune.Id == "mod.multi" && grades.TryGetWaveGradeCount(rune.Id, grade, out int waveCount))
-                AddLines(lines, GameData.Format(WAVE_COUNT_KEY, ("value", waveCount)));
+                AddGradeLines(lines, GameData.Format(WAVE_COUNT_KEY, ("value", GradeNumber(waveCount, NUMBER_FORMAT, colorValues))), grade, colorValues);
             if (isDetailed) AddDetailLines(lines, rune, grade, effectType);
             return lines;
         }
@@ -86,8 +89,8 @@ namespace RuneCode
             return text;
         }
 
-        /// <summary>효과 타입에 맞는 rune.effect.* 문구에 등급 값과 보조 수치를 넣어 lines에 더한다.</summary>
-        private static void AddEffectLines(List<string> lines, RuneDefinition rune, string grade, string effectType, object gradeValue)
+        /// <summary>효과 문구에 등급 값과 보조 수치를 넣어 lines에 더하고 colorValues면 등급으로 정해지는 수치와 단위에 색칠한다.</summary>
+        private static void AddEffectLines(List<string> lines, RuneDefinition rune, string grade, string effectType, object gradeValue, bool colorValues)
         {
             ModifierGradeTable grades = GameData.ModifierGrades;
             string key = EFFECT_KEY_PREFIX + effectType;
@@ -100,28 +103,33 @@ namespace RuneCode
                         AddLines(lines, GameData.L(HOMING_NONE_KEY));
                         return;
                     }
-                    AddLines(lines, GameData.Format(key,
+                    AddGradeLines(lines, GameData.Format(key,
                         ("tier", gradeValue),
-                        ("turn", Number(homing.HomingTurn, ANGLE_FORMAT)),
-                        ("range", Number(homing.HomingRange, ANGLE_FORMAT)),
-                        ("targets", homing.OrbitTargetCount)));
+                        ("turn", GradeNumber(homing.HomingTurn, ANGLE_FORMAT, colorValues)),
+                        ("range", GradeNumber(homing.HomingRange, ANGLE_FORMAT, colorValues)),
+                        ("targets", GradeNumber(homing.OrbitTargetCount, NUMBER_FORMAT, colorValues))), grade, colorValues);
                     return;
                 case ModifierGradeTable.KNOCKBACK_DISTANCE_EFFECT:
                     if (gradeValue == null) return;
-                    AddLines(lines, GameData.Format(key,
+                    AddGradeLines(lines, GameData.Format(key,
                         ("damage", Number(rune.Stats.KnockbackReferenceDamage, NUMBER_FORMAT)),
-                        ("value", Number(gradeValue, NUMBER_FORMAT))));
+                        ("value", GradeNumber(gradeValue, NUMBER_FORMAT, colorValues))), grade, colorValues);
                     return;
                 case ModifierGradeTable.BEAM_EMPOWER_MULTIPLIER_EFFECT:
                     if (gradeValue == null) return;
-                    AddLines(lines, GameData.Format(key,
+                    AddGradeLines(lines, GameData.Format(key,
                         ("start", Number(BeamEmpowerModifierRules.CHANNEL_SECONDS, ANGLE_FORMAT)),
                         ("max", Number(BeamEmpowerModifierRules.MAX_CHANNEL_SECONDS, ANGLE_FORMAT)),
-                        ("value", Number(gradeValue, NUMBER_FORMAT)),
-                        ("mana", Number(grades.GetBeamEmpowerManaMultiplier(rune.Id, grade), NUMBER_FORMAT)),
-                        ("width", Number(grades.GetBeamEmpowerSizeMultiplier(rune.Id, grade), NUMBER_FORMAT))));
+                        ("value", GradeNumber(gradeValue, NUMBER_FORMAT, colorValues)),
+                        ("mana", GradeNumber(grades.GetBeamEmpowerManaMultiplier(rune.Id, grade), NUMBER_FORMAT, colorValues)),
+                        ("width", GradeNumber(grades.GetBeamEmpowerSizeMultiplier(rune.Id, grade), NUMBER_FORMAT, colorValues))), grade, colorValues);
                     return;
                 case ModifierGradeTable.EFFECT_MULTIPLIER_EFFECT:
+                    if (gradeValue == null) return;
+                    AddGradeLines(lines, GameData.Format(key, ("value", GradeNumber(gradeValue, NUMBER_FORMAT, colorValues))), grade, colorValues);
+                    AddGradeLines(lines, GameData.Format(EFFECT_KEY_PREFIX + ModifierGradeTable.SPEED_MULTIPLIER_EFFECT,
+                        ("value", GradeNumber(grades.GetAmplifySpeedMultiplier(rune.Id, grade), NUMBER_FORMAT, colorValues))), grade, colorValues);
+                    return;
                 case ModifierGradeTable.ENERGY_COST_MULTIPLIER_EFFECT:
                 case ModifierGradeTable.MULTIPLE_COUNT_EFFECT:
                 case ModifierGradeTable.PIERCE_COUNT_EFFECT:
@@ -129,7 +137,7 @@ namespace RuneCode
                 case ModifierGradeTable.DURATION_MULTIPLIER_EFFECT:
                 case ModifierGradeTable.SPEED_MULTIPLIER_EFFECT:
                 case ModifierGradeTable.ORBIT_PATH_EFFECT:
-                    if (gradeValue != null) AddLines(lines, GameData.Format(key, ("value", Number(gradeValue, NUMBER_FORMAT))));
+                    if (gradeValue != null) AddGradeLines(lines, GameData.Format(key, ("value", GradeNumber(gradeValue, NUMBER_FORMAT, colorValues))), grade, colorValues);
                     return;
             }
         }
@@ -175,6 +183,43 @@ namespace RuneCode
         private static void AddLines(List<string> lines, string text)
         {
             lines.AddRange(text.Split('\n'));
+        }
+
+        /// <summary>효과 문구를 줄 단위로 나눠 lines에 더한다. colorValues면 등급 수치 표식을 같은 굵은 표시 구간의 단위까지 확장해 색칠한다.</summary>
+        private static void AddGradeLines(List<string> lines, string text, string grade, bool colorValues)
+        {
+            AddLines(lines, colorValues ? ColorizeGradeSpans(text, grade) : text);
+        }
+
+        /// <summary>문구 안의 등급 수치 표식을 같은 굵은 표시 구간 전체로 넓혀 등급 색을 입히고 표식을 지운다.</summary>
+        private static string ColorizeGradeSpans(string text, string grade)
+        {
+            int markerStart = text.IndexOf(GRADE_VALUE_START, StringComparison.Ordinal);
+            while (markerStart >= 0)
+            {
+                int markerEnd = text.IndexOf(GRADE_VALUE_END, markerStart, StringComparison.Ordinal);
+                if (markerEnd < 0) break;
+                int boldOpen = text.LastIndexOf("<b>", markerStart, StringComparison.Ordinal);
+                int boldCloseBefore = boldOpen >= 0 ? text.LastIndexOf("</b>", markerStart, StringComparison.Ordinal) : -1;
+                int boldClose = text.IndexOf("</b>", markerEnd, StringComparison.Ordinal);
+                bool hasBoldSpan = boldOpen >= 0 && boldOpen > boldCloseBefore && boldClose >= 0;
+                int start = hasBoldSpan ? boldOpen + 3 : markerStart;
+                int end = hasBoldSpan ? boldClose : markerEnd + GRADE_VALUE_END.Length;
+                string content = text.Substring(start, end - start)
+                    .Replace(GRADE_VALUE_START, string.Empty).Replace(GRADE_VALUE_END, string.Empty);
+                string colored = ModifierGradeText.Colorize(content, grade);
+                text = text.Substring(0, start) + colored + text.Substring(end);
+                markerStart = text.IndexOf(GRADE_VALUE_START, start + colored.Length, StringComparison.Ordinal);
+            }
+            return text.Replace(GRADE_VALUE_START, string.Empty).Replace(GRADE_VALUE_END, string.Empty);
+        }
+
+        /// <summary>등급 값을 지정 숫자 형식으로 반환하고 colorValues면 이후 단위까지 색칠할 수 있도록 표식으로 감싼다. ALL 같은 문자열은 그대로 반환한다.</summary>
+        private static string GradeNumber(object value, string format, bool colorValues)
+        {
+            if (value is string text) return text;
+            string number = Number(value, format);
+            return colorValues ? GRADE_VALUE_START + number + GRADE_VALUE_END : number;
         }
 
         /// <summary>숫자 값을 지정 형식의 고정 문화권 문자열로 반환한다.</summary>
