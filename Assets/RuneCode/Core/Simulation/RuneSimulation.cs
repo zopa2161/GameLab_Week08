@@ -111,6 +111,20 @@ namespace RuneCode
 
         /// <summary>라운드 대기 시험장(중앙 플레이어와 오른쪽 허수아비 열) 배치를 마쳤는지 반환한다.</summary>
         public bool IsRoundBreakArenaReady => _isRoundBreakArenaReady;
+
+        /// <summary>라운드 대기 시험장 배치와 함께 포털이 열려 있는지 반환한다.</summary>
+        public bool IsRoundBreakPortalOpen => IsWaitingForNextRound && _isRoundBreakArenaReady;
+
+        /// <summary>라운드 대기 포털의 중심을 반환한다. 시뮬레이션 좌표는 Y가 작을수록 화면 위쪽이므로 맵 중앙보다 위에 떨어진다(MissionWorldSpace.ToWorld가 Y를 뒤집는다).</summary>
+        public SimVector RoundBreakPortalPosition => new SimVector(MapCenter.X, MapCenter.Y - _world.Balance.Sim.RoundBreakPortalOffset);
+
+        /// <summary>플레이어가 들어갔다고 판정하는 라운드 대기 포털의 반경(px)이다.</summary>
+        public double RoundBreakPortalRadius => _world.Balance.Sim.RoundBreakPortalRadius;
+
+        /// <summary>포털이 열려 있고 플레이어와 포털 중심의 거리가 포털 반경과 플레이어 반경의 합 이하인지 반환한다.</summary>
+        public bool IsPlayerInRoundBreakPortal
+            => IsRoundBreakPortalOpen && SimVector.Distance(_world.Player.Position, RoundBreakPortalPosition)
+                <= RoundBreakPortalRadius + _world.Sector.PlayerRadius;
         /// <summary>연속 미션 전투 중 현재 웨이브의 살아 있는 적과 미배출·예고·분열 예약 수를 반환하며 대기·종료 상태에서는 0이다.</summary>
         public int RemainingWaveEnemyCount => IsProgressionMission && Stage == MissionStage.Combat ? _spawn.RemainingWaveEnemyCount : 0;
         public bool IsBossStage => _world.IsBossStage;
@@ -134,6 +148,8 @@ namespace RuneCode
         /// <summary>잔류(Persist) 판정 틱으로 입힌 실제 피해의 누적값이며 연쇄 전격을 포함하고 TotalDamage에 포함된다.</summary>
         public double PersistDamage => _stats.PersistDamage;
         public double RollingDps => _stats.RollingDamage / Math.Min(5, Math.Max(STEP_SECONDS, Time));
+        /// <summary>라운드 대기 허수아비 6기에 준 최근 5초 피해 합을 5로 나눈 DPS다. 작업실 복귀 시 누적을 비우므로 복귀 직후에는 0부터 다시 측정한다.</summary>
+        public double RoundBreakDps => _stats.GetRoundBreakDps();
         public double EnergySpent => _stats.EnergySpent;
         public IReadOnlyDictionary<string, double> ResourceCostsSpent => _stats.ResourceCostsSpent;
         public int PeakSpellEntities => _stats.PeakSpellEntities;
@@ -232,10 +248,11 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>라운드 대기 중 한 번만 대시를 취소하고 플레이어를 맵 중앙으로 옮긴 뒤 오른쪽에 왼쪽부터 1·2·3개 열로 무반격 허수아비를 배치한다. 이미 배치했거나 대기가 아니면 false.</summary>
+        /// <summary>라운드 대기 중 한 번만 대시를 취소하고 플레이어를 맵 중앙으로 옮긴 뒤 오른쪽에 왼쪽부터 1·2·3개 열로 무반격 허수아비를 배치한다. 포털도 이때 열린다. 이미 배치했거나 대기가 아니면 false.</summary>
         public bool TryPrepareRoundBreakArena()
         {
             if (!IsWaitingForNextRound || _isRoundBreakArenaReady) return false;
+            _stats.ResetRoundBreakDamage();
             _world.Player.CancelDash(Time);
             SimVector center = MapCenter;
             _world.Player.Move(center);
@@ -262,8 +279,12 @@ namespace RuneCode
                 _world.Enemies.RemoveAt(i);
             }
             CancelPlayerSpells();
+            _stats.ResetRoundBreakDamage();
             _isRoundBreakArenaReady = false;
         }
+
+        /// <summary>작업실을 닫고 라운드 대기로 복귀할 때 허수아비 DPS 누적과 5초 창을 비워 0부터 다시 측정하게 한다.</summary>
+        public void ResetRoundBreakDpsForWorkshopReturn() => _stats.ResetRoundBreakDamage();
 
         /// <summary>아직 지급하지 않은 새로 주운 Modifier 드롭 목록을 반환하고 미지급 목록을 비운다.</summary>
         public List<SimulationItemDrop> TakeNewPickedItems() => _loot.TakeNewPickedItems();
@@ -679,6 +700,7 @@ namespace RuneCode
         {
             _feedback.Trim();
             _stats.TrimRollingDamage(_world.Tick);
+            _stats.TrimRoundBreakDamage(_world.Tick);
         }
 
         /// <summary>지정 보스가 현재 스테이지·라운드에서 패턴을 시작한 횟수를 누적한다.</summary>

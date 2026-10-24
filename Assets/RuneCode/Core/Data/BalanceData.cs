@@ -189,6 +189,8 @@ namespace RuneCode
         [SerializeField] private float _roundBreakDummyDistance;
         [SerializeField] private float _roundBreakDummyGapX;
         [SerializeField] private float _roundBreakDummyGapY;
+        [SerializeField] private float _roundBreakPortalOffset;
+        [SerializeField] private float _roundBreakPortalRadius;
         [SerializeField] private float _spellVisualSeconds;
         [SerializeField] private float _hitFlashSeconds;
         [SerializeField] private float _damageNumberSeconds;
@@ -220,6 +222,12 @@ namespace RuneCode
 
         /// <summary>라운드 대기 시험장 같은 열 허수아비의 세로 간격(px)이다.</summary>
         public float RoundBreakDummyGapY => _roundBreakDummyGapY;
+
+        /// <summary>라운드 대기 포털이 맵 중앙에서 화면 위쪽으로 떨어진 거리(px)다.</summary>
+        public float RoundBreakPortalOffset => _roundBreakPortalOffset;
+
+        /// <summary>플레이어가 들어갔다고 판정하는 라운드 대기 포털의 반경(px)이다.</summary>
+        public float RoundBreakPortalRadius => _roundBreakPortalRadius;
         public float SpellVisualSeconds => _spellVisualSeconds;
         public float HitFlashSeconds => _hitFlashSeconds;
         public float DamageNumberSeconds => _damageNumberSeconds;
@@ -284,7 +292,8 @@ namespace RuneCode
                 data.Sim.BenchPlayerX, data.Sim.BenchPlayerY, data.Sim.BenchDummyX,
                 data.Sim.BenchDummyY, data.Sim.BenchHp, data.Sim.BenchLineStartX, data.Sim.BenchLineGap, data.Sim.BenchSwarmX,
                 data.Sim.BenchSwarmY, data.Sim.BenchSwarmGapX, data.Sim.BenchSwarmGapY,
-                data.Sim.RoundBreakDummyDistance, data.Sim.RoundBreakDummyGapX, data.Sim.RoundBreakDummyGapY, data.Sim.SpellVisualSeconds,
+                data.Sim.RoundBreakDummyDistance, data.Sim.RoundBreakDummyGapX, data.Sim.RoundBreakDummyGapY,
+                data.Sim.RoundBreakPortalOffset, data.Sim.RoundBreakPortalRadius, data.Sim.SpellVisualSeconds,
                 data.Sim.HitFlashSeconds, data.Sim.DamageNumberSeconds, data.Sim.WandOffset, data.Sim.AreaPlacementRange,
                 data.Sim.ExecutionTimeScale, data.Combat.SeparationAllowance, data.Combat.SeparationStrength,
                 data.Combat.SeparationMaxStep };
@@ -305,6 +314,8 @@ namespace RuneCode
                     || data.Limits.MaxFrameSteps <= 0 || data.Limits.MaxGraphNodes <= 0 || data.Limits.MaxGraphEdges <= 0
                     || data.Sim.BenchHp <= 0f || data.Sim.AreaPlacementRange <= 0f
                     || data.Sim.RoundBreakDummyDistance <= 0f || data.Sim.RoundBreakDummyGapX <= 0f || data.Sim.RoundBreakDummyGapY <= 0f
+                    || data.Sim.RoundBreakPortalOffset <= 0f || data.Sim.RoundBreakPortalRadius <= 0f
+                    || data.Sim.RoundBreakPortalOffset <= data.Sim.RoundBreakPortalRadius
                     || data.Sim.BenchLineCount <= 0 || data.Sim.BenchSwarmColumns <= 0 || data.Sim.BenchSwarmRows <= 0
                     || data.Sim.SpellVisualSeconds <= 0f || data.Sim.DamageNumberSeconds <= 0f
                     || data.Limits.MaxEnemies <= 0 || data.Limits.MaxCompiledActions <= 0

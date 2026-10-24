@@ -87,6 +87,8 @@
     "_roundBreakDummyDistance": 480,
     "_roundBreakDummyGapX": 80,
     "_roundBreakDummyGapY": 80,
+    "_roundBreakPortalOffset": 200,
+    "_roundBreakPortalRadius": 40,
     "_spellVisualSeconds": 0.15,
     "_hitFlashSeconds": 0.1,
     "_damageNumberSeconds": 1,

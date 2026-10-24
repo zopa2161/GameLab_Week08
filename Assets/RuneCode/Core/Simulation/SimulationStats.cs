@@ -7,18 +7,23 @@ namespace RuneCode
     /// <summary>시뮬레이션의 피해 누계, 이벤트 카운터, 자원 소비와 행동별 전투 로그를 기록한다.</summary>
     internal sealed class SimulationStats
     {
+        private const int ROUND_BREAK_DPS_WINDOW_TICKS = 5 * RuneSimulation.TICK_RATE;
+
         private readonly Dictionary<string, Dictionary<string, object>> _bossPatternRows = new Dictionary<string, Dictionary<string, object>>();
 
         private readonly Dictionary<int, Dictionary<string, object>> _enemyLogRows = new Dictionary<int, Dictionary<string, object>>();
         private readonly HashSet<int> _dirtyEnemyRows = new HashSet<int>();
 
         private readonly Queue<DamageSample> _damageWindow = new Queue<DamageSample>();
+        private readonly Queue<DamageSample> _roundBreakDamageWindow = new Queue<DamageSample>();
         private readonly List<double> _damageBySecond = new List<double>();
         private readonly Dictionary<int, double> _damageByEnemyId = new Dictionary<int, double>();
         private readonly Dictionary<string, double> _resourceCostsSpent = new Dictionary<string, double>(StringComparer.Ordinal);
         private readonly Dictionary<string, int> _killCounts = new Dictionary<string, int>();
         private readonly Dictionary<SpellAction, ActionCombatStats> _actionCombatStats = new Dictionary<SpellAction, ActionCombatStats>();
         private readonly Dictionary<SpellAction, int> _actionLogSlots = new Dictionary<SpellAction, int>();
+
+        private double _roundBreakDamage;
 
         /// <summary>전투 전체의 실제 피해 누적값이다.</summary>
         internal double TotalDamage { get; set; }
@@ -215,6 +220,30 @@ namespace RuneCode
             while (_damageWindow.Count > 0 && tick - _damageWindow.Peek().Tick > 5 * RuneSimulation.TICK_RATE) RollingDamage -= _damageWindow.Dequeue().Amount;
         }
 
+        /// <summary>라운드 대기 허수아비에게 준 실제 피해를 5초 창에 넣는다.</summary>
+        internal void RecordRoundBreakDamage(double actual, int tick)
+        {
+            _roundBreakDamage += actual;
+            _roundBreakDamageWindow.Enqueue(new DamageSample(tick, actual));
+        }
+
+        /// <summary>5초 창을 벗어난 허수아비 피해 샘플을 제거하고 누적값에서 뺀다.</summary>
+        internal void TrimRoundBreakDamage(int tick)
+        {
+            while (_roundBreakDamageWindow.Count > 0 && tick - _roundBreakDamageWindow.Peek().Tick > ROUND_BREAK_DPS_WINDOW_TICKS)
+                _roundBreakDamage -= _roundBreakDamageWindow.Dequeue().Amount;
+        }
+
+        /// <summary>허수아비 DPS 누적과 5초 창을 비워 다음 피해부터 새로 측정하게 한다.</summary>
+        internal void ResetRoundBreakDamage()
+        {
+            _roundBreakDamageWindow.Clear();
+            _roundBreakDamage = 0;
+        }
+
+        /// <summary>최근 5초 허수아비 피해 합을 5로 나눈 DPS를 반환한다.</summary>
+        internal double GetRoundBreakDps() => _roundBreakDamage / 5.0;
+
         /// <summary>시험 도크 초기화에 맞춰 누계·카운터, 자원 소비, 종류별 처치 수와 DPS 창을 모두 되돌린다.</summary>
         internal void ResetForBench()
         {
@@ -222,10 +251,12 @@ namespace RuneCode
             _enemyLogRows.Clear();
             _dirtyEnemyRows.Clear();
             _damageWindow.Clear();
+            _roundBreakDamageWindow.Clear();
             _damageBySecond.Clear();
             _damageByEnemyId.Clear();
             _killCounts.Clear();
-            TotalDamage = 0; StatusDamage = 0; PersistDamage = 0; RollingDamage = 0; _resourceCostsSpent.Clear(); PeakSpellEntities = 0;
+            TotalDamage = 0; StatusDamage = 0; PersistDamage = 0; RollingDamage = 0; _roundBreakDamage = 0;
+            _resourceCostsSpent.Clear(); PeakSpellEntities = 0;
             NodeExecutionCount = 0;
             EnemyDamageEventCount = 0;
             ShotLaunchEventCount = 0;

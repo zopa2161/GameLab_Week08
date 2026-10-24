@@ -159,13 +159,14 @@ namespace RuneCode
             if (applyStatus) _statuses.ApplyStatus(enemy, element, form, noise, damage, sourceAction);
             if (actual > 0)
             {
-                // 미션 더미 피해는 행동별·적별 통계 누계에서 제외한다.
+                // 미션 더미 피해는 런 통계에서 제외하고 라운드 대기 DPS 누적에만 기록한다.
                 bool isMissionDummy = _world.IsMission && enemy.IsDummy;
                 if (!isMissionDummy)
                 {
                     if (sourceAction != null) _stats.GetActionCombatStats(sourceAction).RecordDamage(actual, element, damageStatus);
                     _stats.RecordEnemyDamage(actual, _world.Tick, enemy.Id);
                 }
+                else _stats.RecordRoundBreakDamage(actual, _world.Tick);
                 _stats.EnemyDamageEventCount++;
                 enemy.SetDamageTags(element, form);
                 _feedback.AddDamageNumber(enemy.Position, actual, element);

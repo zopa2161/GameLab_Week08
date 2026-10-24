@@ -266,16 +266,19 @@ namespace RuneCode
                 });
         }
 
-        /// <summary>선택 완료 후 다음 라운드 또는 스테이지를 시작하고 라운드 종료부터 버튼 클릭까지 일시정지를 제외한 경과 초를 기록한다. 후보가 없는 이어하기는 선택 없이 시작할 수 있다. 시작 성공 여부를 반환한다.</summary>
+        /// <summary>라운드 대기 중이고 보상 후보가 없거나 선택을 마쳐 다음 라운드로 넘어갈 수 있는지 반환한다. 일시정지 여부는 보지 않는다.</summary>
+        public bool IsNextRoundReady => !_settled && _simulation.IsWaitingForNextRound
+            && (!HasClearModifierChoices || _isClearModifierChosen);
+
+        /// <summary>선택 완료 후 포털 진입으로 다음 라운드 또는 스테이지를 시작하고 라운드 종료부터 포털 진입까지 일시정지를 제외한 경과 초를 기록한다. 후보가 없으면 선택 없이 시작할 수 있다. 시작 성공 여부를 반환한다.</summary>
         public bool TryStartNextRound()
         {
-            if (_settled || _isPaused || !_simulation.IsWaitingForNextRound
-                || (HasClearModifierChoices && !_isClearModifierChosen)) return false;
+            if (_isPaused || !IsNextRoundReady) return false;
             ResetRoundInput();
             int completedStage = _simulation.StageNumber;
             int completedRound = _simulation.RoundNumber;
             if (!_simulation.TryStartNextRound()) return false;
-            EndRoundBreak(completedStage, completedRound, "next_round_clicked");
+            EndRoundBreak(completedStage, completedRound, "next_round_portal");
             return true;
         }
 
