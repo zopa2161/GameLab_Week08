@@ -2806,7 +2806,6 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  _connectionSnapPadding: 24
   _puzzleSnapDistance: 42
 --- !u!1 &6088916973672438750
 GameObject:

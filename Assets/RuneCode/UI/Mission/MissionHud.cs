@@ -16,9 +16,14 @@ namespace RuneCode
     {
         private const float BAR_WIDTH = 238f;
         private const float BAR_HEIGHT = 9f;
+        private const float HP_DELAY_DURATION = 0.2f;
+        private const float HP_DELAY_EXPONENT = 3.2188758f;
+        private const float ENERGY_SHORTAGE_DURATION = 0.3f;
         private const float WORKSHOP_HIGHLIGHT_PULSE_SPEED = 5f;
         private const float WORKSHOP_HIGHLIGHT_PULSE_SCALE = 0.08f;
 
+        private static readonly float HP_DELAY_NORMALIZER = Mathf.Exp(HP_DELAY_EXPONENT) - 1f;
+        private static readonly Color ENERGY_SHORTAGE_COLOR = new Color(1f, 0.3f, 0.25f, 1f);
         private static readonly Color WORKSHOP_HIGHLIGHT_COLOR = new Color(1f, 0.85f, 0.2f, 1f);
         private static readonly Vector2 WORKSHOP_HIGHLIGHT_DISTANCE = new Vector2(4f, -4f);
 
@@ -27,6 +32,7 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _hpCaption;
         [SerializeField] private TextMeshProUGUI _energyCaption;
         [SerializeField] private Image _hpFill;
+        [SerializeField] private Image _hpDelayedFill;
         [SerializeField] private Image _energyFill;
 
         [Header("전투 정보")]
@@ -61,6 +67,18 @@ namespace RuneCode
         private Outline _workshopOutline;
         private bool _isWorkshopHighlighted;
 
+        private double _previousHp;
+        private float _hpFraction;
+        private float _hpDelayStartFraction;
+        private float _hpDelayTargetFraction;
+        private float _hpDelayDisplayedFraction;
+        private float _hpDelayElapsed;
+        private bool _isHpDelayActive;
+        private bool _isHpDelayInitialized;
+        private Color _energyBaseColor;
+        private float _energyFlashEndTime;
+        private bool _isEnergyFlashActive;
+
         /// <summary>일시정지 버튼을 눌렀을 때 알린다.</summary>
         public event Action PauseClicked;
 
@@ -81,14 +99,47 @@ namespace RuneCode
 
         void Update()
         {
+            UpdateHpDelay();
+            UpdateEnergyFlash();
+
             if (!_isWorkshopHighlighted) return;
             float scale = 1f + WORKSHOP_HIGHLIGHT_PULSE_SCALE * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * WORKSHOP_HIGHLIGHT_PULSE_SPEED));
             _workshopButton.transform.localScale = new Vector3(scale, scale, 1f);
         }
 
+        /// <summary>지연 체력 바를 unscaled 경과 시간에 맞춰 시작 비율에서 목표 비율로 지수 곡선으로 줄이고, 곡선이 끝나면 숨긴다.</summary>
+        private void UpdateHpDelay()
+        {
+            if (!_isHpDelayActive) return;
+            _hpDelayElapsed += Time.unscaledDeltaTime;
+            float u = Mathf.Clamp01(_hpDelayElapsed / HP_DELAY_DURATION);
+            float drained = (Mathf.Exp(HP_DELAY_EXPONENT * u) - 1f) / HP_DELAY_NORMALIZER;
+            _hpDelayDisplayedFraction = Mathf.LerpUnclamped(_hpDelayStartFraction, _hpDelayTargetFraction, drained);
+            _hpDelayedFill.rectTransform.sizeDelta = new Vector2(BAR_WIDTH * _hpDelayDisplayedFraction, BAR_HEIGHT);
+            if (u < 1f) return;
+            _hpDelayDisplayedFraction = _hpDelayTargetFraction;
+            _isHpDelayActive = false;
+            _hpDelayedFill.gameObject.SetActive(false);
+        }
+
+        /// <summary>전력 부족 점등이 진행 중이면 남은 시간에 비례해 경고색에서 원래 색으로 되돌리고, 시간이 끝나면 원래 색을 복원한다.</summary>
+        private void UpdateEnergyFlash()
+        {
+            if (!_isEnergyFlashActive) return;
+            float remaining = _energyFlashEndTime - Time.unscaledTime;
+            if (remaining <= 0f)
+            {
+                _energyFill.color = _energyBaseColor;
+                _isEnergyFlashActive = false;
+                return;
+            }
+            _energyFill.color = Color.Lerp(_energyBaseColor, ENERGY_SHORTAGE_COLOR, remaining / ENERGY_SHORTAGE_DURATION);
+        }
+
         /// <summary>버튼 클릭을 이벤트로 처음 한 번만 연결하고 디버그 버튼 표시 여부를 정한다.</summary>
         public void Bind(bool isDebugVisible)
         {
+            _energyBaseColor = _energyFill.color;
             if (!_isBound)
             {
                 _pauseButton.onClick.AddListener(() => PauseClicked?.Invoke());
@@ -205,14 +256,48 @@ namespace RuneCode
             _stageLabel.text = text + " · <color=#" + enemyColor + ">남은 적 " + remainingEnemyCount.Value + "</color>";
         }
 
-        /// <summary>체력·전력 막대와 현재·최대 수치를 표시하고 energyRegen을 초당 전력 회복량으로 안내한다.</summary>
+        /// <summary>체력·전력 막대와 현재·최대 수치를 표시하고 energyRegen을 초당 전력 회복량으로 안내한다. 체력이 줄면 지연 바를 현재 표시 위치에서 다시 시작한다.</summary>
         public void SetBars(double hp, double maxHp, double energy, double maxEnergy, double energyRegen)
         {
-            _hpFill.rectTransform.sizeDelta = new Vector2(BAR_WIDTH * (float)(hp / maxHp), BAR_HEIGHT);
+            float hpFraction = (float)(hp / maxHp);
+            _hpFill.rectTransform.sizeDelta = new Vector2(BAR_WIDTH * hpFraction, BAR_HEIGHT);
             _energyFill.rectTransform.sizeDelta = new Vector2(BAR_WIDTH * (float)(energy / maxEnergy), BAR_HEIGHT);
             _hpCaption.text = GameData.L("ui.hp") + "  " + hp.ToString("0") + "/" + maxHp.ToString("0");
             _energyCaption.text = GameData.L("ui.energy") + "  " + energy.ToString("0") + "/" + maxEnergy.ToString("0")
                 + "   " + GameData.L("ui.energy") + " 회복 " + energyRegen.ToString("0.#") + "/s";
+
+            if (!_isHpDelayInitialized)
+            {
+                _hpDelayStartFraction = hpFraction;
+                _hpDelayTargetFraction = hpFraction;
+                _hpDelayDisplayedFraction = hpFraction;
+                _isHpDelayInitialized = true;
+                _isHpDelayActive = false;
+                _hpDelayedFill.gameObject.SetActive(false);
+            }
+            else if (hp < _previousHp)
+            {
+                _hpDelayStartFraction = _isHpDelayActive
+                    ? Mathf.Max(_hpDelayDisplayedFraction, _hpFraction)
+                    : _hpFraction;
+                _hpDelayTargetFraction = hpFraction;
+                _hpDelayElapsed = 0f;
+                _isHpDelayActive = _hpDelayStartFraction > _hpDelayTargetFraction;
+                _hpDelayedFill.gameObject.SetActive(_isHpDelayActive);
+                if (_isHpDelayActive)
+                    _hpDelayedFill.rectTransform.sizeDelta = new Vector2(BAR_WIDTH * _hpDelayStartFraction, BAR_HEIGHT);
+            }
+            else if (hp > _previousHp || !Mathf.Approximately(hpFraction, _hpFraction))
+            {
+                _hpDelayStartFraction = hpFraction;
+                _hpDelayTargetFraction = hpFraction;
+                _hpDelayDisplayedFraction = hpFraction;
+                _isHpDelayActive = false;
+                _hpDelayedFill.gameObject.SetActive(false);
+            }
+
+            _previousHp = hp;
+            _hpFraction = hpFraction;
         }
 
         /// <summary>처치·조각 문구를 표시한다.</summary>
@@ -238,5 +323,12 @@ namespace RuneCode
 
         /// <summary>아이템 이름·등급 또는 크레딧 획득 토스트를 표시한다. 빈 문자열이면 숨긴 것과 같다.</summary>
         public void SetToast(string text) => _fragmentToast.text = text;
+
+        /// <summary>에너지 부족으로 시전에 실패했을 때 전력 막대를 경고색으로 점등한다. 이미 점등 중이면 종료 시각만 연장한다.</summary>
+        public void PlayEnergyShortage()
+        {
+            _energyFlashEndTime = Time.unscaledTime + ENERGY_SHORTAGE_DURATION;
+            _isEnergyFlashActive = true;
+        }
     }
 }

@@ -7,8 +7,8 @@ using UnityEngine.UI;
 namespace RuneCode
 {
     /// <summary>
-    /// 그래프 편집 화면의 메시를 그린다. 배경 격자, 연결선·화살표, 노드 본체·포트, 연결 미리보기선, 영역 선택 사각형 순서다.
-    /// 선택·하이라이트·연결 드래그 상태는 GraphPointerState에서 읽는다.
+    /// 그래프 편집 화면의 메시를 그린다. 배경 격자, 연결선·화살표, 노드 본체·포트, 연결 대상 테두리와 영역 선택 사각형을 그린다.
+    /// 선택·하이라이트·퍼즐 결합 상태는 GraphPointerState에서 읽는다.
     /// </summary>
     internal sealed class GraphMeshPainter
     {
@@ -25,10 +25,8 @@ namespace RuneCode
         private const int MODIFIER_PORT_COLOR = 10;
         private const int EXEC_PORT_COLOR = 11;
         private const int CONNECTABLE_PORT_COLOR = 12;
-        private const int BLOCKED_PORT_COLOR = 13;
         private const int DEPRECATED_COLOR = 14;
         private const int SELECTION_FILL_COLOR = 15;
-        private const int PREVIEW_COLOR = 17;
         private const int SELECTION_BORDER_COLOR = 18;
 
         private const float NODE_BORDER = 2f;
@@ -85,12 +83,16 @@ namespace RuneCode
             DrawNode(mesh, node);
         }
 
-        /// <summary>연결 대상 테두리·연결 미리보기와 영역 선택을 최상단 레이어 메시에 그린다.</summary>
+        /// <summary>선택 테두리·연결 대상 테두리·영역 선택 순서로 최상단 레이어 메시에 그린다.</summary>
         public void PaintOverlay(VertexHelper mesh)
         {
             mesh.Clear();
+            foreach (string id in _state.Selected)
+            {
+                GraphNode selected = _layout.FindNode(id);
+                if (selected != null) DrawNodeOutline(mesh, selected, Color.white);
+            }
             DrawSnapOutline(mesh);
-            DrawConnectionPreview(mesh);
             DrawBoxSelection(mesh);
         }
 
@@ -99,10 +101,15 @@ namespace RuneCode
         {
             if (_state.SnapHighlightNode == null) return;
             GraphNode node = _layout.FindNode(_state.SnapHighlightNode);
-            if (node == null || _state.Selected.Contains(node.Id) || !_isRuneUnlocked(node.RuneId)) return;
+            if (node == null || !_isRuneUnlocked(node.RuneId)) return;
+            DrawNodeOutline(mesh, node, _style.GetColor(CONNECTABLE_PORT_COLOR));
+        }
+
+        /// <summary>지정 노드의 외곽·입력 홈·출력 돌출부를 지정 색의 테두리로 그리고 내부는 채우지 않는다.</summary>
+        private void DrawNodeOutline(VertexHelper mesh, GraphNode node, Color color)
+        {
             RuneDefinition rune = GameData.Runes.Get(node.RuneId);
             Rect rect = _layout.NodeRect(node, rune);
-            Color color = _style.GetColor(CONNECTABLE_PORT_COLOR);
             float halfBorder = NODE_BORDER * 0.5f;
             float left = rect.xMin - halfBorder;
             float right = rect.xMax + halfBorder;
@@ -292,16 +299,14 @@ namespace RuneCode
             RuneMesh.Rect(mesh, new Rect(cell.xMax - width, cell.yMin, width, cell.height), Color.white);
         }
 
-        /// <summary>노드의 표시 포트를 종류별 모양으로 그리며 연결 드래그 중에는 연결 가능 여부 색으로 표시한다. 지원 중단 포트는 회색이다.</summary>
+        /// <summary>노드의 표시 포트를 종류별 모양으로 그리며 지원 중단 포트는 회색이다.</summary>
         private void DrawPorts(VertexHelper mesh, GraphNode node, RuneDefinition rune, Rect rect, Color fill)
         {
-            _state.ConnectablePorts.TryGetValue(node.Id, out bool[] connectable);
             for (int i = 0; i < rune.Ports.Count; i++)
             {
                 PortDefinition port = rune.Ports[i];
                 if (!_layout.IsPortShown(node, port)) continue;
                 Color color = port.IsDeprecated ? _style.GetColor(DEPRECATED_COLOR) : PortBaseColor(port.Kind);
-                if (_state.IsConnecting) color = connectable != null && connectable[i] ? _style.GetColor(CONNECTABLE_PORT_COLOR) : _style.GetColor(BLOCKED_PORT_COLOR);
                 Vector2 point = _layout.PortPosition(rect, node, rune, port.Id);
                 if (GraphNodeLayout.IsPuzzlePort(port))
                 {
@@ -315,13 +320,6 @@ namespace RuneCode
             }
         }
 
-        /// <summary>연결 드래그 중이면 시작 포트에서 포인터까지 미리보기 선을 그린다.</summary>
-        private void DrawConnectionPreview(VertexHelper mesh)
-        {
-            if (!_state.IsConnecting) return;
-            RuneMesh.Line(mesh, _layout.LookupPortPosition(_state.SourceNode, _state.SourcePort), _state.Pointer, EDGE_WIDTH, _style.GetColor(PREVIEW_COLOR));
-        }
-
         /// <summary>영역 선택 중이면 선택 사각형과 위·아래 경계선을 그린다.</summary>
         private void DrawBoxSelection(VertexHelper mesh)
         {
@@ -332,13 +330,13 @@ namespace RuneCode
             RuneMesh.Line(mesh, new Vector2(selection.xMin, selection.yMax), new Vector2(selection.xMax, selection.yMax), SELECTION_LINE_WIDTH, _style.GetColor(SELECTION_BORDER_COLOR));
         }
 
-        /// <summary>선택된 블록은 흰색을 우선하며 그 외에는 잠금·스냅·실행·기본 순으로 테두리 색을 반환한다.</summary>
+        /// <summary>연결 후보의 초록색을 선택된 블록의 흰색보다 우선하고 그 외에는 잠금·실행·기본 테두리 색을 반환한다.</summary>
         private Color NodeBorderColor(GraphNode node, Color accent, bool isExecuted, bool isRuneUnlocked)
         {
+            if (isRuneUnlocked && node.Id == _state.SnapHighlightNode)
+                return _style.GetColor(CONNECTABLE_PORT_COLOR);
             if (_state.Selected.Contains(node.Id)) return Color.white;
             if (!isRuneUnlocked) return LOCKED_NODE_COLOR;
-            if (node.Id == _state.SnapHighlightNode)
-                return _style.GetColor(CONNECTABLE_PORT_COLOR);
             if (isExecuted) return _style.GetColor(EXECUTED_BORDER_COLOR);
             return _style.GetColor(NODE_BORDER_COLOR);
         }
