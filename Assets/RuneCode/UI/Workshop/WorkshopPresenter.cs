@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 namespace RuneCode
 {
     /// <summary>
-    /// 작업실 화면 Presenter다. 강화 트리·출격을 조립하고 두 탭 전환, 스테이지 선택 복귀, 설정 팝업과 헤더·상태줄을 다룬다.
+    /// 작업실 화면 Presenter다. 강화 트리를 조립하고 두 탭 전환과 헤더·상태줄을 다룬다.
     /// 편집 패널(SpellEditorPanel)의 ISpellEditorHost 역할을 맡는다.
     /// </summary>
     public sealed class WorkshopPresenter : ISpellEditorHost, IDisposable
@@ -21,10 +21,8 @@ namespace RuneCode
         private readonly UIManager _ui;
         private readonly WorkshopScreen _view;
         private readonly UpgradeTreePresenter _upgradeTree;
-        private readonly DeployPresenter _deploy;
 
         private string _selectedTab = WorkshopScreen.TAB_EDITOR;
-        private string _returnTab = WorkshopScreen.TAB_EDITOR;
         private long _observedStatusRevision;
         private float _statusExpiresAt;
         private Vector2 _lastMouseScreenPosition;
@@ -38,12 +36,8 @@ namespace RuneCode
             _view = view;
             view.SpellEditor.Initialize(session.Spells, this, ui);
             _upgradeTree = new UpgradeTreePresenter(session, view.UpgradeTree, RefreshProgression);
-            _deploy = new DeployPresenter(session, view.Deploy);
             _view.TabClicked += SetTab;
-            _view.DeployClicked += OpenDeploy;
-            _view.SettingsClicked += OpenSettings;
             _view.HelpClicked += OpenHelp;
-            _view.BackClicked += ReturnFromDeploy;
             _session.Spells.Compiled += RefreshHeader;
             _session.Spells.Compiled += RecordCompileResult;
         }
@@ -103,10 +97,7 @@ namespace RuneCode
         public void Dispose()
         {
             _view.TabClicked -= SetTab;
-            _view.DeployClicked -= OpenDeploy;
-            _view.SettingsClicked -= OpenSettings;
             _view.HelpClicked -= OpenHelp;
-            _view.BackClicked -= ReturnFromDeploy;
             _session.Spells.Compiled -= RefreshHeader;
             _session.Spells.Compiled -= RecordCompileResult;
         }
@@ -132,10 +123,7 @@ namespace RuneCode
             return _session.TrySynthesizeRunes(materials, grade, out resultId, out resultGrade, out error);
         }
 
-        /// <summary>
-        /// 탭을 바꾸고 진입한 탭의 내용과 헤더를 갱신한다. 에디터 탭을 떠나면 편집 패널을 닫는다.
-        /// 보관 중인 런이 있으면 진입 버튼을 전투 복귀로 표시한다.
-        /// </summary>
+        /// <summary>탭을 바꾸고 진입한 탭의 내용과 헤더를 갱신한다. 에디터 탭을 떠나면 편집 패널을 닫는다.</summary>
         private void SetTab(string tab)
         {
             if (_selectedTab != tab)
@@ -145,40 +133,10 @@ namespace RuneCode
                 });
             _selectedTab = tab;
             _view.ShowTab(tab);
-            _view.SetDeployResume(_session.IsRunSuspended);
             if (tab == WorkshopScreen.TAB_EDITOR) _view.SpellEditor.Show();
             else _view.SpellEditor.Hide();
             if (tab == WorkshopScreen.TAB_TREE) _upgradeTree.Refresh();
-            if (tab == WorkshopScreen.TAB_DEPLOY) _deploy.Refresh();
             RefreshHeader();
-        }
-
-        /// <summary>
-        /// 직전에 보던 룬 설계 또는 강화 트리 탭을 기억하고 스테이지 선택 화면을 연다.
-        /// 보관 중인 런이 있으면 스테이지 선택 없이 바로 전투 복귀를 요청한다.
-        /// </summary>
-        private void OpenDeploy()
-        {
-            if (_session.IsRunSuspended)
-            {
-                _deploy.Launch();
-                return;
-            }
-            if (_selectedTab == WorkshopScreen.TAB_DEPLOY) return;
-            _returnTab = _selectedTab;
-            SetTab(WorkshopScreen.TAB_DEPLOY);
-        }
-
-        /// <summary>스테이지 선택에서 직전에 보던 작업실 탭으로 돌아간다.</summary>
-        private void ReturnFromDeploy()
-        {
-            if (_selectedTab == WorkshopScreen.TAB_DEPLOY) SetTab(_returnTab);
-        }
-
-        /// <summary>현재 화면을 유지한 채 설정 팝업을 열고 세션과 설정 변경 후 갱신 동작을 연결한다.</summary>
-        private void OpenSettings()
-        {
-            _ui.OpenPopup<SettingsPopup>().Configure(_session, _ui, ShowEditorTab, RefreshProgression);
         }
 
         /// <summary>헤더 도움말 버튼으로 가장 최근에 개방된 항목을 선택한 도움말을 연다.</summary>
@@ -187,18 +145,16 @@ namespace RuneCode
             _ui.OpenPopup<EncyclopediaPopup>().Configure(GameData.Encyclopedia, _session.UnlockedHelpCount, 0);
         }
 
-        /// <summary>에디터 탭으로 전환하고 출격·헤더를 갱신한다.</summary>
+        /// <summary>에디터 탭으로 전환하고 헤더를 갱신한다.</summary>
         private void ShowEditorTab()
         {
             SetTab(WorkshopScreen.TAB_EDITOR);
-            _deploy.Refresh();
         }
 
-        /// <summary>구매 등으로 진행이 바뀌면 트리·출격·헤더를 갱신한다.</summary>
+        /// <summary>구매 등으로 진행이 바뀌면 트리·헤더를 갱신한다.</summary>
         private void RefreshProgression()
         {
             _upgradeTree.Refresh();
-            _deploy.Refresh();
             RefreshHeader();
         }
 

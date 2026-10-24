@@ -332,6 +332,10 @@
       "_value": "전투 복귀"
     },
     {
+      "_key": "ui.startFailedTitle",
+      "_value": "전투를 시작할 수 없습니다"
+    },
+    {
       "_key": "ui.resume",
       "_value": "계속"
     },
