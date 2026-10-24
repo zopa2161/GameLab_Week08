@@ -166,14 +166,21 @@ namespace RuneCode
                 _font, _editor.Library, _editor.IsRuneUnlocked);
         }
 
-        /// <summary>팔레트에서 클릭한 속성·모디를 커서에 붙이고 다음 그래프 클릭 해제 시 기존 드롭 규칙으로 장착하도록 준비한다.</summary>
-        public void PickUpModule(string runeId, string grade)
+        /// <summary>팔레트 행을 복제해 포인터를 따라다니는 미리보기를 생성한다.</summary>
+        internal RunePalettePreview CreateRowPreview(UiRow source)
+        {
+            if (canvas == null) return null;
+            return RunePalettePreview.CreateRow(canvas.rootCanvas, source);
+        }
+
+        /// <summary>팔레트에서 클릭한 속성·모디를 행 복제 미리보기로 커서에 붙이고 다음 그래프 클릭 해제 시 장착하도록 준비한다.</summary>
+        public void PickUpModule(string runeId, string grade, UiRow source)
         {
             CancelPickedModule();
-            if (!HasGraph || !_editor.IsEditable || Mouse.current == null
+            if (!HasGraph || !_editor.IsEditable || Mouse.current == null || source == null
                 || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return;
             if (rune.Category != SpellGrammar.CATEGORY_ELEMENT && rune.Category != SpellGrammar.CATEGORY_MODIFIER) return;
-            _pickedModulePreview = CreatePalettePreview(rune, grade);
+            _pickedModulePreview = CreateRowPreview(source);
             _pickedRuneId = runeId;
             _pickedGrade = grade;
             _pickedModulePreview?.Move(Mouse.current.position.ReadValue());

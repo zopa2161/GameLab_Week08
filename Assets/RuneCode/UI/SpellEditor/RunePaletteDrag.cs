@@ -56,7 +56,9 @@ namespace RuneCode
                 || !GameData.Runes.TryGet(_runeId, out RuneDefinition rune)) return;
             _graph.CancelPickedModule();
             ClearHover();
-            _preview = _graph.CreatePalettePreview(rune, _grade);
+            _preview = RunePalettePreview.UsesRowPreview(rune.Category)
+                ? _graph.CreateRowPreview(GetComponent<UiRow>())
+                : _graph.CreatePalettePreview(rune, _grade);
             _preview?.Move(eventData.position);
         }
 

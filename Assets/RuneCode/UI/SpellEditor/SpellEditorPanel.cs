@@ -244,8 +244,8 @@ namespace RuneCode
             foreach (ViewPool<UiRow> rows in _paletteRows.Values) rows.ReleaseAll();
         }
 
-        /// <summary>팔레트 행을 추가하고 클릭·드래그 배치를 룬 등급과 연결한다.</summary>
-        public void AddPaletteRow(string label, float height, Action onClick, string runeId, string grade, bool canPlace)
+        /// <summary>팔레트 행을 추가하고 클릭·드래그 배치를 룬 등급과 연결한다. 클릭 동작에는 생성된 행을 전달한다.</summary>
+        public void AddPaletteRow(string label, float height, Action<UiRow> onClick, string runeId, string grade, bool canPlace)
         {
             string category = GameData.Runes.Get(runeId).Category;
             UiRow prefab = RunePaletteRowBinding.Resolve(_categoryRowPrefabs, category, _runeRowPrefab);
@@ -255,7 +255,7 @@ namespace RuneCode
                 _paletteRows.Add(prefab, rows);
             }
             UiRow row = rows.Get();
-            row.Configure(label, height, onClick, 12);
+            row.Configure(label, height, onClick == null ? null : () => onClick(row), 12);
             RunePaletteDrag drag = row.GetComponent<RunePaletteDrag>();
             if (drag == null) drag = row.gameObject.AddComponent<RunePaletteDrag>();
             drag.Initialize(_graphCanvas, runeId, grade, canPlace, this);

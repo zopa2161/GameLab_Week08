@@ -251,12 +251,12 @@ namespace RuneCode
         private void AddPaletteRune(RuneDefinition rune, string grade, string label, bool canPlace)
         {
             string runeId = rune.Id;
-            Action onClick;
-            if (!canPlace) onClick = () => _editor.ReportStatus("editor.stockBlocked");
-            else if (_selectMaterial != null) onClick = () => _selectMaterial?.Invoke(runeId, grade);
+            Action<UiRow> onClick;
+            if (!canPlace) onClick = _ => _editor.ReportStatus("editor.stockBlocked");
+            else if (_selectMaterial != null) onClick = _ => _selectMaterial?.Invoke(runeId, grade);
             else if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
-                onClick = () => _view.GraphCanvas.PlaceRune(runeId, _view.GraphCanvas.SuggestPlacement(runeId), grade);
-            else onClick = () => _view.GraphCanvas.PickUpModule(runeId, grade);
+                onClick = _ => _view.GraphCanvas.PlaceRune(runeId, _view.GraphCanvas.SuggestPlacement(runeId), grade);
+            else onClick = row => _view.GraphCanvas.PickUpModule(runeId, grade, row);
             _view.AddPaletteRow(label, ROW_HEIGHT, onClick, runeId, grade, canPlace && _selectMaterial == null);
         }
 
