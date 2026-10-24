@@ -6,6 +6,7 @@ namespace RuneCode
 {
     internal static class RuneMesh
     {
+        private const int PROJECTILE_JOIN_SEGMENTS = 8;
         private const float EXPLOSION_SEGMENT_ANGLE = 2f;
         private const int SLASH_TRAIL_SEGMENTS = 20;
         private const float SLASH_TRAIL_ALPHA = 0.65f;
@@ -16,6 +17,34 @@ namespace RuneCode
         internal const int BEAM_GLOW_BANDS = 16;
         internal const float BEAM_GLOW_WIDTH = 3f;
         internal const float BEAM_GLOW_PULSE_SPEED = 3f;
+
+        /// <summary>꼬리 끝·몸체 중심·반경과 색으로 원의 위아래 접선에 이어지는 삼각형 띠를 재사용 목록에 만든다.</summary>
+        internal static void BuildProjectileJoin(Vector2 tail, Vector2 head, float radius, Color tint,
+            List<Vector3> vertices, List<Color> colors, List<int> triangles)
+        {
+            vertices.Clear();
+            colors.Clear();
+            triangles.Clear();
+            Vector2 direction = (head - tail).normalized;
+            Vector2 normal = new Vector2(-direction.y, direction.x);
+            for (int index = 0; index <= PROJECTILE_JOIN_SEGMENTS; index++)
+            {
+                float progress = index / (float)PROJECTILE_JOIN_SEGMENTS;
+                float blend = progress * progress * (3 - 2 * progress);
+                Vector2 center = Vector2.Lerp(tail, head, progress);
+                Vector2 halfWidth = normal * (radius * blend);
+                Color color = tint;
+                color.a = Mathf.Lerp(tint.a, 1f, blend);
+                vertices.Add(center - halfWidth);
+                vertices.Add(center + halfWidth);
+                colors.Add(color);
+                colors.Add(color);
+                if (index == 0) continue;
+                int first = (index - 1) * 2;
+                triangles.Add(first); triangles.Add(first + 1); triangles.Add(first + 3);
+                triangles.Add(first); triangles.Add(first + 3); triangles.Add(first + 2);
+            }
+        }
 
         /// <summary>현재 칼날과 회전 진행으로 최근 부채꼴 구간의 잔상·직사각형 칼날·밝은 날을 재사용 목록에 채운다. 오래된 잔상과 종료 직전 잔상은 투명해지며 scale로 크기를 변환한다.</summary>
         internal static void BuildSlash(SimulationSpellEntity spell, float scale, List<Vector3> vertices,

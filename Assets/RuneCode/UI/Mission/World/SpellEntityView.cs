@@ -14,7 +14,6 @@ namespace RuneCode
     {
         private const float TRAIL_LENGTH = 24f;
         private const float MIN_SHAPE_RADIUS = 2.5f;
-        private const float MIN_TRAIL_WIDTH = 2f;
         private const float INNER_SCALE = 0.6f;
         private const float ZONE_FILL_ALPHA = 0.12f;
         private const float BURST_FILL_ALPHA = 0.22f;
@@ -49,6 +48,10 @@ namespace RuneCode
         private readonly List<Color> _coneColors = new List<Color>();
         private readonly List<int> _coneTriangles = new List<int>();
         private Mesh _coneMesh;
+        private readonly List<Vector3> _trailVertices = new List<Vector3>();
+        private readonly List<Color> _trailColors = new List<Color>();
+        private readonly List<int> _trailTriangles = new List<int>();
+        private Mesh _trailMesh;
 
         void Awake()
         {
@@ -59,11 +62,21 @@ namespace RuneCode
             var block = new MaterialPropertyBlock();
             block.SetTexture(MainTextureId, Texture2D.whiteTexture);
             _coneRenderer.SetPropertyBlock(block);
+            _trail.enabled = false;
+            _trailMesh = new Mesh { name = "SpellProjectileJoin" };
+            _trailMesh.MarkDynamic();
+            _trail.gameObject.AddComponent<MeshFilter>().sharedMesh = _trailMesh;
+            MeshRenderer trailRenderer = _trail.gameObject.AddComponent<MeshRenderer>();
+            trailRenderer.sharedMaterial = _coneRenderer.sharedMaterial;
+            trailRenderer.sortingLayerID = _trail.sortingLayerID;
+            trailRenderer.sortingOrder = _trail.sortingOrder;
+            trailRenderer.SetPropertyBlock(block);
         }
 
         void OnDestroy()
         {
             if (_coneMesh != null) Destroy(_coneMesh);
+            if (_trailMesh != null) Destroy(_trailMesh);
         }
 
         /// <summary>마법 개체의 형태·속성·크기·방향으로 맵 중앙(origin) 기준 월드 표시를 갱신한다.</summary>
@@ -161,12 +174,22 @@ namespace RuneCode
             _fill.transform.localRotation = _outline.transform.localRotation = _inner.transform.localRotation = rotation;
         }
 
-        /// <summary>발사·공전의 진행 방향 반대쪽에 속성 색 잔상을 둔다.</summary>
+        /// <summary>기존 몸체 반경의 접선으로 이어지는 삼각형 꼬리를 진행 반대쪽에 만들고 월드 단위 메시로 반영한다.</summary>
         private void PlaceTrail(SimulationSpellEntity spell, Color tint, float radius)
         {
             Vector2 direction = MissionWorldSpace.ToWorldDirection(spell.Direction);
             Color trail = tint; trail.a = TRAIL_ALPHA;
-            MissionWorldSpace.PlaceLine(_trail, -direction * TRAIL_LENGTH, Vector2.zero, Mathf.Max(MIN_TRAIL_WIDTH, radius), trail);
+            Transform trailTransform = _trail.transform;
+            trailTransform.localPosition = Vector3.zero;
+            trailTransform.localRotation = Quaternion.identity;
+            trailTransform.localScale = Vector3.one;
+            float scale = 1f / MissionWorldSpace.PIXELS_PER_UNIT;
+            RuneMesh.BuildProjectileJoin(-direction * (TRAIL_LENGTH * scale), Vector2.zero,
+                Mathf.Max(MIN_SHAPE_RADIUS, radius) * scale, trail, _trailVertices, _trailColors, _trailTriangles);
+            _trailMesh.Clear();
+            _trailMesh.SetVertices(_trailVertices);
+            _trailMesh.SetColors(_trailColors);
+            _trailMesh.SetTriangles(_trailTriangles, 0);
         }
 
         /// <summary>공격 개체 없이 최초 빔의 복사된 경로·폭·속성을 표시한다.</summary>

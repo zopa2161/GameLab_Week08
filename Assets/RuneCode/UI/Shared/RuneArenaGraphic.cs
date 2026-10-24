@@ -81,6 +81,9 @@ namespace RuneCode
         private readonly List<Vector3> _slashVertices = new List<Vector3>();
         private readonly List<Color> _slashColors = new List<Color>();
         private readonly List<int> _slashTriangles = new List<int>();
+        private readonly List<Vector3> _trailVertices = new List<Vector3>();
+        private readonly List<Color> _trailColors = new List<Color>();
+        private readonly List<int> _trailTriangles = new List<int>();
         private readonly Vector2[] _arcPoints = new Vector2[ARC_SEGMENTS + 1];
         private Func<RuneSimulation> _simulation;
         private Func<bool> _screenShake;
@@ -431,7 +434,7 @@ namespace RuneCode
         {
             Color trail = tint;
             trail.a = 0.25f;
-            RuneMesh.Line(mesh, point - direction * 24 * _scale, point, Math.Max(2, radius), trail);
+            DrawTriangleTrail(mesh, point - direction * 24 * _scale, point, Mathf.Max(2.5f, radius), trail);
             if (spell.IsCone)
             {
                 Color fan = tint;
@@ -473,6 +476,17 @@ namespace RuneCode
                 case HostileProjectileStyle.Sniper: return RuneMesh.ElementColor("ice");
                 default: return HOSTILE_COLOR;
             }
+        }
+
+        /// <summary>공유 접합 메시를 사용해 원형 몸체의 접선에 매끄럽게 이어지는 삼각형 꼬리를 도크에 그린다.</summary>
+        private void DrawTriangleTrail(UnityEngine.UI.VertexHelper mesh, Vector2 tail, Vector2 head, float radius, Color color)
+        {
+            RuneMesh.BuildProjectileJoin(tail, head, radius, color, _trailVertices, _trailColors, _trailTriangles);
+            int first = mesh.currentVertCount;
+            for (int index = 0; index < _trailVertices.Count; index++)
+                mesh.AddVert(_trailVertices[index], _trailColors[index], Vector2.zero);
+            for (int index = 0; index < _trailTriangles.Count; index += 3)
+                mesh.AddTriangle(first + _trailTriangles[index], first + _trailTriangles[index + 1], first + _trailTriangles[index + 2]);
         }
 
         /// <summary>탄환 스타일에 맞는 잔상 색을 반환한다. 기본 잔상은 기존 색을 유지하고 별도 스타일은 같은 색에 기존 잔상 알파를 적용한다.</summary>
