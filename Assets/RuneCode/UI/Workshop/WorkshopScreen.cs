@@ -33,7 +33,6 @@ namespace RuneCode
 
         [Header("패널")]
         [SerializeField] private SpellEditorPanel _spellEditor;
-        [SerializeField] private DockPanel _dockPanel;
         [SerializeField] private UpgradeTreePanel _upgradeTreePanel;
         [SerializeField] private DeployPanel _deployPanel;
 
@@ -48,7 +47,6 @@ namespace RuneCode
         private string _deployDefaultText;
 
         public SpellEditorPanel SpellEditor => _spellEditor;
-        public DockPanel Dock => _dockPanel;
         public UpgradeTreePanel UpgradeTree => _upgradeTreePanel;
         public DeployPanel Deploy => _deployPanel;
 
