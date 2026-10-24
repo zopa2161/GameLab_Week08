@@ -1448,6 +1448,58 @@
       "_value": "소지량이 부족합니다"
     },
     {
+      "_key": "editor.equipEditLocked",
+      "_value": "지금은 모듈을 변경할 수 없습니다"
+    },
+    {
+      "_key": "editor.equipTargetInvalid",
+      "_value": "장착할 행동 노드를 찾을 수 없습니다. 행동 노드를 다시 선택하세요"
+    },
+    {
+      "_key": "editor.equipRuneUnavailable",
+      "_value": "현재 사용할 수 없는 모듈입니다"
+    },
+    {
+      "_key": "editor.equipSlotInvalid",
+      "_value": "장착할 수 있는 슬롯이 아닙니다"
+    },
+    {
+      "_key": "editor.equipSlotLocked",
+      "_value": "행동 노드 등급이 낮아 잠긴 슬롯입니다. 등급을 올려 슬롯을 해금하세요"
+    },
+    {
+      "_key": "editor.equipElementSlotsFull",
+      "_value": "빈 속성 슬롯이 없습니다. 기존 속성을 빼거나 슬롯 위에 놓아 교체하세요"
+    },
+    {
+      "_key": "editor.equipModifierSlotsFull",
+      "_value": "빈 모디 슬롯이 없습니다. 기존 모디를 빼거나 슬롯 위에 놓아 교체하세요"
+    },
+    {
+      "_key": "editor.equipElementSlotOnly",
+      "_value": "속성 슬롯에는 속성 모듈만 장착할 수 있습니다"
+    },
+    {
+      "_key": "editor.equipModifierSlotOnly",
+      "_value": "모디 슬롯에는 모디 모듈만 장착할 수 있습니다"
+    },
+    {
+      "_key": "editor.equipElementUnavailable",
+      "_value": "이 속성은 행동 노드에 장착할 수 없습니다"
+    },
+    {
+      "_key": "editor.equipGradeUnavailable",
+      "_value": "이 모디에서 사용할 수 없는 등급입니다"
+    },
+    {
+      "_key": "editor.equipIncompatible",
+      "_value": "이 행동에는 해당 모디를 장착할 수 없습니다"
+    },
+    {
+      "_key": "editor.equipDuplicateModifier",
+      "_value": "같은 행동에 동일한 모디를 중복 장착할 수 없습니다. 등급이 달라도 중복입니다"
+    },
+    {
       "_key": "editor.slotBlocked",
       "_value": "이 슬롯에 장착할 수 없습니다"
     },

@@ -245,23 +245,34 @@ namespace RuneCode
             RecordUsabilityAction("place_node", "success", new Dictionary<string, object> { ["node_id"] = node.Id, ["rune_id"] = runeId, ["grade"] = grade });
         }
 
-        /// <summary>행동 노드 등급의 한도 안에서 지정 속성·모디를 장착할 수 있는 첫 빈 슬롯 키를 찾는다.</summary>
-        public bool TryFindEquipSlot(string nodeId, string runeId, string grade, out string slotKey)
+        /// <summary>등급 한도 안에서 장착 가능한 첫 빈 슬롯 키를 찾는다. reportFailure가 true면 실패 원인을 상태 문구로 표시한다.</summary>
+        public bool TryFindEquipSlot(string nodeId, string runeId, string grade, out string slotKey, bool reportFailure = false)
         {
             slotKey = null;
-            if (!TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
-                || !GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return false;
+            if (!_isEditable) return ReportEquipFailure("editor.equipEditLocked", reportFailure);
+            if (!TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _))
+                return ReportEquipFailure("editor.equipTargetInvalid", reportFailure);
+            if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune))
+                return ReportEquipFailure("editor.equipRuneUnavailable", reportFailure);
             bool isElement = rune.Category == SpellGrammar.CATEGORY_ELEMENT;
+            string firstKey = isElement ? SpellGrammar.ElementSlotKey(0) : SpellGrammar.ModifierSlotKey(0);
+            string failure = GetEquipCompatibilityFailure(node, firstKey, rune, grade);
+            if (failure != null) return ReportEquipFailure(failure, reportFailure);
             int max = isElement ? SpellGrammar.MAX_ELEMENT_SLOTS : SpellGrammar.MAX_MODIFIER_SLOTS;
+            bool hasUnlockedSlot = false;
             for (int index = 0; index < max; index++)
             {
                 string key = isElement ? SpellGrammar.ElementSlotKey(index) : SpellGrammar.ModifierSlotKey(index);
-                if (IsSlotLocked(nodeId, key) || !string.IsNullOrEmpty(node.GetText(key, null))) continue;
-                if (!CanEquip(node, key, rune, grade)) return false;
+                if (IsSlotLocked(nodeId, key)) continue;
+                hasUnlockedSlot = true;
+                if (!string.IsNullOrEmpty(node.GetText(key, null))) continue;
+                failure = GetEquipCompatibilityFailure(node, key, rune, grade);
+                if (failure != null) return ReportEquipFailure(failure, reportFailure);
                 slotKey = key;
                 return true;
             }
-            return false;
+            return ReportEquipFailure(!hasUnlockedSlot ? "editor.equipSlotLocked"
+                : isElement ? "editor.equipElementSlotsFull" : "editor.equipModifierSlotsFull", reportFailure);
         }
 
         /// <summary>행동 노드의 지정 속성·모디 슬롯에 룬을 장착할 수 있는지 반환한다.</summary>
@@ -278,11 +289,18 @@ namespace RuneCode
         /// </summary>
         public bool Equip(string nodeId, string slotKey, string runeId, string grade)
         {
-            if (!_isEditable || !TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
-                || !GameData.Runes.TryGet(runeId, out RuneDefinition rune) || IsSlotLocked(nodeId, slotKey)
-                || !CanEquip(node, slotKey, rune, grade))
+            GraphNode node = null;
+            RuneDefinition rune = null;
+            string failure;
+            if (!_isEditable) failure = "editor.equipEditLocked";
+            else if (!TryGetBehaviorNode(_editingGraph, nodeId, out node, out _)) failure = "editor.equipTargetInvalid";
+            else if (!GameData.Runes.TryGet(runeId, out rune)) failure = "editor.equipRuneUnavailable";
+            else if (!SpellGrammar.TryParseSlotKey(slotKey, out _, out _)) failure = "editor.equipSlotInvalid";
+            else if (IsSlotLocked(nodeId, slotKey)) failure = "editor.equipSlotLocked";
+            else failure = GetEquipCompatibilityFailure(node, slotKey, rune, grade);
+            if (failure != null)
             {
-                _policy.ReportStatus("editor.slotBlocked");
+                _policy.ReportStatus(failure);
                 RecordUsabilityAction("equip_slot", "rejected", new Dictionary<string, object> { ["reason"] = "slot_blocked", ["node_id"] = nodeId, ["slot_key"] = slotKey, ["rune_id"] = runeId, ["grade"] = grade });
                 return false;
             }
@@ -409,21 +427,38 @@ namespace RuneCode
         /// </summary>
         private static bool CanEquip(GraphNode node, string slotKey, RuneDefinition rune, string grade)
         {
-            if (rune.IsDisabled || !SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return false;
+            return GetEquipCompatibilityFailure(node, slotKey, rune, grade) == null;
+        }
+
+        /// <summary>reportFailure가 true면 장착 거부 이유의 키를 표시하고 실패를 나타내는 false를 반환한다.</summary>
+        private bool ReportEquipFailure(string reasonKey, bool reportFailure)
+        {
+            if (reportFailure) _policy.ReportStatus(reasonKey);
+            return false;
+        }
+
+        /// <summary>슬롯 종류·모디 등급·행동 호환·중복을 검사해 실패 이유의 문자열 키를 반환하고 장착 가능하면 null을 반환한다.</summary>
+        private static string GetEquipCompatibilityFailure(GraphNode node, string slotKey, RuneDefinition rune, string grade)
+        {
+            if (rune.IsDisabled) return "editor.equipRuneUnavailable";
+            if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return "editor.equipSlotInvalid";
             if (isElement)
             {
-                return rune.Category == SpellGrammar.CATEGORY_ELEMENT && GameData.Runes.TryGetRuneElement(rune.Id, out ElementDefinition element)
-                    && element.Category == SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL;
+                if (rune.Category != SpellGrammar.CATEGORY_ELEMENT) return "editor.equipElementSlotOnly";
+                return GameData.Runes.TryGetRuneElement(rune.Id, out ElementDefinition element)
+                    && element.Category == SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL ? null : "editor.equipElementUnavailable";
             }
-            if (rune.Category != SpellGrammar.CATEGORY_MODIFIER || !GameData.ModifierGrades.IsGradeAvailable(rune.Id, grade)
-                || !GameData.Runes.IsModifierCompatible(rune.Id, node.RuneId)) return false;
+            if (rune.Category != SpellGrammar.CATEGORY_MODIFIER) return "editor.equipModifierSlotOnly";
+            if (!GameData.ModifierGrades.IsGradeAvailable(rune.Id, grade)) return "editor.equipGradeUnavailable";
+            if (!GameData.Runes.IsModifierCompatible(rune.Id, node.RuneId)) return "editor.equipIncompatible";
             for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
             {
                 string key = SpellGrammar.ModifierSlotKey(index);
                 if (key == slotKey) continue;
-                if (SpellGrammar.TryParseStockKey(node.GetText(key, null), out string equipped, out _) && equipped == rune.Id) return false;
+                if (SpellGrammar.TryParseStockKey(node.GetText(key, null), out string equipped, out _) && equipped == rune.Id)
+                    return "editor.equipDuplicateModifier";
             }
-            return true;
+            return null;
         }
 
         /// <summary>그래프에서 비활성이 아닌 행동 노드를 찾는다. 없으면 false를 반환한다.</summary>
