@@ -36,6 +36,7 @@ namespace RuneCode
         private Func<RuneDefinition, string, RunePalettePreview> _slotPreviewFactory;
         private GraphViewport _viewport;
         private GraphNodeLayout _layout;
+        private GraphVisualStyle _style;
         private GraphMeshPainter _painter;
         private GraphNodeLabels _labels;
         private GraphMeshLayer _overlayLayer;
@@ -91,9 +92,9 @@ namespace RuneCode
             _quickPlacement = quickPlacement;
             _viewport = new GraphViewport(rectTransform);
             _layout = new GraphNodeLayout(_viewport, () => _editor.Graph);
-            _painter = new GraphMeshPainter(_viewport, _layout, _state,
-                Resources.Load<GraphVisualStyle>("RuneCode/UI/Elements/GraphVisualStyle"), _editor.IsRuneUnlocked);
-            _labels = new GraphNodeLabels(rectTransform, font, _viewport, _layout, _painter);
+            _style = Resources.Load<GraphVisualStyle>("RuneCode/UI/Elements/GraphVisualStyle");
+            _painter = new GraphMeshPainter(_viewport, _layout, _state, _style, _editor.IsRuneUnlocked);
+            _labels = new GraphNodeLabels(rectTransform, font, _viewport, _layout, _painter, _style, _state);
             _overlayLayer = GraphMeshLayer.Create(rectTransform, "GraphInteractionOverlay");
             _overlayLayer.Initialize(_painter);
             _placement = new GraphPlacement(() => _editor, _viewport);

@@ -33,8 +33,9 @@ namespace RuneCode
             {
                 _viewport = new GraphViewport(rectTransform);
                 _layout = new GraphNodeLayout(_viewport, () => _graph);
-                _painter = new GraphMeshPainter(_viewport, _layout, new GraphPointerState(), _style, IsRuneVisible);
-                _labels = new GraphNodeLabels(rectTransform, font, _viewport, _layout, _painter);
+                var state = new GraphPointerState();
+                _painter = new GraphMeshPainter(_viewport, _layout, state, _style, IsRuneVisible);
+                _labels = new GraphNodeLabels(rectTransform, font, _viewport, _layout, _painter, _style, state);
             }
             _labels.Refresh(graph, library, spell);
             raycastTarget = true;

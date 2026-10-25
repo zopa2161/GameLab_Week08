@@ -84,7 +84,8 @@
       "Bash(cd \"C:/Users/JUNGLE/Desktop/firstProject/week08/Assets/RuneCode/UI/SpellEditor\" && wc -l Popups/QuickPalettePopup.cs RunePaletteDrag.cs RunePalettePreview.cs RunePaletteRowBinding.cs SpellPalettePresenter.cs SpellEditorPresenter.cs RuneGraphCanvas.cs SpellEditorPanel.cs SpellInspectorPresenter.cs SpellInspectorView.cs Graph/*.cs)",
       "Bash(cd \"C:/Users/JUNGLE/Desktop/firstProject/week08/Assets/RuneCode\" && wc -l Core/Graph/SpellGrammar.cs SpellCoding/Contracts/ISpellEditor.cs SpellCoding/Editing/SpellEditSession.cs UI/SpellEditor/Graph/GraphNodeLabels.cs UI/SpellEditor/Graph/GraphMeshPainter.cs UI/SpellEditor/Graph/GraphNodeLabelText.cs)",
       "Bash(find \"C:/Users/JUNGLE/Desktop/firstProject/week08/Assets/Docs\" \"C:/Users/JUNGLE/Desktop/firstProject/week08/Assets/Docs~\" \"C:/Users/JUNGLE/Desktop/firstProject/week08/Assets/Share Docs~\" -type f | sed 's|.*/Assets/||' | head -80)",
-      "Bash(cd \"C:/Users/JUNGLE/Desktop/firstProject/week08/Assets\" && wc -l \"Docs~/09_CHANGE_EDIT_UI.md\" \"Share Docs~/05_UI.md\" \"Share Docs~/01_Architecture.md\")"
+      "Bash(cd \"C:/Users/JUNGLE/Desktop/firstProject/week08/Assets\" && wc -l \"Docs~/09_CHANGE_EDIT_UI.md\" \"Share Docs~/05_UI.md\" \"Share Docs~/01_Architecture.md\")",
+      "Bash(find Assets/RuneCode -iname \"*slot*\" -o -iname \"*node*\" | sort)"
     ]
   }
 }

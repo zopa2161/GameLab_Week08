@@ -110,9 +110,10 @@ namespace RuneCode
                 _root.gameObject.AddComponent<RectMask2D>();
             }
 
-            var painter = new GraphMeshPainter(viewport, layout, new GraphPointerState(),
-                Resources.Load<GraphVisualStyle>("RuneCode/UI/Elements/GraphVisualStyle"), isRuneUnlocked);
-            var labels = new GraphNodeLabels(content, font, viewport, layout, painter);
+            GraphVisualStyle style = Resources.Load<GraphVisualStyle>("RuneCode/UI/Elements/GraphVisualStyle");
+            var state = new GraphPointerState();
+            var painter = new GraphMeshPainter(viewport, layout, state, style, isRuneUnlocked);
+            var labels = new GraphNodeLabels(content, font, viewport, layout, painter, style, state);
             labels.Refresh(graph, library, null);
             labels.Layout(graph);
             _root.SetAsLastSibling();

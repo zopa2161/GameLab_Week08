@@ -11,8 +11,7 @@ namespace RuneCode
     /// </summary>
     internal sealed class GraphNodeLayout
     {
-        public const float NODE_WIDTH = MODIFIER_SLOT_WIDTH * MODIFIER_SLOT_COLUMNS
-            + SLOT_GAP * (MODIFIER_SLOT_COLUMNS - 1) + SLOT_MARGIN * 2f;
+        public const float NODE_WIDTH = 160f;
         public const float NODE_BASE_HEIGHT = 51f;
         public const float PUZZLE_DEPTH = 12f;
         public const float PUZZLE_HALF_HEIGHT = 10f;
@@ -29,12 +28,10 @@ namespace RuneCode
         private const float PORT_HIT_RADIUS = 9f;
         private const float MIN_PORT_HIT_RADIUS = 8f;
         private const float EDGE_HIT_DISTANCE = 8f;
-        private const float SLOT_HEIGHT = 23f;
-        private const float ELEMENT_SLOT_WIDTH = 145f;
-        private const float MODIFIER_SLOT_WIDTH = 71f;
-        private const float SLOT_GAP = 20f;
-        private const float SLOT_MARGIN = 6f;
-        private const float SLOT_PADDING = 10f;
+        private const float SLOT_ROW_HEIGHT = 28f;
+        private const float SLOT_GAP = 3f;
+        private const float SLOT_MARGIN = 7f;
+        private const float SLOT_PADDING = 6f;
         private const int MODIFIER_SLOT_COLUMNS = 2;
         private const int MODIFIER_SLOT_ROWS = SpellGrammar.MAX_MODIFIER_SLOTS / MODIFIER_SLOT_COLUMNS;
 
@@ -400,21 +397,17 @@ namespace RuneCode
             float zoom = _viewport.Zoom;
             Rect nodeRect = NodeRect(node, rune);
             float sectionTop = nodeRect.yMin + SlotSectionHeight(node) * zoom;
-            float rowTop = sectionTop - (SLOT_PADDING * 0.5f + row * (SLOT_HEIGHT + SLOT_GAP)) * zoom;
-            float cellHeight = SLOT_HEIGHT * zoom;
-            float cellWidth = columns == 1 ? ELEMENT_SLOT_WIDTH : MODIFIER_SLOT_WIDTH;
-            float rowWidth = cellWidth * columns + SLOT_GAP * (columns - 1);
-            float rowLeft = nodeRect.center.x - rowWidth * zoom * 0.5f;
-            return new Rect(rowLeft + column * (cellWidth + SLOT_GAP) * zoom, rowTop - cellHeight,
-                cellWidth * zoom, cellHeight);
+            float rowTop = sectionTop - (SLOT_PADDING * 0.5f + row * SLOT_ROW_HEIGHT) * zoom;
+            float cellHeight = (SLOT_ROW_HEIGHT - SLOT_GAP) * zoom;
+            float innerWidth = nodeRect.width - SLOT_MARGIN * 2f * zoom;
+            float cellWidth = innerWidth / columns;
+            return new Rect(nodeRect.x + SLOT_MARGIN * zoom + column * cellWidth, rowTop - cellHeight,
+                cellWidth - SLOT_GAP * zoom, cellHeight);
         }
 
         /// <summary>행동 등급의 속성 행과 Modifier 여섯 칸의 세 행을 포함한 슬롯 영역 높이를 반환한다.</summary>
         private float SlotSectionHeight(GraphNode node)
-        {
-            int rows = ElementSlotCount(node) + MODIFIER_SLOT_ROWS;
-            return rows * SLOT_HEIGHT + (rows - 1) * SLOT_GAP + SLOT_PADDING;
-        }
+            => (ElementSlotCount(node) + MODIFIER_SLOT_ROWS) * SLOT_ROW_HEIGHT + SLOT_PADDING;
 
         /// <summary>최대 속성 슬롯과 Modifier 슬롯에 해당하는 셀 키 배열을 만든다.</summary>
         private static string[] BuildSlotKeys()
