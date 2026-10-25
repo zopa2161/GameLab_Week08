@@ -440,7 +440,9 @@ namespace RuneCode
             _beam.ReadBeamInput(input, _executor.Loadout);
             bool wasDashing = _world.Player.DashRemaining > 0.000001;
             _world.Player.Aim(input.AimDirection);
-            _world.Player.Advance(STEP_SECONDS, Time, _world.EnergyRegen);
+            double regen = _world.EnergyRegen;
+            if (input.Movement.LengthSquared <= 0.000001 && !wasDashing) regen *= 1 + _world.Upgrades.StationaryRegenBonus;
+            _world.Player.Advance(STEP_SECONDS, Time, regen);
             bool startedDash = MovePlayer(input);
             if (startedDash) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_START);
             else if (wasDashing && _world.Player.DashRemaining <= 0.000001) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_END);
@@ -479,6 +481,7 @@ namespace RuneCode
             _world.ResetForBench();
             _world.Enemies.Clear(); _loot.ClearForBench(); _feedback.ClearForBench(); CancelCombat();
             _statuses.ClearAll();
+            _aura.ResetForBench();
             _stats.ResetForBench(); _loot.ResetForBench(); _spawn.ResetForBench();
             _executor.ResetForBench();
             SimulationBalance bench = _world.Balance.Sim;
@@ -529,6 +532,7 @@ namespace RuneCode
             SimHash.AppendNumber(state, _world.DamageMultiplier); SimHash.AppendNumber(state, _world.MoveSpeedMultiplier);
             SimHash.AppendNumber(state, _loot.ScrapGainMultiplier); SimHash.AppendNumber(state, _loot.ScrapPickupRangeMultiplier); SimHash.AppendNumber(state, _loot.ScrapHealRatio); SimHash.AppendNumber(state, _loot.ScrapRemainder);
             _world.Player.WriteState(state);
+            _aura.WriteState(state);
             foreach (SimulationEnemy enemy in _world.Enemies) enemy.WriteState(state);
             foreach (EnemyStatusEffect status in _statuses.Statuses) status.WriteState(state);
             foreach (SimulationSpellEntity entity in _world.SpellEntities) entity.WriteState(state);
@@ -565,14 +569,21 @@ namespace RuneCode
             return hash.ToString("x8", CultureInfo.InvariantCulture);
         }
 
-        /// <summary>대시와 일반 이동을 처리하고 이번 입력으로 대시가 시작됐는지 반환한다.</summary>
+        /// <summary>대시와 일반 이동을 처리하고 이번 입력으로 대시가 시작됐는지 반환한다. 강화에 따라 대시 쿨다운과 무적을 줄이고 늘이며, 대시 텔레포트가 켜져 있으면 시작 틱에 대시 거리 전체를 벽 충돌 이동으로 옮기고 대시 잔여 시간에는 추가 이동을 하지 않는다.</summary>
         private bool MovePlayer(SimulationInput input)
         {
             SimVector move = input.Movement.Length > 1 ? input.Movement.Normalized() : input.Movement;
             if (move.LengthSquared > 0.000001) { _world.MoveDirection = move.Normalized(); _world.HasMoveDirection = true; }
+            PlayerUpgradeStats upgrades = _world.Upgrades;
+            double dashCooldown = Math.Max(0, _world.Balance.Player.DashCooldown * (1 - upgrades.DashCooldownReduction));
             bool startedDash = input.Dash
-                && _world.Player.StartDash(move.LengthSquared > 0.000001 ? move : _world.Player.AimDirection, _world.Balance.Player.DashSeconds, _world.Balance.Player.DashCooldown, Time);
-            SimVector displacement = _world.Player.DashRemaining > 0 ? _world.Player.GetDashDirection() * (_world.Balance.Player.DashDistance / _world.Balance.Player.DashSeconds * Math.Min(STEP_SECONDS, _world.Player.DashRemaining)) : move * (_world.Balance.Player.Speed * _world.MoveSpeedMultiplier * STEP_SECONDS);
+                && _world.Player.StartDash(move.LengthSquared > 0.000001 ? move : _world.Player.AimDirection, _world.Balance.Player.DashSeconds, dashCooldown, Time, upgrades.DashInvulnerabilityBonus);
+            if (startedDash && upgrades.HasDashTeleport)
+                _world.Player.Move(_world.Map.Move(_world.Player.Position, _world.Player.GetDashDirection() * _world.Balance.Player.DashDistance, _world.Sector.PlayerRadius));
+            SimVector displacement;
+            if (_world.Player.DashRemaining > 0)
+                displacement = upgrades.HasDashTeleport ? SimVector.Zero : _world.Player.GetDashDirection() * (_world.Balance.Player.DashDistance / _world.Balance.Player.DashSeconds * Math.Min(STEP_SECONDS, _world.Player.DashRemaining));
+            else displacement = move * (_world.Balance.Player.Speed * _world.MoveSpeedMultiplier * STEP_SECONDS);
             _world.Player.Move(_world.Map.Move(_world.Player.Position, displacement, _world.Sector.PlayerRadius));
             return startedDash;
         }

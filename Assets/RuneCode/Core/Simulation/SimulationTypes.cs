@@ -243,12 +243,15 @@ namespace RuneCode
         /// <summary>에너지를 지정량만큼 회복하고 최대 에너지를 넘지 않게 한다.</summary>
         internal void RestoreEnergy(double amount) { _energy = Math.Min(_maxEnergy, _energy + Math.Max(0, amount)); }
 
-        /// <summary>대시가 가능한 경우 방향, 지속 시간, 무적 및 쿨다운을 설정하고 대시 시작 시각과 충돌 보호 사용 여부를 갱신한다.</summary>
-        internal bool StartDash(SimVector direction, double seconds, double cooldown, double time)
-        { if (_dashCooldown > 0.000001) return false; _dashesStarted++; _lastDashStartTime = time; _isDashGuardUsed = false; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds); return true; }
+        /// <summary>대시가 가능한 경우 방향, 지속 시간, 강화 보너스가 더해진 무적 및 쿨다운을 설정하고 대시 시작 시각과 충돌 보호 사용 여부를 갱신한다.</summary>
+        internal bool StartDash(SimVector direction, double seconds, double cooldown, double time, double invulnerabilityBonus)
+        { if (_dashCooldown > 0.000001) return false; _dashesStarted++; _lastDashStartTime = time; _isDashGuardUsed = false; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds + invulnerabilityBonus); return true; }
 
         /// <summary>현재 대시에서 대시 충돌 보호를 사용한 것으로 표시한다.</summary>
         internal void MarkDashGuardUsed() => _isDashGuardUsed = true;
+
+        /// <summary>무적 종료 시각을 현재 값과 지정 시각 뒤 지속시간 중 더 늦는 값으로 늘린다. 대시 충돌 보호가 쓴다.</summary>
+        internal void ExtendInvulnerability(double time, double seconds) { _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds); }
 
         /// <summary>진행 중인 대시의 이동 방향을 반환한다.</summary>
         internal SimVector GetDashDirection() => _dashDirection;
@@ -301,7 +304,7 @@ namespace RuneCode
         /// <summary>위치, 능력치, 보호막, 대시 및 무적의 현재와 예정 상태를 결정성 해시 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
         {
-            state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_aimDirection.X:R}|{_aimDirection.Y:R}|{_dashDirection.X:R}|{_dashDirection.Y:R}|{_hp:R}|{_maxHp:R}|{_energy:R}|{_maxEnergy:R}|{_shield:R}|{_shieldUntil:R}|{_dashCooldown:R}|{_dashRemaining:R}|{_invulnerableUntil:R}|{_burnUntil:R}|{_burnNextTick:R}"));
+            state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_aimDirection.X:R}|{_aimDirection.Y:R}|{_dashDirection.X:R}|{_dashDirection.Y:R}|{_hp:R}|{_maxHp:R}|{_energy:R}|{_maxEnergy:R}|{_shield:R}|{_shieldUntil:R}|{_dashCooldown:R}|{_dashRemaining:R}|{_invulnerableUntil:R}|{_lastDashStartTime:R}|{_isDashGuardUsed}|{_burnUntil:R}|{_burnNextTick:R}"));
             for (int slot = 0; slot < _isSpellRunning.Length; slot++)
                 if (_isSpellRunning[slot]) state.Append(FormattableString.Invariant($"|running:{slot}:{_executionRemaining[slot]:R}"));
             var resources = new List<string>(_otherResources.Keys);
@@ -877,7 +880,7 @@ namespace RuneCode
         internal void WriteState(StringBuilder state)
         {
             state.Append(_id).Append('|').Append(_action.NodeId).Append('|').Append(_element).Append('|').Append(_castNoiseElement).Append('|').Append(_fromEvent);
-            state.Append(FormattableString.Invariant($"|{_anchor.X:R}|{_anchor.Y:R}|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_age:R}|{_angle:R}|{_hits}|{_hasExpired}|{_hasFiredFirstEvent}|{_hasDirectHit}|{_costMultiplier:R}"));
+            state.Append(FormattableString.Invariant($"|{_anchor.X:R}|{_anchor.Y:R}|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_age:R}|{_angle:R}|{_hits}|{_hasExpired}|{_hasFiredFirstEvent}|{_hasDirectHit}|{_costMultiplier:R}|{_castDamageMultiplier:R}"));
             state.Append(FormattableString.Invariant($"|{_stats.Damage:R}|{_stats.Speed:R}|{_stats.Radius:R}|{_stats.Lifetime:R}|{_stats.Pierce}|{_stats.HomingTurn:R}|{_stats.HomingRange:R}|{_stats.OrbitTargetCount}"));
             if (_stats.KnockbackDistance > 0)
                 state.Append(FormattableString.Invariant($"|knockback:{_stats.KnockbackDistance:R}:{_stats.KnockbackSeconds:R}"));

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace RuneCode
@@ -19,6 +20,7 @@ namespace RuneCode
         internal SpellAction DamageSourceAction { get => _damageSourceAction; set => _damageSourceAction = value; }
 
         private int _stacks;
+        private readonly List<double> _fireStackDamages = new List<double>();
 
         private double _immuneUntil;
         public int EnemyId => _enemyId;
@@ -34,8 +36,26 @@ namespace RuneCode
         /// <summary>대상 적 ID와 상태 이상 종류로 빈 상태 이상 데이터를 생성한다. 수치는 시뮬레이션이 부여 시 설정한다.</summary>
         internal EnemyStatusEffect(int enemyId, EnemyStatusType type) { _enemyId = enemyId; _type = type; }
 
-        /// <summary>대상 ID, 종류, 만료 시각, 틱 피해와 종류별 진행 값을 결정성 해시 버퍼에 기록한다.</summary>
+        /// <summary>화염 강화의 화상 중첩을 1 늘리고 해당 부여의 공격 피해 sourceDamage를 중첩 피해 목록에 저장한다.</summary>
+        internal void AddFireStack(double sourceDamage) { _stacks++; _fireStackDamages.Add(sourceDamage); }
+
+        /// <summary>새 화상이 시작될 때 이전 화상의 중첩 수와 중첩 피해를 비운다.</summary>
+        internal void ClearFireStacks() { _stacks = 0; _fireStackDamages.Clear(); }
+
+        /// <summary>저장한 화상 중첩 피해를 모두 곱한 폭발 피해를 반환한다. 중첩이 없으면 0을 반환한다.</summary>
+        internal double GetFireBurstDamage()
+        {
+            if (_fireStackDamages.Count == 0) return 0d;
+            double damage = 1d;
+            for (int i = 0; i < _fireStackDamages.Count; i++) damage *= _fireStackDamages[i];
+            return damage;
+        }
+
+        /// <summary>대상 ID, 종류, 만료 시각, 틱 피해, 종류별 진행 값과 화상 중첩 피해를 결정성 해시 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
-        { state.Append(FormattableString.Invariant($"|{_enemyId}|{_type}|{_until:R}|{_nextTickTime:R}|{_tickDamage:R}|{_sourceForm}|{_isNoise}|{_stacks}|{_immuneUntil:R}")); }
+        {
+            state.Append(FormattableString.Invariant($"|{_enemyId}|{_type}|{_until:R}|{_nextTickTime:R}|{_tickDamage:R}|{_sourceForm}|{_isNoise}|{_stacks}|{_immuneUntil:R}"));
+            for (int i = 0; i < _fireStackDamages.Count; i++) state.Append(FormattableString.Invariant($"|{_fireStackDamages[i]:R}"));
+        }
     }
 }

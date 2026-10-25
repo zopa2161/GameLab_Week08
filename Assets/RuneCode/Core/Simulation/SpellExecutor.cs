@@ -81,6 +81,7 @@ namespace RuneCode
                 SimHash.AppendNumber(state, pending.Context.DirectionOffset);
                 state.Append(pending.Context.Target?.Id ?? 0).Append('|').Append(pending.Context.FromEvent).Append('|').Append(pending.Context.NoiseElement);
                 SimHash.AppendNumber(state, pending.Context.CostMultiplier);
+                SimHash.AppendNumber(state, pending.Context.CastDamageMultiplier);
                 if (pending.Context.IsManaPrepaid) state.Append("|manaPrepaid");
                 state.Append(pending.Context.SourceEntityId).Append('|');
                 if (pending.Tracker != null)
@@ -122,7 +123,8 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 슬롯 쿨다운을 시작하고 루트 실행을 등록한다. 직접 공격 빔은 구간 비용을 선결제하며 연장은 현재 슬롯 입력으로 판단한다.
+        /// 슬롯 쿨다운을 시작하고 루트 실행을 등록한다. 루트 문맥에는 비용 결제 전 시점의 최대 전력·대시 직후 조건으로 합산한 시전 피해 배율을 넣는다.
+        /// 직접 공격 빔은 구간 비용을 선결제하며 연장은 현재 슬롯 입력으로 판단한다.
         /// </summary>
         internal bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false)
         {
@@ -140,8 +142,12 @@ namespace RuneCode
             SimVector targetDirection = delta.LengthSquared > 0.000001 ? delta.Normalized() : _world.Player.AimDirection;
             var rootCast = new RootSpellExecution(slot, spell, cycleTicks, _world.Tick + cycleTicks,
                 _world.Player.Position, targetDirection, _aimPoint ?? _world.Player.Position + targetDirection * _runtime.GetAreaPlacementRange());
+            // 비용 결제 전 시점의 최대 전력과 대시 직후 조건 보너스를 합산해 시전 피해 배율을 정한다.
+            double castDamageMultiplier = 1d
+                + (_world.Player.Energy >= _world.Player.MaxEnergy - 0.000001 ? _world.Upgrades.FullManaDamageBonus : 0d)
+                + (_world.Time - _world.Player.LastDashStartTime <= _world.Balance.Player.PostDashBuffSeconds ? _world.Upgrades.PostDashDamageBonus : 0d);
             var context = new SpellContext(_world.Player.Position + _world.Player.AimDirection * (_world.Sector.PlayerRadius + _world.Balance.Sim.WandOffset), _world.Player.AimDirection, null, false, null,
-                caster: _world.Player, randomState: new SpellRandomState());
+                caster: _world.Player, randomState: new SpellRandomState(), castDamageMultiplier: castDamageMultiplier);
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
             ExecuteRootBranches(spell.Root, context, tracker);
             RecordRootCastPayment(rootCast);
