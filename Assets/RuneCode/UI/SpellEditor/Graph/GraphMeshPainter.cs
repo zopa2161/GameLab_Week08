@@ -41,12 +41,9 @@ namespace RuneCode
         private const float EDGE_ARROW_SIZE = 4.5f;
         private const float EDGE_ARROW_POSITION = 0.68f;
         private const float SELECTION_LINE_WIDTH = 1f;
-        private const float SLOT_CATEGORY_TINT = 0.45f;
-        private const float SLOT_HIGHLIGHT_WIDTH = 2f;
 
         private static readonly Color LOCKED_NODE_COLOR = new Color(1f, 0.25f, 0.25f);
         private static readonly Color LOCKED_NODE_FILL_COLOR = new Color(0.24f, 0.07f, 0.08f);
-        private static readonly Color SLOT_LOCKED_COLOR = new Color(0.05f, 0.05f, 0.06f);
 
         private readonly GraphVisualStyle _style;
         private readonly GraphViewport _viewport;
@@ -216,9 +213,6 @@ namespace RuneCode
             Vector2 iconCenter = new Vector2(rect.x + ICON_OFFSET_X * zoom, rect.yMax - ICON_OFFSET_Y * zoom);
             RuneMesh.Polygon(mesh, iconCenter, ICON_RADIUS * zoom, accent, CategoryIconSides(rune.Category));
             DrawPorts(mesh, node, rune, rect, fill);
-            DrawSlots(mesh, node, rune, fill);
-            if (_layout.TryGetGradeButtonRect(node, rune, out Rect gradeButton))
-                RuneMesh.Rect(mesh, gradeButton, Color.Lerp(fill, accent, SLOT_CATEGORY_TINT));
         }
 
         /// <summary>조건·반복 블록의 후속 영역을 감싸는 C자 프레임을 카테고리 색으로 그린다.</summary>
@@ -265,38 +259,6 @@ namespace RuneCode
                     depth + NODE_BORDER, halfHeight * 2), fill);
                 return;
             }
-        }
-
-        /// <summary>행동 노드의 속성·모디 슬롯 셀을 카테고리 강조색과 잠금색으로 그리고, 들고 있는 모듈을 장착할 수 있는 셀에는 흰 테두리를 그린다.</summary>
-        private void DrawSlots(VertexHelper mesh, GraphNode node, RuneDefinition rune, Color fill)
-        {
-            if (!GraphNodeLayout.HasSlots(rune)) return;
-            _state.EquippableSlots.TryGetValue(node.Id, out HashSet<string> equippable);
-            foreach (string slotKey in GraphNodeLayout.SlotKeys)
-            {
-                if (!_layout.TryGetSlotRect(node, rune, slotKey, out Rect cell)) continue;
-                Color color;
-                if (GraphNodeLayout.IsSlotLocked(node, slotKey)) color = SLOT_LOCKED_COLOR;
-                else
-                {
-                    bool isElement = SpellGrammar.TryParseSlotKey(slotKey, out bool elementSlot, out _) && elementSlot;
-                    Color categoryColor = RuneMesh.CategoryColor(isElement ? SpellGrammar.CATEGORY_ELEMENT : SpellGrammar.CATEGORY_MODIFIER);
-                    color = Color.Lerp(fill, categoryColor, SLOT_CATEGORY_TINT);
-                }
-                RuneMesh.Rect(mesh, cell, color);
-                if (equippable != null && equippable.Contains(slotKey)) DrawSlotOutline(mesh, cell);
-            }
-        }
-
-        /// <summary>슬롯 셀 안쪽에 화면 두께가 일정한 흰 테두리를 그린다.</summary>
-        private static void DrawSlotOutline(VertexHelper mesh, Rect cell)
-        {
-            float width = Mathf.Min(SLOT_HIGHLIGHT_WIDTH, cell.width * 0.5f);
-            float height = Mathf.Min(SLOT_HIGHLIGHT_WIDTH, cell.height * 0.5f);
-            RuneMesh.Rect(mesh, new Rect(cell.xMin, cell.yMin, cell.width, height), Color.white);
-            RuneMesh.Rect(mesh, new Rect(cell.xMin, cell.yMax - height, cell.width, height), Color.white);
-            RuneMesh.Rect(mesh, new Rect(cell.xMin, cell.yMin, width, cell.height), Color.white);
-            RuneMesh.Rect(mesh, new Rect(cell.xMax - width, cell.yMin, width, cell.height), Color.white);
         }
 
         /// <summary>노드의 표시 포트를 종류별 모양으로 그리며 지원 중단 포트는 회색이다.</summary>

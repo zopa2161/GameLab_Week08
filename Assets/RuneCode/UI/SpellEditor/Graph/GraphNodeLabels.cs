@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 
 using TMPro;
+using UnityEngine.UI;
 
 namespace RuneCode
 {
     /// <summary>
-    /// 그래프 노드마다 상단 이름·지표·핵심 설정 요약·포트 이름과 행동 노드 슬롯 내용을 담은 TMP 라벨을 만들고 배치한다.
+    /// 그래프 노드마다 상단 이름·지표·핵심 설정 요약·포트 이름과 행동 노드 슬롯 이미지·내용 라벨을 만들고 배치한다.
     /// 글꼴 크기는 고정하고 Transform 스케일로 확대해 rich text 크기·위치 태그가 노드와 같은 비율을 유지한다.
     /// </summary>
     internal sealed class GraphNodeLabels
@@ -20,31 +21,40 @@ namespace RuneCode
         private const float PORT_FONT_SIZE = 12f;
         private const float PORT_LABEL_HEIGHT = 16f;
         private const float SLOT_FONT_SIZE = 10f;
+        private const float SLOT_IMAGE_SCALE = 0.5f;
         private const float LABEL_WIDTH = GraphNodeLayout.NODE_WIDTH - LABEL_PADDING_X - LABEL_PADDING_RIGHT;
+
+        private static readonly Color SLOT_LOCKED_COLOR = new Color(0.05f, 0.05f, 0.06f);
 
         private readonly RectTransform _parent;
         private readonly TMP_FontAsset _font;
         private readonly GraphViewport _viewport;
         private readonly GraphNodeLayout _layout;
         private readonly GraphNodeMetricLabels _metricLabels;
+        private readonly GraphVisualStyle _style;
+        private readonly GraphPointerState _state;
         private readonly Dictionary<string, TextMeshProUGUI> _labels = new Dictionary<string, TextMeshProUGUI>();
         private readonly Dictionary<string, List<TextMeshProUGUI>> _portLabels = new Dictionary<string, List<TextMeshProUGUI>>();
         private readonly Dictionary<string, List<TextMeshProUGUI>> _slotLabels = new Dictionary<string, List<TextMeshProUGUI>>();
-        private readonly Dictionary<string, TextMeshProUGUI> _gradeLabels = new Dictionary<string, TextMeshProUGUI>();
+        private readonly Dictionary<string, List<SlotView>> _slotViews = new Dictionary<string, List<SlotView>>();
+        private readonly Dictionary<string, GraphNode> _nodes = new Dictionary<string, GraphNode>();
         private readonly GraphMeshPainter _painter;
         private readonly Dictionary<string, GraphMeshLayer> _nodeLayers = new Dictionary<string, GraphMeshLayer>();
         private readonly HashSet<string> _existingNodes = new HashSet<string>();
         private readonly List<string> _staleIds = new List<string>();
         private string _frontNodeId;
 
-        /// <summary>라벨을 둘 캔버스, 글꼴, 뷰포트와 노드 배치로 라벨 관리자를 만든다.</summary>
-        public GraphNodeLabels(RectTransform parent, TMP_FontAsset font, GraphViewport viewport, GraphNodeLayout layout, GraphMeshPainter painter)
+        /// <summary>라벨을 둘 캔버스, 글꼴, 뷰포트, 노드 배치와 슬롯 표시 설정·상태로 라벨 관리자를 만든다.</summary>
+        public GraphNodeLabels(RectTransform parent, TMP_FontAsset font, GraphViewport viewport, GraphNodeLayout layout,
+            GraphMeshPainter painter, GraphVisualStyle style, GraphPointerState state)
         {
             _parent = parent;
             _font = font;
             _viewport = viewport;
             _layout = layout;
             _painter = painter;
+            _style = style;
+            _state = state;
             _metricLabels = new GraphNodeMetricLabels(parent, font, viewport);
         }
 
@@ -59,6 +69,7 @@ namespace RuneCode
             foreach (GraphNode node in graph.Nodes)
             {
                 _existingNodes.Add(node.Id);
+                _nodes[node.Id] = node;
                 TextMeshProUGUI label = GetOrCreate(node.Id);
                 _nodeLayers[node.Id].Initialize(_painter, node);
                 RuneDefinition rune = GameData.Runes.Get(node.RuneId);
@@ -66,8 +77,8 @@ namespace RuneCode
                     ? GraphNodeLabelText.BuildNameText(node) : GraphNodeLabelText.BuildLegacyText(node, library);
                 if (label.text != nameText) label.text = nameText;
                 RefreshPortLabels(node);
+                RefreshSlotViews(node);
                 RefreshSlotLabels(node);
-                RefreshGradeLabel(node, rune);
             }
             RemoveStale();
             return _existingNodes;
@@ -109,8 +120,8 @@ namespace RuneCode
                     portRect.localScale = scale;
                     portRect.SetAsLastSibling();
                 }
+                LayoutSlotViews(node, rune, scale);
                 LayoutSlotLabels(node, rune, scale);
-                LayoutGradeLabel(node, rune, scale);
             }
             BringFrontNodeToTop();
         }
@@ -121,10 +132,15 @@ namespace RuneCode
             _frontNodeId = nodeId;
         }
 
-        /// <summary>선택·실행·연결 표시가 변했을 때 모든 노드 본체의 메시 갱신을 예약한다.</summary>
+        /// <summary>선택·실행·연결 표시가 변했을 때 모든 노드 본체의 메시 갱신을 예약하고 슬롯 색·장착 가능 표시를 갱신한다.</summary>
         public void RefreshMeshes()
         {
             foreach (GraphMeshLayer layer in _nodeLayers.Values) layer.SetVerticesDirty();
+            foreach (var pair in _slotViews)
+            {
+                if (_nodes.TryGetValue(pair.Key, out GraphNode node))
+                    RefreshSlotColors(node);
+            }
         }
 
         /// <summary>지정된 노드의 본체, 이름·지표, 포트와 슬롯 라벨을 형제 순서의 맨 앞으로 옮긴다.</summary>
@@ -140,7 +156,6 @@ namespace RuneCode
             _metricLabels.BringToFront(_frontNodeId);
             foreach (TextMeshProUGUI portLabel in ports) portLabel.transform.SetAsLastSibling();
             foreach (TextMeshProUGUI slotLabel in _slotLabels[_frontNodeId]) slotLabel.transform.SetAsLastSibling();
-            if (_gradeLabels.TryGetValue(_frontNodeId, out TextMeshProUGUI gradeLabel)) gradeLabel.transform.SetAsLastSibling();
         }
 
         /// <summary>노드 ID의 이름·지표 라벨을 반환하며 없으면 글꼴과 정렬을 지정해 만든다.</summary>
@@ -218,6 +233,99 @@ namespace RuneCode
             for (int index = count; index < labels.Count; index++) labels[index].gameObject.SetActive(false);
         }
 
+        /// <summary>행동 노드의 속성·모디 슬롯마다 표시 프리팹 이미지를 확보하고 표시할 셀이 있는 칸만 활성화한다.</summary>
+        private void RefreshSlotViews(GraphNode node)
+        {
+            RuneDefinition rune = GameData.Runes.Get(node.RuneId);
+            List<SlotView> views = GetOrCreateSlotViews(node.Id);
+            int count = GraphNodeLayout.HasSlots(rune) ? GraphNodeLayout.SlotKeys.Count : 0;
+            for (int index = 0; index < count; index++)
+            {
+                string slotKey = GraphNodeLayout.SlotKeys[index];
+                SlotView view = EnsureSlotView(node, views, index, slotKey);
+                bool isShown = view != null && _layout.TryGetSlotRect(node, rune, slotKey, out _);
+                if (view != null) view.Image.gameObject.SetActive(isShown);
+            }
+            for (int index = count; index < views.Count; index++)
+            {
+                if (views[index] != null) views[index].Image.gameObject.SetActive(false);
+            }
+            RefreshSlotColors(node);
+        }
+
+        /// <summary>노드의 슬롯 이미지 목록을 반환하고 없으면 빈 목록을 만들어 등록한다.</summary>
+        private List<SlotView> GetOrCreateSlotViews(string nodeId)
+        {
+            if (_slotViews.TryGetValue(nodeId, out List<SlotView> views)) return views;
+            views = new List<SlotView>();
+            _slotViews.Add(nodeId, views);
+            return views;
+        }
+
+        /// <summary>
+        /// 지정 순번의 슬롯 이미지를 반환하고 없으면 슬롯 키의 종류에 맞는 프리팹을 노드 레이어 아래에 만든다.
+        /// 프리팹이 연결되지 않았으면 null을 반환한다.
+        /// </summary>
+        private SlotView EnsureSlotView(GraphNode node, List<SlotView> views, int index, string slotKey)
+        {
+            if (index < views.Count) return views[index];
+            bool isElement = SpellGrammar.TryParseSlotKey(slotKey, out bool elementSlot, out _) && elementSlot;
+            Image prefab = isElement ? _style.ElementSlotPrefab : _style.ModifierSlotPrefab;
+            if (prefab == null)
+            {
+                views.Add(null);
+                return null;
+            }
+            Image image = Object.Instantiate(prefab, _nodeLayers[node.Id].rectTransform, false);
+            image.name = slotKey;
+            image.raycastTarget = false;
+            RectTransform rect = image.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0, 1);
+            rect.pivot = new Vector2(0, .5f);
+            Outline outline = image.GetComponent<Outline>();
+            if (outline != null)
+            {
+                outline.effectColor = Color.white;
+                outline.enabled = false;
+            }
+            var view = new SlotView(image, outline);
+            views.Add(view);
+            return view;
+        }
+
+        /// <summary>슬롯 이미지를 잠금색 또는 기본색으로 칠하고 장착 가능한 칸에만 흰 테두리를 켠다.</summary>
+        private void RefreshSlotColors(GraphNode node)
+        {
+            if (!_slotViews.TryGetValue(node.Id, out List<SlotView> views)) return;
+            _state.EquippableSlots.TryGetValue(node.Id, out HashSet<string> equippable);
+            for (int index = 0; index < views.Count && index < GraphNodeLayout.SlotKeys.Count; index++)
+            {
+                SlotView view = views[index];
+                if (view == null) continue;
+                string slotKey = GraphNodeLayout.SlotKeys[index];
+                bool isLocked = GraphNodeLayout.IsSlotLocked(node, slotKey);
+                view.Image.color = isLocked ? SLOT_LOCKED_COLOR : Color.white;
+                if (view.Outline != null) view.Outline.enabled = !isLocked && equippable != null && equippable.Contains(slotKey);
+            }
+        }
+
+        /// <summary>슬롯 이미지를 각 셀 사각형에 배율에 맞춰 배치한다. 표시하지 않는 칸은 건너뛴다.</summary>
+        private void LayoutSlotViews(GraphNode node, RuneDefinition rune, Vector3 scale)
+        {
+            if (!_slotViews.TryGetValue(node.Id, out List<SlotView> views)) return;
+            float zoom = _viewport.Zoom;
+            for (int index = 0; index < views.Count && index < GraphNodeLayout.SlotKeys.Count; index++)
+            {
+                SlotView view = views[index];
+                if (view == null || !view.Image.gameObject.activeSelf) continue;
+                if (!_layout.TryGetSlotRect(node, rune, GraphNodeLayout.SlotKeys[index], out Rect cell)) continue;
+                RectTransform rect = view.Image.rectTransform;
+                rect.anchoredPosition = new Vector2(cell.x, cell.center.y - _parent.rect.yMax);
+                rect.sizeDelta = new Vector2(cell.width / zoom, cell.height / zoom) / SLOT_IMAGE_SCALE;
+                rect.localScale = scale * SLOT_IMAGE_SCALE;
+            }
+        }
+
         /// <summary>슬롯 라벨을 각 셀 사각형 중앙에 배율에 맞춰 배치한다. 잠긴 칸은 숨긴다.</summary>
         private void LayoutSlotLabels(GraphNode node, RuneDefinition rune, Vector3 scale)
         {
@@ -239,35 +347,6 @@ namespace RuneCode
             }
         }
 
-        /// <summary>행동 노드의 등급 변경 버튼 라벨을 없으면 만들고 문구를 지정한다. 행동 노드가 아니면 만들지 않는다.</summary>
-        private void RefreshGradeLabel(GraphNode node, RuneDefinition rune)
-        {
-            if (!GraphNodeLayout.HasSlots(rune)) return;
-            if (!_gradeLabels.TryGetValue(node.Id, out TextMeshProUGUI label))
-            {
-                label = CreateLabel(SLOT_FONT_SIZE, true);
-                label.horizontalAlignment = HorizontalAlignmentOptions.Center;
-                _gradeLabels.Add(node.Id, label);
-            }
-            string text = GameData.L("editor.changeGrade");
-            if (label.text != text) label.text = text;
-        }
-
-        /// <summary>등급 변경 버튼 라벨을 버튼 사각형 중앙에 배율에 맞춰 배치한다.</summary>
-        private void LayoutGradeLabel(GraphNode node, RuneDefinition rune, Vector3 scale)
-        {
-            if (!_gradeLabels.TryGetValue(node.Id, out TextMeshProUGUI label)) return;
-            bool isShown = _layout.TryGetGradeButtonRect(node, rune, out Rect button);
-            label.gameObject.SetActive(isShown);
-            if (!isShown) return;
-            float zoom = _viewport.Zoom;
-            RectTransform buttonRect = label.rectTransform;
-            buttonRect.anchoredPosition = new Vector2(button.x, button.center.y - _parent.rect.yMax);
-            buttonRect.sizeDelta = new Vector2(button.width / zoom, button.height / zoom);
-            buttonRect.localScale = scale;
-            buttonRect.SetAsLastSibling();
-        }
-
         /// <summary>그래프에서 사라진 노드의 라벨 오브젝트를 파괴하고 목록에서 뺀다.</summary>
         private void RemoveStale()
         {
@@ -286,11 +365,22 @@ namespace RuneCode
                 _portLabels.Remove(id);
                 foreach (TextMeshProUGUI label in _slotLabels[id]) Object.Destroy(label.gameObject);
                 _slotLabels.Remove(id);
-                if (!_gradeLabels.TryGetValue(id, out TextMeshProUGUI gradeLabel)) continue;
-                Object.Destroy(gradeLabel.gameObject);
-                _gradeLabels.Remove(id);
+                _slotViews.Remove(id);
+                _nodes.Remove(id);
             }
         }
 
+        private sealed class SlotView
+        {
+            public Image Image { get; }
+            public Outline Outline { get; }
+
+            /// <summary>슬롯 표시 이미지와 장착 가능 테두리 컴포넌트를 묶는다.</summary>
+            public SlotView(Image image, Outline outline)
+            {
+                Image = image;
+                Outline = outline;
+            }
+        }
     }
 }

@@ -6,9 +6,9 @@ using UnityEngine;
 namespace RuneCode
 {
     /// <summary>
-    /// 룬 팔레트와 빠른 검색·등급 선택 팝업의 Presenter다. 분류·검색어로 행동·속성·모디를 골라 남은/보유 수와 함께 표시한다.
+    /// 룬 팔레트와 빠른 검색 팝업의 Presenter다. 분류·검색어로 행동·속성·모디를 골라 팔레트에는 남은 수만, 팝업에는 남은/보유 수를 함께 표시한다.
     /// 행동 행은 제안 위치(팔레트) 또는 더블클릭 위치(빠른 검색)에 배치하고, 속성·모디 행은 클릭하면 커서에 붙여 원하는 슬롯에 장착한다.
-    /// 보유하지 않은 항목은 숨기고 남은 수가 0인 항목은 표시만 한다.
+    /// 보유하지 않은 항목은 숨기고, 남은 수가 0인 항목은 일반 편집에서는 숨기며 합성 재료 선택 중에는 표시만 한다.
     /// </summary>
     public sealed class SpellPalettePresenter
     {
@@ -100,7 +100,7 @@ namespace RuneCode
             Refresh();
         }
 
-        /// <summary>현재 분류·검색어에 맞는 보유 행동(등급별)·속성·모디(등급별)를 이름·등급과 남은/보유 수로 표시한다.</summary>
+        /// <summary>현재 분류·검색어에 맞는 보유 행동(등급별)·속성·모디(등급별)를 이름·등급과 남은 수로 표시한다. 일반 편집에서 남은 수가 0인 항목은 숨기고, 합성 재료 선택 중에는 예약으로 0이 된 항목도 소지량 부족 상태로 표시한다.</summary>
         public void Refresh()
         {
             _view.SetSynthesisFilters(_selectMaterial != null, _lockedCategory, _lockedGrade, _category == SpellGrammar.CATEGORY_ELEMENT);
@@ -116,9 +116,10 @@ namespace RuneCode
                 {
                     if (_selectMaterial != null && !RuneSynthesisRules.IsEligible(rune, grade)) continue;
                     if (_grade != null && grade != _grade) continue;
-                    if (!TryGetStock(rune.Id, grade, out int remaining, out int owned)) continue;
+                    if (!TryGetStock(rune.Id, grade, out int remaining, out _)) continue;
                     if (_reservedCount != null) remaining = Math.Max(0, remaining - _reservedCount(rune.Id, grade));
-                    AddPaletteRune(rune, grade, StockLabel(rune, grade, remaining, owned), remaining > 0);
+                    if (remaining <= 0 && _selectMaterial == null) continue;
+                    AddPaletteRune(rune, grade, PaletteStockLabel(rune, grade, remaining), remaining > 0);
                 }
             }
         }
@@ -133,38 +134,6 @@ namespace RuneCode
             popup.SearchChanged += onSearch;
             popup.Closed += () => popup.SearchChanged -= onSearch;
             FillQuickPalette(popup, popup.Query, graphPosition);
-        }
-
-        /// <summary>
-        /// 행동 노드의 등급 변경 팝업을 연다. 같은 행동의 다른 등급 중 남은 수가 있고 바꿀 수 있는 등급만 표시하며,
-        /// 슬롯 한도를 넘어 해제될 룬 수를 함께 표시한다. 표시할 등급이 없으면 상태 문구만 띄운다.
-        /// </summary>
-        public void OpenGradePicker(string nodeId)
-        {
-            if (_selectMaterial != null) return;
-            GraphNode node = _editor.Graph.FindNode(nodeId);
-            if (node == null || !GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune)) return;
-            QuickPalettePopup popup = null;
-            foreach (string grade in GameData.Runes.BehaviorGradeOrder)
-            {
-                if (!TryGetStock(rune.Id, grade, out int remaining, out int owned) || remaining <= 0
-                    || !_editor.CanChangeBehaviorGrade(nodeId, grade, out int removedCount)) continue;
-                if (popup == null)
-                {
-                    popup = _ui.OpenPopup<QuickPalettePopup>();
-                    popup.Begin();
-                    popup.ClearResults();
-                }
-                string label = StockLabel(rune, grade, remaining, owned);
-                if (removedCount > 0) label += "  " + string.Format(GameData.L("editor.gradeSlotsRemoved"), removedCount);
-                string targetGrade = grade;
-                popup.AddResult(label, () =>
-                {
-                    popup.Close();
-                    if (_editor.ChangeBehaviorGrade(nodeId, targetGrade)) SoundManager.Instance.PlaySelectSlotItem();
-                }, rune.Category);
-            }
-            if (popup == null) _editor.ReportStatus("editor.gradeUnavailable");
         }
 
         /// <summary>보유 행동 중 검색어와 일치하는 등급별 항목으로 빠른 검색 결과를 채운다.</summary>
@@ -220,16 +189,12 @@ namespace RuneCode
             return owned > 0;
         }
 
-        /// <summary>지정 룬·등급의 현재 소지량 기준 팔레트 행 문구를 반환한다. 슬롯에서 집어 든 룬의 드래그 미리보기에 쓴다.</summary>
+        /// <summary>지정 룬·등급의 현재 남은 수량으로 팔레트 행 문구를 만들어 반환한다. 슬롯에서 집어 든 룬의 드래그 미리보기에 쓴다.</summary>
         internal string BuildStockLabel(string runeId, string grade)
         {
             if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return runeId;
-            if (!TryGetStock(runeId, grade, out int remaining, out int owned))
-            {
-                remaining = 0;
-                owned = 0;
-            }
-            return StockLabel(rune, grade, remaining, owned);
+            if (!TryGetStock(runeId, grade, out int remaining, out _)) remaining = 0;
+            return PaletteStockLabel(rune, grade, remaining);
         }
 
         /// <summary>룬 분류별 소지 등급 목록을 반환한다. 행동은 행동 등급표, 모디는 Modifier 등급표, 속성은 빈 등급 하나다.</summary>
@@ -240,7 +205,15 @@ namespace RuneCode
             return ELEMENT_GRADES;
         }
 
-        /// <summary>첫 줄에 이름·등급, 둘째 줄에 남은 수/보유 수를 담고 등급 색을 입힌 문구를 반환한다. 등급이 없으면 이름만 쓴다.</summary>
+        /// <summary>팔레트 행에 표시할 이름·등급과 현재 남은 수량만 담은 문구를 반환한다.</summary>
+        internal static string PaletteStockLabel(RuneDefinition rune, string grade, int remaining)
+        {
+            string name = string.IsNullOrEmpty(grade) ? rune.Name : rune.Name + " " + grade;
+            string label = name + "\n" + GameData.L("ui.modifierStock") + " " + remaining;
+            return ModifierGradeText.Colorize(label, grade);
+        }
+
+        /// <summary>첫 줄에 이름·등급, 둘째 줄에 남은 수/보유 수를 담고 등급 색을 입힌 문구를 반환한다. 빠른 검색·합성·인스펙터의 전체 수량 표기에 쓴다. 등급이 없으면 이름만 쓴다.</summary>
         internal static string StockLabel(RuneDefinition rune, string grade, int remaining, int owned)
         {
             string name = string.IsNullOrEmpty(grade) ? rune.Name : rune.Name + " " + grade;

@@ -17,6 +17,16 @@ namespace RuneCode
         [Header("분류 강조색 (팔레트 행 프리팹)")]
         [SerializeField] private RunePaletteRowBinding[] _categoryRowPrefabs = Array.Empty<RunePaletteRowBinding>();
 
+        [Header("행동 노드 슬롯")]
+        [SerializeField] private Image _elementSlotPrefab;
+        [SerializeField] private Image _modifierSlotPrefab;
+
+        /// <summary>속성 슬롯에 사용할 표시 프리팹을 반환한다.</summary>
+        public Image ElementSlotPrefab => _elementSlotPrefab;
+
+        /// <summary>모디파이어 슬롯에 사용할 표시 프리팹을 반환한다.</summary>
+        public Image ModifierSlotPrefab => _modifierSlotPrefab;
+
         /// <summary>index에 해당하는 프리팹 템플릿의 색을 반환한다.</summary>
         public Color GetColor(int index) => _templates[index].color;
 
