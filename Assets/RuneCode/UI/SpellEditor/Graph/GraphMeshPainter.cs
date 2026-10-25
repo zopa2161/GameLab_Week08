@@ -217,8 +217,6 @@ namespace RuneCode
             RuneMesh.Polygon(mesh, iconCenter, ICON_RADIUS * zoom, accent, CategoryIconSides(rune.Category));
             DrawPorts(mesh, node, rune, rect, fill);
             DrawSlots(mesh, node, rune, fill);
-            if (_layout.TryGetGradeButtonRect(node, rune, out Rect gradeButton))
-                RuneMesh.Rect(mesh, gradeButton, Color.Lerp(fill, accent, SLOT_CATEGORY_TINT));
         }
 
         /// <summary>조건·반복 블록의 후속 영역을 감싸는 C자 프레임을 카테고리 색으로 그린다.</summary>

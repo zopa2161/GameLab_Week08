@@ -90,6 +90,19 @@ namespace RuneCode
             _inspector = new SpellInspectorView();
             BindButtons();
             _presenter = new SpellEditorPresenter(editor, host, ui, this);
+            _graphCanvas.SetPaletteDropTarget(ResolvePaletteRect());
+        }
+
+        /// <summary>
+        /// 좌측 룬 팔레트로 쓸 화면 영역을 반환한다. 분류 버튼의 부모를 우선하고,
+        /// 분류 버튼이 없으면 룬 목록의 스크롤 뷰포트를 쓴다. 둘 다 없으면 null을 반환한다.
+        /// </summary>
+        private RectTransform ResolvePaletteRect()
+        {
+            if (_categoryButtons != null && _categoryButtons.Length > 0 && _categoryButtons[0] != null)
+                return _categoryButtons[0].transform.parent as RectTransform;
+            if (_runeList == null || _runeList.parent == null) return null;
+            return _runeList.parent.parent as RectTransform;
         }
 
         /// <summary>패널을 표시하고 편집을 허용한 뒤 전체를 갱신한다.</summary>

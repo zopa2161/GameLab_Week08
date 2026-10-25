@@ -1508,18 +1508,6 @@
       "_value": "이 슬롯에 장착할 수 없습니다"
     },
     {
-      "_key": "editor.changeGrade",
-      "_value": "등급 변경"
-    },
-    {
-      "_key": "editor.gradeUnavailable",
-      "_value": "바꿀 수 있는 등급이 없습니다"
-    },
-    {
-      "_key": "editor.gradeSlotsRemoved",
-      "_value": "(강화 {0}개 해제)"
-    },
-    {
       "_key": "editor.selectBehavior",
       "_value": "장착할 행동 노드를 하나 선택하세요"
     },

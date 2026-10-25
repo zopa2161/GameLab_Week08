@@ -33,7 +33,6 @@ namespace RuneCode
         private Action<GraphNode> _selectionChanged;
         private Action<GraphNode, string> _hoverChanged;
         private Action<Vector2> _quickPlacement;
-        private Action<string> _gradePicker;
         private Func<RuneDefinition, string, RunePalettePreview> _slotPreviewFactory;
         private GraphViewport _viewport;
         private GraphNodeLayout _layout;
@@ -41,6 +40,7 @@ namespace RuneCode
         private GraphNodeLabels _labels;
         private GraphMeshLayer _overlayLayer;
         private GraphPlacement _placement;
+        private RectTransform _paletteDropTarget;
         private GraphNode _hoveredNode;
         private string _hoveredSlot;
         private bool _isHoverValid;
@@ -54,6 +54,7 @@ namespace RuneCode
         private bool _isSlotPickupDragged;
         private int _moduleInputFrame = -1;
         private bool _hasDetachedDrag;
+        private bool _isBehaviorDrag;
 
         public bool HasPickedModule => _pickedModulePreview != null;
 
@@ -78,17 +79,16 @@ namespace RuneCode
         private bool HasGraph => _editor != null && _editor.Graph != null;
 
         /// <summary>
-        /// 편집 세션, 글꼴과 선택·포인터 진입·빠른 배치·등급 변경(노드 ID) 콜백을 연결하고 그래프를 표시한다.
+        /// 편집 세션, 글꼴과 선택·포인터 진입·빠른 배치 콜백을 연결하고 그래프를 표시한다.
         /// </summary>
         public void Initialize(ISpellEditor editor, TMP_FontAsset font, Action<GraphNode> selectionChanged,
-            Action<GraphNode, string> hoverChanged, Action<Vector2> quickPlacement, Action<string> gradePicker)
+            Action<GraphNode, string> hoverChanged, Action<Vector2> quickPlacement)
         {
             _editor = editor;
             _font = font;
             _selectionChanged = selectionChanged;
             _hoverChanged = hoverChanged;
             _quickPlacement = quickPlacement;
-            _gradePicker = gradePicker;
             _viewport = new GraphViewport(rectTransform);
             _layout = new GraphNodeLayout(_viewport, () => _editor.Graph);
             _painter = new GraphMeshPainter(_viewport, _layout, _state,
@@ -101,6 +101,12 @@ namespace RuneCode
             ResetView();
         }
 
+        /// <summary>좌측 룬 팔레트의 화면 영역을 지정한다. 이 영역에 노드나 장착 룬을 놓으면 팔레트로 반환한다.</summary>
+        internal void SetPaletteDropTarget(RectTransform palette)
+        {
+            _paletteDropTarget = palette;
+        }
+
         /// <summary>슬롯에서 집어 든 룬의 드래그 미리보기를 만드는 팩토리를 지정한다. 지정하지 않으면 슬롯 한 칸 미리보기를 쓴다.</summary>
         internal void SetSlotPreviewFactory(Func<RuneDefinition, string, RunePalettePreview> factory)
         {
@@ -111,6 +117,7 @@ namespace RuneCode
         public void ResetView()
         {
             CancelPickedModule();
+            _isBehaviorDrag = false;
             if (HasGraph && _layout.TryGetGraphBounds(out Vector2 minimum, out Vector2 maximum)) _viewport.Fit(minimum, maximum);
             RefreshGraph();
         }
@@ -183,6 +190,13 @@ namespace RuneCode
             RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, screen, null, out Vector2 point);
             graphPoint = _viewport.GraphPoint(point);
             return rectTransform.rect.Contains(point);
+        }
+
+        /// <summary>화면 좌표가 표시 중인 좌측 룬 팔레트 영역 안이면 true를 반환한다.</summary>
+        private bool IsPointerOverPalette(Vector2 screenPoint)
+        {
+            return _paletteDropTarget != null && _paletteDropTarget.gameObject.activeInHierarchy
+                && RectTransformUtility.RectangleContainsScreenPoint(_paletteDropTarget, screenPoint, null);
         }
 
         /// <summary>현재 보이는 캔버스 안에서 새 룬을 놓을 그래프 좌표를 반환한다.</summary>
@@ -345,6 +359,7 @@ namespace RuneCode
             CancelPickedModule();
             _editor?.EndBlockEdit();
             _hasDetachedDrag = false;
+            _isBehaviorDrag = false;
             _state.ResetPointer();
             base.OnDisable();
         }
@@ -356,6 +371,7 @@ namespace RuneCode
                 CancelPickedModule();
                 _editor?.EndBlockEdit();
                 _hasDetachedDrag = false;
+                _isBehaviorDrag = false;
                 _state.ResetPointer();
             }
         }
@@ -420,11 +436,16 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 슬롯에서 집어 든 룬을 화면 좌표에 놓는다. 다른 슬롯이면 원래 슬롯을 비우고 옮겨 장착하며,
-        /// 그래프 빈 공간이면 원래 슬롯을 비워 팔레트로 돌려보낸다. 편집 영역 밖이나 장착할 수 없는 위치에서는 원래 상태를 유지한다.
+        /// 슬롯에서 집어 든 룬을 화면 좌표에 놓는다. 좌측 룬 팔레트나 그래프 빈 공간이면 원래 슬롯을 비우고,
+        /// 다른 슬롯이면 옮겨 장착한다. 팔레트를 제외한 그래프 밖이나 장착할 수 없는 위치에서는 원래 상태를 유지한다.
         /// </summary>
         private void DropPickedSlotItem(string sourceNodeId, string sourceSlotKey, string runeId, string grade, Vector2 screen)
         {
+            if (IsPointerOverPalette(screen))
+            {
+                _editor.ClearSlot(sourceNodeId, sourceSlotKey);
+                return;
+            }
             RectTransformUtility.ScreenPointToLocalPointInRectangle(rectTransform, screen, null, out Vector2 point);
             if (!rectTransform.rect.Contains(point)) return;
             if (_layout.FindSlot(point, out GraphNode targetNode, out string targetKey)
@@ -547,11 +568,6 @@ namespace RuneCode
                 return;
             }
 
-            if (_layout.FindGradeButton(_state.Pointer, out GraphNode gradeNode))
-            {
-                if (_editor.IsEditable) _gradePicker(gradeNode.Id);
-                return;
-            }
             if (TryHandleSlotClick(_state.Pointer)) return;
 
             GraphNode clicked = _layout.FindNodeAt(_state.Pointer);
@@ -584,7 +600,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 퍼즐 결합과 영역 선택을 확정하고, 노드를 실제로 옮겼으면 편집 세션에 변경을 알린다.
+        /// 팔레트에 놓은 행동 노드 묶음을 삭제하고, 그 외에는 퍼즐 결합과 영역 선택·이동을 확정한다.
         /// 커서에 붙인 룬은 클릭으로 집은 경우 그대로 유지하고, 드래그로 집었거나 다음 클릭이면 놓는다.
         /// </summary>
         public void OnPointerUp(PointerEventData eventData)
@@ -621,6 +637,20 @@ namespace RuneCode
                 && (_hasDetachedDrag || Vector2.Distance(_state.Pointer, _state.DragStart) > NODE_DRAG_THRESHOLD))
             {
                 if (!_hasDetachedDrag) MoveDraggedNodes();
+                if (_isBehaviorDrag && IsPointerOverPalette(eventData.position))
+                {
+                    HashSet<string> group = _editor.Graph.GetBlockGroup(_state.DragOrigins.Keys, GameData.Runes);
+                    foreach (string id in group) _editor.RemoveNode(id);
+                    _state.Selected.Clear();
+                    _selectionChanged(null);
+                    _editor.EndBlockEdit();
+                    _labels.SetFrontNode(null);
+                    _hasDetachedDrag = false;
+                    _isBehaviorDrag = false;
+                    _state.ResetPointer();
+                    RefreshGraph();
+                    return;
+                }
                 UpdatePuzzleSnap(_state.DragOrigins.Keys);
                 CommitPuzzleSnap(_state.DragOrigins.Keys);
                 _layout.ArrangeBlockGroups();
@@ -638,6 +668,7 @@ namespace RuneCode
             _editor.EndBlockEdit();
             _labels.SetFrontNode(null);
             _hasDetachedDrag = false;
+            _isBehaviorDrag = false;
             _state.ResetPointer();
             RefreshGraph();
         }
@@ -736,6 +767,7 @@ namespace RuneCode
             _labels.SetFrontNode(_state.DragOrigins.ContainsKey(clicked.Id) ? clicked.Id : null);
             LayoutLabels();
             _hasDetachedDrag = false;
+            _isBehaviorDrag = GameData.Runes.Get(clicked.RuneId).Category == SpellGrammar.CATEGORY_BEHAVIOR;
         }
 
         /// <summary>드래그 시작 이후 포인터 이동량만큼 선택된 노드들을 그래프 좌표에서 옮긴다.</summary>
