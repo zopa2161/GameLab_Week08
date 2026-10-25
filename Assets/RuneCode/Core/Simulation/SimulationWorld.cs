@@ -59,6 +59,9 @@ namespace RuneCode
         /// <summary>플레이어 이동 속도 배율이다.</summary>
         internal double MoveSpeedMultiplier { get; private set; }
 
+        /// <summary>강화 트리 능력치와 효과 플래그다. 생성 시와 라운드 대기 중 강화 반영에서 교체된다.</summary>
+        internal PlayerUpgradeStats Upgrades { get; private set; } = PlayerUpgradeStats.None;
+
         /// <summary>시뮬레이션 공유 난수 발생기다. 모든 난수 호출이 같은 인스턴스를 쓴다.</summary>
         internal SimRandom Random { get; }
 
@@ -119,8 +122,7 @@ namespace RuneCode
         /// </summary>
         internal SimulationWorld(BalanceData balance, EnemyCatalog enemyCatalog, SectorDefinition sector, BossCatalog bosses,
             FormationCatalog formations, DropCatalog drops, IEliteModifierDropSource eliteDrops, StageCatalog stages,
-            bool isMission, double maxHp, double maxEnergy, int stageNumber, double energyRegen,
-            double damageMultiplier, double moveSpeedMultiplier, SimRandom random, AdaptationNet adaptation, bool isProgressionMission = false)
+            bool isMission, int stageNumber, PlayerUpgradeStats upgrades, SimRandom random, AdaptationNet adaptation, bool isProgressionMission = false)
         {
             Balance = balance;
             EnemyCatalog = enemyCatalog;
@@ -133,22 +135,23 @@ namespace RuneCode
             IsMission = isMission;
             IsProgressionMission = isProgressionMission;
             StageNumber = Math.Max(1, stageNumber);
-            SetPlayerStats(maxHp, maxEnergy, energyRegen, damageMultiplier, moveSpeedMultiplier);
+            SetPlayerStats(upgrades);
             Random = random;
             Adaptation = adaptation;
         }
 
         /// <summary>
-        /// 플레이어 최대 체력·최대 전력·전력 재생량과 피해·이동 속도 배율을 설정한다. 체력·전력·재생량이 0 이하이면 밸런스 기본값을 쓴다.
-        /// 생성 시와 진행 중 런의 강화 반영에서 같은 규칙으로 쓴다.
+        /// 강화 묶음으로 플레이어 최대 체력·최대 전력·전력 재생량과 피해·이동 속도 배율을 설정하고 묶음을 보관한다.
+        /// 체력·전력·재생량이 0 이하이면 밸런스 기본값을 쓴다. 생성 시와 진행 중 런의 강화 반영에서 같은 규칙으로 쓴다.
         /// </summary>
-        internal void SetPlayerStats(double maxHp, double maxEnergy, double energyRegen, double damageMultiplier, double moveSpeedMultiplier)
+        internal void SetPlayerStats(PlayerUpgradeStats upgrades)
         {
-            MaxHp = maxHp > 0 ? maxHp : Balance.Player.Hp;
-            MaxEnergy = maxEnergy > 0 ? maxEnergy : Balance.Player.Energy;
-            EnergyRegen = energyRegen > 0 ? energyRegen : Balance.Player.EnergyRegen;
-            DamageMultiplier = damageMultiplier;
-            MoveSpeedMultiplier = moveSpeedMultiplier;
+            Upgrades = upgrades ?? PlayerUpgradeStats.None;
+            MaxHp = Upgrades.MaxHp > 0 ? Upgrades.MaxHp : Balance.Player.Hp;
+            MaxEnergy = Upgrades.MaxEnergy > 0 ? Upgrades.MaxEnergy : Balance.Player.Energy;
+            EnergyRegen = Upgrades.EnergyRegen > 0 ? Upgrades.EnergyRegen : Balance.Player.EnergyRegen;
+            DamageMultiplier = Upgrades.DamageMultiplier;
+            MoveSpeedMultiplier = Upgrades.MoveSpeedMultiplier;
         }
 
         /// <summary>다음 개체 ID를 하나 발급하고 카운터를 증가시켜 반환한다.</summary>

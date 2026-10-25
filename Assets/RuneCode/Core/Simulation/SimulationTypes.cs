@@ -102,6 +102,8 @@ namespace RuneCode
         private double _dashCooldownDuration;
         private double _dashRemaining;
         private int _dashesStarted;
+        private double _lastDashStartTime = double.NegativeInfinity;
+        private bool _isDashGuardUsed;
         private double _invulnerableUntil;
         private double _burnUntil;
         private double _burnNextTick;
@@ -121,6 +123,12 @@ namespace RuneCode
         public double DashRemaining => _dashRemaining;
         /// <summary>실제로 시작한 대시 횟수를 반환한다.</summary>
         public int DashesStarted => _dashesStarted;
+
+        /// <summary>마지막으로 대시를 시작한 시각이다. 대시한 적이 없으면 음의 무한대다.</summary>
+        public double LastDashStartTime => _lastDashStartTime;
+
+        /// <summary>현재 대시에서 대시 충돌 보호를 이미 사용했는지 반환한다. 대시를 시작할 때 초기화된다.</summary>
+        public bool IsDashGuardUsed => _isDashGuardUsed;
         public IReadOnlyList<double> Cooldowns => _cooldowns;
         public IReadOnlyList<double> CooldownDurations => _cooldownDurations;
 
@@ -235,9 +243,12 @@ namespace RuneCode
         /// <summary>에너지를 지정량만큼 회복하고 최대 에너지를 넘지 않게 한다.</summary>
         internal void RestoreEnergy(double amount) { _energy = Math.Min(_maxEnergy, _energy + Math.Max(0, amount)); }
 
-        /// <summary>대시가 가능한 경우 방향, 지속 시간, 무적 및 쿨다운을 설정한다.</summary>
+        /// <summary>대시가 가능한 경우 방향, 지속 시간, 무적 및 쿨다운을 설정하고 대시 시작 시각과 충돌 보호 사용 여부를 갱신한다.</summary>
         internal bool StartDash(SimVector direction, double seconds, double cooldown, double time)
-        { if (_dashCooldown > 0.000001) return false; _dashesStarted++; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds); return true; }
+        { if (_dashCooldown > 0.000001) return false; _dashesStarted++; _lastDashStartTime = time; _isDashGuardUsed = false; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds); return true; }
+
+        /// <summary>현재 대시에서 대시 충돌 보호를 사용한 것으로 표시한다.</summary>
+        internal void MarkDashGuardUsed() => _isDashGuardUsed = true;
 
         /// <summary>진행 중인 대시의 이동 방향을 반환한다.</summary>
         internal SimVector GetDashDirection() => _dashDirection;
@@ -568,6 +579,7 @@ namespace RuneCode
         private readonly double _angle;
         private readonly SpellModifierValues _modifiers;
         private readonly double _costMultiplier;
+        private readonly double _castDamageMultiplier;
         private readonly SimulationPlayer _caster;
         private readonly SpellBehaviorRuntime _behavior;
         private readonly object _behaviorState;
@@ -706,6 +718,9 @@ namespace RuneCode
         /// <summary>이 개체의 이벤트 분기 노드 비용에 곱하는 배율(개체를 만든 문맥의 배율)이다.</summary>
         internal double CostMultiplier => _costMultiplier;
 
+        /// <summary>생성한 시전 문맥의 시전 시점 피해 배율이다. 이벤트 분기 문맥에 그대로 넘긴다.</summary>
+        internal double CastDamageMultiplier => _castDamageMultiplier;
+
         /// <summary>이 개체를 만든 시전자다. 개체 이벤트로 시작한 후속 실행에 전달한다.</summary>
         internal SimulationPlayer Caster => _caster;
         internal SimVector Anchor => _anchor;
@@ -727,10 +742,12 @@ namespace RuneCode
         /// </summary>
         internal SimulationSpellEntity(int id, SpellAction action, SpellStats stats, string element, SimVector position,
             SimVector direction, bool fromEvent, SimVector anchor, double angle, string castNoiseElement,
-            double visualSeconds, double warmupSeconds, SpellModifierValues modifiers, double costMultiplier, SimulationPlayer caster)
+            double visualSeconds, double warmupSeconds, SpellModifierValues modifiers, double costMultiplier, SimulationPlayer caster,
+            double castDamageMultiplier = 1d)
         {
             _warmupSeconds = warmupSeconds;
             _costMultiplier = costMultiplier;
+            _castDamageMultiplier = castDamageMultiplier;
             _caster = caster;
             _id = id;
             _action = action;

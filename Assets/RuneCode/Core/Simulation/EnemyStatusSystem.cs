@@ -13,6 +13,7 @@ namespace RuneCode
         private readonly List<EnemyStatusEffect> _enemyStatuses = new List<EnemyStatusEffect>();
         private readonly Dictionary<int, EnemyStatusEffect> _statusIndex = new Dictionary<int, EnemyStatusEffect>();
         private double _statusTime;
+        private Action<SimulationEnemy> _statusStacked;
 
         /// <summary>현재 관리 중인 상태 이상 목록이다. 상태 해시가 같은 인스턴스를 순회한다.</summary>
         internal IReadOnlyList<EnemyStatusEffect> Statuses => _enemyStatuses;
@@ -27,6 +28,9 @@ namespace RuneCode
             _stats = stats;
             _simulation = simulation;
         }
+
+        /// <summary>다른 종류의 상태 이상이 이미 걸린 적에게 새 상태 이상이 걸릴 때 호출할 콜백을 설정한다. null이면 알리지 않는다.</summary>
+        internal void SetStatusStackedHandler(Action<SimulationEnemy> handler) => _statusStacked = handler;
 
         /// <summary>
         /// 상태 판정 시각을 현재 틱으로 갱신하고, 적 목록 순서로 화염의 마지막 만료 틱까지 지속 피해를 적용한 뒤 만료된 상태 이상을 제거한다.

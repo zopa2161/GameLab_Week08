@@ -126,8 +126,9 @@ namespace RuneCode.EditorTools
                 CompileResult compiled = GraphCompiler.Compile(graph, GameData.Runes, GameData.Balance.Grammar, unlocked,
                     GameData.Balance.Economy.BaseCapacity, GameData.Balance.Player.MaxEnergy, GameData.Spells);
                 if (!compiled.Ok) throw new System.InvalidOperationException("기본 빌드를 컴파일하지 못했습니다.");
-                var simulation = new RuneSimulation(SimulationSetup.FromGameData(1, true, GameData.Balance.Player.MaxHp,
-                    GameData.Balance.Player.MaxEnergy, 1, GameData.Balance.Player.EnergyRegen, isProgressionMission: true));
+                var upgrades = new PlayerUpgradeStats(GameData.Balance.Player.MaxHp, GameData.Balance.Player.MaxEnergy,
+                    GameData.Balance.Player.EnergyRegen);
+                var simulation = new RuneSimulation(SimulationSetup.FromGameData(1, true, 1, upgrades, isProgressionMission: true));
                 simulation.SetLoadout(new[] { compiled.Spell });
                 var input = new SimulationInput(SimVector.Zero, new SimVector(1, 0), true);
                 for (int tick = 0; tick < 60 * 180 && !simulation.Completed && !simulation.IsFailed && !simulation.IsWaitingForNextRound; tick++)

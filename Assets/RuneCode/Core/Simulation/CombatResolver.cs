@@ -107,7 +107,8 @@ namespace RuneCode
             bool tracksDirectHit = entity.Behavior.TracksDirectHit;
             if (tracksDirectHit) entity.HasDirectHit = true;
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
-                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action);
+                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action,
+                castDamageMultiplier: entity.CastDamageMultiplier);
             bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             _executor.Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
             if (isFirstEvent) _executor.Execute(entity.Action.OnFirstHitOrExpire, context);
@@ -180,7 +181,8 @@ namespace RuneCode
         internal void RaiseExpireEvent(SimulationSpellEntity entity)
         {
             SpellContext context = new SpellContext(entity.Position, entity.Direction, null, true,
-                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id);
+                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id,
+                castDamageMultiplier: entity.CastDamageMultiplier);
             bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             _executor.Execute(entity.Action.OnExpire, context);
             if (isFirstEvent) _executor.Execute(entity.Action.OnFirstHitOrExpire, context);

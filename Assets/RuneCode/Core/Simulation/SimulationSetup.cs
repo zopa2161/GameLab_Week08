@@ -14,35 +14,11 @@ namespace RuneCode
 
         public bool IsProgressionMission { get; private set; }
 
-        /// <summary>플레이어 최대 체력이다. 0이면 밸런스 기본값을 쓴다.</summary>
-        public double MaxHp { get; private set; }
-
-        /// <summary>플레이어 최대 전력이다. 0이면 밸런스 기본값을 쓴다.</summary>
-        public double MaxEnergy { get; private set; }
-
         /// <summary>미션 스테이지 번호다.</summary>
         public int StageNumber { get; private set; }
 
-        /// <summary>초당 전력 재생량이다. 0이면 밸런스 기본값을 쓴다.</summary>
-        public double EnergyRegen { get; private set; }
-
-        /// <summary>전투 공통 피해 배율이다.</summary>
-        public double DamageMultiplier { get; private set; }
-
-        /// <summary>플레이어 이동 속도 배율이다.</summary>
-        public double MoveSpeedMultiplier { get; private set; }
-
-        /// <summary>스크랩 획득 배율이다.</summary>
-        public double ScrapGainMultiplier { get; private set; }
-
-        /// <summary>스크랩 줍기 반경 배율이다.</summary>
-        public double ScrapPickupRangeMultiplier { get; private set; }
-
-        /// <summary>처치 전력 회복에 더하는 고정 보너스다.</summary>
-        public double KillEnergyBonus { get; private set; }
-
-        /// <summary>스크랩 획득 시 체력 회복 비율이다.</summary>
-        public double ScrapHealRatio { get; private set; }
+        /// <summary>강화 트리 능력치와 효과 플래그다. 최대 체력·전력·재생량 0은 밸런스 기본값을 뜻한다.</summary>
+        public PlayerUpgradeStats UpgradeStats { get; private set; }
 
         /// <summary>이어할 연속 미션 스테이지 번호다. 0이면 새 연속 미션이다.</summary>
         public int ProgressionStage { get; private set; }
@@ -84,12 +60,11 @@ namespace RuneCode
         private SimulationSetup() { }
 
         /// <summary>
-        /// 전역 게임 데이터를 한 번 읽고 시드, 스테이지와 트리 능력치·처치 전력 보너스·스크랩 회복 비율, 카탈로그로 설정을 만든다.
-        /// 매개변수와 기본값은 기존 시뮬레이션 생성자와 같다. 생략한 배율은 1, 보너스는 0을 사용한다.
+        /// 전역 게임 데이터를 한 번 읽고 시드, 스테이지, 강화 능력치 묶음과 카탈로그로 설정을 만든다.
+        /// upgradeStats를 생략하면 강화가 없는 기본 묶음을 쓴다.
         /// </summary>
-        public static SimulationSetup FromGameData(int seed = 1, bool isMission = false, double maxHp = 0, double maxEnergy = 0, int stageNumber = 1, double energyRegen = 0,
-            double damageMultiplier = 1, double moveSpeedMultiplier = 1, double scrapGainMultiplier = 1,
-            double scrapPickupRangeMultiplier = 1, double killEnergyBonus = 0, double scrapHealRatio = 0, bool isProgressionMission = false,
+        public static SimulationSetup FromGameData(int seed = 1, bool isMission = false, int stageNumber = 1,
+            PlayerUpgradeStats upgradeStats = null, bool isProgressionMission = false,
             int progressionStage = 0, int progressionRound = 0, double progressionHp = 0)
         {
             GameData.Load();
@@ -98,9 +73,8 @@ namespace RuneCode
                 throw new System.ArgumentException("연속 진행 시작 값은 연속 스테이지에서만 사용할 수 있습니다.", nameof(progressionStage));
             return new SimulationSetup
             {
-                Seed = seed, IsMission = isMission, IsProgressionMission = isProgressionMission, MaxHp = maxHp, MaxEnergy = maxEnergy, StageNumber = stageNumber, EnergyRegen = energyRegen,
-                DamageMultiplier = damageMultiplier, MoveSpeedMultiplier = moveSpeedMultiplier, ScrapGainMultiplier = scrapGainMultiplier,
-                ScrapPickupRangeMultiplier = scrapPickupRangeMultiplier, KillEnergyBonus = killEnergyBonus, ScrapHealRatio = scrapHealRatio,
+                Seed = seed, IsMission = isMission, IsProgressionMission = isProgressionMission, StageNumber = stageNumber,
+                UpgradeStats = upgradeStats ?? PlayerUpgradeStats.None,
                 ProgressionStage = progressionStage, ProgressionRound = progressionRound, ProgressionHp = progressionHp,
                 Balance = GameData.Balance, Enemies = GameData.Enemies, Sector = GameData.Sector, Bosses = GameData.Bosses, Formations = GameData.Formations,
                 Drops = GameData.Drops, ModifierGrades = GameData.ModifierGrades, Stages = GameData.Stages, Runes = GameData.Runes

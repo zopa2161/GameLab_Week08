@@ -539,7 +539,7 @@
       "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 0,
       "_stats": {
         "_damageMultiplier": 1.5,
@@ -570,7 +570,7 @@
       "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 0,
       "_stats": {
         "_count": 3,
@@ -979,7 +979,7 @@
       "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 0,
       "_stats": {
         "_damageMultiplier": 1,
@@ -1046,7 +1046,7 @@
           "_rate": 0
         }
       ],
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 300,
       "_stats": {
         "_beamWidth": 48,
@@ -1072,7 +1072,7 @@
           "_rate": 0
         }
       ],
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 200,
       "_stats": {
         "_damageMultiplier": 1,
@@ -1109,7 +1109,7 @@
       "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_stats": {
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
@@ -1129,7 +1129,7 @@
       "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_stats": {
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
@@ -1149,7 +1149,7 @@
       "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_stats": {
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
@@ -1456,7 +1456,7 @@
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 35,
       "_stats": {
         "_damageMultiplier": 1,

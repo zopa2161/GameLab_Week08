@@ -17,6 +17,11 @@ namespace RuneCode
         [SerializeField] private float _dashDuration;
         [SerializeField] private float _dashCooldown;
         [SerializeField] private float _hitInvulnerability;
+
+        [Header("강화 트리 대시")]
+        [SerializeField] private float _postDashBuffSeconds = 1f;
+        [SerializeField] private float _dashEndCostMultiplier = 0.9f;
+        [SerializeField] private float _dashGuardInvulnerability = 1f;
         public float MaxHp => _maxHp;
         public float MoveSpeed => _moveSpeed;
         public float MaxEnergy => _maxEnergy;
@@ -28,6 +33,15 @@ namespace RuneCode
         public float Energy => _maxEnergy;
         public float DashSeconds => _dashDuration;
         public float HurtInvulnerability => _hitInvulnerability;
+
+        /// <summary>대시 시작 후 이 시간 안에 시전한 주문에 대시 후 피해 강화를 적용한다.</summary>
+        public float PostDashBuffSeconds => _postDashBuffSeconds;
+
+        /// <summary>대시 종료 시작 노드 주문의 마나 비용 배율이다.</summary>
+        public float DashEndCostMultiplier => _dashEndCostMultiplier;
+
+        /// <summary>대시 충돌 보호가 발동할 때 주는 무적 시간이다.</summary>
+        public float DashGuardInvulnerability => _dashGuardInvulnerability;
     }
 
     [Serializable]
@@ -100,6 +114,12 @@ namespace RuneCode
         [SerializeField] private float _separationAllowance;
         [SerializeField] private float _separationStrength;
         [SerializeField] private float _separationMaxStep;
+
+        [Header("강화 트리 전투")]
+        [SerializeField] private int _burnMaxStacks = 3;
+        [SerializeField] private float _auraRadius = 100f;
+        [SerializeField] private float _auraTickInterval = 0.5f;
+        [SerializeField] private float _auraTickDamage = 1f;
         public float BurnDps => _burnDps;
         public float BurnDamageRatio => _burnDamageRatio;
         public float BurnInterval => _burnInterval;
@@ -122,6 +142,18 @@ namespace RuneCode
         public float SeparationAllowance => _separationAllowance;
         public float SeparationStrength => _separationStrength;
         public float SeparationMaxStep => _separationMaxStep;
+
+        /// <summary>화염 강화에서 폭발이 일어나는 화상 중첩 수다.</summary>
+        public int BurnMaxStacks => _burnMaxStacks;
+
+        /// <summary>플레이어 주위 장판의 반경이다.</summary>
+        public float AuraRadius => _auraRadius;
+
+        /// <summary>플레이어 주위 장판의 피해 간격(초)이다.</summary>
+        public float AuraTickInterval => _auraTickInterval;
+
+        /// <summary>플레이어 주위 장판의 틱당 피해다.</summary>
+        public float AuraTickDamage => _auraTickDamage;
     }
 
     [Serializable]
@@ -333,6 +365,10 @@ namespace RuneCode
                     || data.Limits.MaxEnemies <= 0 || data.Limits.MaxCompiledActions <= 0
                     || data.Limits.MaxScheduledExecutions <= 0 || data.Limits.MaxActionsPerTick <= 0)
                     throw new FormatException("밸런스 범위가 유효하지 않습니다.");
+            if (data.Player.PostDashBuffSeconds < 0f || data.Player.DashEndCostMultiplier <= 0f || data.Player.DashEndCostMultiplier > 1f
+                || data.Player.DashGuardInvulnerability < 0f || data.Combat.BurnMaxStacks < 2 || data.Combat.AuraRadius <= 0f
+                || data.Combat.AuraTickInterval <= 0f || data.Combat.AuraTickDamage < 0f)
+                throw new FormatException("강화 트리 밸런스 범위가 유효하지 않습니다.");
             return data;
         }
 

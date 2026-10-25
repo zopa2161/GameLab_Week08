@@ -156,10 +156,7 @@ namespace RuneCode
                 else _isClearModifierChosen = true;
                 _roundBreakClock = Stopwatch.StartNew();
             }
-            _simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, true, session.MaxHp, session.MaxEnergy, 1, session.EnergyRegen,
-                session.DamageMultiplier, session.MoveSpeedMultiplier, session.ScrapGainMultiplier,
-                scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
-                killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio, isProgressionMission: true,
+            _simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, true, 1, session.CreateUpgradeStats(), isProgressionMission: true,
                 progressionStage: save.ProgressionStage, progressionRound: save.ProgressionRound, progressionHp: resumeHp));
             _simulation.SetLoadout(new[] { spell });
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
@@ -220,9 +217,7 @@ namespace RuneCode
             if (_settled) return false;
             double maxHpBefore = _simulation.Player.MaxHp;
             double maxEnergyBefore = _simulation.Player.MaxEnergy;
-            if (!_simulation.TryApplyUpgradeStats(_session.MaxHp, _session.MaxEnergy, _session.EnergyRegen,
-                _session.DamageMultiplier, _session.MoveSpeedMultiplier, _session.ScrapGainMultiplier,
-                _session.ScrapPickupRangeMultiplier, _session.ScrapHealRatio, _session.KillEnergyBonus)) return false;
+            if (!_simulation.TryApplyUpgradeStats(_session.CreateUpgradeStats())) return false;
             _simulation.SetUnlockedElements(_session.GetUnlockedElements());
             LocalTelemetry.RecordUsabilityEvent("upgrade_stats_applied", "round_break", new Dictionary<string, object>
             {

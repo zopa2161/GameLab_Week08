@@ -27,8 +27,9 @@ namespace RuneCode
         {
             if (profile.StartEnergyRatio != 1f) throw new ArgumentException("현재는 가득 찬 전력 시작만 지원합니다.", nameof(profile));
             if (!MeasurementCodes.IsInputMode(condition.InputMode)) throw new ArgumentException("알 수 없는 측정 입력 방식입니다.", nameof(condition));
-            RuneSimulation simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, isMission: false, maxHp: GameData.Balance.Player.MaxHp,
-                maxEnergy: profile.MaxEnergy, stageNumber: 1, energyRegen: profile.EnergyRegen, damageMultiplier: profile.DamageMultiplier));
+            var upgrades = new PlayerUpgradeStats(maxHp: GameData.Balance.Player.MaxHp, maxEnergy: profile.MaxEnergy,
+                energyRegen: profile.EnergyRegen, damageMultiplier: profile.DamageMultiplier);
+            RuneSimulation simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, isMission: false, stageNumber: 1, upgradeStats: upgrades));
             simulation.ResetBench(GetScenario(condition.Situation), 0, condition.Distance);
             simulation.SetAdaptationEnabled(false);
             simulation.SetDebugInvulnerable(profile.IsInvulnerable);

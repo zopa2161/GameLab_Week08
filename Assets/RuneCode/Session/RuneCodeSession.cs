@@ -1029,6 +1029,38 @@ namespace RuneCode
             return total;
         }
 
+        /// <summary>해당 효과 유형의 트리 노드 중 레벨 1 이상인 노드가 있는지 반환한다. 플래그형 강화 판정에 쓴다.</summary>
+        public bool HasUpgradeEffect(UpgradeEffectType effectType)
+        {
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
+                if (node != null && node.EffectType == effectType && GetUpgradeNodeLevel(node.Id) >= 1)
+                    return true;
+            return false;
+        }
+
+        /// <summary>현재 트리 레벨로 합산한 능력치와 효과 플래그를 시뮬레이션 전달용 묶음으로 만들어 반환한다.</summary>
+        public PlayerUpgradeStats CreateUpgradeStats()
+        {
+            return new PlayerUpgradeStats(MaxHp, MaxEnergy, EnergyRegen, DamageMultiplier, MoveSpeedMultiplier,
+                ScrapGainMultiplier, ScrapPickupRangeMultiplier, ScrapHealRatio, KillEnergyBonus,
+                elementDamageBonus: GetUpgradeTreeEffectTotal(UpgradeEffectType.ElementDamage),
+                statusDurationBonus: GetUpgradeTreeEffectTotal(UpgradeEffectType.StatusDuration),
+                dashCooldownReduction: GetUpgradeTreeEffectTotal(UpgradeEffectType.DashCooldownReduction),
+                dashInvulnerabilityBonus: GetUpgradeTreeEffectTotal(UpgradeEffectType.DashInvulnerability),
+                evasionChance: GetUpgradeTreeEffectTotal(UpgradeEffectType.Evasion),
+                nearDamageBonus: GetUpgradeTreeEffectTotal(UpgradeEffectType.NearDamage),
+                farDamageBonus: GetUpgradeTreeEffectTotal(UpgradeEffectType.FarDamage),
+                fullManaDamageBonus: GetUpgradeTreeEffectTotal(UpgradeEffectType.FullManaDamage),
+                postDashDamageBonus: GetUpgradeTreeEffectTotal(UpgradeEffectType.PostDashDamage),
+                stationaryRegenBonus: GetUpgradeTreeEffectTotal(UpgradeEffectType.StationaryRegen),
+                hasDashTeleport: HasUpgradeEffect(UpgradeEffectType.DashTeleport),
+                hasDashCollisionGuard: HasUpgradeEffect(UpgradeEffectType.DashCollisionGuard),
+                hasPlayerAura: HasUpgradeEffect(UpgradeEffectType.PlayerAura),
+                hasArcEnhance: HasUpgradeEffect(UpgradeEffectType.ArcEnhance),
+                hasIceEnhance: HasUpgradeEffect(UpgradeEffectType.IceEnhance),
+                hasFireEnhance: HasUpgradeEffect(UpgradeEffectType.FireEnhance));
+        }
+
         /// <summary>편집 사본을 반영한 장착 마법 전체의 RAM 사용량을 반환한다.</summary>
         private int CalculateEquippedRam(SpellGraph edited)
         {

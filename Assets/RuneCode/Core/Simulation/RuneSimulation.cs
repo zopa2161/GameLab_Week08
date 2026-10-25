@@ -28,6 +28,7 @@ namespace RuneCode
         private readonly EnemySystem _enemy;
         private readonly CombatResolver _combat;
         private readonly SpellEntitySystem _entities;
+        private readonly PlayerAuraSystem _aura;
         private readonly BattleRules _rules;
         private readonly BenchScenario _bench;
         private bool _isRoundBreakArenaReady;
@@ -185,8 +186,8 @@ namespace RuneCode
         public RuneSimulation(SimulationSetup setup)
         {
             _world = new SimulationWorld(setup.Balance, setup.Enemies, setup.Sector, setup.Bosses, setup.Formations, setup.Drops,
-                new ModifierGradeDropSource(setup.ModifierGrades), setup.Stages, setup.IsMission, setup.MaxHp, setup.MaxEnergy, setup.StageNumber, setup.EnergyRegen,
-                setup.DamageMultiplier, setup.MoveSpeedMultiplier, new SimRandom(setup.Seed), new AdaptationNet(setup.Balance), setup.IsProgressionMission);
+                new ModifierGradeDropSource(setup.ModifierGrades), setup.Stages, setup.IsMission, setup.StageNumber, setup.UpgradeStats,
+                new SimRandom(setup.Seed), new AdaptationNet(setup.Balance), setup.IsProgressionMission);
             _feedback = new SimulationFeedback(_world);
             _runtime = new SpellRuntimeContext(_world, _feedback);
             _stats = new SimulationStats();
@@ -197,10 +198,12 @@ namespace RuneCode
             _spawn = new SpawnSystem(_world, _feedback, _stats);
             _bench = new BenchScenario(_world, _spawn);
             _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, _statuses, _executor, this);
+            PlayerUpgradeStats upgrades = _world.Upgrades;
             _loot = new LootSystem(_world, _stats, _statuses, _rules, _spawn, _enemy,
-                setup.ScrapGainMultiplier, setup.ScrapPickupRangeMultiplier, setup.ScrapHealRatio, setup.KillEnergyBonus);
+                upgrades.ScrapGainMultiplier, upgrades.ScrapPickupRangeMultiplier, upgrades.ScrapHealRatio, upgrades.KillEnergyBonus);
             _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, setup.Runes, _runtime);
             _entities = new SpellEntitySystem(_world, _combat, _runtime);
+            _aura = new PlayerAuraSystem(_world, this);
             _runtime.Connect(_combat, _entities);
             if (setup.IsMission) BeginTimedBattle(setup.Runes, setup.ProgressionStage, setup.ProgressionRound, setup.ProgressionHp);
             else ResetBench("dummy_single");
@@ -213,16 +216,16 @@ namespace RuneCode
         public void SetUnlockedElements(IReadOnlyList<string> elements) => _executor.SetUnlockedElements(elements);
 
         /// <summary>
-        /// 라운드 대기 중에만 강화 능력치(최대 체력·전력, 재생, 피해·이동 속도, 스크랩 획득·줍기·회복, 처치 전력)를 월드·플레이어·전리품에 반영한다.
+        /// 라운드 대기 중에만 강화 능력치 묶음(최대 체력·전력, 재생, 피해·이동 속도, 스크랩 획득·줍기·회복, 처치 전력, 효과 플래그)을 월드·플레이어·전리품에 반영한다.
         /// 최대 체력·전력이 늘면 현재 값도 증가분만큼 오른다. 적용하면 true를 반환한다.
         /// </summary>
-        public bool TryApplyUpgradeStats(double maxHp, double maxEnergy, double energyRegen, double damageMultiplier, double moveSpeedMultiplier,
-            double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
+        public bool TryApplyUpgradeStats(PlayerUpgradeStats upgrades)
         {
             if (!IsWaitingForNextRound) return false;
-            _world.SetPlayerStats(maxHp, maxEnergy, energyRegen, damageMultiplier, moveSpeedMultiplier);
+            _world.SetPlayerStats(upgrades);
             _world.Player.SetMaxStats(_world.MaxHp, _world.MaxEnergy);
-            _loot.SetUpgradeStats(scrapGainMultiplier, scrapPickupRangeMultiplier, scrapHealRatio, killEnergyBonus);
+            PlayerUpgradeStats applied = _world.Upgrades;
+            _loot.SetUpgradeStats(applied.ScrapGainMultiplier, applied.ScrapPickupRangeMultiplier, applied.ScrapHealRatio, applied.KillEnergyBonus);
             return true;
         }
 
@@ -451,6 +454,7 @@ namespace RuneCode
             if (_world.IsMission) _enemy.ApplySeparation();
             _enemy.RunEnemyShots();
             _entities.AdvanceSpellEntities();
+            _aura.Advance();
             _beam.RemoveStoppedChannels();
             _enemy.AdvanceHostileProjectiles();
             _loot.CleanupEnemies();

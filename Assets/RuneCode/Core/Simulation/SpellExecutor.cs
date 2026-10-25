@@ -476,7 +476,7 @@ namespace RuneCode
                 double warmup = behavior.GetWarmupSeconds(stats);
                 var entity = new SimulationSpellEntity(_world.AllocateEntityId(), action, stats, element, position, direction,
                     context.FromEvent, context.Origin, angle, context.NoiseElement, _world.Balance.Sim.SpellVisualSeconds, warmup,
-                    context.Modifiers, context.CostMultiplier, context.Caster);
+                    context.Modifiers, context.CostMultiplier, context.Caster, context.CastDamageMultiplier);
                 if (entity.BehaviorState is SlashBehaviorRuntime.SlashState slash) slash.SetAnchorTarget(context.Target);
                 _stats.RecordActionSpawn(action, context);
                 _world.SpellEntities.Add(entity); _stats.PeakSpellEntities = Math.Max(_stats.PeakSpellEntities, _world.SpellEntities.Count);

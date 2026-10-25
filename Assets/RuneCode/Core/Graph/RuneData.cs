@@ -905,11 +905,12 @@ namespace RuneCode
                 if (cost.Amount < 0) log.Add(rune.Id, "resourceCosts:" + cost.Resource, "음수일 수 없습니다.");
             bool isImplementationRune = rune.Category == SpellGrammar.CATEGORY_CORE || rune.Category == SpellGrammar.CATEGORY_INTERNAL;
             bool isStarterRune = STARTER_RUNE_IDS.Contains(rune.Id);
+            // 강화 트리 개편으로 룬 해금 노드를 쓰지 않으므로 그 외 플레이어 룬도 start를 허용한다.
             bool hasValidUnlockType = isImplementationRune || isStarterRune
                 ? rune.UnlockType == "start"
-                : rune.UnlockType == "tree" || rune.UnlockType == "bench";
+                : UNLOCK_TYPES.Contains(rune.UnlockType);
             if (!hasValidUnlockType)
-                log.Add(rune.Id, "unlockType", "시작 룬은 start, 그 외 플레이어 룬은 tree 또는 bench로 설정해야 합니다.");
+                log.Add(rune.Id, "unlockType", "시작 룬은 start, 그 외 플레이어 룬은 start·tree·bench 중 하나로 설정해야 합니다.");
         }
 
         /// <summary>룬의 자원별 기본 비용을 만들고 빈 ID·음수·중복을 검증한다. 기존 energy는 mana 비용으로 읽는다.</summary>
