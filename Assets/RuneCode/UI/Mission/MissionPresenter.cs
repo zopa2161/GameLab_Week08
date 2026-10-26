@@ -64,7 +64,6 @@ namespace RuneCode
         private int _lastArcDamageEventCount;
         private int _lastFreezeStartEventCount;
         private int _lastNormalScrapPickupEventCount;
-        private int _lastBigScrapSpawnEventCount;
         private int _lastRootCastFailures;
         private float _toastUntil;
         private int _lastPickedItemCount;
@@ -175,7 +174,6 @@ namespace RuneCode
                 PlayEnemyHitSounds();
                 PlayShotSounds();
                 PlayElementalSounds();
-                PlayBigScrapSpawnSounds();
                 PlayScrapPickupSounds();
                 // 전투가 끝나면 저체력 지속 비네트는 목표를 0으로 두고 남은 점등만 자연스럽게 사라지게 한다.
                 _screen.ShowLowHealth(0f);
@@ -205,7 +203,6 @@ namespace RuneCode
             PlayEnemyHitSounds();
             PlayShotSounds();
             PlayElementalSounds();
-            PlayBigScrapSpawnSounds();
             PlayScrapPickupSounds();
             UpdateDamageFeedback(playerDamageBefore);
             if (_run.IsWaitingForNextRound && _run.HasClearModifierChoices && !_hasPresentedChoices && !_ui.IsPopupOpen)
@@ -303,15 +300,6 @@ namespace RuneCode
             int normalCount = sim.NormalScrapPickupEventCount - _lastNormalScrapPickupEventCount;
             _lastNormalScrapPickupEventCount = sim.NormalScrapPickupEventCount;
             for (int index = 0; index < normalCount; index++) SoundManager.Instance.PlayTakeScrap();
-        }
-
-        /// <summary>새로 생성된 큰 스크랩 오브마다 등장 효과음을 재생하고 누적 생성 횟수를 갱신한다.</summary>
-        private void PlayBigScrapSpawnSounds()
-        {
-            RuneSimulation sim = _run.Simulation;
-            int count = sim.BigScrapSpawnEventCount - _lastBigScrapSpawnEventCount;
-            _lastBigScrapSpawnEventCount = sim.BigScrapSpawnEventCount;
-            for (int index = 0; index < count; index++) SoundManager.Instance.PlaySpawnBigScrap();
         }
 
         /// <summary>미션 화면의 Esc 입력으로 라운드 대기·결과 표시 중에도 일시정지 팝업을 연다.</summary>
@@ -844,7 +832,6 @@ namespace RuneCode
             _lastArcDamageEventCount = 0;
             _lastFreezeStartEventCount = 0;
             _lastNormalScrapPickupEventCount = 0;
-            _lastBigScrapSpawnEventCount = _run.Simulation.BigScrapSpawnEventCount;
             _isResultShown = false;
             _hasPresentedChoices = _run.IsResumedRoundBreak && _run.IsClearModifierChosen;
             _ui.CloseAllPopups();
