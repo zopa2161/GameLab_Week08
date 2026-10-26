@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 namespace RuneCode
 {
-    /// <summary>타이틀 화면 View다. 새로 하기·이어 하기·환경 설정·디버그 시작·테스트 모드 시작·종료 입력을 알린다.</summary>
+    /// <summary>타이틀 화면 View다. 새로 하기·이어 하기·환경 설정·디버그 시작·종료 입력을 알린다.</summary>
     public sealed class TitleScreen : UiView
     {
         private const float MENU_BUTTON_X = 154f;
@@ -35,15 +35,12 @@ namespace RuneCode
         /// <summary>디버그 시작 버튼을 눌렀을 때 알린다.</summary>
         public event Action DebugStartClicked;
 
-        /// <summary>테스트 모드 시작 버튼을 눌렀을 때 알린다.</summary>
-        public event Action TestStartClicked;
-
         /// <summary>게임 종료 버튼을 눌렀을 때 알린다.</summary>
         public event Action QuitClicked;
 
         /// <summary>
         /// 타이틀 메뉴를 만들고 활성 버튼만 순서대로 배치한 뒤 세션·UI 관리자와 Presenter를 연결한다.
-        /// 테스트 모드 시작은 모든 빌드에서 표시하고 디버그 시작은 Unity 에디터에서만 표시한다.
+        /// 디버그 시작은 Unity 에디터에서만 표시한다.
         /// </summary>
         public void Initialize(RuneCodeSession session, UIManager ui)
         {
@@ -57,11 +54,9 @@ namespace RuneCode
             continueButton.onClick.AddListener(() => ContinueClicked?.Invoke());
             Button settingsButton = CreateMenuButton("SettingsButton", GameData.L("ui.environmentSettings"));
             settingsButton.onClick.AddListener(() => SettingsClicked?.Invoke());
-            Button testStartButton = CreateMenuButton("TestStartButton", GameData.L("ui.startTest"));
-            testStartButton.onClick.AddListener(() => TestStartClicked?.Invoke());
             Button quitButton = CreateMenuButton("QuitButton", GameData.L("ui.quit"));
             quitButton.onClick.AddListener(() => QuitClicked?.Invoke());
-            ArrangeButtons(_debugStartButton, _startButton, continueButton, settingsButton, testStartButton, quitButton);
+            ArrangeButtons(_debugStartButton, _startButton, continueButton, settingsButton, quitButton);
             _presenter = new TitlePresenter(session, ui, this);
             RefreshSaveAvailability();
         }

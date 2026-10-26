@@ -72,8 +72,7 @@ namespace RuneCode
         private void ConfirmReset()
         {
             string titleKey = GetResetTitleKey();
-            string messageKey = _session.IsTestMode ? "ui.resetTestSessionMessage"
-                : _session.IsDebugEnabled ? "ui.resetDebugSessionMessage" : "ui.resetSaveMessage";
+            string messageKey = _session.IsDebugEnabled ? "ui.resetDebugSessionMessage" : "ui.resetSaveMessage";
             _ui.Confirm(GameData.L(titleKey), GameData.L(messageKey), GameData.L(titleKey), () =>
             {
                 _session.ResetSave();
@@ -81,11 +80,10 @@ namespace RuneCode
             });
         }
 
-        /// <summary>진행 종류(테스트·디버그·일반)에 맞는 초기화 버튼·확인 팝업 제목 문자열 키를 반환한다.</summary>
+        /// <summary>디버그·일반 진행에 맞는 초기화 버튼·확인 팝업 제목 문자열 키를 반환한다.</summary>
         private string GetResetTitleKey()
         {
-            return _session.IsTestMode ? "ui.resetTestSession"
-                : _session.IsDebugEnabled ? "ui.resetDebugSession" : "ui.resetSave";
+            return _session.IsDebugEnabled ? "ui.resetDebugSession" : "ui.resetSave";
         }
 
         /// <summary>디버그 실행에서만 조각을 지급하고 진행 표시를 갱신한다.</summary>

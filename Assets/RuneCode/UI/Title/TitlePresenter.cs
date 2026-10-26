@@ -19,7 +19,6 @@ namespace RuneCode
             view.ContinueClicked += OpenContinueGame;
             view.SettingsClicked += OpenSettings;
             view.DebugStartClicked += StartDebug;
-            view.TestStartClicked += StartTest;
             view.QuitClicked += QuitGame;
         }
 
@@ -69,27 +68,6 @@ namespace RuneCode
         private void StartDebug()
         {
             _session.StartGame(true);
-        }
-
-        /// <summary>익명 참가자 ID를 입력받아 저장하지 않는 테스트 진행과 로그 회차를 시작한다.</summary>
-        private void StartTest()
-        {
-            RenamePopup popup = _ui.OpenPopup<RenamePopup>();
-            popup.Configure(string.Empty, StartTestWithParticipantId);
-            popup.SetPrompt(GameData.L("usabilityTest.participantTitle"), GameData.L("usabilityTest.participantPlaceholder"));
-        }
-
-        /// <summary>참가자 ID를 검증해 테스트 세션을 시작하고 실패하면 타이틀 화면에 안내한다.</summary>
-        private void StartTestWithParticipantId(string participantId)
-        {
-            string normalizedParticipantId = participantId?.Trim();
-            if (string.IsNullOrEmpty(normalizedParticipantId))
-            {
-                _ui.Alert(GameData.L("usabilityTest.participantTitle"), GameData.L("usabilityTest.participantRequired"));
-                return;
-            }
-            if (!_session.StartTestGame(normalizedParticipantId))
-                _ui.Alert(GameData.L("usabilityTest.participantTitle"), GameData.L("usabilityTest.startFailed"));
         }
 
         /// <summary>게임 프로세스 종료를 요청한다.</summary>

@@ -7,7 +7,7 @@ RuneCode의 데이터는 수명과 소유자에 따라 다섯 층으로 나뉜�
 | 정적 데이터 | 앱 전체, 읽기 전용 | `GameData`(static), `UpgradeTreeDefinition`(SO) | 룬 정의, 밸런스 수치, 스테이지 편성, 적 능력치, 문자열 |
 | 영속 진행 데이터 | 디스크(세이브 파일) | `PlayerSave` ← `SaveStore` | 스크랩, 클리어 기록, 마법 보관함, 룬 소지량, 트리 레벨 |
 | 기기 설정 | 디스크(PlayerPrefs) | `SaveStore` | 활성 슬롯, 자동 저장, 화면 흔들림, 음량 |
-| 세션 상태 | 앱 실행 동안 | `RuneCodeSession`, `SpellEditSession` | 편집 중 그래프 사본, 도크 옵션, 상태 문구, 디버그·테스트 모드 |
+| 세션 상태 | 앱 실행 동안 | `RuneCodeSession`, `SpellEditSession` | 편집 중 그래프 사본, 도크 옵션, 상태 문구, 디버그 모드 |
 | 전투 상태 | 전투 한 판 | `RuneSimulation`(+하위 시스템), `MissionRun`/`DockRun` | 플레이어·적·마법 개체 위치, 쿨다운, 획득 스크랩 |
 
 ```mermaid
@@ -362,7 +362,7 @@ classDiagram
 - 키는 `룬ID#등급` (`SpellGrammar.ModifierStockKey`). 속성은 등급이 없어 `element.fire#` 처럼 등급 부분이 빈 문자열이다.
 - **소지량은 프리셋(마법)마다 독립적으로 검사한다.** 한 마법 안에 같은 키를 소지량보다 많이 배치할 수 없다(컴파일 오류 E21). 다른 마법의 배치는 합산하지 않는다.
 - 합성 재료로 쓸 수 있는 수(미사용 수량)는 보관함 전체 배치를 뺀 값이다(`ISpellEditor.TryGetUnusedStock`).
-- 지급은 `RuneCodeSession.GrantRune` / `GrantModifier`로만 한다. 테스트 모드에서는 지급하지 않는다.
+- 지급은 `RuneCodeSession.GrantRune` / `GrantModifier`로만 한다. 디버그 진행은 메모리에만 지급하고 일반 진행은 저장한다.
 
 ### 4.4 기기 설정 (PlayerPrefs)
 
@@ -378,7 +378,7 @@ classDiagram
 
 | 상태 | 설명 |
 |---|---|
-| `_save` / `_normalSave` | 현재 진행. 디버그·테스트 모드면 `_save`는 메모리 전용 새 진행이고 `_normalSave`는 원래 슬롯 데이터 |
+| `_save` / `_normalSave` | 현재 진행. 디버그 모드면 `_save`는 메모리 전용 새 진행이고 `_normalSave`는 원래 일반 진행 데이터 |
 | `_spells` | `SpellEditSession`. 외부에는 `ISpellEditor Spells`로 노출 |
 | `_isDebugEnabled`, `_isTestMode` | 모드. 둘 중 하나라도 켜지면 `IsMemorySession` (슬롯에 쓰지 않음) |
 | `_statusMessage`, `_statusRevision` | 작업실 상태 토스트 문구와 변경 번호 |
