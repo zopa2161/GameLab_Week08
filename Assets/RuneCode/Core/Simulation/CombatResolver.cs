@@ -206,7 +206,7 @@ namespace RuneCode
                 break;
             }
             actual = Math.Max(minimumDamage, actual);
-            if (enemy.Hydra != null) actual = enemy.Hydra.LimitDamage(actual, damageStatus == "burn", _runtime.Time, enemy.MaxHp);
+            actual = enemy.LimitIncomingDamage(actual, damageStatus == "burn", _runtime.Time);
             actual = enemy.Hurt(actual, _runtime.Time);
             if (applyStatus) _statuses.ApplyStatus(enemy, element, form, noise, damage, sourceAction);
             if (actual > 0)

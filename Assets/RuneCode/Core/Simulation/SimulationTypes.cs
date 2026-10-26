@@ -329,6 +329,8 @@ namespace RuneCode
         private HydraBossState _hydra;
         private HexaBossState _hexa;
         private LegolasBossState _legolas;
+        private double _bossDamageBudget;
+        private double _lastBossDamageAt;
         private readonly bool _isDummy;
         private readonly bool _isElite;
         private readonly bool _isKillTarget;
@@ -398,6 +400,9 @@ namespace RuneCode
         public string LastDamageForm => _lastDamageForm;
         public EnemyDefinition Definition => _definition;
         public BossDefinition Boss => _boss;
+        public bool IsBoss => _definition.GetRank(_boss) == EnemyDefinition.RANK_BOSS;
+        public bool IsMiniBoss => _definition.GetRank(_boss) == EnemyDefinition.RANK_MINI_BOSS;
+        public bool IsBossOrMiniBoss => IsBoss || IsMiniBoss;
         public HydraBossState Hydra => _hydra;
         public HexaBossState Hexa => _hexa;
         public LegolasBossState Legolas => _legolas;
@@ -445,11 +450,30 @@ namespace RuneCode
         /// <summary>예고, 패치 및 피격 표시 판정에 사용할 관측 시각을 갱신한다.</summary>
         internal void Observe(double time) { _observedTime = time; }
 
-        /// <summary>보스 정의에 맞춰 생성 시각·최대 체력을 사용하는 Hydra 상태 또는 레골라스 공격 상태를 만든다.</summary>
+        /// <summary>보스 정의에 맞춰 공격 상태를 만들고 생성 시각·최대 체력으로 개체별 DPS 피해 예산을 초기화한다.</summary>
         internal void InitializeBossState(double time)
         {
-            if (_boss != null && _boss.IsHydraPattern) _hydra = new HydraBossState(_boss.Hydra, time, _maxHp);
+            if (_boss != null && _boss.IsHydraPattern) _hydra = new HydraBossState(_boss.Hydra, time);
             if (_boss != null && _boss.IsLegolasPattern) _legolas = new LegolasBossState(_boss.Legolas);
+            if (_boss != null && _boss.HasDamageBudget)
+            {
+                _lastBossDamageAt = time;
+                _bossDamageBudget = _maxHp * _boss.DpsHealthRatio * _boss.DpsWindow;
+            }
+        }
+
+        /// <summary>현재 시각까지 개체별 보스 피해 예산을 회복하고 초과 피해를 감쇠해 반환한다. 히드라 화상은 예산을 우회해 고유 약점 배율을 적용한다.</summary>
+        internal double LimitIncomingDamage(double damage, bool isBurn, double time)
+        {
+            if (_boss == null || !_boss.HasDamageBudget) return damage;
+            if (_boss.IsHydraPattern && isBurn) return damage * _boss.Hydra.BurnMultiplier;
+            double dps = _maxHp * _boss.DpsHealthRatio;
+            _bossDamageBudget = Math.Min(dps * _boss.DpsWindow,
+                _bossDamageBudget + Math.Max(0, time - _lastBossDamageAt) * dps);
+            _lastBossDamageAt = time;
+            double fullDamage = Math.Min(Math.Max(0, damage), _bossDamageBudget);
+            _bossDamageBudget -= fullDamage;
+            return fullDamage + Math.Max(0, damage - fullDamage) * _boss.ExcessDamageMultiplier;
         }
 
         /// <summary>Hexa 정의가 있는 개체에 새 비공격 보스 상태를 생성한다.</summary>
@@ -553,6 +577,8 @@ namespace RuneCode
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
             _hydra?.WriteState(state);
             _hexa?.WriteState(state);
+            if (_boss != null && _boss.HasDamageBudget)
+                state.Append(FormattableString.Invariant($"|bossDamageBudget:{_bossDamageBudget:R}:{_lastBossDamageAt:R}"));
             if (_hexa != null && (_hexa.HasStartedSniper || _hexa.HasStartedComposite))
                 state.Append(FormattableString.Invariant($"|hexaAim:{_attackOrigin.X:R}:{_attackOrigin.Y:R}:{_attackDirection.X:R}:{_attackDirection.Y:R}:{_aimUntil:R}:{_warningUntil:R}"));
             if (_boss != null && _boss.IsMiniGovernorPattern) state.Append('|').Append(_isNextBossBurst);
