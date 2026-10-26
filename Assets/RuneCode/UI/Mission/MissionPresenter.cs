@@ -63,7 +63,6 @@ namespace RuneCode
         private int _lastArcDamageEventCount;
         private int _lastFreezeStartEventCount;
         private int _lastNormalScrapPickupEventCount;
-        private int _lastBigScrapPickupEventCount;
         private int _lastBigScrapSpawnEventCount;
         private int _lastRootCastFailures;
         private float _toastUntil;
@@ -282,16 +281,13 @@ namespace RuneCode
             for (int index = 0; index < freezeCount; index++) SoundManager.Instance.PlayFreeze();
         }
 
-        /// <summary>새로 획득한 스크랩 오브마다 드롭 출처에 맞는 일반 또는 Big 획득음을 한 번 재생한다.</summary>
+        /// <summary>새로 획득한 일반 스크랩 오브마다 획득음을 한 번 재생하고 누적 획득 횟수를 갱신한다.</summary>
         private void PlayScrapPickupSounds()
         {
             RuneSimulation sim = _run.Simulation;
             int normalCount = sim.NormalScrapPickupEventCount - _lastNormalScrapPickupEventCount;
-            int bigCount = sim.BigScrapPickupEventCount - _lastBigScrapPickupEventCount;
             _lastNormalScrapPickupEventCount = sim.NormalScrapPickupEventCount;
-            _lastBigScrapPickupEventCount = sim.BigScrapPickupEventCount;
             for (int index = 0; index < normalCount; index++) SoundManager.Instance.PlayTakeScrap();
-            for (int index = 0; index < bigCount; index++) SoundManager.Instance.PlayTakeBigScrap();
         }
 
         /// <summary>새로 생성된 큰 스크랩 오브마다 등장 효과음을 재생하고 누적 생성 횟수를 갱신한다.</summary>
@@ -826,7 +822,6 @@ namespace RuneCode
             _lastArcDamageEventCount = 0;
             _lastFreezeStartEventCount = 0;
             _lastNormalScrapPickupEventCount = 0;
-            _lastBigScrapPickupEventCount = 0;
             _lastBigScrapSpawnEventCount = _run.Simulation.BigScrapSpawnEventCount;
             _isResultShown = false;
             _hasPresentedChoices = false;
