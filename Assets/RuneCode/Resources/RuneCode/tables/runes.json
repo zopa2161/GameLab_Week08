@@ -1008,6 +1008,34 @@
           "_max": 30,
           "_step": 0.5,
           "_defaultNumber": 5
+        },
+        {
+          "_order": 5,
+          "_paramId": "element2",
+          "_kind": "enum",
+          "_min": 0,
+          "_max": 0,
+          "_step": 0,
+          "_defaultNumber": 0,
+          "_defaultText": "normal",
+          "_options": [
+            {
+              "_order": 0,
+              "_option": "normal"
+            },
+            {
+              "_order": 1,
+              "_option": "fire"
+            },
+            {
+              "_order": 2,
+              "_option": "electric"
+            },
+            {
+              "_order": 3,
+              "_option": "ice"
+            }
+          ]
         }
       ],
       "_tags": [
