@@ -8,6 +8,14 @@ namespace RuneCode
     {
         public override string Kind => SpellGrammar.FORM_BURST;
 
+        /// <summary>진화 폭발은 생성 원점을 유지하며 최대 범위까지 확장한 뒤 같은 속도로 수축한다.</summary>
+        public override void MoveAlongPath(SpellRuntimeContext context, SimulationSpellEntity entity)
+        {
+            if (!entity.HasBehaviorEvolution) { base.MoveAlongPath(context, entity); return; }
+            double radius = entity.Stats.Speed * entity.GetExplosionTravelTime(entity.Age + RuneSimulation.STEP_SECONDS);
+            entity.Move(entity.SpawnPosition + entity.Direction * radius, entity.Direction);
+        }
+
         /// <summary>생성 위치를 파동 중심으로 사용하므로 발사의 사각형 위치 보정을 생략한다.</summary>
         public override void PlaceSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
@@ -18,7 +26,7 @@ namespace RuneCode
         public override void Judge(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             SimVector previous = entity.PreviousPosition;
-            SimVector center = previous - entity.PreviousDirection * entity.ExplosionRadius;
+            SimVector center = entity.HasBehaviorEvolution ? entity.SpawnPosition : previous - entity.PreviousDirection * entity.ExplosionRadius;
             var contacts = new List<WaveContact>();
             IReadOnlyList<SimulationEnemy> enemies = context.Enemies;
             for (int index = 0; index < enemies.Count; index++)
@@ -39,7 +47,8 @@ namespace RuneCode
                 if (!enemy.IsAlive) continue;
                 SimVector radial = enemy.Position - center;
                 if (radial.Length <= RuneSimulation.COLLISION_EPSILON) radial = entity.Direction;
-                double radius = entity.Stats.Speed * (entity.Age + RuneSimulation.STEP_SECONDS * contact.Fraction);
+                double radius = entity.ExplosionRadius + entity.Stats.Speed * RuneSimulation.STEP_SECONDS * contact.Fraction
+                    * (entity.IsReturning ? -1 : 1);
                 SimVector point = center + radial.Normalized() * radius;
                 entity.HitTimes[enemy.Id] = context.Time;
                 context.Hit(entity, enemy, entity.Stats.Damage, false, radial);

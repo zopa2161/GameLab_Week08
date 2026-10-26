@@ -228,6 +228,22 @@ namespace RuneCode
                     Arc(mesh, center, scale, tint, 0, 0, 14, 25, 155);
                     Arc(mesh, center, scale, tint, 0, 0, 14, 205, 335);
                     break;
+                case UpgradeEffectType.FlyingSlash:
+                    Path(mesh, center, scale, tint, -11, -11, 11, 11, 3, 9, -11, -11);
+                    Arc(mesh, center, scale, tint, 0, 0, 14, 180, 320);
+                    Path(mesh, center, scale, tint, 8, -10, 13, -8, 12, -14);
+                    break;
+                case UpgradeEffectType.ReturningLaunch:
+                    Path(mesh, center, scale, tint, -14, 8, 12, 8, 6, 13);
+                    Arc(mesh, center, scale, tint, 0, 0, 13, -155, 25);
+                    Path(mesh, center, scale, tint, -8, 1, -13, 6, -14, 0);
+                    break;
+                case UpgradeEffectType.ReturningBurst:
+                    Arc(mesh, center, scale, tint, 0, 0, 14, 25, 155);
+                    Arc(mesh, center, scale, tint, 0, 0, 14, 205, 335);
+                    Path(mesh, center, scale, tint, -14, 0, -4, 0, -8, 4);
+                    Path(mesh, center, scale, tint, 14, 0, 4, 0, 8, -4);
+                    break;
                 case UpgradeEffectType.StationaryRegen:
                     // 정지 표식 두 줄과 회복 화살.
                     Path(mesh, center, scale, tint, -8, 10, -8, -10);

@@ -563,6 +563,9 @@ namespace RuneCode
             state.Append('|').Append(_executor.AimPoint.HasValue);
             if (_executor.AimPoint.HasValue) { SimHash.AppendNumber(state, _executor.AimPoint.Value.X); SimHash.AppendNumber(state, _executor.AimPoint.Value.Y); }
             SimHash.AppendNumber(state, _world.DamageMultiplier); SimHash.AppendNumber(state, _world.MoveSpeedMultiplier);
+            if (_world.Upgrades.HasBehaviorEvolution)
+                state.Append("|behaviorEvolution:").Append(_world.Upgrades.HasFlyingSlash).Append(':')
+                    .Append(_world.Upgrades.HasReturningLaunch).Append(':').Append(_world.Upgrades.HasReturningBurst);
             SimHash.AppendNumber(state, _loot.ScrapGainMultiplier); SimHash.AppendNumber(state, _loot.ScrapPickupRangeMultiplier); SimHash.AppendNumber(state, _loot.ScrapHealRatio); SimHash.AppendNumber(state, _loot.ScrapRemainder);
             _world.Player.WriteState(state);
             _aura.WriteState(state);

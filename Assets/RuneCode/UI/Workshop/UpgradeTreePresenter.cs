@@ -130,6 +130,9 @@ namespace RuneCode
                 case UpgradeEffectType.DashTeleport:
                 case UpgradeEffectType.DashCollisionGuard:
                 case UpgradeEffectType.PlayerAura:
+                case UpgradeEffectType.FlyingSlash:
+                case UpgradeEffectType.ReturningLaunch:
+                case UpgradeEffectType.ReturningBurst:
                 case UpgradeEffectType.ArcEnhance:
                 case UpgradeEffectType.IceEnhance:
                 case UpgradeEffectType.FireEnhance:

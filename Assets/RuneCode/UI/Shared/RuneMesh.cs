@@ -33,13 +33,19 @@ namespace RuneCode
             float length = (float)delta.Length * scale;
             if (length <= 0) return;
             Vector2 direction = new Vector2((float)delta.X, -(float)delta.Y).normalized;
+            SimVector startOffset = path[0] - spell.Position;
+            SimVector endOffset = path[1] - spell.Position;
+            Vector2 bladeStart = new Vector2((float)startOffset.X, -(float)startOffset.Y) * scale;
+            Vector2 bladeEnd = new Vector2((float)endOffset.X, -(float)endOffset.Y) * scale;
             float angle = Mathf.Atan2(direction.y, direction.x);
             float progress = Mathf.Clamp01((float)spell.SlashProgress);
             float lifetime = (float)spell.Lifetime;
             float trailSeconds = Mathf.Min(SLASH_TRAIL_SECONDS, lifetime * SLASH_TRAIL_LIFETIME_RATIO);
             float trailProgress = trailSeconds / lifetime;
-            float visibleProgress = Mathf.Min(progress, trailProgress);
-            float span = (float)spell.ConeAngle * visibleProgress * Mathf.Deg2Rad;
+            float phaseProgress = spell.HasBehaviorEvolution && progress > 0.5f ? progress - 0.5f : progress;
+            float visibleProgress = Mathf.Min(phaseProgress, trailProgress);
+            float span = (float)spell.SlashSweepAngle * visibleProgress * Mathf.Deg2Rad;
+            if (spell.HasBehaviorEvolution) span *= progress > 0.5f ? -2f : 2f;
             float endFade = Mathf.Clamp01((1 - progress) / trailProgress);
             float width = (float)spell.BoxWidth * scale;
             Color tint = ElementColor(spell.Element);
@@ -64,16 +70,16 @@ namespace RuneCode
             }
             Vector2 normal = new Vector2(-direction.y, direction.x);
             int blade = vertices.Count;
-            vertices.Add(-normal * width * 0.5f); colors.Add(tint);
-            vertices.Add(direction * length - normal * width * 0.5f); colors.Add(tint);
-            vertices.Add(direction * length + normal * width * 0.5f); colors.Add(bright);
-            vertices.Add(normal * width * 0.5f); colors.Add(bright);
+            vertices.Add(bladeStart - normal * width * 0.5f); colors.Add(tint);
+            vertices.Add(bladeEnd - normal * width * 0.5f); colors.Add(tint);
+            vertices.Add(bladeEnd + normal * width * 0.5f); colors.Add(bright);
+            vertices.Add(bladeStart + normal * width * 0.5f); colors.Add(bright);
             AddSlashQuad(triangles, blade, blade + 1, blade + 2, blade + 3);
             int core = vertices.Count;
-            vertices.Add(-normal * width * 0.12f); colors.Add(bright);
-            vertices.Add(direction * length - normal * width * 0.12f); colors.Add(Color.white);
-            vertices.Add(direction * length + normal * width * 0.12f); colors.Add(Color.white);
-            vertices.Add(normal * width * 0.12f); colors.Add(bright);
+            vertices.Add(bladeStart - normal * width * 0.12f); colors.Add(bright);
+            vertices.Add(bladeEnd - normal * width * 0.12f); colors.Add(Color.white);
+            vertices.Add(bladeEnd + normal * width * 0.12f); colors.Add(Color.white);
+            vertices.Add(bladeStart + normal * width * 0.12f); colors.Add(bright);
             AddSlashQuad(triangles, core, core + 1, core + 2, core + 3);
         }
 
