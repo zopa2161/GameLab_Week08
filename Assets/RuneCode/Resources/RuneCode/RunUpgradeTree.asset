@@ -97,7 +97,7 @@ MonoBehaviour:
   - _id: upgrade.dashInvulnerability.1
     _requiredStage: 1
     _titleKey: ui.tree.dashInvulnerability
-    _descriptionKey: ui.tree.dashInvulnerabilityDescription
+    _descriptionKey: ui.tree.dashInvulnerabilityLongDescription
     _icon: {fileID: 0}
     _layoutCell: {x: 7, y: 13}
     _effectType: 17
