@@ -20,6 +20,7 @@ namespace RuneCode
             _onPurchased = onPurchased;
             _view.Build();
             _view.NodeClicked += Purchase;
+            _view.NodeRefundRequested += Refund;
             _view.NodeHovered += OnNodeHovered;
         }
 
@@ -153,6 +154,14 @@ namespace RuneCode
         {
             if (currentLevel >= node.MaxLevel) return GameData.L("tree.maxed");
             return GameData.L("ui.tree.cost") + " " + _session.GetUpgradeNodeCost(node.Id) + " " + GameData.L("ui.tree.pointUnit");
+        }
+
+        /// <summary>우클릭한 노드의 1단계 반환을 요청하고 성공하면 포인트·노드·작업실 표시를 갱신한다.</summary>
+        private void Refund(string nodeId)
+        {
+            bool isRefunded = _session.RefundUpgradeNode(nodeId);
+            Refresh();
+            if (isRefunded) _onPurchased();
         }
 
         /// <summary>노드 구매에 성공하면 이전 레벨에 따라 최초 해금 또는 강화 효과음을 재생하고 작업실 표시를 갱신한다.</summary>

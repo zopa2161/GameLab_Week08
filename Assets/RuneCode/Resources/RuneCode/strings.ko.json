@@ -1,5 +1,9 @@
 {
   "_entries": [
+    {"_key": "tree.refundRewardUnknown", "_value": "이전 저장에 속성 보상 기록이 없어 회수할 종류를 확인할 수 없습니다."},
+    {"_key": "tree.refundUnavailable", "_value": "반환할 강화 단계가 없습니다."},
+    {"_key": "tree.refundRewardBlocked", "_value": "룬 해금 노드는 반환할 수 없습니다."},
+    {"_key": "tree.refundDependentBlocked", "_value": "연결된 후속 노드를 먼저 반환하세요."},
     {"_key": "save.replaceConfirm", "_value": "기존 진행을 초기화하고 새 게임을 시작합니다. 소리와 화면 설정은 유지됩니다."},
     {"_key": "save.initialLaboratory", "_value": "첫 전투 전 실험실"},
     { "_key": "enemy.mini_governor", "_value": "미니 거버너" },
@@ -861,7 +865,7 @@
     },
     {
       "_key": "ui.tree.controls",
-      "_value": "우클릭 드래그 이동 · 휠 확대/축소"
+      "_value": "우클릭 반환 · 우클릭 드래그 이동 · 휠 확대/축소"
     },
     {
       "_key": "ui.tree.regen",
@@ -1041,7 +1045,7 @@
     },
     {
       "_key": "ui.tree.elementPickDescription",
-      "_value": "구매하면 화염·냉기·전격 속성 룬 중 하나를 골라 얻습니다"
+      "_value": "구매하면 화염·냉기·전격 속성 룬 중 하나를 골라 얻습니다. 반환 시 획득한 속성을 회수합니다"
     },
     {
       "_key": "ui.tree.arcEnhance",

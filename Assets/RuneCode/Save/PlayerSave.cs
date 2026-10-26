@@ -20,6 +20,7 @@ namespace RuneCode
         [SerializeField] private int _currency;
         [SerializeField] private int _upgradePoints;
         [SerializeField] private bool _hasPendingElementPick;
+        [SerializeField] private string _treeElementRewardRuneId;
         [SerializeField] private int _slotCount = 1;
         [SerializeField] private int _highestClearedStage;
         [SerializeField] private int _selectedStage = 1;
@@ -74,6 +75,7 @@ namespace RuneCode
         public int Currency => _currency;
         public int UpgradePoints => _upgradePoints;
         public bool HasPendingElementPick => _hasPendingElementPick;
+        public string TreeElementRewardRuneId => _treeElementRewardRuneId;
         public int SlotCount => _slotCount;
         public int HighestClearedStage => _highestClearedStage;
         public bool HasClearedProgression => _hasClearedProgression;
@@ -537,6 +539,13 @@ namespace RuneCode
         public bool Validate(out string error)
         {
             error = null;
+            if (!string.IsNullOrEmpty(_treeElementRewardRuneId)
+                && (!GameData.Runes.TryGetRuneElement(_treeElementRewardRuneId, out ElementDefinition treeReward)
+                    || treeReward.Category != SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL))
+            {
+                error = "save.invalidValues";
+                return false;
+            }
             var economy = GameData.Balance.Economy;
             if (_usesFixedRewardGrades
                 && (!IsValidRewardGrades(_modifierRewardGrades, _modifierRewardIndex, economy.ModifierRewardGrades)
@@ -887,6 +896,54 @@ namespace RuneCode
 
         /// <summary>속성 선택 보상을 지급한 뒤 대기 상태를 해제한다.</summary>
         public void ClearElementPickPending() => _hasPendingElementPick = false;
+
+        /// <summary>트리에서 지급한 속성 보상 또는 이를 재료로 사용한 합성 결과의 룬 ID를 기록한다.</summary>
+        public void RecordTreeElementReward(string runeId)
+        {
+            _treeElementRewardRuneId = runeId;
+        }
+
+        /// <summary>트리 속성 보상 1개를 회수하고 남은 보유량을 초과하는 장착을 모든 마법에서 해제한다. 구형 저장의 보상 종류가 모호하면 변경 없이 false를 반환한다.</summary>
+        public bool TryRevokeTreeElementReward()
+        {
+            string runeId = _treeElementRewardRuneId;
+            if (string.IsNullOrEmpty(runeId) && !_hasPendingElementPick)
+            {
+                foreach (ModifierStock stock in _elementStock)
+                {
+                    if (stock.Count <= 0) continue;
+                    if (!string.IsNullOrEmpty(runeId) && runeId != stock.RuneId) return false;
+                    runeId = stock.RuneId;
+                }
+            }
+            if (!string.IsNullOrEmpty(runeId))
+            {
+                if (!GameData.Runes.TryGetRuneElement(runeId, out ElementDefinition element)) return false;
+                foreach (ModifierStock stock in _elementStock)
+                {
+                    if (stock.RuneId != runeId || stock.Count <= 0) continue;
+                    stock.Remove(1);
+                    break;
+                }
+                foreach (SpellGraph graph in _graphs)
+                {
+                    int remaining = GetStock(runeId, string.Empty);
+                    foreach (GraphNode node in graph.Nodes)
+                    {
+                        for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
+                        {
+                            string key = SpellGrammar.ElementSlotKey(index);
+                            if (node.GetText(key) != element.Id) continue;
+                            if (remaining > 0) remaining--;
+                            else node.RemoveParameter(key);
+                        }
+                    }
+                }
+            }
+            _treeElementRewardRuneId = null;
+            _hasPendingElementPick = false;
+            return true;
+        }
 
         /// <summary>유효한 노드 ID의 구매 단계를 저장하고 0단계가 되면 저장 항목을 제거한다.</summary>
         public void SetUpgradeNodeLevel(string nodeId, int level)

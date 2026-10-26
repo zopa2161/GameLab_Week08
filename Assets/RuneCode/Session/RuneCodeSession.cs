@@ -559,6 +559,61 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>기본 제공 단계와 지급 보상을 보존하고 후속 선행 조건이 유지되면 강화 1단계를 내리고 해당 구매 비용을 반환·저장한다.</summary>
+        public bool RefundUpgradeNode(string nodeId)
+        {
+            UpgradeTreeNodeDefinition node = _upgradeTree.FindNode(nodeId);
+            if (node == null) return false;
+            int level = GetUpgradeNodeLevel(nodeId);
+            if (level <= node.InitialLevel || _save.GetUpgradeNodeLevel(nodeId) <= node.InitialLevel)
+            {
+                SetStatus("tree.refundUnavailable");
+                return false;
+            }
+            if (node.EffectType == UpgradeEffectType.RuneUnlock)
+            {
+                SetStatus("tree.refundRewardBlocked");
+                return false;
+            }
+            foreach (UpgradeTreeNodeDefinition other in _upgradeTree.Nodes)
+            {
+                if (other == null || other.Id == nodeId || GetUpgradeNodeLevel(other.Id) <= 0) continue;
+                bool referencesNode = false;
+                bool isPrerequisiteMet = false;
+                foreach (UpgradeTreePrerequisite prerequisite in other.Prerequisites)
+                {
+                    if (prerequisite.NodeId == nodeId) referencesNode = true;
+                    int remainingLevel = prerequisite.NodeId == nodeId ? level - 1 : GetUpgradeNodeLevel(prerequisite.NodeId);
+                    if (remainingLevel >= prerequisite.RequiredLevel) isPrerequisiteMet = true;
+                }
+                if (!referencesNode || isPrerequisiteMet) continue;
+                SetStatus("tree.refundDependentBlocked");
+                return false;
+            }
+            int refund = _isDebugEnabled ? 0 : node.GetNextCost(level - 1);
+            bool isElementPick = node.EffectType == UpgradeEffectType.ElementPick;
+            if (isElementPick)
+            {
+                _spells.Save();
+                if (!_save.TryRevokeTreeElementReward())
+                {
+                    SetStatus("tree.refundRewardUnknown");
+                    return false;
+                }
+            }
+            _save.SetUpgradeNodeLevel(nodeId, level - 1);
+            _save.GrantUpgradePoints(refund);
+            PersistProgress();
+            if (isElementPick) _spells.Reload();
+            else _spells.Recompile();
+            LocalTelemetry.RecordUsabilityEvent("upgrade_refund", "workshop", new Dictionary<string, object>
+            {
+                ["node_id"] = nodeId, ["level_before"] = level, ["level_after"] = level - 1,
+                ["refund"] = refund, ["points_after"] = _save.UpgradePoints,
+            });
+            return true;
+        }
+
         /// <summary>출격 스테이지를 선택하고 저장한다. 디버그 모드에서는 클리어에 따른 선택 제한을 무시한다.</summary>
         public void SelectStage(int stage)
         {
@@ -823,7 +878,10 @@ namespace RuneCode
         public void ChooseElementPick(string runeId)
         {
             if (!_save.HasPendingElementPick) return;
+            if (!GameData.Runes.TryGetRuneElement(runeId, out ElementDefinition element)
+                || element.Category != SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL) return;
             GrantRune(runeId, "", 1, "tree_element_pick", persist: false);
+            _save.RecordTreeElementReward(runeId);
             _save.ClearElementPickPending();
             PersistProgress();
             _spells.Recompile();
@@ -908,11 +966,17 @@ namespace RuneCode
                 selectedGrade = RuneSynthesisRules.NextGrade(grade);
                 selectedId = RuneRewardRoller.PickRune(resultCategory, selectedGrade, () => UnityEngine.Random.value);
             }
+            string previousTreeReward = _save.TreeElementRewardRuneId;
+            bool consumesTreeReward = string.IsNullOrEmpty(grade) && !string.IsNullOrEmpty(previousTreeReward)
+                && counts.TryGetValue(previousTreeReward, out int consumedCount)
+                && consumedCount >= _save.GetStock(previousTreeReward, grade);
             if (!_save.TryConsumeStock(counts, grade)) return false;
             _save.Spend(scrapCost);
             _save.AddStock(selectedId, selectedGrade, 1);
+            if (consumesTreeReward) _save.RecordTreeElementReward(selectedId);
             if (!PersistSpellStorage(_save))
             {
+                _save.RecordTreeElementReward(previousTreeReward);
                 _save.TryConsumeStock(new Dictionary<string, int> { [selectedId] = 1 }, selectedGrade);
                 foreach (KeyValuePair<string, int> pair in counts) _save.AddStock(pair.Key, grade, pair.Value);
                 _save.Settle(scrapCost, false);
