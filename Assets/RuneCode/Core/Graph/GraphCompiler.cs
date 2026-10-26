@@ -13,13 +13,16 @@ namespace RuneCode
         /// <summary>
         /// 그래프와 해금·RAM·에너지 조건을 검증하고 최악 비용의 실행 트리를 컴파일한다.
         /// modifierStock이 있으면 현재 프리셋의 모디파이어·속성·행동 배치 수가 소지량을 넘을 때 E21 오류로 낸다. null이면 검사하지 않는다.
+        /// isSingleBehavior가 true면 시작 노드마다 루트 행동을 하나로 제한(E26)하고 통과한 루트 행동의 OnHit 맨 앞에 자기 복제를 넣는다.
+        /// elementCostReduction은 전투 속성(fire·ice·arc)이 붙은 노드 비용에서 뺄 감소량이다.
         /// </summary>
         public static CompileResult Compile(SpellGraph graph, RuneCatalog runes, GrammarLimits limits,
             IEnumerable<string> unlocked, int capacity = -1, float maxEnergy = -1f, IEnumerable<SpellGraph> library = null,
-            IReadOnlyDictionary<string, int> modifierStock = null, IReadOnlyDictionary<string, float> maxResourceCosts = null)
+            IReadOnlyDictionary<string, int> modifierStock = null, IReadOnlyDictionary<string, float> maxResourceCosts = null,
+            bool isSingleBehavior = false, float elementCostReduction = 0f)
         {
             CompileContext context = new CompileContext(unlocked ?? runes.StartRunes, library, graph, capacity, maxEnergy,
-                maxResourceCosts);
+                maxResourceCosts, isSingleBehavior, elementCostReduction);
             List<CompileIssue> dependencyErrors = new List<CompileIssue>();
             ValidateSpellDependencies(graph, context.Library, new HashSet<string>(StringComparer.Ordinal),
                 new List<string>(), dependencyErrors);
@@ -236,9 +239,43 @@ namespace RuneCode
                 List<SpellAction> root = BuildBranch(graph, start.Id, "exec", nodes, definitions, warnings, errors, runes, limits, context, slotModifiers);
                 if (errors.Any(issue => issue.Code == "E11" || issue.Code == "E12" || issue.Code == "E14" || issue.Code == "E15"))
                     return new CompileResult(errors, warnings, null);
+                if (context.IsSingleBehavior && root.Count > 1)
+                {
+                    errors.Add(new CompileIssue("E26", start.Id));
+                    continue;
+                }
+                if (context.IsSingleBehavior && root.Count == 1)
+                    DuplicateRootAction(graph, start.Id, root[0], nodes, definitions, runes, limits, context, slotModifiers);
                 entries.Add(BuildEntry(graph, runes, limits, context, definitions, start, root, ramUsed, chainRam, actionCeiling, warnings));
             }
+            if (errors.Any(issue => issue.Code == "E26")) return new CompileResult(errors, warnings, null);
             return new CompileResult(errors, warnings, entries[0], entries);
+        }
+
+        /// <summary>
+        /// 행동 하나 고정 강화가 켜진 시작 노드의 루트 행동을 같은 노드로 다시 빌드해 복제를 만들고 원본 행동의 OnHit 목록 맨 앞에 넣는다.
+        /// 복제는 원본의 원래 OnHit 자식을 그대로 가지고 나머지 분기는 원본과 공유하며 자기 안에는 복제를 다시 두지 않는다(자기 재실행 1회).
+        /// </summary>
+        private static void DuplicateRootAction(SpellGraph graph, string startNodeId, SpellAction original,
+            Dictionary<string, GraphNode> nodes, Dictionary<string, RuneDefinition> definitions, RuneCatalog runes,
+            GrammarLimits limits, CompileContext context, Dictionary<string, List<GraphNode>> slotModifiers)
+        {
+            // 원본 빌드에서 이미 경고·오류를 기록했으므로 재빌드의 기록은 버린다.
+            List<SpellAction> rebuilt = BuildBranch(graph, startNodeId, "exec", nodes, definitions, new List<CompileIssue>(),
+                new List<CompileIssue>(), runes, limits, context, slotModifiers);
+            SpellAction clone = rebuilt[0];
+            // 같은 노드로 다시 빌드하므로 스탯·비용은 원본과 같다. 복제의 모든 분기는 원본의 목록을 그대로 공유한다.
+            clone.SetBranch(SpellGrammar.ON_HIT_PORT, original.OnHit);
+            clone.SetBranch(SpellGrammar.ON_EXPIRE_PORT, original.OnExpire);
+            clone.SetBranch(SpellGrammar.ON_FIRST_HIT_OR_EXPIRE_PORT, original.OnFirstHitOrExpire);
+            clone.SetBranch("then", original.Then);
+            clone.SetBranch("else", original.Else);
+            clone.SetBranch("body", original.Body);
+            clone.SetBranch(SpellGrammar.ON_COMPLETE_PORT, original.OnComplete);
+            clone.SetBranch("next", original.Next);
+            List<SpellAction> onHitWithClone = new List<SpellAction>(original.OnHit.Count + 1) { clone };
+            onHitWithClone.AddRange(original.OnHit);
+            original.SetBranch(SpellGrammar.ON_HIT_PORT, onHitWithClone);
         }
 
         /// <summary>
@@ -640,7 +677,7 @@ namespace RuneCode
                 float coneAngle = shape?.Stats.ConeAngle ?? 0f;
                 SpellAction action = new SpellAction(node, rune, effectForm, element, mods, modifierNodes, calledSpell,
                     shape, coneAngle, runes.ModifierGrades, behavior,
-                    effectForm?.Id == "form.beam" ? runes.Get("form.bolt").Stats.Radius : -1f);
+                    effectForm?.Id == "form.beam" ? runes.Get("form.bolt").Stats.Radius : -1f, context.ElementCostReduction);
                 action.SetAttachedNodes(attachedNodeIds);
                 foreach (PortDefinition output in rune.Ports)
                 {
@@ -962,16 +999,21 @@ namespace RuneCode
             private readonly int _capacity;
             private readonly float _maxEnergy;
             private readonly IReadOnlyDictionary<string, float> _maxResourceCosts;
+            private readonly bool _isSingleBehavior;
+            private readonly float _elementCostReduction;
             public HashSet<string> UnlockedIds => _unlockedIds;
             public Dictionary<string, SpellGraph> Library => _library;
             public Dictionary<string, CompiledSpell> Compiled => _compiled;
             public HashSet<string> ActiveSpellIds => _activeSpellIds;
             public int Capacity => _capacity;
             public float MaxEnergy => _maxEnergy;
+            public bool IsSingleBehavior => _isSingleBehavior;
+            public float ElementCostReduction => _elementCostReduction;
 
-            /// <summary>라이브러리·해금·컴파일 캐시와 자원 한도를 컴파일 작업에 보관한다.</summary>
+            /// <summary>라이브러리·해금·컴파일 캐시, 자원 한도와 행동 하나 고정·속성 비용 감소 값을 컴파일 작업에 보관한다.</summary>
             public CompileContext(IEnumerable<string> unlocked, IEnumerable<SpellGraph> library, SpellGraph current, int capacity,
-                float maxEnergy, IReadOnlyDictionary<string, float> maxResourceCosts)
+                float maxEnergy, IReadOnlyDictionary<string, float> maxResourceCosts, bool isSingleBehavior,
+                float elementCostReduction)
             {
                 _unlockedIds = new HashSet<string>(unlocked ?? Array.Empty<string>(), StringComparer.Ordinal);
                 _unlockedIds.Add(SpellGrammar.INLINE_RUNE);
@@ -983,6 +1025,8 @@ namespace RuneCode
                 _capacity = capacity;
                 _maxEnergy = maxEnergy;
                 _maxResourceCosts = maxResourceCosts;
+                _isSingleBehavior = isSingleBehavior;
+                _elementCostReduction = elementCostReduction;
             }
 
             /// <summary>자원별 최대 비용 한도를 반환하고 등록되지 않은 자원에는 false를 반환한다.</summary>

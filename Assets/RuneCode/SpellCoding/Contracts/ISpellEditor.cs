@@ -29,6 +29,9 @@ namespace RuneCode
         /// <summary>룬이 해금되어 팔레트에서 배치 가능한지 반환한다.</summary>
         bool IsRuneUnlocked(string runeId);
 
+        /// <summary>행동 하나 고정 강화가 켜져 시작 노드마다 행동 하나와 그 자기 복제로 컴파일되는지 반환한다.</summary>
+        bool IsSingleBehavior { get; }
+
         /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다. 다른 마법 배치는 세지 않는다.</summary>
         bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned);
 

@@ -82,6 +82,9 @@ namespace RuneCode
             return _policy.IsRuneUnlocked(runeId);
         }
 
+        /// <summary>현재 컴파일 문맥의 행동 하나 고정 강화 여부를 반환한다.</summary>
+        public bool IsSingleBehavior => _policy.GetCompileContext().IsSingleBehavior;
+
         /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다. 다른 마법 배치는 세지 않는다.</summary>
         public bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned)
         {
@@ -100,7 +103,7 @@ namespace RuneCode
             var context = _policy.GetCompileContext();
             _compileResult = GraphCompiler.Compile(_editingGraph, GameData.Runes, GameData.Balance.Grammar,
                 context.UnlockedRunes, context.Capacity, context.MaxEnergy, context.Library, context.ModifierStock,
-                context.MaxResourceCosts);
+                context.MaxResourceCosts, context.IsSingleBehavior, context.ElementCostReduction);
             RaiseCompiled();
         }
 
@@ -520,7 +523,7 @@ namespace RuneCode
             var context = _policy.GetCompileContext();
             CompileResult result = GraphCompiler.Compile(candidate, GameData.Runes, GameData.Balance.Grammar,
                 context.UnlockedRunes, context.Capacity, context.MaxEnergy, context.Library, context.ModifierStock,
-                context.MaxResourceCosts);
+                context.MaxResourceCosts, context.IsSingleBehavior, context.ElementCostReduction);
             if (result.Errors.Any(issue => issue.Code == "E2" || issue.Code == "E3" || issue.Code == "E4" || issue.Code == "E5" || issue.Code == "E6"))
             {
                 _policy.ReportStatus("editor.invalidConnection");

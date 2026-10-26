@@ -35,6 +35,7 @@ namespace RuneCode
         private const int MODIFIER_SLOT_COLUMNS = 2;
         private const int MODIFIER_SLOT_ROWS = SpellGrammar.MAX_MODIFIER_SLOTS / MODIFIER_SLOT_COLUMNS;
         private const int GRADE_BUTTON_ROWS = 1;
+        private const string GHOST_ID_PREFIX = "ghost:";
 
         // 행동 노드 슬롯 키를 속성 슬롯과 모디 슬롯 순서로 나열한다.
         private static readonly string[] SLOT_KEYS = BuildSlotKeys();
@@ -43,6 +44,11 @@ namespace RuneCode
         private readonly Func<SpellGraph> _graph;
         private readonly bool _isReadOnly;
         private readonly Dictionary<string, GraphNode> _nodeLookup = new Dictionary<string, GraphNode>();
+        private readonly List<GraphNode> _ghosts = new List<GraphNode>();
+        private readonly Dictionary<string, GraphNode> _ghostBySource = new Dictionary<string, GraphNode>();
+
+        /// <summary>행동 하나 고정 강화의 자기 복제를 보여 주는 표시 전용 노드 목록이다. 그래프에 없으므로 선택·연결 판정에서 제외된다.</summary>
+        public IReadOnlyList<GraphNode> Ghosts => _ghosts;
 
         /// <summary>뷰포트와 현재 그래프 조회 함수로 배치 계산기를 만든다.</summary>
         public GraphNodeLayout(GraphViewport viewport, Func<SpellGraph> graph, bool isReadOnly = false)
@@ -72,6 +78,59 @@ namespace RuneCode
             return changed;
         }
 
+        /// <summary>
+        /// isEnabled가 true면 시작 노드의 실행 출력에 행동 하나만 이어진 경우 그 행동과 같은 구성의 표시 전용 복제 노드를 만들어 onHit 출력 옆에 붙인다.
+        /// false면 복제 노드를 모두 비운다.
+        /// </summary>
+        public void RebuildGhosts(bool isEnabled)
+        {
+            _ghosts.Clear();
+            _ghostBySource.Clear();
+            if (!isEnabled) return;
+            SpellGraph graph = _graph();
+            foreach (GraphNode start in graph.Nodes)
+            {
+                if (!GameData.Runes.TryGet(start.RuneId, out RuneDefinition startRune) || startRune.Category != SpellGrammar.CATEGORY_CORE) continue;
+                GraphNode behavior = null;
+                int behaviorCount = 0;
+                foreach (GraphEdge edge in graph.Edges)
+                {
+                    if (edge.FromNode != start.Id || edge.FromPort != SpellGrammar.EXEC_PORT) continue;
+                    behaviorCount++;
+                    behavior = graph.FindNode(edge.ToNode);
+                }
+                if (behaviorCount != 1 || behavior == null || _ghostBySource.ContainsKey(behavior.Id)
+                    || !GameData.Runes.TryGet(behavior.RuneId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR) continue;
+                GraphNode ghost = behavior.Clone(GHOST_ID_PREFIX + behavior.Id);
+                _ghostBySource.Add(behavior.Id, ghost);
+                _ghosts.Add(ghost);
+            }
+            PlaceGhosts();
+        }
+
+        /// <summary>복제 노드를 원본 행동의 현재 위치 기준 onHit 출력 옆으로 옮긴다. 원본을 끌어 옮기는 중에도 따라가도록 배치 때마다 호출한다.</summary>
+        public void PlaceGhosts()
+        {
+            foreach (KeyValuePair<string, GraphNode> pair in _ghostBySource)
+            {
+                GraphNode source = FindNode(pair.Key);
+                if (source == null) continue;
+                Vector2 position = GhostPosition(source, pair.Value);
+                pair.Value.Move(position.x, position.y);
+            }
+        }
+
+        /// <summary>원본 행동의 onHit 출력과 복제 노드의 실행 입력 높이를 맞춘 복제 노드의 그래프 좌표를 반환한다.</summary>
+        private Vector2 GhostPosition(GraphNode source, GraphNode ghost)
+        {
+            RuneDefinition rune = GameData.Runes.Get(source.RuneId);
+            Rect sourceRect = NodeRect(source, rune);
+            Rect ghostRect = NodeRect(ghost, rune);
+            float outputY = (sourceRect.yMax - PortPosition(sourceRect, source, rune, SpellGrammar.ON_HIT_PORT).y) / _viewport.Zoom;
+            float inputY = (ghostRect.yMax - PortPosition(ghostRect, ghost, rune, SpellGrammar.EXEC_PORT).y) / _viewport.Zoom;
+            return new Vector2(source.X + NODE_WIDTH, source.Y + outputY - inputY);
+        }
+
         /// <summary>유효한 실행 출력 엣지인지 반환한다. 지원 중단·효과 연결은 블록 묶음 배치에서 제외한다.</summary>
         public bool IsBlockEdge(GraphEdge edge)
         {
@@ -96,6 +155,14 @@ namespace RuneCode
                 return order != 0 ? order : left.Order.CompareTo(right.Order);
             });
             float branchBottom = float.MinValue;
+            // 복제 노드가 onHit의 첫 자리를 차지하므로 실제 후속 블록은 그 아래에 놓는다.
+            if (_ghostBySource.TryGetValue(node.Id, out GraphNode ghost))
+            {
+                Vector2 ghostPosition = GhostPosition(node, ghost);
+                ghost.Move(ghostPosition.x, ghostPosition.y);
+                branchBottom = ghost.Y + NodeHeight(ghost, rune) + 24;
+                bottom = Mathf.Max(bottom, branchBottom - 24);
+            }
             foreach (GraphEdge edge in outgoing)
             {
                 GraphNode child = _graph().FindNode(edge.ToNode);

@@ -604,11 +604,11 @@ namespace RuneCode
         }
         public IReadOnlyList<string> AttachedNodeIds => _attachedNodeIds;
 
-        /// <summary>원본 노드와 효과·Shape·Behavior 정의, 호출 대상과 연결 수식으로 실행 명령을 초기화한다.</summary>
+        /// <summary>원본 노드와 효과·Shape·Behavior 정의, 호출 대상, 연결 수식과 전투 속성 비용 감소량으로 실행 명령을 초기화한다.</summary>
         public SpellAction(GraphNode node, RuneDefinition rune, RuneDefinition effectForm, RuneDefinition element,
             IReadOnlyList<RuneDefinition> mods, IReadOnlyList<GraphNode> modifierNodes = null, CompiledSpell calledSpell = null,
             RuneDefinition shape = null, float coneAngle = 0f, ModifierGradeTable modifierGrades = null,
-            RuneDefinition behavior = null, float beamWidth = -1f)
+            RuneDefinition behavior = null, float beamWidth = -1f, float elementCostReduction = 0f)
         {
             _nodeId = node.Id;
             _shapeDefinition = shape;
@@ -684,7 +684,7 @@ namespace RuneCode
             ResourceCostSet baseCosts = rune.Costs;
             if (rune.Id == "magic.inline") baseCosts = baseCosts.Add(effectForm.Costs);
             baseCosts = baseCosts.Multiply(energyMultiplier);
-            if (element != null) baseCosts = baseCosts.Add(element.Costs);
+            if (element != null) baseCosts = baseCosts.Add(ReduceElementCosts(element, elementCostReduction));
             _baseNodeCosts = baseCosts;
             ResourceCostSet shapeCosts = _kind == "spawn" && shape != null ? CalculateShapeCosts(shape, _magicType, _stats, _coneAngle) : ResourceCostSet.Empty;
             _nodeCosts = baseCosts.Add(shapeCosts);
@@ -715,6 +715,24 @@ namespace RuneCode
                 reach += (float)(2 * stats.Speed * stats.Lifetime * Math.Sin(angle * Math.PI / 720));
             }
             return reach;
+        }
+
+        /// <summary>전투 속성(fire·ice·arc) 룬의 자원별 비용에서 감소량을 빼고 0 미만으로 내려가지 않게 한다. 전투 속성이 아니면 원본 비용을 그대로 반환한다.</summary>
+        private static ResourceCostSet ReduceElementCosts(RuneDefinition element, float reduction)
+        {
+            if (reduction <= 0f || !IsCombatElement(element)) return element.Costs;
+            var values = new List<ResourceAmount>(element.Costs.Amounts.Count);
+            foreach (ResourceAmount amount in element.Costs.Amounts)
+                values.Add(new ResourceAmount(amount.Resource, Math.Max(0d, amount.Amount - reduction)));
+            return new ResourceCostSet(values);
+        }
+
+        /// <summary>속성 룬이 전투 속성 태그(fire·ice·arc)를 가졌는지 반환한다. 무속성과 기능 속성은 false다.</summary>
+        private static bool IsCombatElement(RuneDefinition element)
+        {
+            foreach (string tag in element.Tags)
+                if (tag == "fire" || tag == "ice" || tag == "arc") return true;
+            return false;
         }
 
         /// <summary>Shape의 effective 넓이에 자원별 단가를 곱해 자원 비용을 소수 첫째 자리로 반올림한다.</summary>
