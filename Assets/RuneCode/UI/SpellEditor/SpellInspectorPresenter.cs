@@ -191,7 +191,7 @@ namespace RuneCode
                 lines.Add(GameData.L("ui.beamInitialCost") + " " + initialCost.ToString("0.##"));
                 lines.Add(GameData.L("ui.beamDuration") + " " + period.ToString("0.##") + "s"
                     + (isSlotCycle ? " · " + GameData.L("ui.beamUnlimitedHold") : ""));
-                if (isSlotCycle) lines.Add("연장 소모 전력 " + initialCost.ToString("0.##") + " / 구간");
+                if (isSlotCycle) lines.Add("연장 소모 마나 " + initialCost.ToString("0.##") + " / 구간");
                 lines.Add(GameData.L("ui.runeDamageAmount") + " " + (beam?.Damage ?? form.Stats.Damage).ToString("0.##")
                     + " / " + form.Stats.TickInterval.ToString("0.##") + "s");
                 lines.Add(GameData.L("ui.beamWidth") + " " + (beam?.BoxWidth ?? GameData.Runes.Get("form.bolt").Stats.Radius).ToString("0.##") + "px");

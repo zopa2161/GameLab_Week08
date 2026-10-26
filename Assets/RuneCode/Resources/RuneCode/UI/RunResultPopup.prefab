@@ -2123,7 +2123,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8597441649242730954, guid: 964253ca612f3d7418844c5542fbb488, type: 3}
       propertyPath: m_text
-      value: "\uC18C\uBAA8 \uC804\uB825"
+      value: "\uC18C\uBAA8 \uB9C8\uB098"
       objectReference: {fileID: 0}
     - target: {fileID: 8597441649242730954, guid: 964253ca612f3d7418844c5542fbb488, type: 3}
       propertyPath: m_fontSize

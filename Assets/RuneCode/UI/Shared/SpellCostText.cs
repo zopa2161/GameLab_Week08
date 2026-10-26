@@ -10,9 +10,9 @@ namespace RuneCode
         public static string Format(ResourceCostSet costs)
         {
             if (IsUnbounded(costs)) return GameData.L("ui.costUnbounded");
-            if (costs.Amounts.Count == 0) return "0 전력";
+            if (costs.Amounts.Count == 0) return "0 마나";
             if (costs.Amounts.Count == 1 && costs.Amounts[0].Resource == "mana")
-                return costs.Amounts[0].Amount.ToString("0.#") + " 전력";
+                return costs.Amounts[0].Amount.ToString("0.#") + " 마나";
             return costs.Format(ResourceName);
         }
 
@@ -36,7 +36,7 @@ namespace RuneCode
             if (IsUnbounded(costs)) return Format(costs);
             foreach (ResourceAmount amount in costs.Amounts)
                 if (amount.Resource != "mana") return Format(costs);
-            return costs.GetAmount("mana").ToString("0.#") + " / " + maxEnergy.ToString("0.#") + " 전력" ;
+            return costs.GetAmount("mana").ToString("0.#") + " / " + maxEnergy.ToString("0.#") + " 마나" ;
         }
 
         /// <summary>시전 비용이 최대 전력값을 넘어 시전할 수 없는 상태인지 반환한다. 산정 불가 비용도 시전할 수 없으므로 초과로 본다.</summary>

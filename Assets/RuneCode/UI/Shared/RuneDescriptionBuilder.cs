@@ -99,7 +99,7 @@ namespace RuneCode
         {
             string text = GetDescription(rune);
             List<string> lines = GetGradeLines(rune, grade, false, true);
-            if (lines.Count > 0) text += "\n" + string.Join(NAME_SEPARATOR, lines);
+            if (lines.Count > 0) text += "\n\n" + string.Join(NAME_SEPARATOR, lines);
             string targets = GetModifierTargets(rune);
             if (targets != null) text += "\n\n" + targets;
             return text;
@@ -195,10 +195,11 @@ namespace RuneCode
             AddLines(lines, GameData.Format(DETAIL_KEY_PREFIX + name, ("value", value)));
         }
 
-        /// <summary>여러 줄 문구를 줄바꿈 기준으로 나눠 lines에 더한다.</summary>
+        /// <summary>여러 줄 문구를 줄바꿈 기준으로 나누고 빈 항목을 제외해 lines에 더한다.</summary>
         private static void AddLines(List<string> lines, string text)
         {
-            lines.AddRange(text.Split('\n'));
+            foreach (string line in text.Split('\n'))
+                if (!string.IsNullOrWhiteSpace(line)) lines.Add(line);
         }
 
         /// <summary>효과 문구를 줄 단위로 나눠 lines에 더한다. colorValues면 등급 수치 표식을 같은 굵은 표시 구간의 단위까지 확장해 색칠한다.</summary>
