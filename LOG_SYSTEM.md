@@ -260,3 +260,14 @@ upgrade_purchase / upgrade_refund에는 result, effect_type, stage, round를 보
 보스 boss_patterns의 기존 use_count·damage_hp·shield_absorbed·hit_count에 first_use_seconds, last_use_seconds, last_hit_seconds를 추가한다. 시뮬레이션의 전투 초이므로 실험실·일시정지 체류가 들어가지 않는다. 접촉 피해처럼 패턴 사용을 정의하지 않는 행의 first/last_use는 null이며 실제 피격이 없는 패턴의 last_hit도 null이다. round_break_start / combat_end의 기존 enemy_stats 전달 경로와 누계 최신값 집계 계약은 유지한다.
 
 검증: 현재 소스와 Unity 참조로 Core·게임 C# 직접 컴파일 통과, 변경 공백 검사 통과. 테스트 파일·자산은 추가하지 않았다. Unity 실제 플레이, Player 빌드, 새 로그 업로드는 미검증이다. Inspector 연결 작업은 없다. 분석기·웹 게시 코드는 이번 범위에서 변경하지 않았다. 새 Player 빌드부터 새 필드를 수집한다.
+
+
+## 16. 변경된 런 스킬트리 정의·버전 연결 (2026-10-26)
+
+현재 RunUpgradeTree 자산은 강화 포인트·다중 선행·배타 선택·속성 선택을 사용하는 구조다. 기존 node_levels와 이벤트 명칭은 유지하면서 모든 스킬트리 상태에 tree_id, tree_revision(SHA-256), upgrade_points, has_pending_element_pick, selected_tree_element를 추가한다. tree_revision은 자산 이름·정렬된 노드 ID·해금 스테이지·표시 키·격자 좌표·효과 종류·룬 ID·기본 레벨·배타 그룹·선행 조건·레벨별 비용과 효과량에서 계산한다. 단순 layoutVersion이 같거나 노드 ID를 재사용해도 정의가 바뀌면 달라진다. 세션 객체에서 한 번 계산하고 재사용하므로 게임 중 SO 원본을 상태로 변경하지 않는다.
+
+일반 로그 세션 시작 시 test_start에 초기 스킬트리 상태를 남기고 skill_tree_definition 이벤트를 한 번 별도로 즉시 기록한다. definition_version은 1이며 nodes 배열에 각 노드의 이름·설명과 현지화 키, 격자 x/y, required_stage, effect_type, rune_id, initial_level, max_level, exclusive_group, prerequisites(node_id/required_level), levels(cost/amount)를 포함한다. 이 로그를 사용하면 분석기에 현재 자산 파일이 없어도 당시 트리를 복원할 수 있다. 일반 이벤트마다 전체 정의를 반복하지 않는다.
+
+upgrade_purchase와 upgrade_refund는 tree_id/tree_revision을 명시하고 반환에도 변경 직후 skill_tree 상태와 points_before/after를 남긴다. skill_tree_element_selected도 정의 식별값과 선택 후 상태를 포함한다. 구매·반환이 거절되면 skill_tree_action_rejected에 action, node_id, result=rejected, reason, current_level, upgrade_points, stage/round를 기록한다. 기존 성공 구매/반환 이벤트와 명칭을 구분하므로 과거 분석기의 성공 횟수에 거절이 섞이지 않는다. 게임의 구매 조건·배타·반환·보상 규칙은 변경하지 않았다.
+
+컴파일: 현재 Unity 참조로 게임 C# 직접 컴파일 및 변경 공백 검사 통과. 테스트 코드는 추가하지 않았다. Unity 플레이·새 Player 빌드·업로드는 미확인이다. 원본 로그·기존 웹 게시 결과는 변경하지 않았다. 새로 빌드한 게임부터 추가 필드가 생성되며 과거 로그의 트리 버전을 추정해서 덮어쓰지 않는다. 분석기는 향후 정의 해시별로 나누어 해석해야 한다.

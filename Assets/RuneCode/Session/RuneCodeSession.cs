@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 
 using UnityEngine;
 
@@ -20,6 +23,8 @@ namespace RuneCode
         private PlayerSave _normalSave;
         private readonly ModifierGradeDropSource _synthesisGrades;
         private readonly UpgradeTreeDefinition _upgradeTree;
+        private Dictionary<string, object> _skillTreeLogDefinition;
+        private string _skillTreeLogRevision;
         private bool _isDebugEnabled;
         private readonly SpellEditSession _spells;
         private string _statusMessage;
@@ -231,6 +236,7 @@ namespace RuneCode
                     ["play_mode"] = "normal",
                     ["selected_stage"] = SelectedStage,
                     ["save_slot"] = SaveStore.ActiveSlot,
+                    ["skill_tree"] = GetSkillTreeLogSnapshot(),
                     ["inventory"] = GetInventoryLogSnapshot(),
                 };
                 var metadata = new Dictionary<string, object>
@@ -248,6 +254,7 @@ namespace RuneCode
                 };
                 LocalTelemetry.BeginUsabilityTest(metadata, null);
                 LocalTelemetry.RecordUsabilityEvent("test_start", "session", startState);
+                LocalTelemetry.RecordUsabilityEvent("skill_tree_definition", "session", GetSkillTreeDefinitionLogSnapshot());
                 LocalTelemetry.SaveUsabilityBuild(null, _spells.Graph, new Dictionary<string, object>
                 {
                     ["reason"] = "normal_play_start",
@@ -511,14 +518,80 @@ namespace RuneCode
             };
         }
 
+        /// <summary>트리의 노드·배치·선행·배타·레벨별 비용과 효과를 복사하고 구조 식별 해시를 한 번 계산해 반환한다.</summary>
+        private Dictionary<string, object> GetSkillTreeDefinitionLogSnapshot()
+        {
+            if (_skillTreeLogDefinition != null) return _skillTreeLogDefinition;
+            var nodes = new List<Dictionary<string, object>>();
+            var signature = new StringBuilder();
+            signature.Append(_upgradeTree.name).Append('|');
+            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes.Where(value => value != null).OrderBy(value => value.Id, StringComparer.Ordinal))
+            {
+                var prerequisites = new List<Dictionary<string, object>>();
+                var levels = new List<Dictionary<string, object>>();
+                signature.Append(node.Id).Append('|').Append(node.RequiredStage).Append('|').Append(node.TitleKey).Append('|')
+                    .Append(node.DescriptionKey).Append('|').Append(node.LayoutCell.x).Append('|').Append(node.LayoutCell.y).Append('|')
+                    .Append(node.EffectType).Append('|').Append(node.RuneId).Append('|').Append(node.InitialLevel).Append('|').Append(node.ExclusiveGroupId).Append('|');
+                foreach (UpgradeTreePrerequisite prerequisite in node.Prerequisites.OrderBy(value => value.NodeId, StringComparer.Ordinal))
+                {
+                    prerequisites.Add(new Dictionary<string, object> { ["node_id"] = prerequisite.NodeId, ["required_level"] = prerequisite.RequiredLevel });
+                    signature.Append(prerequisite.NodeId).Append(':').Append(prerequisite.RequiredLevel).Append('|');
+                }
+                signature.Append("levels|");
+                foreach (UpgradeTreeLevel level in node.Levels)
+                {
+                    levels.Add(new Dictionary<string, object> { ["cost"] = level.Cost, ["amount"] = level.Amount });
+                    signature.Append(level.Cost).Append(':').Append(level.Amount.ToString("R", CultureInfo.InvariantCulture)).Append('|');
+                }
+                signature.Append("end|");
+                nodes.Add(new Dictionary<string, object>
+                {
+                    ["id"] = node.Id, ["title_key"] = node.TitleKey, ["name"] = GameData.L(node.TitleKey),
+                    ["description_key"] = node.DescriptionKey, ["description"] = GameData.L(node.DescriptionKey),
+                    ["x"] = node.LayoutCell.x, ["y"] = node.LayoutCell.y, ["required_stage"] = node.RequiredStage,
+                    ["effect_type"] = node.EffectType.ToString(), ["rune_id"] = node.RuneId,
+                    ["initial_level"] = node.InitialLevel, ["max_level"] = node.MaxLevel,
+                    ["exclusive_group"] = node.ExclusiveGroupId, ["prerequisites"] = prerequisites, ["levels"] = levels,
+                });
+            }
+            using (SHA256 hash = SHA256.Create())
+                _skillTreeLogRevision = BitConverter.ToString(hash.ComputeHash(Encoding.UTF8.GetBytes(signature.ToString()))).Replace("-", "").ToLowerInvariant();
+            _skillTreeLogDefinition = new Dictionary<string, object>
+            {
+                ["definition_version"] = 1, ["tree_id"] = _upgradeTree.name, ["tree_revision"] = _skillTreeLogRevision,
+                ["currency"] = "upgrade_points", ["nodes"] = nodes,
+            };
+            return _skillTreeLogDefinition;
+        }
+
+        /// <summary>구매·반환이 거절된 노드·사유·현재 레벨과 포인트를 별도 이벤트로 남기고 false를 반환한다.</summary>
+        private bool RecordRejectedSkillTreeAction(string action, string nodeId, string reason)
+        {
+            if (!LocalTelemetry.IsUsabilityTestActive) return false;
+            GetSkillTreeDefinitionLogSnapshot();
+            LocalTelemetry.RecordUsabilityEvent("skill_tree_action_rejected", "workshop", new Dictionary<string, object>
+            {
+                ["action"] = action, ["node_id"] = nodeId, ["result"] = "rejected", ["reason"] = reason,
+                ["tree_id"] = _upgradeTree.name, ["tree_revision"] = _skillTreeLogRevision,
+                ["current_level"] = GetUpgradeNodeLevel(nodeId), ["upgrade_points"] = _save.UpgradePoints,
+                ["stage"] = _isRunSuspended ? _workshopStage : SelectedStage,
+                ["round"] = _isRunSuspended ? (object)_workshopRound : null,
+            });
+            return false;
+        }
+
         /// <summary>현재 스킬트리에 등록된 노드 레벨과 적용된 주요 능력치를 복사해 전투 결과 로그용 스냅샷을 반환한다.</summary>
         public Dictionary<string, object> GetSkillTreeLogSnapshot()
         {
+            GetSkillTreeDefinitionLogSnapshot();
             var levels = new Dictionary<string, object>(StringComparer.Ordinal);
             foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
                 if (node != null) levels[node.Id] = GetUpgradeNodeLevel(node.Id);
             return new Dictionary<string, object>
             {
+                ["tree_id"] = _upgradeTree.name, ["tree_revision"] = _skillTreeLogRevision,
+                ["upgrade_points"] = _save.UpgradePoints, ["has_pending_element_pick"] = _save.HasPendingElementPick,
+                ["selected_tree_element"] = _save.TreeElementRewardRuneId,
                 ["node_levels"] = levels,
                 ["max_hp"] = MaxHp,
                 ["max_energy"] = MaxEnergy,
@@ -534,7 +607,7 @@ namespace RuneCode
             if (!CanPurchaseUpgradeNode(nodeId, out string reasonKey))
             {
                 SetStatus(reasonKey);
-                return false;
+                return RecordRejectedSkillTreeAction("upgrade_purchase", nodeId, reasonKey);
             }
             UpgradeTreeNodeDefinition node = _upgradeTree.FindNode(nodeId);
             int currentLevel = GetUpgradeNodeLevel(nodeId);
@@ -543,15 +616,17 @@ namespace RuneCode
             if (!_save.TrySpendUpgradePoints(cost))
             {
                 SetStatus("tree.insufficientPoints");
-                return false;
+                return RecordRejectedSkillTreeAction("upgrade_purchase", nodeId, "tree.insufficientPoints");
             }
             _save.SetUpgradeNodeLevel(nodeId, currentLevel + 1);
             if (node.EffectType == UpgradeEffectType.RuneUnlock) _save.Unlock(node.RuneId);
             if (node.EffectType == UpgradeEffectType.ElementPick) _save.SetElementPickPending();
             PersistProgress();
             _spells.Recompile();
+            GetSkillTreeDefinitionLogSnapshot();
             LocalTelemetry.RecordUsabilityEvent("upgrade_purchase", "workshop", new Dictionary<string, object>
             {
+                ["tree_id"] = _upgradeTree.name, ["tree_revision"] = _skillTreeLogRevision,
                 ["node_id"] = nodeId, ["level_before"] = currentLevel, ["level_after"] = currentLevel + 1,
                 ["cost"] = cost, ["points_before"] = pointsBefore, ["points_after"] = _save.UpgradePoints,
                 ["result"] = "success", ["effect_type"] = node.EffectType.ToString(),
@@ -567,17 +642,17 @@ namespace RuneCode
         public bool RefundUpgradeNode(string nodeId)
         {
             UpgradeTreeNodeDefinition node = _upgradeTree.FindNode(nodeId);
-            if (node == null) return false;
+            if (node == null) return RecordRejectedSkillTreeAction("upgrade_refund", nodeId, "unknown_node");
             int level = GetUpgradeNodeLevel(nodeId);
             if (level <= node.InitialLevel || _save.GetUpgradeNodeLevel(nodeId) <= node.InitialLevel)
             {
                 SetStatus("tree.refundUnavailable");
-                return false;
+                return RecordRejectedSkillTreeAction("upgrade_refund", nodeId, "tree.refundUnavailable");
             }
             if (node.EffectType == UpgradeEffectType.RuneUnlock)
             {
                 SetStatus("tree.refundRewardBlocked");
-                return false;
+                return RecordRejectedSkillTreeAction("upgrade_refund", nodeId, "tree.refundRewardBlocked");
             }
             foreach (UpgradeTreeNodeDefinition other in _upgradeTree.Nodes)
             {
@@ -592,8 +667,9 @@ namespace RuneCode
                 }
                 if (!referencesNode || isPrerequisiteMet) continue;
                 SetStatus("tree.refundDependentBlocked");
-                return false;
+                return RecordRejectedSkillTreeAction("upgrade_refund", nodeId, "tree.refundDependentBlocked");
             }
+            int pointsBefore = _save.UpgradePoints;
             int refund = _isDebugEnabled ? 0 : node.GetNextCost(level - 1);
             bool isElementPick = node.EffectType == UpgradeEffectType.ElementPick;
             if (isElementPick)
@@ -602,7 +678,7 @@ namespace RuneCode
                 if (!_save.TryRevokeTreeElementReward())
                 {
                     SetStatus("tree.refundRewardUnknown");
-                    return false;
+                    return RecordRejectedSkillTreeAction("upgrade_refund", nodeId, "tree.refundRewardUnknown");
                 }
             }
             _save.SetUpgradeNodeLevel(nodeId, level - 1);
@@ -610,10 +686,13 @@ namespace RuneCode
             PersistProgress();
             if (isElementPick) _spells.Reload();
             else _spells.Recompile();
+            GetSkillTreeDefinitionLogSnapshot();
             LocalTelemetry.RecordUsabilityEvent("upgrade_refund", "workshop", new Dictionary<string, object>
             {
+                ["tree_id"] = _upgradeTree.name, ["tree_revision"] = _skillTreeLogRevision,
                 ["node_id"] = nodeId, ["level_before"] = level, ["level_after"] = level - 1,
-                ["refund"] = refund, ["points_after"] = _save.UpgradePoints,
+                ["refund"] = refund, ["points_before"] = pointsBefore, ["points_after"] = _save.UpgradePoints,
+                ["skill_tree"] = GetSkillTreeLogSnapshot(),
                 ["result"] = "success", ["count"] = 1, ["effect_type"] = node.EffectType.ToString(),
                 ["stage"] = _isRunSuspended ? _workshopStage : SelectedStage,
                 ["round"] = _isRunSuspended ? (object)_workshopRound : null,
@@ -889,9 +968,12 @@ namespace RuneCode
             GrantRune(runeId, "", 1, "tree_element_pick", persist: false);
             _save.RecordTreeElementReward(runeId);
             _save.ClearElementPickPending();
+            GetSkillTreeDefinitionLogSnapshot();
             LocalTelemetry.RecordUsabilityEvent("skill_tree_element_selected", "workshop", new Dictionary<string, object>
             {
                 ["rune_id"] = runeId, ["result"] = "success",
+                ["tree_id"] = _upgradeTree.name, ["tree_revision"] = _skillTreeLogRevision,
+                ["skill_tree"] = GetSkillTreeLogSnapshot(),
                 ["stage"] = _isRunSuspended ? _workshopStage : SelectedStage,
                 ["round"] = _isRunSuspended ? (object)_workshopRound : null,
             });
