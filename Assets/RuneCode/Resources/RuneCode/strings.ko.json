@@ -1717,7 +1717,7 @@
     },
     {
       "_key": "editor.equipSlotLocked",
-      "_value": "행동 노드 등급이 낮아 잠긴 슬롯입니다. 등급을 올려 슬롯을 해금하세요"
+      "_value": "행동 노드 등급이 낮아 잠긴 슬롯입니다. 다른 슬롯을 이용하세요."
     },
     {
       "_key": "editor.equipElementSlotsFull",
@@ -1745,11 +1745,11 @@
     },
     {
       "_key": "editor.equipIncompatible",
-      "_value": "이 행동에는 해당 모디를 장착할 수 없습니다"
+      "_value": "이 행동에는 해당 모드를 장착할 수 없습니다"
     },
     {
       "_key": "editor.equipDuplicateModifier",
-      "_value": "같은 행동에 동일한 모디를 중복 장착할 수 없습니다. 등급이 달라도 중복입니다"
+      "_value": "같은 행동에 동일한 모드를 중복 장착할 수 없습니다. 등급이 달라도 중복입니다"
     },
     {
       "_key": "editor.slotBlocked",

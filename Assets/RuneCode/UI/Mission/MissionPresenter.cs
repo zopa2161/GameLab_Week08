@@ -129,6 +129,7 @@ namespace RuneCode
         /// <summary>미션 화면이 숨겨질 때 빔 음원을 정지하고 기본 음악으로 복원하며 HUD를 끄고 런을 놓는다.</summary>
         public void End()
         {
+            _hud.HideRoundStart();
             SoundManager soundManager = SoundManager.Instance;
             if (soundManager != null)
             {
@@ -160,6 +161,9 @@ namespace RuneCode
                 return;
             }
             if (_run == null) return;
+            if (_run.IsFinished || _run.IsWaitingForNextRound) _hud.HideRoundStart();
+            else _hud.AdvanceRoundStart(unscaledDeltaTime,
+                !_run.IsPaused && !_ui.IsPopupOpen && !_screen.Workshop.IsVisible);
             if (HandleWorkshopShortcuts()) return;
             // 작업실 오버레이가 열려 있는 동안은 미션 진행과 입력·사운드·라운드 처리를 모두 멈춘다.
             if (_screen.Workshop.IsVisible) return;
@@ -187,6 +191,7 @@ namespace RuneCode
             double playerDamageBefore = _run.Simulation.Player.DamageReceived + _run.Simulation.Player.ShieldAbsorbed;
             _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
                 isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame, isRightClickPressed);
+            if (_run.IsFinished || _run.IsWaitingForNextRound) _hud.HideRoundStart();
             int rootCastFailures = _run.Simulation.RootCastFailures;
             if (rootCastFailures > _lastRootCastFailures)
             {
@@ -319,6 +324,7 @@ namespace RuneCode
             if (!IsRoundBreakPortalActive) return;
             if (_run.TryStartNextRound())
             {
+                _hud.ShowRoundStart(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
                 _isInitialDebugRoundBreak = false;
                 ResetHexaDebugActions();
                 _hasPresentedChoices = false;
@@ -490,6 +496,7 @@ namespace RuneCode
                 : _run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview,
                     isHexaSpiralPreview: target.StartsSpiralPreview, isHexaAutoPreview: target.StartsAutoPreview);
             if (!isStarted) return;
+            _hud.ShowRoundStart(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
             _isHexaSummonTestActive = target.IsSummonTest
                 || (target.IsHexaPreview && !target.StartsSpiralPreview && !target.StartsAutoPreview);
             _isInitialDebugRoundBreak = false;
@@ -811,6 +818,7 @@ namespace RuneCode
         /// <summary>세션에서 시전 마법을 준비받아 새 미션을 만들고 HUD·결과 View를 시작 상태로 되돌린다. 이어하기로 고르지 않은 라운드 후보가 남으면 종료 연출 없이 카드 선택창을 즉시 연다. 실패하면 false를 반환한다.</summary>
         private bool StartRun()
         {
+            _hud.HideRoundStart();
             if (!_session.TryPrepareMission(out CompiledSpell spell)) return false;
             _run = new MissionRun(_session, spell, _session.Spells.SpellName);
             _isWaitingForPortalExit = false;
@@ -845,6 +853,8 @@ namespace RuneCode
                     ShowRoundChoices(isResumed: true);
             }
             ShowBattleStartOnboarding();
+            if (!_run.IsWaitingForNextRound && !_run.IsFinished)
+                _hud.ShowRoundStart(_run.Simulation.StageNumber, _run.Simulation.RoundNumber);
             return true;
         }
 
