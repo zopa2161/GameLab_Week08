@@ -70,6 +70,7 @@ namespace RuneCode
 
         [Header("종료 연출")]
         [SerializeField, Min(0.1f)] private float _victoryEndingSeconds = 1.2f;
+        [SerializeField, Min(0.1f)] private float _levelUpSeconds = 1.15f;
         [SerializeField, Min(0.1f)] private float _defeatEndingSeconds = 1.2f;
         [SerializeField, Min(0.1f)] private float _timeoutClockSeconds = 0.65f;
 
@@ -94,6 +95,9 @@ namespace RuneCode
         private Func<bool> _isHitStopEnabled;
         private Func<bool> _isPortalActive;
         private Func<bool> _isPortalVisible;
+        private Func<int> _level;
+        private int _observedLevel;
+        private bool _hasLevelUp;
         private RuneSimulation _observedSimulation;
         private Transform _mapRoot;
         private PlayerView _playerView;
@@ -113,15 +117,16 @@ namespace RuneCode
         /// <summary>월드를 따라가는 미션 카메라다. 화면 View가 조준 좌표 변환에 쓴다.</summary>
         public MissionCamera Camera => _camera;
 
-        /// <summary>시뮬레이션과 화면 효과 설정, 라운드 대기 포털의 진입 가능 여부와 표시 여부 조회 함수를 연결한다.</summary>
+        /// <summary>시뮬레이션·효과 설정·포털 상태·레벨 조회를 연결해 클리어 흡수 뒤 레벨 상승을 표시한다.</summary>
         public void Initialize(Func<RuneSimulation> simulation, Func<bool> isShakeEnabled, Func<bool> isHitStopEnabled,
-            Func<bool> isPortalActive, Func<bool> isPortalVisible)
+            Func<bool> isPortalActive, Func<bool> isPortalVisible, Func<int> level)
         {
             _simulation = simulation;
             _isShakeEnabled = isShakeEnabled;
             _isHitStopEnabled = isHitStopEnabled;
             _isPortalActive = isPortalActive;
             _isPortalVisible = isPortalVisible;
+            _level = level;
         }
 
         /// <summary>승리·패배·라운드 대기 상태에서 시뮬레이션을 진행하지 않고 연출과 라운드 대기 시간을 늘리며, 지정 시간을 채우면 true를 반환한다.</summary>
@@ -129,9 +134,13 @@ namespace RuneCode
         {
             if (!sim.Completed && !sim.IsFailed && !sim.IsWaitingForNextRound) return true;
             if (_observedSimulation != sim) BeginSimulation(sim);
+            int level = _level.Invoke();
+            if (level > _observedLevel) _hasLevelUp = true;
+            _observedLevel = level;
             _endingElapsed += Mathf.Max(0, deltaTime);
             float duration = sim.Completed || sim.IsWaitingForNextRound ? _victoryEndingSeconds
                 : _defeatEndingSeconds + (sim.IsTimedOut ? _timeoutClockSeconds : 0);
+            if (_hasLevelUp && (sim.Completed || sim.IsWaitingForNextRound)) duration += _levelUpSeconds;
             return _endingElapsed >= duration;
         }
 
@@ -140,6 +149,7 @@ namespace RuneCode
             RuneSimulation sim = _simulation?.Invoke();
             if (sim == null)
             {
+                if (_playerView != null) _playerView.ApplyLevelUp(-1f);
                 HideFrom(_beamFlashViews, 0);
                 HideFrom(_rangeLines, 0);
                 HideFrom(_rangePreviews, 0);
@@ -164,13 +174,21 @@ namespace RuneCode
             UpdateRangePreview(sim);
             DetectImpact(sim);
             // 전투 중에는 종료 연출 시간을 되돌려 다음 라운드 종료 연출이 0부터 진행되게 한다.
-            if (!sim.IsWaitingForNextRound && !sim.Completed && !sim.IsFailed) _endingElapsed = 0;
+            if (!sim.IsWaitingForNextRound && !sim.Completed && !sim.IsFailed)
+            {
+                _endingElapsed = 0;
+                _hasLevelUp = false;
+                _observedLevel = _level.Invoke();
+            }
             bool isHitStop = !sim.Completed && !sim.IsFailed && _hitStopUntil > Time.unscaledTime && (_isHitStopEnabled?.Invoke() ?? false);
             RenderBeamFlashes(sim, isHitStop);
             if (isHitStop) return;
             SimVector origin = sim.MapCenter;
             if (_playerView == null) _playerView = Instantiate(_playerPrefab, transform);
             _playerView.Apply(sim.Player, origin, sim.HasPlayerAura, sim.Time);
+            _playerView.ApplyLevelUp(_hasLevelUp && sim.IsWaitingForNextRound
+                ? (_endingElapsed - _victoryEndingSeconds) / _levelUpSeconds : -1f,
+                _camera.GetAscensionHeight(_playerView.transform.position));
             UpdatePortal(sim, origin);
             int count = 0;
             foreach (string id in _additionalEnemyPrefabs.Keys) _additionalEnemyCounts[id] = 0;
@@ -274,6 +292,8 @@ namespace RuneCode
             if (sim.Completed || sim.IsWaitingForNextRound)
             {
                 RenderClearAbsorb(sim);
+                _playerView.ApplyLevelUp(_hasLevelUp ? (_endingElapsed - _victoryEndingSeconds) / _levelUpSeconds : -1f,
+                    _camera.GetAscensionHeight(_playerView.transform.position));
                 return;
             }
             HideFrom(_orbViews, 0);
@@ -424,6 +444,9 @@ namespace RuneCode
         {
             _endingElapsed = 0;
             _hasRenderedEnding = false;
+            _hasLevelUp = false;
+            _observedLevel = _level.Invoke();
+            if (_playerView != null) _playerView.ApplyLevelUp(-1f);
             HideFrom(_endingFragments, 0);
             HideFrom(_clockLines, 0);
             HidePortal();

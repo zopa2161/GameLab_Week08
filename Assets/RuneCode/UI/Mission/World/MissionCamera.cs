@@ -37,6 +37,13 @@ namespace RuneCode
             _simulation = simulation;
         }
 
+        /// <summary>월드 위치에서 화면 상단 밖까지 상승 연출을 그리는 데 필요한 높이를 픽셀 단위로 반환한다.</summary>
+        public float GetAscensionHeight(Vector3 worldPosition)
+        {
+            float screenTop = _camera.transform.position.y + _camera.orthographicSize;
+            return Mathf.Max(0f, screenTop - worldPosition.y) * MissionWorldSpace.PIXELS_PER_UNIT + 128f;
+        }
+
         /// <summary>지정 시간(초) 동안 카메라를 흔든다. 이미 흔들리는 중이면 더 긴 쪽을 유지한다.</summary>
         public void Shake(float seconds)
         {

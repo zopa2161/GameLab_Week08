@@ -26,7 +26,7 @@ namespace RuneCode
         /// <summary>현재 강화 포인트, 노드 레벨과 연결선, 열린 툴팁을 세션 상태로 갱신한다.</summary>
         public void Refresh()
         {
-            _view.SetSummary(GameData.L("ui.tree.summary") + "  ·  "
+            _view.SetSummary("Lv. " + _session.Level + "  ·  " + GameData.L("ui.tree.summary") + "  ·  "
                 + string.Format(GameData.L("ui.tree.points"), _session.Save.UpgradePoints)
                 + "  ·  " + GameData.L("ui.tree.controls"));
             foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
