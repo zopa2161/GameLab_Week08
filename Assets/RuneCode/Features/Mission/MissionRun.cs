@@ -36,6 +36,8 @@ namespace RuneCode
     /// </summary>
     public sealed class MissionRun
     {
+        private const int REROLL_STAGE_SEED_FACTOR = 73856093;
+        private const int REROLL_ROUND_SEED_FACTOR = 19349663;
         private const double FIXED_STEP = 1.0 / RuneSimulation.TICK_RATE;
         private const string DEBUG_MODIFIER_REWARD_TABLE = "drop.round.modifier";
 
@@ -69,6 +71,8 @@ namespace RuneCode
         private List<string> _clearModifierChoices;
         private List<string> _clearModifierGrades;
         private bool _isClearModifierChosen;
+        private string _clearRewardGrade;
+        private bool _hasRerolledClearChoice;
         private readonly bool _isResumedRoundBreak;
         private Stopwatch _roundBreakClock;
         private readonly Stopwatch _activeMissionClock = Stopwatch.StartNew();
@@ -129,6 +133,17 @@ namespace RuneCode
         /// <summary>보스 클리어 Modifier 선택이 이미 확정됐는지 반환한다.</summary>
         public bool IsClearModifierChosen => _isClearModifierChosen;
 
+        public bool HasRerolledClearChoice => _hasRerolledClearChoice;
+
+        /// <summary>미선택 라운드 보상에 무료 리롤이 남아 있고 같은 조건의 새로운 후보가 있는지 반환한다.</summary>
+        public bool CanRerollClearChoice => !_settled && !_isPaused && !_isDebugRewardChoice
+            && _simulation.IsWaitingForNextRound && HasClearModifierChoices && !_isClearModifierChosen
+            && !_hasRerolledClearChoice && !string.IsNullOrEmpty(_clearRewardGrade)
+            && RuneRewardRoller.CollectChoiceCandidates(GetRoundRewardTable(),
+                GameData.Stages.GetRoundRewardCategory(_simulation.StageNumber, _simulation.RoundNumber, GameData.Drops),
+                _clearRewardGrade, GameData.Runes, GameData.ModifierGrades,
+                new HashSet<string>(_clearModifierChoices, StringComparer.Ordinal)).Count > 0;
+
         /// <summary>
         /// 세션 능력치로 연속 미션을 만들고 출격 그래프 스냅샷·전투 ID와 시작 텔레메트리를 기록한다.
         /// 저장된 라운드 진행이 있으면 그 스테이지·라운드의 라운드 대기 상태로 이어 시작하며 저장된 보상 후보를 복원한다.
@@ -152,6 +167,15 @@ namespace RuneCode
                 {
                     _clearModifierChoices = new List<string>(save.PendingRoundChoiceIds);
                     _clearModifierGrades = new List<string>(save.PendingRoundChoiceGrades);
+                    _clearRewardGrade = save.PendingRoundRewardGrade;
+                    _hasRerolledClearChoice = save.HasRerolledRoundChoice;
+                    if (string.IsNullOrEmpty(_clearRewardGrade))
+                    {
+                        string tableId = GameData.Stages.GetProgressionStage(save.ProgressionStage)
+                            .Rounds[save.ProgressionRound - 1].RewardDropTable;
+                        _clearRewardGrade = RuneRewardRoller.ResolveChoiceGrade(GameData.Drops.Get(tableId),
+                            _clearModifierChoices, _clearModifierGrades);
+                    }
                 }
                 else _isClearModifierChosen = true;
                 _roundBreakClock = Stopwatch.StartNew();
@@ -445,12 +469,56 @@ namespace RuneCode
                     return;
                 }
             }
-            if (!_simulation.TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades, category, grade))
+            if (!_simulation.TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades,
+                out _clearRewardGrade, category, grade))
                 throw new InvalidOperationException("라운드 선택 보상 후보가 없습니다.");
             _clearModifierChoices = candidates;
             _clearModifierGrades = grades;
             _isClearModifierChosen = false;
+            _hasRerolledClearChoice = false;
             RecordModifierChoices();
+        }
+
+        /// <summary>현재 스테이지·라운드에서 선택 보상 추첨에 사용하는 드롭 테이블을 반환한다.</summary>
+        private DropTableDefinition GetRoundRewardTable()
+        {
+            string tableId = GameData.Stages.GetProgressionStage(_simulation.StageNumber)
+                .Rounds[_simulation.RoundNumber - 1].RewardDropTable;
+            return GameData.Drops.Get(tableId);
+        }
+
+        /// <summary>라운드 보상을 무료로 한 번 재추첨하고 종류·공통 등급을 유지한다. 후보 저장에 성공한 뒤 표시 상태를 교체하고 로그를 기록한다.</summary>
+        public bool TryRerollClearChoice()
+        {
+            if (!CanRerollClearChoice) return false;
+            string category = GameData.Stages.GetRoundRewardCategory(_simulation.StageNumber, _simulation.RoundNumber, GameData.Drops);
+            var random = new System.Random(unchecked(_seed ^ (_simulation.StageNumber * REROLL_STAGE_SEED_FACTOR)
+                ^ (_simulation.RoundNumber * REROLL_ROUND_SEED_FACTOR)));
+            List<DropRoll> choices = RuneRewardRoller.DrawRerolledChoices(GetRoundRewardTable(), category,
+                _clearRewardGrade, _clearModifierChoices, random.NextDouble);
+            if (choices.Count != _clearModifierChoices.Count) return false;
+            var ids = new List<string>();
+            var grades = new List<string>();
+            foreach (DropRoll choice in choices)
+            {
+                ids.Add(choice.RuneId);
+                grades.Add(choice.Grade);
+            }
+            if (!_session.TrySaveRerolledRoundChoice(_simulation.StageNumber, _simulation.RoundNumber, ids, grades,
+                _clearRewardGrade)) return false;
+            LocalTelemetry.RecordUsabilityEvent("clear_reward_rerolled", "round_break", new Dictionary<string, object>
+            {
+                ["combat_id"] = _testCombatId, ["spell_build_id"] = _spellBuildId,
+                ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber,
+                ["category"] = category, ["reward_grade"] = _clearRewardGrade,
+                ["previous_choices"] = _clearModifierChoices, ["previous_grades"] = _clearModifierGrades,
+                ["choices"] = ids, ["grades"] = grades, ["reroll_count"] = 1, ["cost"] = 0,
+            });
+            _clearModifierChoices = ids;
+            _clearModifierGrades = grades;
+            _hasRerolledClearChoice = true;
+            RecordModifierChoices();
+            return true;
         }
 
         /// <summary>새 소지 아이템 드롭을 기록하고 라운드 지급 대기 목록과 결과 목록에 담는다. 세이브 지급은 라운드가 끝날 때 한다.</summary>
@@ -477,7 +545,7 @@ namespace RuneCode
             int fragments = _simulation.EarnedFragments;
             _session.CommitRoundRewards(fragments - _grantedFragments, _pendingRoundDrops,
                 _simulation.StageNumber, _simulation.RoundNumber, _simulation.Player.Hp, _simulation.Player.MaxHp,
-                _clearModifierChoices, _clearModifierGrades);
+                _clearModifierChoices, _clearModifierGrades, rewardGrade: _clearRewardGrade);
             _grantedFragments = fragments;
             _pendingRoundDrops.Clear();
         }
@@ -611,6 +679,7 @@ namespace RuneCode
             {
                 ["combat_id"] = _testCombatId, ["spell_build_id"] = _spellBuildId,
                 ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber, ["choices"] = choices,
+                ["reroll_count"] = _hasRerolledClearChoice ? 1 : 0,
             });
         }
 
@@ -645,6 +714,7 @@ namespace RuneCode
                 ["stage"] = _simulation.StageNumber, ["rune_id"] = _clearModifierChoices[index],
                 ["round"] = _simulation.RoundNumber, ["choice_index"] = index,
                 ["grade"] = grade, ["count"] = 1,
+                ["reroll_count"] = _hasRerolledClearChoice ? 1 : 0,
                 ["inventory"] = _session.GetInventoryLogSnapshot(),
             });
             _lastResult += "\n" + GameData.L("result.modifierReward") + " "
