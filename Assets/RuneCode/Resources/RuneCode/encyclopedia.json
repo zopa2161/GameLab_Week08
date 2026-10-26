@@ -14,9 +14,9 @@
       "_title": "보상을 선택하세요!",
       "_pages": [
         {
-          "_body": "마법을 강화하기 위해서 마법에 장착할 룬을 선택해 주세요.",
-          "_video": "",
-          "_image": "RuneCode/Onboarding/Onboarding_Draft"
+          "_body": "마법을 강화하기 위해서 마법에 장착할 룬을 선택해 주세요.\n선택지당 한 번 씩 다시 뽑을 수 있습니다.",
+          "_video": "RuneCode/Onboarding/Onboarding_Draft_Video",
+          "_image": ""
         }
       ]
     },
@@ -39,7 +39,7 @@
           "_image": ""
         },
         {
-          "_body": "강화 노드를 업그레이드해 캐릭터를 성장 시키세요.\n전투 중 모은 크레딧을 사용하여 캐릭터를 성장시킬 수 있습니다.",
+          "_body": "강화 노드를 업그레이드해 캐릭터를 성장 시키세요.\n레벨업을 통해 노드 강화 포인트를 얻을 수 있습니다.",
           "_video": "",
           "_image": "RuneCode/Onboarding/Onboarding_Tree"
         }
@@ -74,7 +74,7 @@
           "_image": ""
         },
         {
-          "_body": "연결의 순서를 바꾸면 새로운 형태의 주문을 만들 수 있습니다.\n연결 선은 우클릭을 통해 삭제할 수 있습니다.",
+          "_body": "연결의 순서를 바꾸면 새로운 형태의 주문을 만들 수 있습니다.",
           "_video": "RuneCode/Onboarding/Onboarding_Video_4",
           "_image": ""
         }

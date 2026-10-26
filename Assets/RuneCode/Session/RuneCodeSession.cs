@@ -50,7 +50,7 @@ namespace RuneCode
         /// <summary>테스트 모드에서 마지막으로 띄운 온보딩 챕터 번호다. 아직 띄우지 않았으면 0이다.</summary>
         public int TestOnboardingChapter => _testOnboardingChapter;
 
-        /// <summary>테스트 모드에서 첫 편집창 방문과 정상 복귀를 마칠 때까지 다음 라운드 포털을 잠그는지 반환한다.</summary>
+        /// <summary>테스트 모드에서 요구된 편집창 방문과 정상 복귀를 마칠 때까지 다음 라운드 포털을 잠그는지 반환한다.</summary>
         public bool IsTestEditorVisitRequired => _isTestMode && !_hasCompletedTestEditorVisit;
 
         /// <summary>디버그·테스트처럼 저장 슬롯에 쓰지 않는 메모리 진행인지 반환한다.</summary>
@@ -145,13 +145,21 @@ namespace RuneCode
             _workshopRound = round;
         }
 
+        /// <summary>테스트 모드에서 편집창 재방문을 요구하고 이전 방문 완료와 현재 작업실 방문 기록을 초기화한다. 일반·디버그 진행에는 적용하지 않는다.</summary>
+        public void RequireTestEditorVisit()
+        {
+            if (!_isTestMode) return;
+            _hasCompletedTestEditorVisit = false;
+            _hasEnteredTestEditorDuringWorkshop = false;
+        }
+
         /// <summary>온보딩의 편집창 안내 단계에서 실제 편집창 탭에 들어왔음을 기록한다. 테스트 모드의 작업실 방문 중에만 적용한다.</summary>
         public void RecordTestEditorVisit()
         {
             if (IsTestEditorVisitRequired && _isRunSuspended) _hasEnteredTestEditorDuringWorkshop = true;
         }
 
-        /// <summary>검증을 마친 런의 보관 표시를 해제하고, 이번 작업실에서 테스트 편집창을 방문했다면 최초 방문을 완료한다.</summary>
+        /// <summary>검증을 마친 런의 보관 표시를 해제하고, 이번 작업실에서 테스트 편집창을 방문했다면 요구된 방문을 완료한다.</summary>
         public void ResumeSuspendedRun()
         {
             if (_isRunSuspended && IsTestEditorVisitRequired && _hasEnteredTestEditorDuringWorkshop)
