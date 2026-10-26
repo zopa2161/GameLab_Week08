@@ -20,8 +20,8 @@ namespace RuneCode
         public const int HOMING_SHOT_INTERVAL_TICKS = RuneSimulation.TICK_RATE / 2;
         public const int HOMING_SHOT_COUNT = 10;
         // mod.homing C 등급은 유도 단계가 없어, 실제 최저 단계인 하급(100도/초)을 기준으로 삼는다.
-        public const double HOMING_TURN_DEGREES_PER_SECOND = 100;
-        public const double HOMING_SECONDS = 5;
+        public const double HOMING_TURN_DEGREES_PER_SECOND = 60;
+        public const double HOMING_SECONDS = 5f;
         public const double HOMING_SPEED_MULTIPLIER = 1.5;
         public const int COMPOSITE_STAGE_COUNT = 2;
         public const int COMPOSITE_SUB_ATTACK_COUNT = 3;
