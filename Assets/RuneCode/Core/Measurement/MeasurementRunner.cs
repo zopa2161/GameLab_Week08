@@ -37,7 +37,6 @@ namespace RuneCode
             }
 
             CompiledSpell spell = compiled.Spell;
-            result.RamUsed = spell.RamUsed;
             float castCost = spell.EnergyCost;
             result.CastCost = float.IsInfinity(castCost) || float.IsNaN(castCost) ? -1 : castCost;
             result.CooldownSeconds = spell.GetCooldownSeconds(GameData.Balance.Sim.ExecutionTimeScale);

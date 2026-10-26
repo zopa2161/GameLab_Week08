@@ -20,12 +20,8 @@
     "_maxEnemies": 300,
     "_maxCompiledActions": 2048,
     "_maxScheduledExecutions": 2048,
-    "_maxActionsPerTick": 512
-  },
-  "_ram": {
-    "_mode": "shared",
-    "_cooldownBase": 0.25,
-    "_cooldownPerRam": 0.03
+    "_maxActionsPerTick": 512,
+    "_cooldownBase": 0.25
   },
   "_adaptation": {
     "_elementLearning": 0.02,
@@ -66,7 +62,6 @@
   "_economy": {
     "_slotCost": 120,
     "_deathRetention": 0.7,
-    "_baseCapacity": 6,
     "_maxLibrary": 30,
     "_modifierStartStock": 0,
     "_behaviorStartStock": 1,

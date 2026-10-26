@@ -46,13 +46,6 @@ namespace RuneCode
                     Path(mesh, center, scale, tint, 11,4, 15,4, 15,-4, 11,-4);
                     Path(mesh, center, scale, tint, 2,7, -4,0, 3,0, -3,-7);
                     break;
-                case UpgradeEffectType.RamCapacity:
-                    Path(mesh, center, scale, tint, -15,-8, -15,10, 15,10, 15,-8, -15,-8);
-                    for (int x = -9; x <= 9; x += 9)
-                        Path(mesh, center, scale, tint, x-2,-3, x-2,5, x+2,5, x+2,-3, x-2,-3);
-                    for (int x = -11; x <= 13; x += 6)
-                        Path(mesh, center, scale, tint, x,-8, x,-13);
-                    break;
                 case UpgradeEffectType.CastSpeed:
                     DrawChip(mesh, center, scale, tint);
                     Path(mesh, center, scale, tint, 2,6, -3,0, 3,0, -2,-6);

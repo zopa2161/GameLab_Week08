@@ -6,7 +6,6 @@ namespace RuneCode
     public readonly struct SpellCompileContext
     {
         public IEnumerable<string> UnlockedRunes { get; }
-        public int Capacity { get; }
         public float MaxEnergy { get; }
         public IEnumerable<SpellGraph> Library { get; }
         public IReadOnlyDictionary<string, float> MaxResourceCosts { get; }
@@ -21,15 +20,14 @@ namespace RuneCode
         public float ElementCostReduction { get; }
 
         /// <summary>
-        /// 해금 룬, RAM 용량, 최대 에너지, 참조 가능한 마법 보관함, Modifier 소지량, 행동 하나 고정 여부와
+        /// 해금 룬, 최대 에너지, 참조 가능한 마법 보관함, Modifier 소지량, 행동 하나 고정 여부와
         /// 전투 속성 비용 감소량으로 컴파일 문맥을 만든다.
         /// </summary>
-        public SpellCompileContext(IEnumerable<string> unlockedRunes, int capacity, float maxEnergy, IEnumerable<SpellGraph> library,
+        public SpellCompileContext(IEnumerable<string> unlockedRunes, float maxEnergy, IEnumerable<SpellGraph> library,
             IReadOnlyDictionary<string, int> modifierStock = null, IReadOnlyDictionary<string, float> maxResourceCosts = null,
             bool isSingleBehavior = false, float elementCostReduction = 0f)
         {
             UnlockedRunes = unlockedRunes;
-            Capacity = capacity;
             MaxEnergy = maxEnergy;
             Library = library;
             ModifierStock = modifierStock;

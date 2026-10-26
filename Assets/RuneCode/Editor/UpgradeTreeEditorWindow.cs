@@ -953,7 +953,6 @@ namespace RuneCode.Editor
             {
                 case UpgradeEffectType.EnergyRegen: return new Color(0.20f, 0.45f, 0.65f);
                 case UpgradeEffectType.MaxEnergy: return new Color(0.85f, 0.75f, 0.25f);
-                case UpgradeEffectType.RamCapacity: return new Color(0.45f, 0.65f, 0.30f);
                 case UpgradeEffectType.CastSpeed: return new Color(0.30f, 0.75f, 0.70f);
                 case UpgradeEffectType.Damage: return new Color(0.75f, 0.35f, 0.30f);
                 case UpgradeEffectType.ScrapGain: return new Color(0.80f, 0.60f, 0.35f);

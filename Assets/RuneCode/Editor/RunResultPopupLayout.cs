@@ -55,7 +55,7 @@ namespace RuneCode.EditorTools
                 previewProperties.FindProperty("_style").objectReferenceValue = Resources.Load<GraphVisualStyle>("RuneCode/UI/Elements/GraphVisualStyle");
                 previewProperties.ApplyModifiedPropertiesWithoutUndo();
                 refs["_buildPreview"] = preview;
-                refs["_buildMetaLabel"] = Label(factory, build, 24, 437, 400, 25, "RAM —  ·  노드 —  ·  연결 —", 15, _accentColor);
+                refs["_buildMetaLabel"] = Label(factory, build, 24, 437, 400, 25, "노드 —  ·  연결 —", 15, _accentColor);
                 Label(factory, build, 416, 440, 300, 22, "드래그 이동 · 휠 확대/축소", 12, _mutedColor, true);
 
                 RectTransform stats = factory.Panel(root.transform, 800, CARD_TOP, 440, CARD_HEIGHT, "CombatStatsCard");
@@ -124,7 +124,7 @@ namespace RuneCode.EditorTools
                 var unlocked = new List<string>();
                 foreach (RuneDefinition rune in GameData.Runes.All) unlocked.Add(rune.Id);
                 CompileResult compiled = GraphCompiler.Compile(graph, GameData.Runes, GameData.Balance.Grammar, unlocked,
-                    GameData.Balance.Economy.BaseCapacity, GameData.Balance.Player.MaxEnergy, GameData.Spells);
+                    GameData.Balance.Player.MaxEnergy, GameData.Spells);
                 if (!compiled.Ok) throw new System.InvalidOperationException("기본 빌드를 컴파일하지 못했습니다.");
                 var upgrades = new PlayerUpgradeStats(GameData.Balance.Player.MaxHp, GameData.Balance.Player.MaxEnergy,
                     GameData.Balance.Player.EnergyRegen);

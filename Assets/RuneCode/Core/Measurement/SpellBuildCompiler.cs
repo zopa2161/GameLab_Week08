@@ -65,14 +65,14 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 조합을 그래프로 변환해 룬 테이블과 문법 제한, 측정 프로필의 RAM·에너지로 컴파일한 결과를 반환한다.
+        /// 조합을 그래프로 변환해 룬 테이블과 문법 제한, 측정 프로필의 에너지로 컴파일한 결과를 반환한다.
         /// 해금은 전체 룬 ID로 제한하지 않는다. GameData.Load()를 호출자가 먼저 완료했다고 가정한다.
         /// </summary>
         public static CompileResult Compile(SpellBuild build, MeasurementSuite suite)
         {
             SpellGraph graph = CreateGraph(build, suite);
             return GraphCompiler.Compile(graph, GameData.Runes, GameData.Balance.Grammar,
-                GetAllRuneIds(), suite.Profile.RamCapacity, suite.Profile.MaxEnergy);
+                GetAllRuneIds(), suite.Profile.MaxEnergy);
         }
 
         /// <summary>

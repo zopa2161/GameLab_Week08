@@ -66,7 +66,6 @@ namespace RuneCode
         public bool DockAdaptation => _dockAdaptation;
         public float DockSpeed => _dockSpeed;
 
-        public int Capacity => GameData.Balance.Economy.BaseCapacity + Mathf.RoundToInt(GetUpgradeTreeEffectTotal(UpgradeEffectType.RamCapacity));
         public float MaxEnergy => GameData.Balance.Player.MaxEnergy + GetUpgradeTreeEffectTotal(UpgradeEffectType.MaxEnergy);
         public float MaxHp => GameData.Balance.Player.MaxHp + GetUpgradeTreeEffectTotal(UpgradeEffectType.MaxHp);
         public float EnergyRegen => GameData.Balance.Player.EnergyRegen + GetUpgradeTreeEffectTotal(UpgradeEffectType.EnergyRegen);
@@ -76,7 +75,6 @@ namespace RuneCode
         public float ScrapPickupRangeMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapPickupRange);
         public float ScrapHealRatio => GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapHeal);
         public float KillEnergyBonus => GetUpgradeTreeEffectTotal(UpgradeEffectType.KillEnergy);
-        public int EquippedRam => CalculateEquippedRam(_spells.Graph);
         public int SelectedStage => _save.SelectedStage;
         public int HighestClearedStage => _save.HighestClearedStage;
         public bool HasClearedProgression => _save.HasClearedProgression;
@@ -190,7 +188,6 @@ namespace RuneCode
                     ["play_mode"] = "normal",
                     ["selected_stage"] = SelectedStage,
                     ["save_slot"] = SaveStore.ActiveSlot,
-                    ["ram_capacity"] = Capacity,
                     ["inventory"] = GetInventoryLogSnapshot(),
                 };
                 var metadata = new Dictionary<string, object>
@@ -247,8 +244,6 @@ namespace RuneCode
             {
                 ["selected_stage"] = SelectedStage,
                 ["currency"] = _save.Currency,
-                ["ram_capacity"] = Capacity,
-                ["equipped_ram"] = EquippedRam,
                 ["max_energy"] = MaxEnergy,
                 ["max_hp"] = MaxHp,
                 ["unlocked_runes"] = new List<string>(_save.UnlockedRunes),
@@ -278,7 +273,6 @@ namespace RuneCode
                     ["signature"] = GraphCompiler.Signature(_spells.Graph),
                     ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(_spells.Graph),
                     ["is_compile_valid"] = _spells.CompileResult.Ok,
-                    ["ram_used"] = _spells.CompileResult.Spell?.RamUsed ?? 0,
                 });
             }
             catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
@@ -558,7 +552,6 @@ namespace RuneCode
             return new Dictionary<string, object>
             {
                 ["node_levels"] = levels,
-                ["ram_capacity"] = Capacity,
                 ["max_hp"] = MaxHp,
                 ["max_energy"] = MaxEnergy,
                 ["energy_regen"] = EnergyRegen,
@@ -607,17 +600,13 @@ namespace RuneCode
             PersistProgress();
         }
 
-        /// <summary>현재 마법을 컴파일 규칙과 RAM 규칙으로 검증해 지정 슬롯에 장착한다.</summary>
+        /// <summary>현재 마법을 컴파일 규칙으로 검증해 지정 슬롯에 장착한다.</summary>
         public void Equip(int slot)
         {
             if (slot != 0) return;
             _spells.Recompile();
             if (!_spells.CompileResult.Ok) { SetStatus("editor.invalidEquip"); return; }
             var editingId = _spells.Graph.Id;
-            var ram = 0;
-            for (var i = 0; i < _save.SlotCount; i++)
-                ram += i == slot ? _spells.CompileResult.Spell.RamUsed : GetGraphRam(_save.Loadout[i] == editingId ? _spells.Graph : _save.FindGraph(_save.Loadout[i]));
-            if (GameData.Balance.Ram.Mode == "shared" && ram > Capacity) { SetStatus("editor.ramBlocked"); return; }
             _spells.Save();
             _save.SetLoadout(slot, editingId);
             PersistProgress();
@@ -666,12 +655,12 @@ namespace RuneCode
             _spells.Recompile();
         }
 
-        /// <summary>마법을 저장·컴파일하고 RAM과 최대 전력 제한을 만족하면 출격할 마법을 반환한다. 유지형 빔은 첫 시전 비용으로 검사하며 시작 노드별 결과 각각에 전력 검사를 적용한다. 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
+        /// <summary>마법을 저장·컴파일하고 최대 전력 제한을 만족하면 출격할 마법을 반환한다. 유지형 빔은 첫 시전 비용으로 검사하며 시작 노드별 결과 각각에 전력 검사를 적용한다. 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
         public bool TryPrepareMission(out CompiledSpell spell)
         {
             _spells.Save();
             _spells.Recompile();
-            if (!_spells.CompileResult.Ok || EquippedRam > Capacity)
+            if (!_spells.CompileResult.Ok)
             {
                 SetStatus("editor.invalidEquip");
                 spell = null;
@@ -1040,17 +1029,6 @@ namespace RuneCode
             }
         }
 
-        /// <summary>시작 노드에서 실행 가능한 룬과 장착 슬롯의 RAM만 합산한다.</summary>
-        private int GetGraphRam(SpellGraph graph)
-        {
-            if (graph == null) return 0;
-            var ram = 0;
-            var executableNodes = graph.GetExecutableNodeIds(GameData.Runes);
-            foreach (GraphNode node in graph.Nodes)
-                if (executableNodes.Contains(node.Id)) ram += GameData.Runes.NodeRam(node);
-            return ram;
-        }
-
         /// <summary>해당 강화 유형에 속한 트리 노드의 저장 레벨까지 효과량을 합산한다.</summary>
         public float GetUpgradeTreeEffectTotal(UpgradeEffectType effectType)
         {
@@ -1091,14 +1069,6 @@ namespace RuneCode
                 hasArcEnhance: HasUpgradeEffect(UpgradeEffectType.ArcEnhance),
                 hasIceEnhance: HasUpgradeEffect(UpgradeEffectType.IceEnhance),
                 hasFireEnhance: HasUpgradeEffect(UpgradeEffectType.FireEnhance));
-        }
-
-        /// <summary>편집 사본을 반영한 장착 마법 전체의 RAM 사용량을 반환한다.</summary>
-        private int CalculateEquippedRam(SpellGraph edited)
-        {
-            var ram = 0;
-            foreach (var id in _save.Loadout.Take(_save.SlotCount)) ram += GetGraphRam(edited != null && id == edited.Id ? edited : _save.FindGraph(id));
-            return ram;
         }
     }
 }

@@ -63,7 +63,7 @@ namespace RuneCode
             _dpsLabel.text = (simulation.Time > 0 ? simulation.TotalDamage / simulation.Time : 0).ToString("N1");
             _dashLabel.text = simulation.Player.DashesStarted.ToString("N0");
             _buildNameLabel.text = graph.Name;
-            _buildMetaLabel.text = "RAM " + spell.RamUsed + "  ·  노드 " + graph.Nodes.Count + "  ·  연결 " + graph.Edges.Count;
+            _buildMetaLabel.text = "노드 " + graph.Nodes.Count + "  ·  연결 " + graph.Edges.Count;
             _buildPreview.SetContent(graph, library, spell, _titleLabel.font);
         }
 

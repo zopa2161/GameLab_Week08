@@ -19,7 +19,7 @@ MonoBehaviour:
     _titleKey: ui.tree.dashEndStart
     _descriptionKey: ui.tree.dashEndStartDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 5, y: 0}
+    _layoutCell: {x: 6, y: 0}
     _effectType: 32
     _runeId: 
     _initialLevel: 0
@@ -35,7 +35,7 @@ MonoBehaviour:
     _titleKey: ui.tree.dashGuard
     _descriptionKey: ui.tree.dashGuardDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 7, y: 0}
+    _layoutCell: {x: 8, y: 0}
     _effectType: 25
     _runeId: 
     _initialLevel: 0
@@ -85,7 +85,7 @@ MonoBehaviour:
     _titleKey: ui.tree.runMaxEnergy
     _descriptionKey: ui.tree.runMaxEnergyDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 9, y: 3}
+    _layoutCell: {x: 11, y: 3}
     _effectType: 1
     _runeId: 
     _initialLevel: 0
@@ -117,7 +117,7 @@ MonoBehaviour:
     _titleKey: ui.tree.postDashDamage
     _descriptionKey: ui.tree.postDashDamageDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 7, y: 3}
+    _layoutCell: {x: 8, y: 3}
     _effectType: 22
     _runeId: 
     _initialLevel: 0
@@ -149,7 +149,7 @@ MonoBehaviour:
     _titleKey: ui.tree.runMoveSpeed
     _descriptionKey: ui.tree.runMoveSpeedDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 6, y: 4}
+    _layoutCell: {x: 7, y: 4}
     _effectType: 7
     _runeId: 
     _initialLevel: 0
@@ -167,7 +167,7 @@ MonoBehaviour:
     _titleKey: ui.tree.evasion
     _descriptionKey: ui.tree.evasionDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 8, y: 4}
+    _layoutCell: {x: 10, y: 4}
     _effectType: 18
     _runeId: 
     _initialLevel: 0
@@ -199,7 +199,7 @@ MonoBehaviour:
     _titleKey: ui.tree.evasion
     _descriptionKey: ui.tree.evasionDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 8, y: 5}
+    _layoutCell: {x: 9, y: 5}
     _effectType: 18
     _runeId: 
     _initialLevel: 0
@@ -215,7 +215,7 @@ MonoBehaviour:
     _titleKey: ui.tree.runMoveSpeed
     _descriptionKey: ui.tree.runMoveSpeedDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 6, y: 6}
+    _layoutCell: {x: 7, y: 6}
     _effectType: 7
     _runeId: 
     _initialLevel: 0
@@ -231,7 +231,7 @@ MonoBehaviour:
     _titleKey: ui.tree.core
     _descriptionKey: ui.tree.coreDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 5, y: 7}
+    _layoutCell: {x: 7, y: 7}
     _effectType: 12
     _runeId: 
     _initialLevel: 1
@@ -277,7 +277,7 @@ MonoBehaviour:
     _titleKey: ui.tree.statusDuration
     _descriptionKey: ui.tree.statusDurationDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 2, y: 8}
+    _layoutCell: {x: 2, y: 9}
     _effectType: 15
     _runeId: 
     _initialLevel: 0
@@ -293,7 +293,7 @@ MonoBehaviour:
     _titleKey: ui.tree.elementCost
     _descriptionKey: ui.tree.elementCostDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 4, y: 8}
+    _layoutCell: {x: 4, y: 9}
     _effectType: 14
     _runeId: 
     _initialLevel: 0
@@ -309,7 +309,7 @@ MonoBehaviour:
     _titleKey: ui.tree.nearDamage
     _descriptionKey: ui.tree.nearDamageDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 9, y: 8}
+    _layoutCell: {x: 10, y: 9}
     _effectType: 19
     _runeId: 
     _initialLevel: 0
@@ -325,7 +325,7 @@ MonoBehaviour:
     _titleKey: ui.tree.farDamage
     _descriptionKey: ui.tree.farDamageDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 13, y: 8}
+    _layoutCell: {x: 12, y: 9}
     _effectType: 20
     _runeId: 
     _initialLevel: 0
@@ -341,7 +341,7 @@ MonoBehaviour:
     _titleKey: ui.tree.fullManaDamage
     _descriptionKey: ui.tree.fullManaDamageDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 14, y: 9}
+    _layoutCell: {x: 14, y: 10}
     _effectType: 21
     _runeId: 
     _initialLevel: 0
@@ -357,7 +357,7 @@ MonoBehaviour:
     _titleKey: ui.tree.runKillEnergy
     _descriptionKey: ui.tree.runKillEnergyDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 8, y: 9}
+    _layoutCell: {x: 8, y: 10}
     _effectType: 10
     _runeId: 
     _initialLevel: 0
@@ -425,7 +425,7 @@ MonoBehaviour:
     _titleKey: ui.tree.elementPick
     _descriptionKey: ui.tree.elementPickDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 7, y: 10}
+    _layoutCell: {x: 6, y: 10}
     _effectType: 30
     _runeId: 
     _initialLevel: 0
@@ -521,7 +521,7 @@ MonoBehaviour:
     _titleKey: ui.tree.runRegen
     _descriptionKey: ui.tree.runRegenDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 1, y: 12}
+    _layoutCell: {x: 0, y: 12}
     _effectType: 0
     _runeId: 
     _initialLevel: 0
@@ -585,7 +585,7 @@ MonoBehaviour:
     _titleKey: ui.tree.elementDamage
     _descriptionKey: ui.tree.elementDamageDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 3, y: 13}
+    _layoutCell: {x: 3, y: 14}
     _effectType: 13
     _runeId: 
     _initialLevel: 0
@@ -603,7 +603,7 @@ MonoBehaviour:
     _titleKey: ui.tree.damage
     _descriptionKey: ui.tree.damageDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 11, y: 13}
+    _layoutCell: {x: 11, y: 14}
     _effectType: 4
     _runeId: 
     _initialLevel: 0
@@ -621,7 +621,7 @@ MonoBehaviour:
     _titleKey: ui.tree.statusStackStart
     _descriptionKey: ui.tree.statusStackStartDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 2, y: 14}
+    _layoutCell: {x: 2, y: 15}
     _effectType: 31
     _runeId: 
     _initialLevel: 0
@@ -637,7 +637,7 @@ MonoBehaviour:
     _titleKey: ui.tree.elementSlot
     _descriptionKey: ui.tree.elementSlotDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 4, y: 14}
+    _layoutCell: {x: 4, y: 15}
     _effectType: 35
     _runeId: 
     _initialLevel: 0
@@ -653,7 +653,7 @@ MonoBehaviour:
     _titleKey: ui.tree.singleBehavior
     _descriptionKey: ui.tree.singleBehaviorDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 10, y: 14}
+    _layoutCell: {x: 10, y: 15}
     _effectType: 34
     _runeId: 
     _initialLevel: 0
@@ -669,7 +669,7 @@ MonoBehaviour:
     _titleKey: ui.tree.rightClickStart
     _descriptionKey: ui.tree.rightClickStartDescription
     _icon: {fileID: 0}
-    _layoutCell: {x: 12, y: 14}
+    _layoutCell: {x: 12, y: 15}
     _effectType: 33
     _runeId: 
     _initialLevel: 0

@@ -106,7 +106,7 @@ namespace RuneCode
             gameObject.SetActive(false);
         }
 
-        /// <summary>RAM·비용·쿨다운 지표 문구를 표시한다.</summary>
+        /// <summary>비용·쿨다운 지표 문구를 표시한다.</summary>
         public void SetMetrics(string text) => _metricsText.text = text;
 
         /// <summary>도구줄 툴팁 문구를 표시한다.</summary>

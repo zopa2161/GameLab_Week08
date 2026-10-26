@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 using TMPro;
+using UnityEngine.UI;
 
 namespace RuneCode
 {
@@ -16,6 +17,7 @@ namespace RuneCode
         private const float INITIAL_ZOOM = 0.88f;
         private const float CONTENT_MARGIN = 42;
         private const float CELL_SIZE = 150;
+        private const float EXCLUSIVE_AREA_SCALE = 1.5f;
         private static readonly Vector2 GRID_ORIGIN = new Vector2(400, -50);
 
         [Header("트리 데이터")]
@@ -27,7 +29,6 @@ namespace RuneCode
 
         [Header("트리 화면")]
         [SerializeField] private TextMeshProUGUI _summary;
-        [SerializeField] private TextMeshProUGUI _statsSummary;
         [SerializeField] private RectTransform _viewport;
         [SerializeField] private RectTransform _content;
         [SerializeField] private RectTransform _hoverPanel;
@@ -37,8 +38,14 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _hoverIncrease;
         [SerializeField] private TextMeshProUGUI _hoverCost;
 
+        [Header("배타 세트 표시")]
+        [SerializeField] private Color _exclusiveGroupColor = new Color(0.45f, 0.75f, 1f, 0.12f);
+        [SerializeField] private Color _exclusiveGroupOutlineColor = new Color(0.45f, 0.75f, 1f, 0.55f);
+        [SerializeField, Min(0)] private float _exclusiveGroupPadding = 14;
+
         private readonly Dictionary<string, UpgradeTreeNodeView> _nodeViews = new Dictionary<string, UpgradeTreeNodeView>();
         private UpgradeTreeConnectionView[] _connections = Array.Empty<UpgradeTreeConnectionView>();
+        private readonly List<GameObject> _exclusiveGroupPlates = new List<GameObject>();
         private readonly Vector3[] _tooltipCorners = new Vector3[4];
         private string _tooltipNodeId;
 
@@ -61,12 +68,15 @@ namespace RuneCode
                 if (node != null) CreateNodeView(node);
             CreateConnectionViews();
             ResetContent();
+            CreateExclusiveGroupPlates();
             foreach (UpgradeTreeConnectionView connection in _connections) connection.RefreshLayout();
         }
 
         /// <summary>이전 Build에서 생성한 노드·연결선 뷰를 제거해 재진입에 대비한다.</summary>
         private void ClearGeneratedViews()
         {
+            foreach (GameObject plate in _exclusiveGroupPlates) Destroy(plate);
+            _exclusiveGroupPlates.Clear();
             for (int index = _content.childCount - 1; index >= 0; index--)
             {
                 Transform child = _content.GetChild(index);
@@ -81,8 +91,50 @@ namespace RuneCode
             UpgradeTreeNodeView view = Instantiate(_nodePrefab, _content);
             view.gameObject.name = node.Id;
             view.ConfigureNodeId(node.Id);
-            ((RectTransform)view.transform).anchoredPosition = CellToAnchoredPosition(node.LayoutCell);
+            RectTransform rect = (RectTransform)view.transform;
+            rect.anchoredPosition = CellToAnchoredPosition(node.LayoutCell);
+            if (!string.IsNullOrWhiteSpace(node.ExclusiveGroupId))
+            {
+                // 좌상단 기준점이라 커진 만큼 위치를 옮겨 노드 중심을 원래 셀에 둔다.
+                float scale = Mathf.Sqrt(EXCLUSIVE_AREA_SCALE);
+                rect.localScale = Vector3.one * scale;
+                rect.anchoredPosition += new Vector2(-rect.rect.width, rect.rect.height) * ((scale - 1) * 0.5f);
+            }
             BindNode(view);
+        }
+
+        /// <summary>배타 세트마다 소속 노드 사각형을 여백만큼 감싸는 반투명 배경판을 만들어 연결선 뒤에 둔다. ResetContent 이후 좌상단 기준 콘텐츠 좌표를 사용한다.</summary>
+        private void CreateExclusiveGroupPlates()
+        {
+            Dictionary<string, Rect> groupBounds = new Dictionary<string, Rect>();
+            foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
+            {
+                if (node == null || string.IsNullOrWhiteSpace(node.ExclusiveGroupId) ||
+                    !_nodeViews.TryGetValue(node.Id, out UpgradeTreeNodeView view)) continue;
+                Rect bounds = GetNodeBounds(view);
+                if (groupBounds.TryGetValue(node.ExclusiveGroupId, out Rect current))
+                    bounds = Rect.MinMaxRect(Mathf.Min(current.xMin, bounds.xMin), Mathf.Min(current.yMin, bounds.yMin),
+                        Mathf.Max(current.xMax, bounds.xMax), Mathf.Max(current.yMax, bounds.yMax));
+                groupBounds[node.ExclusiveGroupId] = bounds;
+            }
+            foreach (KeyValuePair<string, Rect> pair in groupBounds)
+            {
+                GameObject plate = new GameObject("ExclusiveGroup " + pair.Key, typeof(RectTransform), typeof(Image), typeof(Outline));
+                RectTransform rect = (RectTransform)plate.transform;
+                rect.SetParent(_content, false);
+                rect.SetAsFirstSibling();
+                rect.anchorMin = rect.anchorMax = new Vector2(0, 1);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.anchoredPosition = pair.Value.center;
+                rect.sizeDelta = pair.Value.size + Vector2.one * (_exclusiveGroupPadding * 2);
+                Image image = plate.GetComponent<Image>();
+                image.color = _exclusiveGroupColor;
+                image.raycastTarget = false;
+                Outline outline = plate.GetComponent<Outline>();
+                outline.effectColor = _exclusiveGroupOutlineColor;
+                outline.effectDistance = new Vector2(1.5f, -1.5f);
+                _exclusiveGroupPlates.Add(plate);
+            }
         }
 
         /// <summary>배치 노드의 선행 조건마다 연결선 뷰를 생성해 부모·자식 노드로 연결하고, 노드 뒤에 그려지도록 형제 순서를 맨 앞으로 보낸다.</summary>
@@ -115,9 +167,6 @@ namespace RuneCode
 
         /// <summary>상단 요약 문구를 표시한다.</summary>
         public void SetSummary(string text) => _summary.text = text;
-
-        /// <summary>기본 능력치를 제외한 트리 강화 합계를 화면 좌측 상단의 고정 텍스트에 표시한다.</summary>
-        public void SetStatsSummary(string text) => _statsSummary.text = text;
 
         /// <summary>노드 효과·룬 분류와 레벨 채움·다음 구매 비용·열림·완료·구매 가능 상태를 표시한다.</summary>
         public void SetNodeState(string nodeId, UpgradeEffectType effectType, string runeCategory, Sprite icon, int level, int maxLevel, int nextCost, bool isAvailable, bool isComplete, bool canPurchase, string runeId = null)

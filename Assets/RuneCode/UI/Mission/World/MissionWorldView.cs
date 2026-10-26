@@ -167,7 +167,7 @@ namespace RuneCode
             if (isHitStop) return;
             SimVector origin = sim.MapCenter;
             if (_playerView == null) _playerView = Instantiate(_playerPrefab, transform);
-            _playerView.Apply(sim.Player, origin);
+            _playerView.Apply(sim.Player, origin, sim.HasPlayerAura, sim.Time);
             UpdatePortal(sim, origin);
             int count = 0;
             foreach (string id in _additionalEnemyPrefabs.Keys) _additionalEnemyCounts[id] = 0;
@@ -354,15 +354,20 @@ namespace RuneCode
             return views[index];
         }
 
-        /// <summary>시작 노드 직결 범위의 최대 사거리를 플레이어 중심 흰 점선으로, 생성 위치와 모양은 반투명 채움으로 표시한다.</summary>
+        /// <summary>
+        /// 시작 노드 직결 범위의 최대 사거리를 플레이어 중심 흰 점선으로, 생성 위치와 모양은 반투명 채움으로 표시한다.
+        /// 근거리·원거리 피해 강화가 있으면 같은 거리의 점선을 항상 표시해 두 구간의 경계를 보여준다.
+        /// </summary>
         private void UpdateRangePreview(RuneSimulation sim)
         {
             int lineCount = 0;
             int previewCount = 0;
+            bool isRangeDrawn = false;
+            Vector2 center = MissionWorldSpace.ToWorld(sim.Player.Position, sim.MapCenter) * MissionWorldSpace.PIXELS_PER_UNIT;
+            float radius = (float)sim.GetAreaPlacementRange();
             Mouse mouse = Mouse.current;
             if (mouse != null && _camera.TryGetSimPoint(mouse.position.ReadValue(), out SimVector pointer))
             {
-                Vector2 center = MissionWorldSpace.ToWorld(sim.Player.Position, sim.MapCenter) * MissionWorldSpace.PIXELS_PER_UNIT;
                 foreach (CompiledSpell spell in sim.Loadout)
                 {
                     if (!RuneSimulation.CanShowAreaPreview(spell)) continue;
@@ -376,31 +381,39 @@ namespace RuneCode
                             sim.GetRangePreview(action, pointer, index, out SimVector position, out SimVector direction);
                             GetView(_rangePreviews, _spellPrefab, previewCount++).ApplyPreview(action, position, direction, sim.MapCenter);
                         }
-                        if (isSlash) continue;
-                        float radius = (float)sim.GetAreaPlacementRange();
-                        for (int segment = 0; segment < RANGE_SEGMENTS; segment += 2)
-                        {
-                            if (lineCount == _rangeLines.Count)
-                            {
-                                var line = new GameObject("RangePreview", typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
-                                line.transform.SetParent(transform, false);
-                                line.sprite = _squareSprite;
-                                line.sharedMaterial = _spriteMaterial;
-                                line.sortingOrder = RANGE_ORDER;
-                                _rangeLines.Add(line);
-                            }
-                            SpriteRenderer target = _rangeLines[lineCount++];
-                            MissionWorldSpace.SetVisible(target, true);
-                            float from = segment * Mathf.PI * 2 / RANGE_SEGMENTS;
-                            float to = (segment + 1) * Mathf.PI * 2 / RANGE_SEGMENTS;
-                            MissionWorldSpace.PlaceLine(target, center + new Vector2(Mathf.Cos(from), Mathf.Sin(from)) * radius,
-                                center + new Vector2(Mathf.Cos(to), Mathf.Sin(to)) * radius, RANGE_LINE_WIDTH, Color.white);
-                        }
+                        if (isSlash || isRangeDrawn) continue;
+                        lineCount = PlaceRangeCircle(center, radius, lineCount);
+                        isRangeDrawn = true;
                     }
                 }
             }
+            if (!isRangeDrawn && sim.HasRangeDamageBonus) lineCount = PlaceRangeCircle(center, radius, lineCount);
             HideFrom(_rangeLines, lineCount);
             HideFrom(_rangePreviews, previewCount);
+        }
+
+        /// <summary>점선 조각을 lineCount 번째부터 재사용·생성해 center 중심 radius 반경의 흰 점선 원을 그리고 다음 조각 번호를 반환한다.</summary>
+        private int PlaceRangeCircle(Vector2 center, float radius, int lineCount)
+        {
+            for (int segment = 0; segment < RANGE_SEGMENTS; segment += 2)
+            {
+                if (lineCount == _rangeLines.Count)
+                {
+                    var line = new GameObject("RangePreview", typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
+                    line.transform.SetParent(transform, false);
+                    line.sprite = _squareSprite;
+                    line.sharedMaterial = _spriteMaterial;
+                    line.sortingOrder = RANGE_ORDER;
+                    _rangeLines.Add(line);
+                }
+                SpriteRenderer target = _rangeLines[lineCount++];
+                MissionWorldSpace.SetVisible(target, true);
+                float from = segment * Mathf.PI * 2 / RANGE_SEGMENTS;
+                float to = (segment + 1) * Mathf.PI * 2 / RANGE_SEGMENTS;
+                MissionWorldSpace.PlaceLine(target, center + new Vector2(Mathf.Cos(from), Mathf.Sin(from)) * radius,
+                    center + new Vector2(Mathf.Cos(to), Mathf.Sin(to)) * radius, RANGE_LINE_WIDTH, Color.white);
+            }
+            return lineCount;
         }
 
         /// <summary>새 시뮬레이션의 맵을 다시 만들고 피해 감지 기준값을 현재 값으로 맞춘다.</summary>

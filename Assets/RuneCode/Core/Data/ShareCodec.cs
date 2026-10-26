@@ -67,7 +67,7 @@ namespace RuneCode
                     List<string> allRunes = new List<string>();
                     foreach (RuneDefinition rune in GameData.Runes.All) allRunes.Add(rune.Id);
                     CompileResult result = GraphCompiler.Compile(graph, GameData.Runes, GameData.Balance.Grammar,
-                        allRunes, int.MaxValue, float.MaxValue, library);
+                        allRunes, float.MaxValue, library);
                     if (!result.Ok) throw new FormatException(CompileIssueText.Format(result.Errors[0]));
                 }
                 return true;

@@ -176,7 +176,6 @@ namespace RuneCode
                 ["signature"] = spell.Signature,
                 ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(session.Spells.Graph),
                 ["stage"] = _simulation.StageNumber,
-                ["ram_used"] = spell.RamUsed,
                 ["is_compile_valid"] = true,
             });
             _testCombatId = LocalTelemetry.BeginUsabilityCombat(_simulation.StageNumber, _spellBuildId, seed, _simulation.TakeEnemyCombatLogSnapshot);
@@ -211,7 +210,6 @@ namespace RuneCode
                 ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(_session.Spells.Graph),
                 ["stage"] = _simulation.StageNumber,
                 ["round"] = _simulation.RoundNumber,
-                ["ram_used"] = spell.RamUsed,
                 ["is_compile_valid"] = true,
             });
             return true;

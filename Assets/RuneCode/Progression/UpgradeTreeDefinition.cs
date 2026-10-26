@@ -9,6 +9,7 @@ namespace RuneCode
     {
         EnergyRegen,
         MaxEnergy,
+        // 삭제된 RAM 용량 강화. 기존 에셋의 정수 값을 유지하려고 자리만 남긴다.
         RamCapacity,
         CastSpeed,
         Damage,
@@ -305,13 +306,6 @@ namespace RuneCode
                     error = "업그레이드 노드의 비용 또는 효과량이 유효하지 않습니다: " + node.Id;
                     return false;
                 }
-            if (node.EffectType == UpgradeEffectType.RamCapacity)
-                foreach (UpgradeTreeLevel level in node.Levels)
-                    if (Mathf.Abs(level.Amount - Mathf.Round(level.Amount)) > 0.001f)
-                    {
-                        error = "RAM 용량 강화량은 정수여야 합니다: " + node.Id;
-                        return false;
-                    }
             if (node.EffectType == UpgradeEffectType.RuneUnlock &&
                 (node.Levels.Count != 1 || !GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune) ||
                     !IsPlayerRune(rune) || (rune.UnlockType != "tree" && rune.UnlockType != "bench") || !runeIds.Add(node.RuneId)))

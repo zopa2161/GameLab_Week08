@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 
 namespace RuneCode
 {
@@ -10,7 +9,6 @@ namespace RuneCode
         private readonly UpgradeTreePanel _view;
         private readonly UpgradeTreeDefinition _definition;
         private readonly Action _onPurchased;
-        private readonly StringBuilder _statsBuilder = new StringBuilder();
         private string _hoveredNodeId;
 
         /// <summary>세션과 트리 화면을 받아 배치된 노드의 구매·호버 이벤트를 연결한다.</summary>
@@ -36,37 +34,7 @@ namespace RuneCode
                 if (node != null) RefreshNode(node);
             }
             _view.SetConnectionStates(nodeId => _session.GetUpgradeNodeLevel(nodeId) > 0);
-            RefreshStatsSummary();
             if (!string.IsNullOrEmpty(_hoveredNodeId)) RefreshTooltip(_hoveredNodeId);
-        }
-
-        /// <summary>트리로 획득한 능력치 열 종류의 누적 증가량을 좌측 상단 표시로 갱신한다.</summary>
-        private void RefreshStatsSummary()
-        {
-            _statsBuilder.Clear();
-            //AppendStat(UpgradeEffectType.EnergyRegen, "ui.tree.mainboard", "/s");
-            AppendStat(UpgradeEffectType.EnergyRegen, "전력 회복 속도", "/s");
-            //AppendStat(UpgradeEffectType.MaxEnergy, "ui.tree.maxEnergy", " 전력");
-            AppendStat(UpgradeEffectType.MaxEnergy, "ui.tree.maxEnergy", "");
-            AppendStat(UpgradeEffectType.RamCapacity, "ui.tree.ramCapacity", " RAM");
-            //AppendStat(UpgradeEffectType.Damage, "ui.tree.gpu", "%", true);
-            AppendStat(UpgradeEffectType.Damage, "마법 피해량 증가", "%", true);
-            AppendStat(UpgradeEffectType.MaxHp, "ui.tree.maxHp", " HP");
-            AppendStat(UpgradeEffectType.MoveSpeed, "ui.tree.moveSpeed", "%", true);
-            //AppendStat(UpgradeEffectType.KillEnergy, "ui.tree.killEnergy", " 전력");
-            AppendStat(UpgradeEffectType.KillEnergy, "ui.tree.killEnergy", "");
-            AppendStat(UpgradeEffectType.ScrapPickupRange, "ui.tree.scrapPickupRange", "%", true);
-            AppendStat(UpgradeEffectType.ScrapGain, "ui.tree.scrapGain", "%", true);
-            AppendStat(UpgradeEffectType.ScrapHeal, "ui.tree.scrapHeal", "%", true);
-            _view.SetStatsSummary(_statsBuilder.ToString());
-        }
-
-        /// <summary>지정 효과의 트리 합계를 표시 단위로 변환해 통계 문구에 한 줄 추가한다.</summary>
-        private void AppendStat(UpgradeEffectType effectType, string titleKey, string unit, bool isPercent = false)
-        {
-            if (_statsBuilder.Length > 0) _statsBuilder.Append('\n');
-            float amount = _session.GetUpgradeTreeEffectTotal(effectType) * (isPercent ? 100f : 1f);
-            _statsBuilder.Append(GameData.L(titleKey)).Append(" +").Append(amount.ToString("0.##")).Append(unit);
         }
 
         /// <summary>노드의 잠금·비용·레벨 상태를 계산해 아이콘에 적용한다.</summary>
@@ -128,7 +96,6 @@ namespace RuneCode
                 case UpgradeEffectType.EnergyRegen: unit = "/s"; break;
                 case UpgradeEffectType.MaxEnergy: unit = " 전력"; break;
                 case UpgradeEffectType.KillEnergy: unit = " 전력/처치"; break;
-                case UpgradeEffectType.RamCapacity: unit = " RAM"; break;
                 case UpgradeEffectType.MaxHp: unit = " HP"; break;
                 case UpgradeEffectType.DashInvulnerability: unit = "초"; break;
                 case UpgradeEffectType.Damage:

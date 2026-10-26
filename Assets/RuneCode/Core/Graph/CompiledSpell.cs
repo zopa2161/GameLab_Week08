@@ -900,7 +900,6 @@ namespace RuneCode
         private readonly string _signature;
         private readonly string _coreNodeId;
         private readonly string _trigger;
-        private readonly int _ramUsed;
         private readonly ResourceCostSet _resourceCosts;
         private readonly ResourceCostSet _castCosts;
         private readonly float _cooldown;
@@ -914,7 +913,6 @@ namespace RuneCode
         public string Signature => _signature;
         public string CoreNodeId => _coreNodeId;
         public string Trigger => _trigger;
-        public int RamUsed => _ramUsed;
         public ResourceCostSet ResourceCosts => _resourceCosts;
 
         /// <summary>OnHit 선결제를 포함한 원본 구간 비용이다. 슬롯 주기 빔의 실제 시전 비용은 GetCastCosts에서 산정한다.</summary>
@@ -973,14 +971,14 @@ namespace RuneCode
             return ticks / (double)SIMULATION_TICK_RATE;
         }
 
-        /// <summary>Returns the base RAM cooldown plus the estimated execution time at the supplied scale.</summary>
+        /// <summary>Returns the base cooldown plus the estimated execution time at the supplied scale.</summary>
         public double GetCooldownSeconds(float executionTimeScale)
         {
             return _cooldown + GetEstimatedExecutionSeconds(executionTimeScale);
         }
 
         /// <summary>검증된 그래프의 자원별 최대 비용·실행 루트·적응 태그를 읽기 전용 마법으로 저장한다.</summary>
-        public CompiledSpell(string name, string signature, string coreNodeId, int ramUsed, ResourceCostSet resourceCosts,
+        public CompiledSpell(string name, string signature, string coreNodeId, ResourceCostSet resourceCosts,
             float cooldown, int worstCaseEntities, IReadOnlyList<string> tags, IReadOnlyList<SpellAction> root,
             string id = "", string trigger = SpellGrammar.TRIGGER_ON_ATTACK, ResourceCostSet castCosts = null)
         {
@@ -989,7 +987,6 @@ namespace RuneCode
             _signature = signature;
             _coreNodeId = coreNodeId;
             _trigger = trigger;
-            _ramUsed = ramUsed;
             _resourceCosts = resourceCosts ?? ResourceCostSet.Empty;
             _castCosts = castCosts ?? _resourceCosts;
             _cooldown = cooldown;

@@ -220,10 +220,6 @@
       "_value": "최대 엔티티"
     },
     {
-      "_key": "ui.ram",
-      "_value": "RAM"
-    },
-    {
       "_key": "ui.cooldown",
       "_value": "쿨다운"
     },
@@ -286,10 +282,6 @@
     {
       "_key": "ui.fragments.description",
       "_value": "강화 트리에서 노드를 구매하는 데 사용하는 재화입니다."
-    },
-    {
-      "_key": "ui.capacity",
-      "_value": "노드 RAM 용량"
     },
     {
       "_key": "ui.slot",
@@ -556,10 +548,6 @@
       "_value": "오류를 해결한 뒤 마법을 장착하세요"
     },
     {
-      "_key": "editor.ramBlocked",
-      "_value": "장착한 마법의 RAM 합계가 완드 용량을 초과합니다"
-    },
-    {
       "_key": "editor.energyBlocked",
       "_value": "전력 소모량이 최대 전력을 초과해 출격할 수 없습니다 (소모 {0:0.##} / 최대 {1:0.##})"
     },
@@ -624,10 +612,6 @@
       "_value": "하나의 형태에는 속성을 하나만 부착할 수 있습니다"
     },
     {
-      "_key": "issue.E7",
-      "_value": "마법의 RAM이 완드 용량을 초과합니다"
-    },
-    {
       "_key": "issue.E8",
       "_value": "중첩 실행량이 허용 한도를 초과합니다"
     },
@@ -666,10 +650,6 @@
     {
       "_key": "issue.E17",
       "_value": "최악 생성 Entity 수가 런타임 동시 개체 한도를 초과합니다"
-    },
-    {
-      "_key": "issue.W1",
-      "_value": "Core에서 도달할 수 없는 노드도 RAM을 차지합니다"
     },
     {
       "_key": "issue.W2",
@@ -885,7 +865,7 @@
     },
     {
       "_key": "ui.incrementalLoop",
-      "_value": "적 처치로 스크랩 획득 · 트리에서 전력 / RAM 용량 강화 · 더 높은 단계 도전"
+      "_value": "적 처치로 스크랩 획득 · 트리에서 전력 강화 · 더 높은 단계 도전"
     },
     {
       "_key": "ui.tree.title",
@@ -914,14 +894,6 @@
     {
       "_key": "ui.tree.maxEnergyDescription",
       "_value": "최대 보유 전력"
-    },
-    {
-      "_key": "ui.tree.ramCapacity",
-      "_value": "RAM 용량"
-    },
-    {
-      "_key": "ui.tree.ramDescription",
-      "_value": "마법 노드 RAM 용량"
     },
     {
       "_key": "ui.tree.unlockRune",

@@ -4,7 +4,6 @@
         "_schemaVersion": 1,
         "_profile": {
             "_profileId": "max_tree",
-            "_ramCapacity": 21,
             "_maxEnergy": 250.0,
             "_energyRegen": 55.0,
             "_startEnergyRatio": 1.0,

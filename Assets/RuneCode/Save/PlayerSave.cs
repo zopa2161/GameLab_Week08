@@ -826,7 +826,7 @@ namespace RuneCode
             else progress.SetLevel(level);
         }
 
-        /// <summary>양수 RAM 보상을 누적하고 시간제 전투 완주 기록을 남긴다.</summary>
+        /// <summary>양수 스크랩 보상을 누적하고 시간제 전투 완주 기록을 남긴다.</summary>
         public void Settle(int fragments, bool cleared)
         {
             _currency = (int)Math.Min(100000000L, _currency + (long)Math.Max(0, fragments));

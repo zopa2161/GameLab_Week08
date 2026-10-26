@@ -12,8 +12,6 @@ namespace RuneCode
     /// </summary>
     public sealed class SpellEditorPresenter : IDisposable
     {
-        private const string RAM_HIGHLIGHT_OPEN = "<b><color=#FFD54A>";
-        private const string RAM_HIGHLIGHT_CLOSE = "</color></b>";
         private const string COST_EXCEED_OPEN = "<b><color=#FF5A5A>";
         private const string COST_EXCEED_CLOSE = "</color></b>";
 
@@ -150,20 +148,13 @@ namespace RuneCode
             RefreshAll();
         }
 
-        /// <summary>장착 RAM·그래프 RAM, 시전 비용, 전력 회복량과 쿨다운을 표시하고, 시전 비용이 최대 전력을 넘으면 비용 구간을 붉게 강조한다.</summary>
+        /// <summary>시전 비용, 전력 회복량과 쿨다운을 표시하고, 시전 비용이 최대 전력을 넘으면 비용 구간을 붉게 강조한다.</summary>
         private void RefreshMetrics()
         {
             CompiledSpell spell = _editor.CompileResult.Spell;
-            int ram = 0;
-            var executableNodes = _editor.Graph.GetExecutableNodeIds(GameData.Runes);
-            foreach (GraphNode node in _editor.Graph.Nodes)
-                if (executableNodes.Contains(node.Id)) ram += GameData.Runes.NodeRam(node);
-            // RAM 구간만 노란색 굵게 강조한다.
-            string text = RAM_HIGHLIGHT_OPEN + GameData.L("ui.ram") + " " + _host.EquippedRam + " / " + _host.Capacity
-                + RAM_HIGHLIGHT_CLOSE;
             if (spell == null)
             {
-                _view.SetMetrics(text + "  ·  " + GameData.L("ui.warning"));
+                _view.SetMetrics(GameData.L("ui.warning"));
                 return;
             }
 
@@ -173,7 +164,7 @@ namespace RuneCode
             // 시전 비용이 최대 전력을 넘어 시전할 수 없으면 비용 구간만 붉게 강조한다.
             if (SpellCostText.ExceedsMaxEnergy(castCosts, _host.MaxEnergy))
                 castCostText = COST_EXCEED_OPEN + castCostText + COST_EXCEED_CLOSE;
-            text += "  ·  " + castCostText
+            string text = castCostText
                 + "  ·  " + GameData.L("ui.energy") + " 회복 " + _host.EnergyRegen.ToString("0.#") + " /s"
                 + "  ·  " + GameData.L("ui.cooldown") + " "
                 + spell.GetCooldownSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s";

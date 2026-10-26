@@ -35,6 +35,13 @@ namespace RuneCode
         public int Tick => _world.Tick;
         public double Time => _world.Time;
         public SimulationPlayer Player => _world.Player;
+
+        /// <summary>강화 트리의 플레이어 주위 지속 장판이 켜져 있는지 반환한다.</summary>
+        public bool HasPlayerAura => _world.Upgrades.HasPlayerAura;
+
+        /// <summary>장판 배치 거리를 기준으로 나뉘는 근거리·원거리 피해 강화 중 하나라도 있는지 반환한다.</summary>
+        public bool HasRangeDamageBonus => _world.Upgrades.NearDamageBonus > 0 || _world.Upgrades.FarDamageBonus > 0;
+
         public IReadOnlyList<SimulationEnemy> Enemies => _world.Enemies;
         public IReadOnlyList<SimulationSpellEntity> SpellEntities => _world.SpellEntities;
 

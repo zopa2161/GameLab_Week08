@@ -340,8 +340,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\uC801 \uCC98\uCE58\uB85C RAM \uD68D\uB4DD \xB7 \uB178\uB4DC \uC6A9\uB7C9
-    / \uC5D0\uB108\uC9C0 / \uC804\uD22C \uC2DC\uAC04 \uAC15\uD654 \xB7 \uB354 \uB192\uC740
+  m_text: "\uC801 \uCC98\uCE58\uB85C \uC2A4\uD06C\uB7A9 \uD68D\uB4DD \xB7
+    \uC5D0\uB108\uC9C0 / \uC804\uD22C \uC2DC\uAC04 \uAC15\uD654 \xB7 \uB354 \uB192\uC740
     \uB2E8\uACC4 \uB3C4\uC804"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 6e22b7e028833a74aaf22c6466fb8f2f, type: 2}
@@ -617,7 +617,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_text: "\uB178\uB4DC \uAC15\uD654 \u2192 \uC2DC\uAC04\uC81C \uC804\uD22C \u2192
-    RAM \uD68D\uB4DD"
+    \uC2A4\uD06C\uB7A9 \uD68D\uB4DD"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 6e22b7e028833a74aaf22c6466fb8f2f, type: 2}
   m_sharedMaterial: {fileID: -5937850424648672293, guid: 6e22b7e028833a74aaf22c6466fb8f2f, type: 2}

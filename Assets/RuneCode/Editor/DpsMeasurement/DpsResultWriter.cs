@@ -16,7 +16,7 @@ namespace RuneCode.Editor
     public static class DpsResultWriter
     {
         private const string CSV_HEADER = "buildId,conditionId,situation,distance,grade,chainLength,presets,status,warnings,compileErrors,"
-            + "ramUsed,castCost,cooldownSeconds,castRange,"
+            + "castCost,cooldownSeconds,castRange,"
             + "totalDamage,dps,burstDps,sustainedDps,statusDamage,hitCount,"
             + "energySpent,damagePerEnergy,castAttempts,castSuccesses,castFailures,firstFailureSeconds,bottleneck,"
             + "damagedEnemyCount,enemyDamageMin,enemyDamageMax,"
@@ -77,7 +77,6 @@ namespace RuneCode.Editor
             AppendCell(csv, string.Join(LIST_SEPARATOR, result.Warnings));
             AppendCell(csv, string.Join(LIST_SEPARATOR, result.CompileErrors));
 
-            AppendCell(csv, FormatInt(result.RamUsed));
             AppendCell(csv, FormatNumber(result.CastCost));
             AppendCell(csv, FormatNumber(result.CooldownSeconds));
             AppendCell(csv, FormatNumber(result.CastRange));

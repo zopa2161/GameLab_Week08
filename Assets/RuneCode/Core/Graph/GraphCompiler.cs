@@ -11,17 +11,17 @@ namespace RuneCode
         private const string FORM_RUNE_PREFIX = "form.";
 
         /// <summary>
-        /// 그래프와 해금·RAM·에너지 조건을 검증하고 최악 비용의 실행 트리를 컴파일한다.
+        /// 그래프와 해금·에너지 조건을 검증하고 최악 비용의 실행 트리를 컴파일한다.
         /// modifierStock이 있으면 현재 프리셋의 모디파이어·속성·행동 배치 수가 소지량을 넘을 때 E21 오류로 낸다. null이면 검사하지 않는다.
         /// isSingleBehavior가 true면 시작 노드마다 루트 행동을 하나로 제한(E26)하고 통과한 루트 행동의 OnHit 맨 앞에 자기 복제를 넣는다.
         /// elementCostReduction은 전투 속성(fire·ice·arc)이 붙은 노드 비용에서 뺄 감소량이다.
         /// </summary>
         public static CompileResult Compile(SpellGraph graph, RuneCatalog runes, GrammarLimits limits,
-            IEnumerable<string> unlocked, int capacity = -1, float maxEnergy = -1f, IEnumerable<SpellGraph> library = null,
+            IEnumerable<string> unlocked, float maxEnergy = -1f, IEnumerable<SpellGraph> library = null,
             IReadOnlyDictionary<string, int> modifierStock = null, IReadOnlyDictionary<string, float> maxResourceCosts = null,
             bool isSingleBehavior = false, float elementCostReduction = 0f)
         {
-            CompileContext context = new CompileContext(unlocked ?? runes.StartRunes, library, graph, capacity, maxEnergy,
+            CompileContext context = new CompileContext(unlocked ?? runes.StartRunes, library, graph, maxEnergy,
                 maxResourceCosts, isSingleBehavior, elementCostReduction);
             List<CompileIssue> dependencyErrors = new List<CompileIssue>();
             ValidateSpellDependencies(graph, context.Library, new HashSet<string>(StringComparer.Ordinal),
@@ -163,23 +163,22 @@ namespace RuneCode
             List<CompileIssue> chainErrors = new List<CompileIssue>();
             List<CompileIssue> chainWarnings = new List<CompileIssue>();
             SpellGraph normalized = SpellChainNormalizer.Normalize(graph, runes, chainErrors, chainWarnings,
-                out int chainRam, out Dictionary<string, List<GraphNode>> slotModifiers);
+                out Dictionary<string, List<GraphNode>> slotModifiers);
             CompileResult result = chainErrors.Any(issue => issue.Code != "E10")
                 ? new CompileResult(chainErrors, chainWarnings, null)
-                : CompileGraphBody(normalized, runes, limits, context, chainErrors, chainWarnings, chainRam, slotModifiers);
+                : CompileGraphBody(normalized, runes, limits, context, chainErrors, chainWarnings, slotModifiers);
             if (!string.IsNullOrEmpty(graph.Id)) context.ActiveSpellIds.Remove(graph.Id);
             if (result.Ok && !string.IsNullOrEmpty(graph.Id)) context.Compiled[graph.Id] = result.Spell;
             return result;
         }
 
         /// <summary>
-        /// 슬롯 정규화를 마친 그래프의 해금·RAM·에너지 조건을 검사하고 시작 노드별 실행 트리 및 비용 상한을 계산한다.
-        /// 정규화 단계의 오류·경고 목록에 이어서 기록하며 chainRam은 정규화가 합산한 behavior 노드의 RAM이고,
-        /// slotModifiers는 behavior 노드별 합성 Modifier 노드 목록이다.
+        /// 슬롯 정규화를 마친 그래프의 해금·에너지 조건을 검사하고 시작 노드별 실행 트리 및 비용 상한을 계산한다.
+        /// 정규화 단계의 오류·경고 목록에 이어서 기록하며 slotModifiers는 behavior 노드별 합성 Modifier 노드 목록이다.
         /// 성공하면 시작 노드별 Entry 목록(0번이 core.cast)을 담은 CompileResult를 반환한다.
         /// </summary>
         private static CompileResult CompileGraphBody(SpellGraph graph, RuneCatalog runes, GrammarLimits limits, CompileContext context,
-            List<CompileIssue> errors, List<CompileIssue> warnings, int chainRam,
+            List<CompileIssue> errors, List<CompileIssue> warnings,
             Dictionary<string, List<GraphNode>> slotModifiers)
         {
             if (graph.Version != SpellGraph.CURRENT_VERSION || graph.Nodes == null || graph.Edges == null
@@ -191,8 +190,6 @@ namespace RuneCode
             Dictionary<string, GraphNode> nodes = new Dictionary<string, GraphNode>(StringComparer.Ordinal);
             Dictionary<string, RuneDefinition> definitions = new Dictionary<string, RuneDefinition>(StringComparer.Ordinal);
             List<GraphNode> cores = new List<GraphNode>();
-            int ramUsed = chainRam;
-            var executableNodes = graph.GetExecutableNodeIds(runes);
             foreach (GraphNode node in graph.Nodes)
             {
                 if (node == null || string.IsNullOrEmpty(node.Id) || !nodes.TryAdd(node.Id, node)
@@ -202,7 +199,6 @@ namespace RuneCode
                     continue;
                 }
                 definitions[node.Id] = rune;
-                if (executableNodes.Contains(node.Id)) ramUsed += rune.Ram;
                 if (rune.Category == "core") cores.Add(node);
                 bool isAllowedRune = !rune.IsDisabled && (rune.Category == SpellGrammar.CATEGORY_CORE
                     || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR || rune.Category == SpellGrammar.CATEGORY_INTERNAL);
@@ -214,9 +210,7 @@ namespace RuneCode
             ValidateStartNodes(cores, errors);
             ValidateEdges(graph, definitions, errors);
             if (!errors.Any(issue => issue.Code == "E3") && HasCycle(graph, nodes)) errors.Add(new CompileIssue("E4"));
-            int limit = context.Capacity < 0 ? limits.BaseCapacity : context.Capacity;
-            if (ramUsed > limit) errors.Add(new CompileIssue("E7"));
-            bool hasStructuralError = errors.Any(issue => issue.Code != "E7" && issue.Code != "E10");
+            bool hasStructuralError = errors.Any(issue => issue.Code != "E10");
             if (hasStructuralError) return new CompileResult(errors, warnings, null);
 
             List<GraphNode> startNodes = OrderStartNodes(runes, cores);
@@ -246,7 +240,7 @@ namespace RuneCode
                 }
                 if (context.IsSingleBehavior && root.Count == 1)
                     DuplicateRootAction(graph, start.Id, root[0], nodes, definitions, runes, limits, context, slotModifiers);
-                entries.Add(BuildEntry(graph, runes, limits, context, definitions, start, root, ramUsed, chainRam, actionCeiling, warnings));
+                entries.Add(BuildEntry(graph, limits, context, start, root, actionCeiling, warnings));
             }
             if (errors.Any(issue => issue.Code == "E26")) return new CompileResult(errors, warnings, null);
             return new CompileResult(errors, warnings, entries[0], entries);
@@ -332,13 +326,12 @@ namespace RuneCode
 
         /// <summary>
         /// 시작 노드 하나의 실행 트리를 최악 비용·실행 비용·개체 수·태그와 함께 CompiledSpell로 만든다.
-        /// RamUsed는 그래프 전체 사용량을 넣고, 쿨다운은 chainRam에 그 시작 노드에서 도달한 노드의 RAM 합을 더해 계산한다.
+        /// 쿨다운은 기본 쿨다운을 넣고 실행 시간은 CompiledSpell이 시전 시점에 더한다.
         /// 빔 유지 비용 무한 표시는 트리거가 onAttack인 Entry에만 적용하며, 최대 예상 비용(W8·W7)·실행 수(W11)·
         /// 동시 개체 수(W10) 경고를 같은 코드·상세값이 중복되지 않게 검사한다.
         /// </summary>
-        private static CompiledSpell BuildEntry(SpellGraph graph, RuneCatalog runes, GrammarLimits limits, CompileContext context,
-            Dictionary<string, RuneDefinition> definitions, GraphNode start, List<SpellAction> root,
-            int ramUsed, int chainRam, long actionCeiling, List<CompileIssue> warnings)
+        private static CompiledSpell BuildEntry(SpellGraph graph, GrammarLimits limits, CompileContext context,
+            GraphNode start, List<SpellAction> root, long actionCeiling, List<CompileIssue> warnings)
         {
             string trigger = StartNodeTrigger(start);
             ResourceCostSet resourceCosts = Cost(root, allowBeamHold: trigger == SpellGrammar.TRIGGER_ON_ATTACK);
@@ -363,10 +356,8 @@ namespace RuneCode
             if (entities > limits.MaxLiveSpellEntities) AddWarningOnce(warnings, new CompileIssue("W10"));
             SortedSet<string> tags = new SortedSet<string>(StringComparer.Ordinal);
             GatherTags(root, tags);
-            int entryRam = chainRam;
-            foreach (string nodeId in graph.GetExecutableNodeIds(runes, start.Id)) entryRam += definitions[nodeId].Ram;
-            return new CompiledSpell(graph.Name, Signature(graph, root), start.Id, ramUsed, resourceCosts,
-                limits.CooldownBase + limits.CooldownPerRam * entryRam, entities, tags.ToList(), root, graph.Id, trigger, castCosts);
+            return new CompiledSpell(graph.Name, Signature(graph, root), start.Id, resourceCosts,
+                limits.CooldownBase, entities, tags.ToList(), root, graph.Id, trigger, castCosts);
         }
 
         /// <summary>같은 코드·상세값의 경고가 이미 있으면 무시하고 없으면 추가한다. 시작 노드별 검사에서 중복 경고를 막는다.</summary>
@@ -996,7 +987,6 @@ namespace RuneCode
             private readonly Dictionary<string, SpellGraph> _library;
             private readonly Dictionary<string, CompiledSpell> _compiled = new Dictionary<string, CompiledSpell>(StringComparer.Ordinal);
             private readonly HashSet<string> _activeSpellIds = new HashSet<string>(StringComparer.Ordinal);
-            private readonly int _capacity;
             private readonly float _maxEnergy;
             private readonly IReadOnlyDictionary<string, float> _maxResourceCosts;
             private readonly bool _isSingleBehavior;
@@ -1005,13 +995,12 @@ namespace RuneCode
             public Dictionary<string, SpellGraph> Library => _library;
             public Dictionary<string, CompiledSpell> Compiled => _compiled;
             public HashSet<string> ActiveSpellIds => _activeSpellIds;
-            public int Capacity => _capacity;
             public float MaxEnergy => _maxEnergy;
             public bool IsSingleBehavior => _isSingleBehavior;
             public float ElementCostReduction => _elementCostReduction;
 
             /// <summary>라이브러리·해금·컴파일 캐시, 자원 한도와 행동 하나 고정·속성 비용 감소 값을 컴파일 작업에 보관한다.</summary>
-            public CompileContext(IEnumerable<string> unlocked, IEnumerable<SpellGraph> library, SpellGraph current, int capacity,
+            public CompileContext(IEnumerable<string> unlocked, IEnumerable<SpellGraph> library, SpellGraph current,
                 float maxEnergy, IReadOnlyDictionary<string, float> maxResourceCosts, bool isSingleBehavior,
                 float elementCostReduction)
             {
@@ -1022,7 +1011,6 @@ namespace RuneCode
                     foreach (SpellGraph spell in library)
                         if (spell != null && !string.IsNullOrEmpty(spell.Id)) _library[spell.Id] = spell;
                 if (current != null && !string.IsNullOrEmpty(current.Id)) _library[current.Id] = current;
-                _capacity = capacity;
                 _maxEnergy = maxEnergy;
                 _maxResourceCosts = maxResourceCosts;
                 _isSingleBehavior = isSingleBehavior;

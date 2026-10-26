@@ -26,13 +26,12 @@ namespace RuneCode
             return "<b>" + name + "</b>";
         }
 
-        /// <summary>시작 노드는 이름만, 그 외 비행동 노드는 이름·RAM·핵심 설정 요약을 라벨 문구로 반환한다.</summary>
+        /// <summary>시작 노드는 이름만, 그 외 비행동 노드는 이름·핵심 설정 요약을 라벨 문구로 반환한다.</summary>
         internal static string BuildLegacyText(GraphNode node, IEnumerable<SpellGraph> library)
         {
             if (GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune) && rune.Category == SpellGrammar.CATEGORY_CORE) return BuildNameText(node);
             var builder = new StringBuilder();
-            builder.Append(BuildNameText(node)).Append("  ")
-                .Append(GameData.Runes.NodeRam(node)).Append(" ").Append(GameData.L("ui.ram"));
+            builder.Append(BuildNameText(node));
             string summary = Summary(node);
             if (!string.IsNullOrEmpty(summary)) builder.Append("\n<size=12>").Append(summary).Append("</size>");
             return builder.ToString();
@@ -49,12 +48,6 @@ namespace RuneCode
             string summary = Summary(node);
             if (!string.IsNullOrEmpty(summary)) builder.Append("\n<size=12>").Append(summary).Append("</size>");
             return builder.ToString();
-        }
-
-        /// <summary>노드가 차지하는 RAM 수치와 라벨을 반환한다.</summary>
-        internal static string BuildRamText(GraphNode node)
-        {
-            return GameData.Runes.NodeRam(node) + " " + GameData.L("ui.ram");
         }
 
         /// <summary>포트 이름을 반환하며 없는 포트는 빈 문자열, 지원 중단 포트는 취소선을 붙인 이름으로 반환한다.</summary>

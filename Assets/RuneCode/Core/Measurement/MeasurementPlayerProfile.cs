@@ -14,7 +14,6 @@ namespace RuneCode
         [SerializeField] private string _profileId = "max_tree";
 
         [Header("자원")]
-        [SerializeField] private int _ramCapacity = 21;
         [SerializeField] private float _maxEnergy = 250f;
         [SerializeField] private float _energyRegen = 55f;
         [SerializeField, Range(0f, 1f)] private float _startEnergyRatio = 1f;
@@ -24,7 +23,6 @@ namespace RuneCode
         [SerializeField] private bool _isInvulnerable = true;
 
         public string ProfileId => _profileId;
-        public int RamCapacity => _ramCapacity;
         public float MaxEnergy => _maxEnergy;
         public float EnergyRegen => _energyRegen;
         public float StartEnergyRatio => _startEnergyRatio;
