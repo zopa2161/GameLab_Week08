@@ -209,8 +209,6 @@ namespace RuneCode
             {
                 string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
                 PreviewRuneDescription(rune, grade);
-                //_view.SetTooltip(GameData.L("ui.costMultiplier") + " ×"
-                //    + GameData.ModifierGrades.GetEnergyMultiplier(rune.Id, grade).ToString("0.##"));
                 return;
             }
             PreviewNodeDescription(node);
