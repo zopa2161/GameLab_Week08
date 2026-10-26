@@ -1115,7 +1115,7 @@
     },
     {
       "_key": "ui.tree.dashCooldownDescription",
-      "_value": "대시 쿨타임이 10% 감소합니다"
+      "_value": "대시 쿨타임이 15% 감소합니다"
     },
     {
       "_key": "ui.tree.dashInvulnerability",
@@ -1124,6 +1124,10 @@
     {
       "_key": "ui.tree.dashInvulnerabilityDescription",
       "_value": "대시 중 무적 시간이 0.1초 증가합니다"
+    },
+    {
+      "_key": "ui.tree.dashInvulnerabilityLongDescription",
+      "_value": "대시 중 무적 시간이 0.2초 증가합니다"
     },
     {
       "_key": "ui.tree.evasion",
@@ -1147,7 +1151,7 @@
     },
     {
       "_key": "ui.tree.postDashDamageDescription",
-      "_value": "대시 시작 후 1초 안에 시전한 주문의 피해가 20% 증가합니다"
+      "_value": "대시 시작 후 1초 안에 시전한 주문의 피해가 50% 증가합니다"
     },
     {
       "_key": "ui.tree.dashEndStart",
@@ -1155,7 +1159,7 @@
     },
     {
       "_key": "ui.tree.dashEndStartDescription",
-      "_value": "마법 편집 캔버스에 대시 종료 시작 노드를 엽니다. 대시가 끝날 때 마나 10% 할인된 비용으로 발동하며 마나가 부족하면 발동하지 않습니다"
+      "_value": "마법 편집 캔버스에 대시 종료 시작 노드를 엽니다. 연속 연결과 명중·소멸 후속 연결을 포함해 행동 노드를 총 1개만 연결할 수 있으며, 대시가 끝날 때 마나 소모 없이 발동합니다"
     },
     {
       "_key": "ui.tree.dashGuard",

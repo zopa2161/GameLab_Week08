@@ -721,7 +721,7 @@ namespace RuneCode
 
         /// <summary>
         /// 시작 노드별 컴파일 결과(Entries) 각각의 필요 전력이 최대 전력 이하인지 검사한다. 유지형 빔 판단은 Entry의 Trigger가 onAttack일 때만 하고,
-        /// 대시 종료 Entry는 밸런스의 DashEndCostMultiplier를 곱한 값으로 비교한다. 하나라도 넘으면 editor.energyBlocked 문구를 남기고 false를 반환한다.
+        /// 하나라도 넘으면 editor.energyBlocked 문구를 남기고 false를 반환한다.
         /// </summary>
         private bool IsEntriesWithinMaxEnergy()
         {
@@ -734,7 +734,6 @@ namespace RuneCode
                     && entry.Root.Any(action => action.Form == BeamBehaviorRules.BEAM_KIND);
                 double requiredEnergy = hasHeldBeam
                     ? entry.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale).GetAmount("mana") : entry.EnergyCost;
-                if (entry.Trigger == SpellGrammar.TRIGGER_ON_DASH_END) requiredEnergy *= GameData.Balance.Player.DashEndCostMultiplier;
                 if (requiredEnergy <= MaxEnergy) continue;
                 SetStatusText(string.Format(GameData.L("editor.energyBlocked"), requiredEnergy, MaxEnergy));
                 return false;

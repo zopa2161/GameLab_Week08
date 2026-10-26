@@ -213,6 +213,12 @@ namespace RuneCode
             if (!errors.Any(issue => issue.Code == "E3") && HasCycle(graph, nodes)) errors.Add(new CompileIssue("E4"));
             bool hasStructuralError = errors.Any(issue => issue.Code != "E10");
             if (hasStructuralError) return new CompileResult(errors, warnings, null);
+            string dashEndOverflow = FindDashEndOverflow(graph, runes);
+            if (dashEndOverflow != null)
+            {
+                errors.Add(new CompileIssue("E26", dashEndOverflow));
+                return new CompileResult(errors, warnings, null);
+            }
 
             List<GraphNode> startNodes = OrderStartNodes(runes, cores);
             HashSet<string> reachable = new HashSet<string>();
@@ -335,8 +341,10 @@ namespace RuneCode
             GraphNode start, List<SpellAction> root, long actionCeiling, List<CompileIssue> warnings)
         {
             string trigger = StartNodeTrigger(start);
-            ResourceCostSet resourceCosts = Cost(root, allowBeamHold: trigger == SpellGrammar.TRIGGER_ON_ATTACK);
-            ResourceCostSet castCosts = Cost(root, includeEvents: false);
+            double costMultiplier = trigger == SpellGrammar.TRIGGER_ON_DASH_END ? 0d : 1d;
+            ResourceCostSet resourceCosts = Cost(root, costMultiplier: costMultiplier,
+                allowBeamHold: trigger == SpellGrammar.TRIGGER_ON_ATTACK);
+            ResourceCostSet castCosts = Cost(root, costMultiplier: costMultiplier, includeEvents: false);
             int entities = EntityCount(root);
             long expandedActions = AddBounded(1L, ActionCount(root, actionCeiling + 1L), actionCeiling + 1L);
             // 최대 예상 비용·실행 수·동시 개체 수는 최악 분기 추정이라 시전을 막지 않고 경고만 낸다(백서 7.2).
@@ -389,6 +397,9 @@ namespace RuneCode
                 issue = new CompileIssue("E25", edge.FromNode);
             else if (toRune.IsDisabled)
                 issue = new CompileIssue("E25", edge.ToNode);
+            else if (output.Max > 0 && graph.Edges.Count(current => current.FromNode == edge.FromNode
+                && current.FromPort == edge.FromPort) >= output.Max)
+                issue = new CompileIssue("E9", edge.FromNode);
             else if (graph.Edges.Any(current => current.FromNode == edge.FromNode && current.FromPort == edge.FromPort
                 && current.Order == edge.Order))
                 issue = new CompileIssue("E9", edge.ToNode);
@@ -401,7 +412,39 @@ namespace RuneCode
                 issue = new CompileIssue("E4", edge.ToNode);
             else if (AddsStatusStackEvent(graph, edge, runes))
                 issue = new CompileIssue("E3", edge.ToNode);
+            else if (FindDashEndOverflow(graph, runes, edge) is string dashEndOverflow)
+                issue = new CompileIssue("E26", dashEndOverflow);
             return issue == null;
+        }
+
+        /// <summary>기존 그래프와 선택적 후보 연결의 대시 종료 실행 경로를 검사하고, 실행 노드가 1개를 넘는 시작 노드 ID를 반환한다. 초과가 없으면 null이다.</summary>
+        private static string FindDashEndOverflow(SpellGraph graph, RuneCatalog runes, GraphEdge candidate = null)
+        {
+            IEnumerable<GraphEdge> edges = candidate == null ? graph.Edges : graph.Edges.Concat(new[] { candidate });
+            foreach (GraphNode root in graph.Nodes)
+            {
+                if (root.RuneId != SpellGrammar.DASH_END_CORE_RUNE) continue;
+                var pending = new Stack<string>();
+                var visited = new HashSet<string>();
+                int executionNodeCount = 0;
+                pending.Push(root.Id);
+                while (pending.Count > 0)
+                {
+                    string nodeId = pending.Pop();
+                    if (!visited.Add(nodeId)) continue;
+                    if (nodeId != root.Id && ++executionNodeCount > 1) return root.Id;
+                    GraphNode node = graph.FindNode(nodeId);
+                    if (node == null || !runes.TryGet(node.RuneId, out RuneDefinition rune)) continue;
+                    foreach (GraphEdge edge in edges)
+                    {
+                        if (edge.FromNode != nodeId) continue;
+                        PortDefinition port = rune.FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT);
+                        if (port != null && port.Kind == SpellGrammar.EXEC_KIND && !port.IsDeprecated)
+                            pending.Push(edge.ToNode);
+                    }
+                }
+            }
+            return null;
         }
 
         /// <summary>후보 연결로 상태 이상 중첩 시작 경로에 명중·소멸 후속 실행이 포함되는지 검사한다. 이미 후속이 붙은 묶음의 삽입도 거부한다.</summary>
@@ -583,6 +626,8 @@ namespace RuneCode
                         ports.Add(edge.FromPort, orders);
                     }
                     if (!orders.Add(edge.Order)) errors.Add(new CompileIssue("E9", edge.ToNode));
+                    else if (output.Max > 0 && orders.Count > output.Max)
+                        errors.Add(new CompileIssue("E9", edge.FromNode));
                 }
                 string portKey = edge.ToNode + ":" + edge.ToPort;
                 int count = incoming.TryGetValue(portKey, out int previous) ? previous + 1 : 1;
