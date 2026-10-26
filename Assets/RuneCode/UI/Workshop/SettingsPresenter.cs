@@ -40,7 +40,7 @@ namespace RuneCode
         /// <summary>진행 종류에 따른 디버그 도구·저장 버튼·초기화 문구와 화면 흔들림·히트스톱·저장 설정의 현재 값을 표시한다.</summary>
         public void Refresh()
         {
-            _view.SetSessionMode(_session.IsDebugEnabled, !_session.IsMemorySession, GetResetTitleKey(), _isTitle);
+            _view.SetSessionMode(_session.IsDebugEnabled && UiTheme.SHOW_DEBUG_BUTTONS, !_session.IsMemorySession, GetResetTitleKey(), _isTitle);
             _view.SetFeedback(_session.ScreenShake, _session.HitStop);
             _view.SetSaveOptions(_session.IsSaveDirty, !_session.IsMemorySession, !_session.IsMemorySession);
         }

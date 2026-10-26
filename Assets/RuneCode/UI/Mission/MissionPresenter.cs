@@ -100,7 +100,7 @@ namespace RuneCode
             _screen = screen;
             _hud = hud;
             _result = result;
-            _hud.Bind(session.IsDebugEnabled);
+            _hud.Bind(session.IsDebugEnabled && UiTheme.SHOW_DEBUG_BUTTONS);
             _hud.PauseClicked += TogglePause;
             _hud.DebugClicked += OpenDebug;
             _hud.WorkshopClicked += OpenWorkshop;
@@ -940,8 +940,8 @@ namespace RuneCode
                 && _session.TestOnboardingChapter >= ONBOARDING_FIRST_CLEAR
                 && _session.TestOnboardingChapter <= ONBOARDING_EDIT_WINDOW);
             if (_run.IsFinished || sim.IsWaitingForNextRound) ResetHexaDebugActions();
-            bool isDebugMenuVisible = _session.IsDebugEnabled && CanOpenWorkshop;
-            bool isDebugActionsVisible = _session.IsDebugEnabled && _isHexaSummonTestActive
+            bool isDebugMenuVisible = _session.IsDebugEnabled && UiTheme.SHOW_DEBUG_BUTTONS && CanOpenWorkshop;
+            bool isDebugActionsVisible = _session.IsDebugEnabled && UiTheme.SHOW_DEBUG_BUTTONS && _isHexaSummonTestActive
                 && !_run.IsFinished && !sim.IsWaitingForNextRound;
             if (isDebugMenuVisible) _hud.SetDebugBossMenu(true, !_run.IsPaused && !_ui.IsPopupOpen);
             else if (isDebugActionsVisible) UpdateHexaDebugActions(!_run.IsPaused && !_ui.IsPopupOpen);
