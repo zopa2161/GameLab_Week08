@@ -22,6 +22,11 @@ namespace RuneCode
 
         internal static readonly Color FrozenBodyColor = new Color(0.55f, 0.88f, 1f);
         internal static readonly Color FrozenOutlineColor = new Color(0.8f, 0.97f, 1f);
+
+        private static readonly Color FireElementColor = new Color(1f, 0.40f, 0.25f);
+        private static readonly Color IceElementColor = new Color(0.34f, 0.83f, 1f);
+        private static readonly Color ArcElementColor = new Color(0.72f, 0.52f, 1f);
+
         /// <summary>현재 칼날과 회전 진행으로 최근 부채꼴 구간의 잔상·직사각형 칼날·밝은 날을 재사용 목록에 채운다. 오래된 잔상과 종료 직전 잔상은 투명해지며 scale로 크기를 변환한다.</summary>
         internal static void BuildSlash(SimulationSpellEntity spell, float scale, List<Vector3> vertices,
             List<Color> colors, List<int> triangles)
@@ -338,9 +343,12 @@ namespace RuneCode
         {
             switch (element)
             {
-                case "fire": return new Color(1f, 0.40f, 0.25f);
-                case "ice": return new Color(0.34f, 0.83f, 1f);
-                case "arc": return new Color(0.72f, 0.52f, 1f);
+                case "fire": return FireElementColor;
+                case "ice": return IceElementColor;
+                case "arc": return ArcElementColor;
+                case SpellGrammar.ELEMENT_STEAM: return Color.Lerp(FireElementColor, IceElementColor, 0.5f);
+                case SpellGrammar.ELEMENT_FIRE_ARC: return Color.Lerp(FireElementColor, ArcElementColor, 0.5f);
+                case SpellGrammar.ELEMENT_ICE_ARC: return Color.Lerp(IceElementColor, ArcElementColor, 0.5f);
                 default: return new Color(0.81f, 0.96f, 0.78f);
             }
         }

@@ -32,7 +32,8 @@ namespace RuneCode
             if (_viewport == null)
             {
                 _viewport = new GraphViewport(rectTransform);
-                _layout = new GraphNodeLayout(_viewport, () => _graph);
+                // 저장된 그래프의 두 번째 속성 슬롯도 보이도록 확장 보너스 1로 계산한다.
+                _layout = new GraphNodeLayout(_viewport, () => _graph, () => 1);
                 var state = new GraphPointerState();
                 _painter = new GraphMeshPainter(_viewport, _layout, state, _style, IsRuneVisible);
                 _labels = new GraphNodeLabels(rectTransform, font, _viewport, _layout, _painter, _style, state);

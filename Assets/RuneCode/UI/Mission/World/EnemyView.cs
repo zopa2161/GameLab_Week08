@@ -112,7 +112,11 @@ namespace RuneCode
             MissionWorldSpace.SetVisible(_patchRing, enemy.IsPatching);
             if (enemy.IsPatching) MissionWorldSpace.Place(_patchRing, Vector2.zero, (radius + PATCH_GAP) * 2, PatchColor);
 
-            ApplyIcon(_burnIcon, sim.HasEnemyStatus(enemy, EnemyStatusType.Burn), new Vector2(-radius, radius + ICON_GAP), "fire");
+            // 전용 아이콘 참조가 없어 화상 아이콘을 찜통 색으로 재사용한다.
+            bool hasBurn = sim.HasEnemyStatus(enemy, EnemyStatusType.Burn);
+            bool hasSteam = sim.HasEnemyStatus(enemy, EnemyStatusType.Steam);
+            ApplyIcon(_burnIcon, hasBurn || hasSteam, new Vector2(-radius, radius + ICON_GAP),
+                hasSteam ? SpellGrammar.ELEMENT_STEAM : "fire");
             ApplyIcon(_chillIcon, sim.GetChillStacks(enemy) > 0 || sim.HasEnemyStatus(enemy, EnemyStatusType.Freeze), new Vector2(0, radius + ICON_GAP), "ice");
             ApplyIcon(_empIcon, sim.HasEnemyStatus(enemy, EnemyStatusType.Emp) || sim.HasEnemyStatus(enemy, EnemyStatusType.Shock), new Vector2(radius, radius + ICON_GAP), "arc");
             double threshold = GameData.Balance.Adaptation.ResistanceThreshold;

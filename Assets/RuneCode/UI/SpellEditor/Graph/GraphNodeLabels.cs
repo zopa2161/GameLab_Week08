@@ -246,7 +246,7 @@ namespace RuneCode
                     slotLabel.horizontalAlignment = HorizontalAlignmentOptions.Center;
                     labels.Add(slotLabel);
                 }
-                string text = GraphNodeLabelText.SlotText(node, GraphNodeLayout.SlotKeys[index]);
+                string text = GraphNodeLabelText.SlotText(node, GraphNodeLayout.SlotKeys[index], _layout.ElementSlotBonus);
                 if (labels[index].text != text) labels[index].text = text;
             }
             for (int index = count; index < labels.Count; index++) labels[index].gameObject.SetActive(false);
@@ -341,7 +341,7 @@ namespace RuneCode
                 SlotView view = views[index];
                 if (view == null) continue;
                 string slotKey = GraphNodeLayout.SlotKeys[index];
-                bool isLocked = GraphNodeLayout.IsSlotLocked(node, slotKey);
+                bool isLocked = GraphNodeLayout.IsSlotLocked(node, slotKey, _layout.ElementSlotBonus);
                 view.Image.color = isLocked ? SLOT_LOCKED_COLOR : Color.white;
                 if (view.OutlineImage != null)
                     view.OutlineImage.enabled = !isLocked && equippable != null && equippable.Contains(slotKey);

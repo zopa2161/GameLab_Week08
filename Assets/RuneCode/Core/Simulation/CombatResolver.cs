@@ -64,7 +64,7 @@ namespace RuneCode
             }
         }
 
-        /// <summary>스펠 피해·상태와 전격 연쇄를 처리하며 관통 직접 피해는 보정 후에도 최소 1을 유지한다. 직접 실제 피해에 비례한 밀어내기를 pushDirection으로 예약하고 잔류 피해를 누적한다.</summary>
+        /// <summary>스펠 피해·상태와 전격 연쇄 방식의 주변 전파(arc·fire_arc·ice_arc)를 처리하며 관통 직접 피해는 보정 후에도 최소 1을 유지한다. 직접 실제 피해에 비례한 밀어내기를 pushDirection으로 예약하고 잔류 피해를 누적한다.</summary>
         internal void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot, SimVector pushDirection)
         {
             double minimumDamage = entity.Behavior.TracksDirectHit && entity.Stats.Pierce > 0 && !isDot ? 1d : 0d;
@@ -76,25 +76,55 @@ namespace RuneCode
                 double distance = entity.Stats.KnockbackDistance * actual / referenceDamage;
                 enemy.QueueDisplacement(pushDirection, distance, entity.Stats.KnockbackSeconds, _world.Tick);
             }
-            if (entity.Element == "arc")
+            if (IsChainElement(entity.Element))
             {
-                RuneStats arc = _runes.Get("elem.arc").Stats;
-                var chain = new List<SimulationEnemy>();
-                foreach (SimulationEnemy other in _world.Enemies)
-                    if (other != enemy && other.IsAlive && SimVector.Distance(other.Position, enemy.Position) <= arc.ArcRange) chain.Add(other);
-                chain.Sort((a, b) =>
-                {
-                    int distanceOrder = (a.Position - enemy.Position).LengthSquared.CompareTo((b.Position - enemy.Position).LengthSquared);
-                    return distanceOrder != 0 ? distanceOrder : a.Id.CompareTo(b.Id);
-                });
-                for (int i = 0; i < Math.Min(arc.ArcTargets, chain.Count); i++)
-                {
-                    actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action, damageStatus: "arc_chain", castDamageMultiplier: entity.CastDamageMultiplier);
-                    _feedback.AddArcLink(enemy.Position, chain[i].Position);
-                }
+                actual += ApplyChainDamage(entity, enemy, damage, isDot);
                 if (actual > 0) _stats.ArcDamageEventCount++;
             }
             if (entity.Behavior.AccumulatesPersistDamage && !(_world.IsMission && enemy.IsDummy)) _stats.PersistDamage += actual;
+        }
+
+        /// <summary>전격 연쇄 방식으로 주변에 피해를 전파하는 속성인지 반환한다. 전격과 화염·냉기 전파(fire_arc·ice_arc)가 해당한다.</summary>
+        private static bool IsChainElement(string element)
+        {
+            return element == "arc" || element == SpellGrammar.ELEMENT_FIRE_ARC || element == SpellGrammar.ELEMENT_ICE_ARC;
+        }
+
+        /// <summary>
+        /// 적중 대상 주변 ArcRange 안의 다른 살아 있는 적을 가까운 순(같으면 ID 순)으로 ArcTargets명까지 골라 ArcMultiplier 배율의 연쇄 피해를 주고 연결선 피드백을 남긴다.
+        /// 연쇄 피해의 속성은 적중 속성을 그대로 쓰고 상태 피해명은 arc는 arc_chain, 화염·냉기 전파는 fire_chain·ice_chain이다.
+        /// applyStatus가 켜져 혼합 태그는 연쇄 대상에게 화상·냉기를 함께 건다. 연쇄로 더해진 실제 피해를 반환한다.
+        /// </summary>
+        private double ApplyChainDamage(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot)
+        {
+            RuneStats arc = _runes.Get("elem.arc").Stats;
+            var chain = new List<SimulationEnemy>();
+            foreach (SimulationEnemy other in _world.Enemies)
+                if (other != enemy && other.IsAlive && SimVector.Distance(other.Position, enemy.Position) <= arc.ArcRange) chain.Add(other);
+            chain.Sort((a, b) =>
+            {
+                int distanceOrder = (a.Position - enemy.Position).LengthSquared.CompareTo((b.Position - enemy.Position).LengthSquared);
+                return distanceOrder != 0 ? distanceOrder : a.Id.CompareTo(b.Id);
+            });
+            string damageStatus = GetChainDamageStatus(entity.Element);
+            double chainDamage = 0d;
+            for (int i = 0; i < Math.Min(arc.ArcTargets, chain.Count); i++)
+            {
+                chainDamage += ApplyDamage(chain[i], damage * arc.ArcMultiplier, entity.Element, entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action, damageStatus: damageStatus, castDamageMultiplier: entity.CastDamageMultiplier);
+                _feedback.AddArcLink(enemy.Position, chain[i].Position);
+            }
+            return chainDamage;
+        }
+
+        /// <summary>연쇄 피해가 남기는 상태 피해명을 반환한다. 전격은 arc_chain, 화염·냉기 전파는 각각 fire_chain·ice_chain이다.</summary>
+        private static string GetChainDamageStatus(string element)
+        {
+            switch (element)
+            {
+                case SpellGrammar.ELEMENT_FIRE_ARC: return "fire_chain";
+                case SpellGrammar.ELEMENT_ICE_ARC: return "ice_chain";
+                default: return "arc_chain";
+            }
         }
 
         /// <summary>
@@ -140,10 +170,12 @@ namespace RuneCode
             return offset.Length > 0.000001 ? offset.Normalized() : entity.Direction;
         }
 
-        /// <summary>속성 피해 배율을 반환한다. fire·ice·arc 속성은 강화의 속성 피해 보너스를 더하고 그 외 태그는 1이다.</summary>
+        /// <summary>속성 피해 배율을 반환한다. 단일 속성과 혼합 태그(steam·fire_arc·ice_arc)는 강화의 속성 피해 보너스를 더하고 그 외 태그는 1이다.</summary>
         private double GetElementDamageMultiplier(string element)
         {
-            return element == "fire" || element == "ice" || element == "arc" ? 1 + _world.Upgrades.ElementDamageBonus : 1d;
+            return element == "fire" || element == "ice" || element == "arc"
+                || element == SpellGrammar.ELEMENT_STEAM || element == SpellGrammar.ELEMENT_FIRE_ARC || element == SpellGrammar.ELEMENT_ICE_ARC
+                ? 1 + _world.Upgrades.ElementDamageBonus : 1d;
         }
 
         /// <summary>적중 거리 피해 배율을 반환한다. 지속 피해는 1이며, 그 외에는 적중 시점 플레이어와 적 위치 거리가 장판 배치 거리 이하면 근거리, 초과면 원거리 보너스를 더한다.</summary>

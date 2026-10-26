@@ -42,6 +42,7 @@ namespace RuneCode
 
         private readonly GraphViewport _viewport;
         private readonly Func<SpellGraph> _graph;
+        private readonly Func<int> _elementSlotBonus;
         private readonly Dictionary<string, GraphNode> _nodeLookup = new Dictionary<string, GraphNode>();
         private readonly List<GraphNode> _ghosts = new List<GraphNode>();
         private readonly Dictionary<string, GraphNode> _ghostBySource = new Dictionary<string, GraphNode>();
@@ -49,11 +50,15 @@ namespace RuneCode
         /// <summary>행동 하나 고정 강화의 자기 복제를 보여 주는 표시 전용 노드 목록이다. 그래프에 없으므로 선택·연결 판정에서 제외된다.</summary>
         public IReadOnlyList<GraphNode> Ghosts => _ghosts;
 
-        /// <summary>뷰포트와 현재 그래프 조회 함수로 배치 계산기를 만든다.</summary>
-        public GraphNodeLayout(GraphViewport viewport, Func<SpellGraph> graph)
+        /// <summary>속성 슬롯 확장 강화로 더해지는 속성 슬롯 수다. 조회 함수가 없으면 0이다.</summary>
+        public int ElementSlotBonus => _elementSlotBonus?.Invoke() ?? 0;
+
+        /// <summary>뷰포트, 현재 그래프 조회 함수와 속성 슬롯 확장 보너스 조회 함수로 배치 계산기를 만든다. 보너스 함수가 없으면 보너스 0으로 계산한다.</summary>
+        public GraphNodeLayout(GraphViewport viewport, Func<SpellGraph> graph, Func<int> elementSlotBonus = null)
         {
             _viewport = viewport;
             _graph = graph;
+            _elementSlotBonus = elementSlotBonus;
         }
 
         /// <summary>활성 실행 연결을 따라 후속 묶음을 배치한다. resetRoots가 true이면 독립 묶음도 세로로 정렬하며 위치 변경 여부를 반환한다.</summary>
@@ -233,15 +238,15 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 슬롯 순번이 행동 노드 등급의 속성·모디 슬롯 수 이상이면 잠긴 슬롯으로 보고 true를 반환한다.
+        /// 슬롯 순번이 등급 속성 슬롯 수에 확장 보너스를 더한 값이나 모디 슬롯 수 이상이면 잠긴 슬롯으로 보고 true를 반환한다.
         /// 슬롯 키가 아니면 true를 반환한다.
         /// </summary>
-        public static bool IsSlotLocked(GraphNode node, string slotKey)
+        public static bool IsSlotLocked(GraphNode node, string slotKey, int elementSlotBonus)
         {
             if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out int index)) return true;
             string grade = node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
             if (!GameData.Runes.TryGetBehaviorSlots(grade, out int elementSlots, out int modifierSlots)) return true;
-            return index >= (isElement ? elementSlots : modifierSlots);
+            return index >= (isElement ? SpellGrammar.GetElementSlotLimit(elementSlots, elementSlotBonus) : modifierSlots);
         }
 
         /// <summary>
@@ -486,12 +491,13 @@ namespace RuneCode
             return keys.ToArray();
         }
 
-        /// <summary>노드 등급으로 사용할 수 있는 속성 슬롯 행 수를 반환하고 등급을 찾지 못하면 최대 행 수를 반환한다.</summary>
-        private static int ElementSlotCount(GraphNode node)
+        /// <summary>노드 등급의 속성 슬롯 수에 확장 보너스를 더한 속성 슬롯 행 수를 반환하고 등급을 찾지 못하면 최대 행 수를 반환한다.</summary>
+        private int ElementSlotCount(GraphNode node)
         {
             string grade = node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
-            return GameData.Runes.TryGetBehaviorSlots(grade, out int elementSlots, out _)
+            int gradeSlots = GameData.Runes.TryGetBehaviorSlots(grade, out int elementSlots, out _)
                 ? elementSlots : SpellGrammar.MAX_ELEMENT_SLOTS;
+            return SpellGrammar.GetElementSlotLimit(gradeSlots, ElementSlotBonus);
         }
 
         /// <summary>지정 방향에 속한 노드의 표시 포트 개수를 반환한다.</summary>

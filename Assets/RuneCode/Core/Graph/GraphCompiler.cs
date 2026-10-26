@@ -164,7 +164,7 @@ namespace RuneCode
             List<CompileIssue> chainErrors = new List<CompileIssue>();
             List<CompileIssue> chainWarnings = new List<CompileIssue>();
             SpellGraph normalized = SpellChainNormalizer.Normalize(graph, runes, chainErrors, chainWarnings,
-                out Dictionary<string, List<GraphNode>> slotModifiers);
+                out Dictionary<string, List<GraphNode>> slotModifiers, context.ElementSlotBonus);
             CompileResult result = chainErrors.Any(issue => issue.Code != "E10")
                 ? new CompileResult(chainErrors, chainWarnings, null)
                 : CompileGraphBody(normalized, runes, limits, context, chainErrors, chainWarnings, slotModifiers);
@@ -623,6 +623,7 @@ namespace RuneCode
                 GraphNode node = nodes[edge.ToNode];
                 RuneDefinition rune = definitions[node.Id];
                 RuneDefinition element = null;
+                RuneDefinition secondElement = null;
                 RuneDefinition effectForm = rune.Category == "form" ? rune : null;
                 CompiledSpell calledSpell = null;
                 List<RuneDefinition> mods = new List<RuneDefinition>();
@@ -643,6 +644,8 @@ namespace RuneCode
                     if (!runes.TryGet(formId, out effectForm)) errors.Add(new CompileIssue("E14", node.Id));
                     string elementId = InlineElementRuneId(node.GetText("element", "normal"));
                     if (elementId != null && !runes.TryGet(elementId, out element)) errors.Add(new CompileIssue("E14", node.Id));
+                    string secondElementId = InlineElementRuneId(node.GetText(SpellGrammar.SECOND_ELEMENT_PARAM, null));
+                    if (secondElementId != null && !runes.TryGet(secondElementId, out secondElement)) errors.Add(new CompileIssue("E14", node.Id));
                 }
                 if (rune.Id == "spell.call")
                 {
@@ -669,7 +672,8 @@ namespace RuneCode
                 float coneAngle = shape?.Stats.ConeAngle ?? 0f;
                 SpellAction action = new SpellAction(node, rune, effectForm, element, mods, modifierNodes, calledSpell,
                     shape, coneAngle, runes.ModifierGrades, behavior,
-                    effectForm?.Id == "form.beam" ? runes.Get("form.bolt").Stats.Radius : -1f, context.ElementCostReduction);
+                    effectForm?.Id == "form.beam" ? runes.Get("form.bolt").Stats.Radius : -1f, context.ElementCostReduction,
+                    secondElement);
                 action.SetAttachedNodes(attachedNodeIds);
                 foreach (PortDefinition output in rune.Ports)
                 {

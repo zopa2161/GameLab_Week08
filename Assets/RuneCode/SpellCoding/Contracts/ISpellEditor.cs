@@ -32,6 +32,9 @@ namespace RuneCode
         /// <summary>행동 하나 고정 강화가 켜져 시작 노드마다 행동 하나와 그 자기 복제로 컴파일되는지 반환한다.</summary>
         bool IsSingleBehavior { get; }
 
+        /// <summary>속성 슬롯 확장 강화로 모든 행동 등급에 더해 열리는 속성 슬롯 수다. 강화 전에는 0이다.</summary>
+        int ElementSlotBonus { get; }
+
         /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다. 다른 마법 배치는 세지 않는다.</summary>
         bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned);
 

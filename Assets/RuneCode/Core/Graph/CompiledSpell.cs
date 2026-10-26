@@ -608,11 +608,11 @@ namespace RuneCode
         }
         public IReadOnlyList<string> AttachedNodeIds => _attachedNodeIds;
 
-        /// <summary>원본 노드와 효과·Shape·Behavior 정의, 호출 대상, 연결 수식과 전투 속성 비용 감소량으로 실행 명령을 초기화한다.</summary>
+        /// <summary>원본 노드와 효과·Shape·Behavior 정의, 호출 대상, 연결 수식, 전투 속성 비용 감소량과 두 번째 속성 룬으로 실행 명령을 초기화한다.</summary>
         public SpellAction(GraphNode node, RuneDefinition rune, RuneDefinition effectForm, RuneDefinition element,
             IReadOnlyList<RuneDefinition> mods, IReadOnlyList<GraphNode> modifierNodes = null, CompiledSpell calledSpell = null,
             RuneDefinition shape = null, float coneAngle = 0f, ModifierGradeTable modifierGrades = null,
-            RuneDefinition behavior = null, float beamWidth = -1f, float elementCostReduction = 0f)
+            RuneDefinition behavior = null, float beamWidth = -1f, float elementCostReduction = 0f, RuneDefinition secondElement = null)
         {
             _nodeId = node.Id;
             _shapeDefinition = shape;
@@ -625,7 +625,10 @@ namespace RuneCode
             if (_rules?.DisplayType == SpellDisplayType.ExpandingRing || _form == SlashBehaviorRules.KIND)
                 _coneAngle = effectForm.Stats.ConeAngle;
             _sourceElement = rune.Id == "magic.inline" ? node.GetText("element", "normal") : element == null ? "normal" : SourceElementFromRune(element.Id);
-            _element = rune.Id == "magic.inline" ? RuntimeElement(_sourceElement) : element == null ? "raw" : element.Id.Substring(5);
+            bool isElementEnhanced = false;
+            if (rune.Id == "magic.inline") _element = ResolveRuntimeElement(_sourceElement, secondElement, out isElementEnhanced);
+            else _element = element == null ? "raw" : element.Id.Substring(5);
+            _isElementEnhanced = isElementEnhanced;
             _calledSpellId = rune.Id == "spell.call" ? node.GetText("spellId").Trim() : "";
             _calledSpell = calledSpell;
             _kind = rune.Id == "spell.call" ? "call" : rune.Id == "magic.inline"
@@ -689,6 +692,7 @@ namespace RuneCode
             if (rune.Id == "magic.inline") baseCosts = baseCosts.Add(effectForm.Costs);
             baseCosts = baseCosts.Multiply(energyMultiplier);
             if (element != null) baseCosts = baseCosts.Add(ReduceElementCosts(element, elementCostReduction));
+            if (secondElement != null) baseCosts = baseCosts.Add(ReduceElementCosts(secondElement, elementCostReduction));
             _baseNodeCosts = baseCosts;
             ResourceCostSet shapeCosts = _kind == "spawn" && shape != null ? CalculateShapeCosts(shape, _magicType, _stats, _coneAngle) : ResourceCostSet.Empty;
             _nodeCosts = baseCosts.Add(shapeCosts);
@@ -852,6 +856,29 @@ namespace RuneCode
                 case "ice": return "ice";
                 default: return "raw";
             }
+        }
+
+        /// <summary>
+        /// 첫 속성 문법 값과 두 번째 속성 룬으로 이 명령의 런타임 속성 태그를 정한다.
+        /// 두 번째가 없거나 raw면 첫 속성 태그를 그대로 쓰고, 같은 전투 속성 두 개면 그 태그에 강화 플래그를 세운다(확정 D2).
+        /// 서로 다른 전투 속성은 순서와 무관하게 혼합 태그(찜통·화염 전파·냉기 전파)로 바꾸며, 그 외 조합은 두 번째를 무시한다.
+        /// isElementEnhanced는 같은 전투 속성 두 개가 장착되었는지 여부다.
+        /// </summary>
+        private static string ResolveRuntimeElement(string sourceElement, RuneDefinition secondElement, out bool isElementEnhanced)
+        {
+            isElementEnhanced = false;
+            string firstTag = RuntimeElement(sourceElement);
+            string secondTag = secondElement == null ? null : secondElement.Id.Substring(5);
+            if (string.IsNullOrEmpty(secondTag) || secondTag == "raw") return firstTag;
+            if (firstTag == secondTag)
+            {
+                isElementEnhanced = true;
+                return firstTag;
+            }
+            if ((firstTag == "fire" && secondTag == "ice") || (firstTag == "ice" && secondTag == "fire")) return SpellGrammar.ELEMENT_STEAM;
+            if ((firstTag == "fire" && secondTag == "arc") || (firstTag == "arc" && secondTag == "fire")) return SpellGrammar.ELEMENT_FIRE_ARC;
+            if ((firstTag == "ice" && secondTag == "arc") || (firstTag == "arc" && secondTag == "ice")) return SpellGrammar.ELEMENT_ICE_ARC;
+            return firstTag;
         }
 
         /// <summary>기존 원소 룬 ID를 마법 문법의 원소 이름으로 반환한다.</summary>

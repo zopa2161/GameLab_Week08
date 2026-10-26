@@ -390,8 +390,9 @@ namespace RuneCode
             }
             else
             {
-                RuneMesh.Polygon(mesh, point, radius, fill, spell.Element == "ice" ? 6 : 24);
-                RuneMesh.Ring(mesh, point, radius, 1.8f * _scale, tint, spell.Element == "fire" ? 12 : 24);
+                string baseElement = BaseElement(spell.Element);
+                RuneMesh.Polygon(mesh, point, radius, fill, baseElement == "ice" ? 6 : 24);
+                RuneMesh.Ring(mesh, point, radius, 1.8f * _scale, tint, baseElement == "fire" ? 12 : 24);
                 RuneMesh.Ring(mesh, point, radius * 0.6f, _scale, fill * 2);
             }
         }
@@ -452,10 +453,22 @@ namespace RuneCode
             RuneMesh.Polygon(mesh, point, size, tint, ElementSides(spell.Element), angle);
         }
 
-        /// <summary>발사체 다각형의 속성별 변 수를 반환한다(화염 3, 얼음 6, 전격 4, 일반 16).</summary>
-        private static int ElementSides(string element)
+        /// <summary>혼합 속성 태그를 첫 원래 속성으로 바꾼다. 혼합이 아니면 받은 태그를 그대로 반환한다.</summary>
+        private static string BaseElement(string element)
         {
             switch (element)
+            {
+                case SpellGrammar.ELEMENT_STEAM:
+                case SpellGrammar.ELEMENT_FIRE_ARC: return "fire";
+                case SpellGrammar.ELEMENT_ICE_ARC: return "ice";
+                default: return element;
+            }
+        }
+
+        /// <summary>발사체 다각형의 속성별 변 수를 반환한다(화염 3, 얼음 6, 전격 4, 일반 16). 혼합 속성은 첫 원래 속성의 변 수를 쓴다.</summary>
+        private static int ElementSides(string element)
+        {
+            switch (BaseElement(element))
             {
                 case "fire": return 3;
                 case "ice": return 6;
@@ -607,13 +620,16 @@ namespace RuneCode
             }
         }
 
-        /// <summary>적 머리 위에 화상·냉기(빙결)·EMP 아이콘과 적응 내성 표시를 그린다.</summary>
+        /// <summary>적 머리 위에 화상·냉기(빙결)·EMP·찜통 아이콘과 적응 내성 표시를 그린다.</summary>
         private void DrawEnemyStatuses(UnityEngine.UI.VertexHelper mesh, SimulationEnemy enemy, RuneSimulation sim, Vector2 point, float radius)
         {
             float iconY = radius + 8 * _scale;
             float iconSize = 4 * _scale;
             if (sim.HasEnemyStatus(enemy, EnemyStatusType.Burn))
                 RuneMesh.Polygon(mesh, point + new Vector2(-radius, iconY), iconSize, RuneMesh.ElementColor("fire"), 3);
+            if (sim.HasEnemyStatus(enemy, EnemyStatusType.Steam))
+                RuneMesh.Polygon(mesh, point + new Vector2(-radius, iconY + 2 * iconSize), iconSize,
+                    RuneMesh.ElementColor(SpellGrammar.ELEMENT_STEAM), 3);
             if (sim.GetChillStacks(enemy) > 0 || sim.HasEnemyStatus(enemy, EnemyStatusType.Freeze))
                 RuneMesh.Polygon(mesh, point + new Vector2(0, iconY), iconSize, RuneMesh.ElementColor("ice"), 6);
             if (sim.HasEnemyStatus(enemy, EnemyStatusType.Emp) || sim.HasEnemyStatus(enemy, EnemyStatusType.Shock))
