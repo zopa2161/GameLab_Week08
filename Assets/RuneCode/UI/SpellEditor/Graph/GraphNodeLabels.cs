@@ -99,12 +99,20 @@ namespace RuneCode
             }
         }
 
-        /// <summary>화면 이동·확대 배율에 맞춰 이름·지표·포트와 슬롯 라벨을 배치한다. 표시 전용 복제 노드는 실제 노드 뒤에 배치하고 지표 라벨은 두지 않는다.</summary>
-        public void Layout(SpellGraph graph)
+        /// <summary>화면 이동·확대 배율에 맞춰 라벨을 배치한다. movingNodeIds가 있으면 이동한 노드와 표시용 복제 노드만 갱신한다.</summary>
+        public void Layout(SpellGraph graph, ICollection<string> movingNodeIds = null)
         {
             float zoom = _viewport.Zoom;
             Vector3 scale = new Vector3(zoom, zoom, 1);
-            for (int nodeIndex = 0; nodeIndex < graph.Nodes.Count; nodeIndex++) LayoutNode(graph.Nodes[nodeIndex], scale, true);
+            if (movingNodeIds == null)
+            {
+                for (int nodeIndex = 0; nodeIndex < graph.Nodes.Count; nodeIndex++) LayoutNode(graph.Nodes[nodeIndex], scale, true);
+            }
+            else
+            {
+                foreach (string id in movingNodeIds)
+                    if (_nodes.TryGetValue(id, out GraphNode node)) LayoutNode(node, scale, true);
+            }
             foreach (GraphNode ghost in _layout.Ghosts) LayoutNode(ghost, scale, false);
             BringFrontNodeToTop();
         }
@@ -158,11 +166,13 @@ namespace RuneCode
             {
                 string id = pair.Key;
                 RectTransform parent = layer != null && nodeIds.Contains(id) ? layer : _parent;
-                pair.Value.transform.SetParent(parent, false);
-                _labels[id].transform.SetParent(parent, false);
+                if (pair.Value.transform.parent != parent) pair.Value.transform.SetParent(parent, false);
+                if (_labels[id].transform.parent != parent) _labels[id].transform.SetParent(parent, false);
                 _metricLabels.SetNodeParent(id, parent);
-                foreach (TextMeshProUGUI label in _portLabels[id]) label.transform.SetParent(parent, false);
-                foreach (TextMeshProUGUI label in _slotLabels[id]) label.transform.SetParent(parent, false);
+                foreach (TextMeshProUGUI label in _portLabels[id])
+                    if (label.transform.parent != parent) label.transform.SetParent(parent, false);
+                foreach (TextMeshProUGUI label in _slotLabels[id])
+                    if (label.transform.parent != parent) label.transform.SetParent(parent, false);
             }
         }
 
