@@ -60,7 +60,7 @@ namespace RuneCode
             if (_levelUpRoot != null) _levelUpRoot.gameObject.SetActive(false);
         }
 
-        /// <summary>0~1 진행률과 픽셀 높이로 화면 위까지 솟는 황금 광선·고리·입자를 그린다. 범위 밖이면 숨긴다.</summary>
+        /// <summary>0~1 진행률과 픽셀 높이로 황금 광선·고리·입자를 그리고, 표시 시작 시 스크랩 등장음을 한 번 재생한다. 범위 밖이면 숨긴다.</summary>
         public void ApplyLevelUp(float progress, float ascentHeight = 720f)
         {
             bool isVisible = progress >= 0f && progress < 1f;
@@ -69,8 +69,10 @@ namespace RuneCode
                 if (_levelUpRoot != null) _levelUpRoot.gameObject.SetActive(false);
                 return;
             }
+            bool isStarting = _levelUpRoot == null || !_levelUpRoot.gameObject.activeSelf;
             if (_levelUpRoot == null) CreateLevelUpEffect();
             _levelUpRoot.gameObject.SetActive(true);
+            if (isStarting) SoundManager.Instance.PlaySpawnBigScrap();
             _levelUpRoot.rotation = Quaternion.identity;
             float fade = Mathf.Sin(progress * Mathf.PI);
             Color gold = new Color(1f, 0.73f, 0.16f, fade);
