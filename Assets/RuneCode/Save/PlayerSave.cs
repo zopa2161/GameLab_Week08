@@ -10,8 +10,6 @@ namespace RuneCode
     public sealed class PlayerSave : ISerializationCallbackReceiver
     {
         private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
-        // 기본 마법 메소드 템플릿 ID다. 매직 미사일은 시작 마법 에너지 볼트와 같아 통합했으므로 지금은 비어 있다.
-        private static readonly string[] DEFAULT_METHOD_IDS = Array.Empty<string>();
 
         [Header("저장 버전")]
         [SerializeField] private int _version = 5;
@@ -318,17 +316,16 @@ namespace RuneCode
             }
         }
 
-        /// <summary>시작 룬, 계속 강화할 에너지 볼트와 기본 마법 메소드를 가진 새 진행 데이터를 반환한다.</summary>
+        /// <summary>시작 룬과 계속 강화할 첫 마법(에너지 볼트)을 가진 새 진행 데이터를 반환한다.</summary>
         public static PlayerSave CreateNew()
         {
             var save = new PlayerSave();
             save.AddStarterRunes();
-            save._graphs.Add(GameData.Spells[0].Clone());
+            save._graphs.Add(SpellGraph.CreateStarter(GameData.L("spell.starterName")));
             save._activeSpellId = save._graphs[0].Id;
             save._loadout.Add(save._graphs[0].Id);
             save._loadout.Add(null);
             save._loadout.Add(null);
-            save.AddDefaultMethods();
             save.EnsureStock();
             save._usesFixedRewardGrades = true;
             save._modifierRewardGrades = ShuffleRewardGrades(GameData.Balance.Economy.ModifierRewardGrades);
@@ -482,7 +479,7 @@ namespace RuneCode
         /// <summary>
         /// 스키마 버전 4가 아닌 보관함 그래프를 제거하고(호환 없음), 인식할 수 없거나 행동과 호환되지 않는 룬의 노드·슬롯 값과 행동 노드의 이전 형태 파라미터를 지우며,
         /// 해금 룬 ID를 현재 ID로 바꾸며 카탈로그에 없는 ID만 정리한다. 보관함이 비면 시작 마법으로 채우고, 활성 마법과 장착 슬롯 참조가
-        /// 제거된 마법을 가리키면 유효한 값으로 정리한다. 기본 마법 메소드가 없으면 보관함 한도 안에서 추가한다.
+        /// 제거된 마법을 가리키면 유효한 값으로 정리한다.
         /// 여러 번 호출해도 결과가 같다.
         /// </summary>
         public void MigrateSpellGrammar()
@@ -492,7 +489,7 @@ namespace RuneCode
             RemoveUnknownGraphEntries();
             RemoveLegacyShapeParameters();
             foreach (SpellGraph graph in _graphs) SpellGraphMigration.ReplaceRemovedDashEndTrigger(graph);
-            if (_graphs.Count == 0) _graphs.Add(GameData.Spells[0].Clone());
+            if (_graphs.Count == 0) _graphs.Add(SpellGraph.CreateStarter(GameData.L("spell.starterName")));
             var unlocked = new List<string>();
             foreach (var runeId in _unlockedRunes)
             {
@@ -511,19 +508,7 @@ namespace RuneCode
             _loadout[0] = _activeSpellId;
             for (var slot = 1; slot < _loadout.Count; slot++)
                 if (!string.IsNullOrEmpty(_loadout[slot]) && !ids.Contains(_loadout[slot])) _loadout[slot] = null;
-            AddDefaultMethods();
             EnsureStock();
-        }
-
-        /// <summary>기본 마법 메소드 템플릿 중 보관함에 없는 것을 한도 안에서 추가한다.</summary>
-        private void AddDefaultMethods()
-        {
-            foreach (var id in DEFAULT_METHOD_IDS)
-            {
-                if (FindGraph(id) != null || _graphs.Count >= GameData.Balance.Economy.MaxLibrary) continue;
-                var template = GameData.FindSpell(id);
-                if (template != null) _graphs.Add(template.Clone());
-            }
         }
 
         /// <summary>저장된 값과 룬·마법 참조를 검사하고 유효하지 않은 저장이면 원인을 반환한다.</summary>

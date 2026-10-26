@@ -226,7 +226,7 @@ tools/sim.ps1 -Executable <빌드 exe 경로> -Spell energybolt -Scenario dummy_
 
 | 인자 | 기본값 | 의미 |
 |---|---|---|
-| `--spell` | `energybolt` | 마법 파일 경로 또는 `Resources/RuneCode/spells/` 템플릿 이름 |
+| `--spell` | (없음) | 마법 파일 경로. 파일이 없으면 새 진행 데이터의 첫 마법(`SpellGraph.CreateStarter`)을 쓴다 |
 | `--scenario` | `dummy_line` | 시험 도크 시나리오, 또는 `incremental`(미션 전투 + 자동 조준·시전 입력) |
 | `--ticks` | 600 | 최대 틱 수 |
 | `--seed` | 1 | 시드 |

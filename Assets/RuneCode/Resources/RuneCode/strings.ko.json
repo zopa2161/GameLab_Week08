@@ -539,6 +539,10 @@
       "_value": "새 마법"
     },
     {
+      "_key": "spell.starterName",
+      "_value": "에너지볼트"
+    },
+    {
       "_key": "editor.copySuffix",
       "_value": " 사본"
     },
@@ -1100,7 +1104,7 @@
     },
     {
       "_key": "ui.tree.elementSlotDescription",
-      "_value": "속성 슬롯을 추가하고 속성 혼합을 사용할 수 있게 합니다. 아직 효과가 적용되지 않은 예정 기능입니다"
+      "_value": "모든 행동의 속성 슬롯이 1칸 늘어납니다. 같은 속성 두 개는 그 속성 강화 효과를, 서로 다른 속성은 혼합 효과를 냅니다. 화염+냉기: 찜통(걸린 적이 주변에 지속 피해), 화염+전격: 화상 전파, 냉기+전격: 냉기 전파"
     },
     {
       "_key": "ui.tree.dashCooldown",

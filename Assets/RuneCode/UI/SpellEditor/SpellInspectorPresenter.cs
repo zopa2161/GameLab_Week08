@@ -135,22 +135,22 @@ namespace RuneCode
             for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
             {
                 string slotKey = SpellGrammar.ElementSlotKey(index);
-                if (!GraphNodeLayout.IsSlotLocked(node, slotKey) && !string.IsNullOrEmpty(node.GetText(slotKey, null)))
+                if (!GraphNodeLayout.IsSlotLocked(node, slotKey, _editor.ElementSlotBonus) && !string.IsNullOrEmpty(node.GetText(slotKey, null)))
                     lines.Add(SlotLine(node, slotKey));
             }
             for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
             {
                 string slotKey = SpellGrammar.ModifierSlotKey(index);
-                if (!GraphNodeLayout.IsSlotLocked(node, slotKey) && !string.IsNullOrEmpty(node.GetText(slotKey, null)))
+                if (!GraphNodeLayout.IsSlotLocked(node, slotKey, _editor.ElementSlotBonus) && !string.IsNullOrEmpty(node.GetText(slotKey, null)))
                     lines.Add(SlotLine(node, slotKey));
             }
             if (lines.Count > 0) _view.AddNote(string.Join("\n", lines), 34, 6);
         }
 
-        /// <summary>슬롯 한 칸의 표시 문구를 반환한다.\n 잠긴 칸은 잠김, 빈 칸은 비어 있음, 장착 칸은 룬 이름(모디는 등급 포함)이다.\n</summary>
-        private static string SlotLine(GraphNode node, string slotKey)
+        /// <summary>슬롯 한 칸의 표시 문구를 반환한다.\n 확장 보너스를 반영해 잠긴 칸은 잠김, 빈 칸은 비어 있음, 장착 칸은 룬 이름(모디는 등급 포함)이다.\n</summary>
+        private string SlotLine(GraphNode node, string slotKey)
         {
-            if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return GameData.L("ui.slotLocked");
+            if (GraphNodeLayout.IsSlotLocked(node, slotKey, _editor.ElementSlotBonus)) return GameData.L("ui.slotLocked");
             string value = node.GetText(slotKey, null);
             if (string.IsNullOrEmpty(value)) return GameData.L("ui.empty");
             if (SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _) && isElement)

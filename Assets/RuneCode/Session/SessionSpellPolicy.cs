@@ -18,7 +18,7 @@ namespace RuneCode
             _session = session;
         }
 
-        /// <summary>현재 해금 룬, 해금 검사가 필요 없는 모디·속성·행동 룬, 통합 소지량과 행동 하나 고정·속성 비용 감소 강화 효과로 컴파일 문맥을 만든다. 미구매 시작 노드 룬은 해금 목록에서 뺀다.</summary>
+        /// <summary>현재 해금 룬, 해금 검사가 필요 없는 모디·속성·행동 룬, 통합 소지량과 행동 하나 고정·속성 비용 감소·속성 슬롯 확장 강화 효과로 컴파일 문맥을 만든다. 미구매 시작 노드 룬은 해금 목록에서 뺀다.</summary>
         public SpellCompileContext GetCompileContext()
         {
             IEnumerable<string> unlockedRunes = _session.Save.UnlockedRunes.Concat(GameData.Runes.StartRunes)
@@ -28,7 +28,8 @@ namespace RuneCode
                 .Where(IsCoreRuneUnlocked);
             return new SpellCompileContext(unlockedRunes, _session.MaxEnergy, _session.Save.Library,
                 _session.Save.CreateStockMap(), isSingleBehavior: _session.HasUpgradeEffect(UpgradeEffectType.SingleBehavior),
-                elementCostReduction: _session.GetUpgradeTreeEffectTotal(UpgradeEffectType.ElementCostReduction));
+                elementCostReduction: _session.GetUpgradeTreeEffectTotal(UpgradeEffectType.ElementCostReduction),
+                elementSlotBonus: _session.HasUpgradeEffect(UpgradeEffectType.ElementSlot) ? 1 : 0);
         }
 
         /// <summary>룬의 해금 여부를 반환한다. 비활성 룬은 false이고, 모디·속성·행동은 소지량 검사로 배치를 제한하므로 true다.</summary>

@@ -61,6 +61,8 @@ namespace RuneCode
         public const string FORM_VALUE_REMAIN = "remain";
 
         public const string ELEMENT_PARAM = "element";
+        // 속성 슬롯 확장으로 두 번째 속성이 장착되었을 때 Inline Magic 노드에 기록하는 파라미터 키다.
+        public const string SECOND_ELEMENT_PARAM = "element2";
         public const string TRIGGER_PARAM = "trigger";
         public const string POWER_PARAM = "power";
         public const string BUFF_DURATION_PARAM = "buffDuration";
@@ -94,6 +96,11 @@ namespace RuneCode
         public const string ELEMENT_NEUTRAL = "neutral";
         public const string ELEMENT_CATEGORY_ELEMENTAL = "elemental";
         public const string ELEMENT_CATEGORY_FUNCTIONAL = "functional";
+
+        // 서로 다른 두 전투 속성을 장착했을 때 쓰는 런타임 혼합 속성 태그다. 적응 태그 목록에 없어 적응을 받지 않는다.
+        public const string ELEMENT_STEAM = "steam";
+        public const string ELEMENT_FIRE_ARC = "fire_arc";
+        public const string ELEMENT_ICE_ARC = "ice_arc";
 
         private const string SHAPE_PREFIX = "shape.";
         private const string ELEMENT_PREFIX = "element.";
@@ -139,6 +146,13 @@ namespace RuneCode
 
         /// <summary>행동 노드의 속성 슬롯 키를 반환한다. 예: ElementSlotKey(0)은 "element0".</summary>
         public static string ElementSlotKey(int index) => ELEMENT_SLOT_PREFIX + index;
+
+        /// <summary>등급의 속성 슬롯 수 gradeSlots에 속성 슬롯 확장 보너스 bonus를 더한 열린 슬롯 수를 최대 속성 슬롯 수 이하로 반환한다.</summary>
+        public static int GetElementSlotLimit(int gradeSlots, int bonus)
+        {
+            int limit = gradeSlots + bonus;
+            return limit < MAX_ELEMENT_SLOTS ? limit : MAX_ELEMENT_SLOTS;
+        }
 
         /// <summary>행동 노드의 모디파이어 슬롯 키를 반환한다. 예: ModifierSlotKey(0)은 "mod0".</summary>
         public static string ModifierSlotKey(int index) => MODIFIER_SLOT_PREFIX + index;

@@ -66,10 +66,10 @@ namespace RuneCode
             return port.IsDeprecated ? "<s>" + label + "</s>" : label;
         }
 
-        /// <summary>슬롯 셀 문구를 반환한다. 빈 속성·모디 슬롯은 비어 있음 문구, 잠긴 칸은 빈 문자열을 반환한다.</summary>
-        internal static string SlotText(GraphNode node, string slotKey)
+        /// <summary>슬롯 셀 문구를 반환한다. 빈 속성·모디 슬롯은 비어 있음 문구, 확장 보너스를 반영해 잠긴 칸은 빈 문자열을 반환한다.</summary>
+        internal static string SlotText(GraphNode node, string slotKey, int elementSlotBonus)
         {
-            if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return string.Empty;
+            if (GraphNodeLayout.IsSlotLocked(node, slotKey, elementSlotBonus)) return string.Empty;
             if (!SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _)) return string.Empty;
             string value = node.GetText(slotKey, null);
             if (string.IsNullOrEmpty(value)) return GameData.L("editor.slotEmpty");

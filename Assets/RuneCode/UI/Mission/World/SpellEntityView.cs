@@ -139,7 +139,8 @@ namespace RuneCode
             Color fill = isWarning ? WarningColor : tint;
             fill.a = isWarning ? WARNING_FILL_ALPHA
                 : SpellBehaviorRuleRegistry.GetDisplayType(spell.Kind) == SpellDisplayType.LastingArea ? ZONE_FILL_ALPHA : BURST_FILL_ALPHA;
-            _fill.sprite = spell.IsBox ? _squareShape : spell.Element == "ice" && !isWarning ? _iceShape : _defaultShape;
+            _fill.sprite = spell.IsBox ? _squareShape
+                : (spell.Element == "ice" || spell.Element == SpellGrammar.ELEMENT_ICE_ARC) && !isWarning ? _iceShape : _defaultShape;
             _outline.sprite = _inner.sprite = spell.IsBox ? _squareOutlineShape : _ringShape;
             Quaternion rotation = Quaternion.Euler(0, 0, spell.IsBox ? angle : 0);
             if (spell.IsBox)
@@ -333,13 +334,16 @@ namespace RuneCode
             _coneMesh.SetTriangles(_coneTriangles, 0);
         }
 
-        /// <summary>속성별 투사체 도형을 반환한다. 화염은 삼각형, 냉기는 육각형, 전격은 마름모, 그 외는 원이다.</summary>
+        /// <summary>속성별 투사체 도형을 반환한다. 화염은 삼각형, 냉기는 육각형, 전격은 마름모, 그 외는 원이다. 혼합 속성은 첫 원래 속성의 도형을 쓴다.</summary>
         private Sprite GetElementShape(string element)
         {
             switch (element)
             {
-                case "fire": return _fireShape;
-                case "ice": return _iceShape;
+                case "fire":
+                case SpellGrammar.ELEMENT_STEAM:
+                case SpellGrammar.ELEMENT_FIRE_ARC: return _fireShape;
+                case "ice":
+                case SpellGrammar.ELEMENT_ICE_ARC: return _iceShape;
                 case "arc": return _arcShape;
                 default: return _defaultShape;
             }

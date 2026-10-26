@@ -7,9 +7,9 @@ namespace RuneCode
         private readonly string _key;
         private readonly Dictionary<SpellAction, long> _onHitTargets = new Dictionary<SpellAction, long>();
         private readonly Dictionary<string, double> _directDamageByElement = new Dictionary<string, double>
-        { ["raw"] = 0d, ["fire"] = 0d, ["ice"] = 0d, ["arc"] = 0d };
+        { ["raw"] = 0d, ["fire"] = 0d, ["ice"] = 0d, ["arc"] = 0d, ["steam"] = 0d, ["fire_arc"] = 0d, ["ice_arc"] = 0d };
         private readonly Dictionary<string, double> _statusDamageByType = new Dictionary<string, double>
-        { ["burn"] = 0d, ["chill"] = 0d, ["freeze"] = 0d, ["emp"] = 0d, ["arc_chain"] = 0d };
+        { ["burn"] = 0d, ["chill"] = 0d, ["freeze"] = 0d, ["emp"] = 0d, ["arc_chain"] = 0d, ["steam"] = 0d, ["fire_chain"] = 0d, ["ice_chain"] = 0d };
         private long _spawnCount;
         private long _damageCount;
         private long _hitCount;

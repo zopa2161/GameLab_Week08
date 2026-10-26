@@ -91,7 +91,7 @@ namespace RuneCode
             _hoverChanged = hoverChanged;
             _quickPlacement = quickPlacement;
             _viewport = new GraphViewport(rectTransform);
-            _layout = new GraphNodeLayout(_viewport, () => _editor.Graph);
+            _layout = new GraphNodeLayout(_viewport, () => _editor.Graph, () => _editor.ElementSlotBonus);
             _style = Resources.Load<GraphVisualStyle>("RuneCode/UI/Elements/GraphVisualStyle");
             _painter = new GraphMeshPainter(_viewport, _layout, _state, _style, _editor.IsRuneUnlocked);
             _labels = new GraphNodeLabels(rectTransform, font, _viewport, _layout, _painter, _style, _state);
@@ -238,7 +238,7 @@ namespace RuneCode
         {
             if (!HasGraph || canvas == null) return null;
             return new RunePalettePreview(canvas.rootCanvas, rectTransform, _viewport.Zoom, rune, grade,
-                _font, _editor.Library, _editor.IsRuneUnlocked);
+                _font, _editor.Library, _editor.IsRuneUnlocked, _editor.ElementSlotBonus);
         }
 
         /// <summary>팔레트 행을 복제해 포인터를 따라다니는 미리보기를 생성한다.</summary>
@@ -682,7 +682,7 @@ namespace RuneCode
         private bool TryHandleSlotClick(Vector2 point)
         {
             if (!_layout.FindSlot(point, out GraphNode node, out string slotKey)) return false;
-            if (GraphNodeLayout.IsSlotLocked(node, slotKey)) return false;
+            if (GraphNodeLayout.IsSlotLocked(node, slotKey, _editor.ElementSlotBonus)) return false;
             return TryPickUpSlot(node, slotKey);
         }
 

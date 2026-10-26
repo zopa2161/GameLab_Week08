@@ -147,6 +147,10 @@ namespace RuneCode
 
     public sealed class SpellGraph
     {
+        // 첫 마법의 ID는 기존 시작 마법 템플릿과 같아야 이전 저장의 활성 마법·로드아웃 참조가 유지된다.
+        private const string STARTER_SPELL_ID = "energybolt";
+        private const string STARTER_BEHAVIOR_RUNE = "behavior.launch";
+
         private string _id;
         private string _name;
         public const int CURRENT_VERSION = 4;
@@ -190,6 +194,23 @@ namespace RuneCode
         {
             SpellGraph graph = new SpellGraph(id, name);
             graph.AddNode(new GraphNode("core", SpellGrammar.CORE_RUNE, 80f, 140f));
+            return graph;
+        }
+
+        /// <summary>
+        /// 새 진행 데이터의 첫 마법을 이름 name으로 반환한다. 공격 시전 Core에 발사 행동(C 등급) 하나가 연결된 형태이며,
+        /// 마법 ID와 노드·간선 ID는 기존 저장의 로드아웃 참조와 맞도록 고정한다.
+        /// </summary>
+        public static SpellGraph CreateStarter(string name)
+        {
+            SpellGraph graph = new SpellGraph(STARTER_SPELL_ID, name);
+            GraphNode core = new GraphNode("core", SpellGrammar.CORE_RUNE, 20f, 150f);
+            core.SetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK);
+            GraphNode behavior = new GraphNode("form", STARTER_BEHAVIOR_RUNE, 200f, 150f);
+            behavior.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
+            graph.AddNode(core);
+            graph.AddNode(behavior);
+            graph.AddEdge(new GraphEdge("exec", core.Id, "exec", behavior.Id, "exec"));
             return graph;
         }
 

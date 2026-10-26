@@ -5,7 +5,8 @@ using System.Text;
 namespace RuneCode
 {
     // Shock은 전격 강화 없이 전격 피해가 남기는 효과 없는 상태로, 상태 이상 중첩 판정에만 쓰인다.
-    public enum EnemyStatusType { Burn, Chill, Freeze, Emp, Shock }
+    // Steam은 화염+냉기 혼합 속성이 남기는 찜통 상태로, 걸린 적이 주변 적에게 주기 피해를 준다.
+    public enum EnemyStatusType { Burn, Chill, Freeze, Emp, Shock, Steam }
 
     public sealed class EnemyStatusEffect
     {

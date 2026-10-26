@@ -67,9 +67,9 @@ namespace RuneCode
             target.fillAmount = source.fillAmount;
         }
 
-        /// <summary>별도 그래프와 기존 노드 그리기를 사용해 룬 미리보기를 만들고 속성·모드는 슬롯 한 칸만 표시한다.</summary>
+        /// <summary>별도 그래프와 기존 노드 그리기를 사용해 룬 미리보기를 만들고 속성·모드는 슬롯 한 칸만 표시한다. elementSlotBonus는 편집기의 속성 슬롯 확장 보너스다.</summary>
         public RunePalettePreview(Canvas canvas, RectTransform source, float zoom, RuneDefinition rune, string grade,
-            TMP_FontAsset font, IEnumerable<SpellGraph> library, Func<string, bool> isRuneUnlocked)
+            TMP_FontAsset font, IEnumerable<SpellGraph> library, Func<string, bool> isRuneUnlocked, int elementSlotBonus)
         {
             _parent = (RectTransform)canvas.transform;
             _camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
@@ -93,7 +93,7 @@ namespace RuneCode
             RectTransform content = CreateRect("PreviewNode", _root);
             var viewport = new GraphViewport(content);
             viewport.SetPan(Vector2.zero);
-            var layout = new GraphNodeLayout(viewport, () => graph);
+            var layout = new GraphNodeLayout(viewport, () => graph, () => elementSlotBonus);
             RuneDefinition holder = GameData.Runes.Get(holderId);
             content.sizeDelta = new Vector2(GraphNodeLayout.NODE_WIDTH, layout.NodeHeight(node, holder));
             _root.sizeDelta = content.sizeDelta;

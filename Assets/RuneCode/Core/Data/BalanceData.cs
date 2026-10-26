@@ -126,6 +126,10 @@ namespace RuneCode
         [SerializeField] private float _auraRadius = 100f;
         [SerializeField] private float _auraTickInterval = 0.5f;
         [SerializeField] private float _auraTickDamage = 1f;
+        [SerializeField] private float _steamSeconds = 3f;
+        [SerializeField] private float _steamInterval = 0.5f;
+        [SerializeField] private float _steamRadius = 80f;
+        [SerializeField] private float _steamDamageRatio = 0.1f;
         public float BurnDps => _burnDps;
         public float BurnDamageRatio => _burnDamageRatio;
         public float BurnInterval => _burnInterval;
@@ -160,6 +164,18 @@ namespace RuneCode
 
         /// <summary>플레이어 주위 장판의 틱당 피해다.</summary>
         public float AuraTickDamage => _auraTickDamage;
+
+        /// <summary>화염+냉기 혼합 속성이 거는 찜통 상태의 지속시간(초)이다.</summary>
+        public float SteamSeconds => _steamSeconds;
+
+        /// <summary>찜통 상태의 주변 피해 간격(초)이다.</summary>
+        public float SteamInterval => _steamInterval;
+
+        /// <summary>찜통 상태가 걸린 적을 중심으로 주변 적에게 피해를 주는 반경이다.</summary>
+        public float SteamRadius => _steamRadius;
+
+        /// <summary>찜통 틱 피해를 정하는 원 적중 피해 대비 비율이다.</summary>
+        public float SteamDamageRatio => _steamDamageRatio;
     }
 
     [Serializable]
@@ -354,7 +370,9 @@ namespace RuneCode
                     throw new FormatException("밸런스 범위가 유효하지 않습니다.");
             if (data.Player.PostDashBuffSeconds < 0f || data.Player.DashEndCostMultiplier <= 0f || data.Player.DashEndCostMultiplier > 1f
                 || data.Player.DashGuardInvulnerability < 0f || data.Combat.BurnMaxStacks < 2 || data.Combat.AuraRadius <= 0f
-                || data.Combat.AuraTickInterval <= 0f || data.Combat.AuraTickDamage < 0f)
+                || data.Combat.AuraTickInterval <= 0f || data.Combat.AuraTickDamage < 0f
+                || data.Combat.SteamSeconds <= 0f || data.Combat.SteamInterval <= 0f || data.Combat.SteamRadius <= 0f
+                || data.Combat.SteamDamageRatio < 0f)
                 throw new FormatException("강화 트리 밸런스 범위가 유효하지 않습니다.");
             return data;
         }

@@ -13,10 +13,11 @@ namespace RuneCode
         /// <summary>
         /// behavior 노드를 Inline Magic으로 교체한 컴파일용 그래프를 반환한다. 교체 대상이 없으면 원본을 그대로 반환한다.
         /// 등급·슬롯·속성·모디 오류를 errors에 추가하고, behavior 노드 ID가 키인 합성 Modifier 노드 목록을 slotModifiers로 돌려준다.
+        /// elementSlotBonus는 속성 슬롯 확장 강화로 모든 행동 등급에 더할 속성 슬롯 수다.
         /// </summary>
         public static SpellGraph Normalize(SpellGraph graph, RuneCatalog runes,
             List<CompileIssue> errors, List<CompileIssue> warnings,
-            out Dictionary<string, List<GraphNode>> slotModifiers)
+            out Dictionary<string, List<GraphNode>> slotModifiers, int elementSlotBonus = 0)
         {
             slotModifiers = new Dictionary<string, List<GraphNode>>(StringComparer.Ordinal);
             if (graph?.Nodes == null || graph.Edges == null) return graph;
@@ -26,7 +27,7 @@ namespace RuneCode
             {
                 if (node == null || string.IsNullOrEmpty(node.Id) || !runes.TryGet(node.RuneId, out RuneDefinition rune)) continue;
                 if (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR || rune.IsDisabled) continue;
-                if (!NormalizeBehaviorNode(node, rune, runes, errors, slotModifiers, out GraphNode inline)) continue;
+                if (!NormalizeBehaviorNode(node, rune, runes, errors, slotModifiers, elementSlotBonus, out GraphNode inline)) continue;
                 replacements[node.Id] = inline;
             }
             if (replacements.Count == 0 || errors.Count > errorCount) return graph;
@@ -45,10 +46,11 @@ namespace RuneCode
 
         /// <summary>
         /// behavior 노드 하나의 등급·속성·모디 슬롯을 검사하고 행동의 고정 형태를 쓴 Inline Magic 노드로 만든다.
-        /// 장착 모디는 합성 Modifier 노드 목록으로 slotModifiers에 추가한다. 등급 오류로 진행이 불가하면 false를 반환한다.
+        /// 속성 슬롯 한도는 등급표 슬롯 수에 elementSlotBonus를 더한 값이다. 장착 모디는 합성 Modifier 노드 목록으로
+        /// slotModifiers에 추가한다. 등급 오류로 진행이 불가하면 false를 반환한다.
         /// </summary>
         private static bool NormalizeBehaviorNode(GraphNode node, RuneDefinition rune, RuneCatalog runes,
-            List<CompileIssue> errors, Dictionary<string, List<GraphNode>> slotModifiers, out GraphNode inline)
+            List<CompileIssue> errors, Dictionary<string, List<GraphNode>> slotModifiers, int elementSlotBonus, out GraphNode inline)
         {
             inline = null;
             string grade = node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
@@ -57,15 +59,17 @@ namespace RuneCode
                 errors.Add(new CompileIssue("E9", node.Id, SpellGrammar.MODIFIER_GRADE_PARAM));
                 return false;
             }
-            CheckSlotLimit(node, SpellGrammar.ELEMENT_SLOT_PREFIX, SpellGrammar.MAX_ELEMENT_SLOTS, elementSlots, errors);
+            int elementLimit = SpellGrammar.GetElementSlotLimit(elementSlots, elementSlotBonus);
+            CheckSlotLimit(node, SpellGrammar.ELEMENT_SLOT_PREFIX, SpellGrammar.MAX_ELEMENT_SLOTS, elementLimit, errors);
             CheckSlotLimit(node, SpellGrammar.MODIFIER_SLOT_PREFIX, SpellGrammar.MAX_MODIFIER_SLOTS, modifierSlots, errors);
 
-            ElementDefinition element = ResolveElement(node, elementSlots, runes, errors);
+            List<ElementDefinition> elements = ResolveElement(node, elementLimit, runes, errors);
             CollectModifiers(node, modifierSlots, runes, slotModifiers, errors);
 
             inline = new GraphNode(node.Id, SpellGrammar.INLINE_RUNE, node.X, node.Y);
             inline.SetText("magicType", rune.FixedShape);
-            inline.SetText(SpellGrammar.ELEMENT_PARAM, element != null ? element.InternalValue : null);
+            inline.SetText(SpellGrammar.ELEMENT_PARAM, elements.Count > 0 ? elements[0].InternalValue : null);
+            if (elements.Count > 1) inline.SetText(SpellGrammar.SECOND_ELEMENT_PARAM, elements[1].InternalValue);
             inline.SetText("form", SpellGrammar.FormOf(node.RuneId));
             return true;
         }
@@ -84,13 +88,14 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 한도 안의 속성 슬롯을 인덱스 순서로 검사하고 첫 유효 속성을 반환한다(확정 R1: 나머지 슬롯은 장착만 처리).
-        /// 존재하지 않거나 비활성이거나 전투 속성이 아닌 값은 E24를 낸다. 장착된 속성이 없으면 무속성이다.
+        /// 한도 안의 속성 슬롯을 인덱스 순서로 검사하고 유효 속성을 슬롯 순서로 최대 2개 반환한다.
+        /// 존재하지 않거나 비활성이거나 전투 속성이 아닌 값은 E24를 낸다. 일반 속성은 다른 전투 속성과 함께
+        /// 장착되면 무시하고, 유효한 속성이 하나도 없으면 무속성 하나를 반환한다.
         /// </summary>
-        private static ElementDefinition ResolveElement(GraphNode node, int elementSlots, RuneCatalog runes, List<CompileIssue> errors)
+        private static List<ElementDefinition> ResolveElement(GraphNode node, int elementLimit, RuneCatalog runes, List<CompileIssue> errors)
         {
-            ElementDefinition element = null;
-            for (int index = 0; index < elementSlots; index++)
+            var elements = new List<ElementDefinition>(SpellGrammar.MAX_ELEMENT_SLOTS);
+            for (int index = 0; index < elementLimit; index++)
             {
                 string value = node.GetText(SpellGrammar.ElementSlotKey(index), null);
                 if (string.IsNullOrEmpty(value)) continue;
@@ -102,10 +107,11 @@ namespace RuneCode
                     errors.Add(new CompileIssue("E24", node.Id, value));
                     continue;
                 }
-                if (element == null) element = candidate;
+                if (elements.Count < SpellGrammar.MAX_ELEMENT_SLOTS) elements.Add(candidate);
             }
-            if (element == null) runes.TryGetElement(SpellGrammar.ELEMENT_NEUTRAL, out element);
-            return element;
+            if (elements.Count > 1) elements.RemoveAll(element => element.Id == SpellGrammar.ELEMENT_NEUTRAL);
+            if (elements.Count == 0 && runes.TryGetElement(SpellGrammar.ELEMENT_NEUTRAL, out ElementDefinition neutral)) elements.Add(neutral);
+            return elements;
         }
 
         /// <summary>

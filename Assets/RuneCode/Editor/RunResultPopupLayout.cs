@@ -120,11 +120,12 @@ namespace RuneCode.EditorTools
                 canvas.planeDistance = 10;
                 GameObject instance = (GameObject)PrefabUtility.InstantiatePrefab(AssetDatabase.LoadAssetAtPath<GameObject>(PREFAB_PATH), screen);
                 var view = instance.GetComponent<RunResultPopup>();
-                SpellGraph graph = GameData.Spells[0].Clone();
+                SpellGraph graph = SpellGraph.CreateStarter(GameData.L("spell.starterName"));
+                var library = new List<SpellGraph> { graph };
                 var unlocked = new List<string>();
                 foreach (RuneDefinition rune in GameData.Runes.All) unlocked.Add(rune.Id);
                 CompileResult compiled = GraphCompiler.Compile(graph, GameData.Runes, GameData.Balance.Grammar, unlocked,
-                    GameData.Balance.Player.MaxEnergy, GameData.Spells);
+                    GameData.Balance.Player.MaxEnergy, library);
                 if (!compiled.Ok) throw new System.InvalidOperationException("기본 빌드를 컴파일하지 못했습니다.");
                 var upgrades = new PlayerUpgradeStats(GameData.Balance.Player.MaxHp, GameData.Balance.Player.MaxEnergy,
                     GameData.Balance.Player.EnergyRegen);
@@ -134,7 +135,7 @@ namespace RuneCode.EditorTools
                 for (int tick = 0; tick < 60 * 180 && !simulation.Completed && !simulation.IsFailed && !simulation.IsWaitingForNextRound; tick++)
                     simulation.Step(input);
                 Canvas.ForceUpdateCanvases();
-                view.Configure(graph, GameData.Spells, compiled.Spell, simulation);
+                view.Configure(graph, library, compiled.Spell, simulation);
                 Canvas.ForceUpdateCanvases();
                 camera.Render();
                 RenderTexture.active = target;

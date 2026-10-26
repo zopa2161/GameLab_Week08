@@ -58,7 +58,11 @@
     "_burnMaxStacks": 3,
     "_auraRadius": 100,
     "_auraTickInterval": 0.5,
-    "_auraTickDamage": 1
+    "_auraTickDamage": 1,
+    "_steamSeconds": 3,
+    "_steamInterval": 0.5,
+    "_steamRadius": 80,
+    "_steamDamageRatio": 0.1
   },
   "_economy": {
     "_slotCost": 120,

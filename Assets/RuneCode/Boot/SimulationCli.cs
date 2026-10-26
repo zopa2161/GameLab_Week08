@@ -18,7 +18,7 @@ namespace RuneCode
             var output = Argument(arguments, "--output", Path.Combine(Application.persistentDataPath, "runecode.sim.json"));
             try
             {
-                var spell = Argument(arguments, "--spell", "energybolt");
+                var spell = Argument(arguments, "--spell", "");
                 var scenario = Argument(arguments, "--scenario", "dummy_line");
                 var ticks = int.Parse(Argument(arguments, "--ticks", "600"), CultureInfo.InvariantCulture);
                 var seed = int.Parse(Argument(arguments, "--seed", "1"), CultureInfo.InvariantCulture);
@@ -40,19 +40,17 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>전달한 마법과 시드로 고정 tick 시뮬레이션을 실행하여 피해·DPS·실행 횟수 JSON을 반환한다. isInvulnerable이면 플레이어가 피해를 받지 않는다.</summary>
+        /// <summary>
+        /// 전달한 마법 파일과 시드로 고정 tick 시뮬레이션을 실행하여 피해·DPS·실행 횟수 JSON을 반환한다.
+        /// spellPath에 파일이 없으면 새 진행 데이터의 첫 마법을 쓴다. isInvulnerable이면 플레이어가 피해를 받지 않는다.
+        /// </summary>
         public static string Run(string spellPath, string scenario, int ticks, int seed, int stage = 1, bool isInvulnerable = false)
         {
             GameData.Load();
             if (ticks < 1 || ticks > 1000000) throw new ArgumentOutOfRangeException(nameof(ticks));
-            SpellGraph graph;
-            if (File.Exists(spellPath)) graph = ShareCodec.Deserialize(File.ReadAllText(spellPath));
-            else
-            {
-                var resource = Resources.Load<TextAsset>("RuneCode/spells/" + Path.GetFileNameWithoutExtension(spellPath));
-                if (resource == null) throw new ArgumentException("마법 파일이나 Resources 템플릿이 없습니다.", nameof(spellPath));
-                graph = ShareCodec.Deserialize(resource.text);
-            }
+            SpellGraph graph = File.Exists(spellPath)
+                ? ShareCodec.Deserialize(File.ReadAllText(spellPath))
+                : SpellGraph.CreateStarter(GameData.L("spell.starterName"));
             if (stage < 1 || stage > 1000000)
                 throw new ArgumentOutOfRangeException(nameof(stage), "스테이지가 유효하지 않습니다.");
             var isMission = scenario == "incremental";

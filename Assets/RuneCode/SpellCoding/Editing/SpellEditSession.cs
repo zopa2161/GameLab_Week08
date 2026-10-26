@@ -85,6 +85,9 @@ namespace RuneCode
         /// <summary>현재 컴파일 문맥의 행동 하나 고정 강화 여부를 반환한다.</summary>
         public bool IsSingleBehavior => _policy.GetCompileContext().IsSingleBehavior;
 
+        /// <summary>현재 컴파일 문맥의 속성 슬롯 확장 보너스를 반환한다.</summary>
+        public int ElementSlotBonus => _policy.GetCompileContext().ElementSlotBonus;
+
         /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다. 다른 마법 배치는 세지 않는다.</summary>
         public bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned)
         {
@@ -103,7 +106,8 @@ namespace RuneCode
             var context = _policy.GetCompileContext();
             _compileResult = GraphCompiler.Compile(_editingGraph, GameData.Runes, GameData.Balance.Grammar,
                 context.UnlockedRunes, context.MaxEnergy, context.Library, context.ModifierStock,
-                context.MaxResourceCosts, context.IsSingleBehavior, context.ElementCostReduction);
+                context.MaxResourceCosts, context.IsSingleBehavior, context.ElementCostReduction,
+                elementSlotBonus: context.ElementSlotBonus);
             RaiseCompiled();
         }
 
@@ -352,14 +356,14 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>슬롯 순번이 행동 노드 등급의 속성·모디 슬롯 수 이상이면 잠긴 슬롯으로 보고 true를 반환한다. 슬롯 키가 아니어도 true다.</summary>
+        /// <summary>슬롯 순번이 등급 속성 슬롯 수에 확장 보너스를 더한 값이나 모디 슬롯 수 이상이면 잠긴 슬롯으로 보고 true를 반환한다. 슬롯 키가 아니어도 true다.</summary>
         public bool IsSlotLocked(string nodeId, string slotKey)
         {
             if (!TryGetBehaviorNode(_editingGraph, nodeId, out GraphNode node, out _)
                 || !SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out int index)) return true;
             string grade = node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE);
             if (!GameData.Runes.TryGetBehaviorSlots(grade, out int elementSlots, out int modifierSlots)) return true;
-            return index >= (isElement ? elementSlots : modifierSlots);
+            return index >= (isElement ? SpellGrammar.GetElementSlotLimit(elementSlots, ElementSlotBonus) : modifierSlots);
         }
 
         /// <summary>문자열 키에 해당하는 상태 문구를 편집 규칙에 전달한다.</summary>
@@ -448,7 +452,8 @@ namespace RuneCode
             var context = _policy.GetCompileContext();
             CompileResult result = GraphCompiler.Compile(candidate, GameData.Runes, GameData.Balance.Grammar,
                 context.UnlockedRunes, context.MaxEnergy, context.Library, context.ModifierStock,
-                context.MaxResourceCosts, context.IsSingleBehavior, context.ElementCostReduction);
+                context.MaxResourceCosts, context.IsSingleBehavior, context.ElementCostReduction,
+                elementSlotBonus: context.ElementSlotBonus);
             if (result.Errors.Any(issue => issue.Code == "E2" || issue.Code == "E3" || issue.Code == "E4" || issue.Code == "E5" || issue.Code == "E6"))
             {
                 _policy.ReportStatus("editor.invalidConnection");
