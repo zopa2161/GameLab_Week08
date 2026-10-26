@@ -91,16 +91,21 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 적중 대상 주변 ArcRange 안의 다른 살아 있는 적을 가까운 순(같으면 ID 순)으로 ArcTargets명까지 골라 ArcMultiplier 배율의 연쇄 피해를 주고 연결선 피드백을 남긴다.
+        /// 적중 대상 주변 연쇄 거리 안의 다른 살아 있는 적을 가까운 순(같으면 ID 순)으로 연쇄 대상 수까지 골라 ArcMultiplier 배율의 연쇄 피해를 주고 연결선 피드백을 남긴다.
+        /// 전역 전격 강화가 있거나 순수 전격 행동이 같은 속성 두 개로 강화되면 강화된 연쇄 거리·대상 수를 쓰고, 그 외에는 기본값을 쓴다.
         /// 연쇄 피해의 속성은 적중 속성을 그대로 쓰고 상태 피해명은 arc는 arc_chain, 화염·냉기 전파는 fire_chain·ice_chain이다.
         /// applyStatus가 켜져 혼합 태그는 연쇄 대상에게 화상·냉기를 함께 건다. 연쇄로 더해진 실제 피해를 반환한다.
         /// </summary>
         private double ApplyChainDamage(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot)
         {
             RuneStats arc = _runes.Get("elem.arc").Stats;
+            // 혼합 태그(fire_arc·ice_arc)는 같은 속성 두 개 강화 대상이 아니므로 전역 전격 강화만 적용한다.
+            bool isEnhanced = _world.Upgrades.HasArcEnhance || (entity.Element == "arc" && entity.Action.IsElementEnhanced);
+            float chainRange = isEnhanced ? arc.ArcEnhancedRange : arc.ArcRange;
+            int chainTargets = isEnhanced ? arc.ArcEnhancedTargets : arc.ArcTargets;
             var chain = new List<SimulationEnemy>();
             foreach (SimulationEnemy other in _world.Enemies)
-                if (other != enemy && other.IsAlive && SimVector.Distance(other.Position, enemy.Position) <= arc.ArcRange) chain.Add(other);
+                if (other != enemy && other.IsAlive && SimVector.Distance(other.Position, enemy.Position) <= chainRange) chain.Add(other);
             chain.Sort((a, b) =>
             {
                 int distanceOrder = (a.Position - enemy.Position).LengthSquared.CompareTo((b.Position - enemy.Position).LengthSquared);
@@ -108,7 +113,7 @@ namespace RuneCode
             });
             string damageStatus = GetChainDamageStatus(entity.Element);
             double chainDamage = 0d;
-            for (int i = 0; i < Math.Min(arc.ArcTargets, chain.Count); i++)
+            for (int i = 0; i < Math.Min(chainTargets, chain.Count); i++)
             {
                 chainDamage += ApplyDamage(chain[i], damage * arc.ArcMultiplier, entity.Element, entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action, damageStatus: damageStatus, castDamageMultiplier: entity.CastDamageMultiplier);
                 _feedback.AddArcLink(enemy.Position, chain[i].Position);

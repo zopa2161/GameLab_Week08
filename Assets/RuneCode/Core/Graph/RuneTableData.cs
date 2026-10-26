@@ -98,6 +98,8 @@ namespace RuneCode
         public float _arcRange;
         public int _arcTargets;
         public float _arcMultiplier;
+        public float _arcEnhancedRange;
+        public int _arcEnhancedTargets;
         public float _learningMultiplier = 1f;
         public float _spreadAngle;
         public float _shieldAmount;

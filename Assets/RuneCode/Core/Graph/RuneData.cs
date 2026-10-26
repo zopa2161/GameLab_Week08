@@ -95,6 +95,8 @@ namespace RuneCode
         private readonly float _arcRange;
         private readonly int _arcTargets;
         private readonly float _arcMultiplier;
+        private readonly float _arcEnhancedRange;
+        private readonly int _arcEnhancedTargets;
         private readonly float _learningMultiplier;
         private readonly float _spreadAngle;
         private readonly float _shieldAmount;
@@ -141,6 +143,12 @@ namespace RuneCode
         public float ArcRange => _arcRange;
         public int ArcTargets => _arcTargets;
         public float ArcMultiplier => _arcMultiplier;
+
+        /// <summary>전격 강화가 켜졌을 때 연쇄 거리(px)다. elem.arc는 기본값과 별도로 이 값을 정의해야 한다.</summary>
+        public float ArcEnhancedRange => _arcEnhancedRange;
+
+        /// <summary>전격 강화가 켜졌을 때 연쇄 대상 수다. elem.arc는 기본값과 별도로 이 값을 정의해야 한다.</summary>
+        public int ArcEnhancedTargets => _arcEnhancedTargets;
         public float LearningMultiplier => _learningMultiplier;
         public float SpreadAngle => _spreadAngle;
         public float ShieldAmount => _shieldAmount;
@@ -198,6 +206,8 @@ namespace RuneCode
             _arcRange = row._arcRange;
             _arcTargets = row._arcTargets;
             _arcMultiplier = row._arcMultiplier;
+            _arcEnhancedRange = row._arcEnhancedRange;
+            _arcEnhancedTargets = row._arcEnhancedTargets;
             _learningMultiplier = row._learningMultiplier;
             _spreadAngle = row._spreadAngle;
             _shieldAmount = row._shieldAmount;
@@ -946,6 +956,7 @@ namespace RuneCode
             float[] numbers = { stats.Damage, stats.Speed, stats.Radius, stats.Lifetime, stats.Offset, stats.OrbitRadius,
                 stats.AngularSpeed, stats.StationaryAngularSpeed, stats.EntrySpeed, stats.MovingLifetimeBonus, stats.HitInterval, stats.TickInterval, stats.DamageMultiplier, stats.RadiusMultiplier,
                 stats.SpeedMultiplier, stats.DurationMultiplier, stats.PierceLoss, stats.HomingTurn, stats.HomingRange, stats.ArcRange, stats.ArcMultiplier,
+                stats.ArcEnhancedRange,
                 stats.LearningMultiplier, stats.SpreadAngle, stats.ShieldAmount, stats.ShieldSeconds, stats.ConeAngle, stats.ExpandSeconds, stats.WarnSeconds,
                 stats.BeamWidth, stats.BeamLength, stats.MinimumLifetime, stats.KnockbackDistance, stats.KnockbackSeconds, stats.WaveInterval };
             foreach (float value in numbers)
@@ -963,9 +974,11 @@ namespace RuneCode
             if (rune.Id == "mod.knockback" && (stats.KnockbackReferenceDamage <= 0f
                 || float.IsNaN(stats.KnockbackReferenceDamage) || float.IsInfinity(stats.KnockbackReferenceDamage)))
                 log.Add(rune.Id, field, "밀어내기 기준 피해는 유한한 양수여야 합니다.");
-            if (stats.Count < 0 || stats.Pierce < 0 || stats.ArcTargets < 0 || stats.WaveCount < 0
+            if (stats.Count < 0 || stats.Pierce < 0 || stats.ArcTargets < 0 || stats.ArcEnhancedTargets < 0 || stats.WaveCount < 0
                 || (rune.Category == "form" && (stats.Count <= 0 || stats.Damage <= 0f || stats.Radius <= 0f)))
                 log.Add(rune.Id, field, "유효하지 않은 형태 룬 수치입니다 (form은 count·damage·radius가 0보다 커야 함).");
+            if (rune.Id == "elem.arc" && (stats.ArcEnhancedRange <= 0f || stats.ArcEnhancedTargets <= 0))
+                log.Add(rune.Id, field + ":arcEnhanced", "전격 강화 연쇄 거리와 대상 수는 0보다 커야 합니다.");
             if (rune.Id == SpellGrammar.CONE_RUNE && (stats.ConeAngle <= 0f || stats.ConeAngle > 360f))
                 log.Add(rune.Id, field + ":coneAngle", "부채꼴 각도는 0보다 크고 360 이하여야 합니다.");
         }

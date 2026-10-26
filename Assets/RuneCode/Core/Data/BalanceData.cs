@@ -128,6 +128,8 @@ namespace RuneCode
         [Header("강화 트리 전투")]
         [SerializeField] private int _burnMaxStacks = 3;
         [SerializeField] private float _burnBurstMultiplier = 6f;
+        [SerializeField] private float _freezeEnhancedSeconds;
+        [SerializeField] private float _freezeEnhancedImmunity;
         [SerializeField] private float _auraRadius = 100f;
         [SerializeField] private float _auraTickInterval = 0.5f;
         [SerializeField] private float _auraTickDamage = 1f;
@@ -145,8 +147,18 @@ namespace RuneCode
 
         /// <summary>빙결 면역 중 쌓을 수 있는 냉기 스택 상한이다. 빙결을 일으키는 최대 스택보다 작아야 한다.</summary>
         public int ChillImmuneMaxStacks => _chillImmuneMaxStacks;
+
+        /// <summary>냉기 강화가 없을 때 빙결 지속시간(초)이다.</summary>
         public float FreezeSeconds => _freezeSeconds;
+
+        /// <summary>냉기 강화가 없을 때 빙결이 끝난 뒤 면역 시간(초)이다.</summary>
         public float FreezeImmunity => _freezeImmunity;
+
+        /// <summary>냉기 강화가 켜졌을 때 빙결 지속시간(초)이다.</summary>
+        public float FreezeEnhancedSeconds => _freezeEnhancedSeconds;
+
+        /// <summary>냉기 강화가 켜졌을 때 빙결이 끝난 뒤 면역 시간(초)이다.</summary>
+        public float FreezeEnhancedImmunity => _freezeEnhancedImmunity;
         public float EmpSeconds => _empSeconds;
         public float AegisAngle => _aegisAngle;
         public float AegisReduction => _aegisReduction;
@@ -341,7 +353,8 @@ namespace RuneCode
                 data.Adaptation.DotWeight, data.Adaptation.NoiseMultiplier, data.Adaptation.RelayMultiplier, data.Adaptation.DecayDelay,
                 data.Adaptation.DecayPerSecond, data.Adaptation.ResistanceThreshold, data.Combat.BurnDps, data.Combat.BurnInterval,
                 data.Combat.BurnSeconds, data.Combat.ChillSlow, data.Combat.ChillSeconds, data.Combat.FreezeSeconds,
-                data.Combat.FreezeImmunity, data.Combat.EmpSeconds, data.Combat.AegisAngle, data.Combat.AegisReduction,
+                data.Combat.FreezeImmunity, data.Combat.FreezeEnhancedSeconds, data.Combat.FreezeEnhancedImmunity,
+                data.Combat.EmpSeconds, data.Combat.AegisAngle, data.Combat.AegisReduction,
                 data.Combat.RelayRadius, data.Combat.RelayRegen, data.Economy.DeathRetention, data.Economy.OrbAbsorbRadius,
                 data.Economy.KillEnergyCreditRatio, data.Economy.PickupAttractSpeed, data.Limits.CooldownBase, data.Sim.MultiOffset,
                 data.Sim.BenchPlayerX, data.Sim.BenchPlayerY, data.Sim.BenchDummyX,
@@ -381,7 +394,11 @@ namespace RuneCode
                 || data.Combat.BurnBurstMultiplier <= 0f || data.Combat.AuraRadius <= 0f
                 || data.Combat.AuraTickInterval <= 0f || data.Combat.AuraTickDamage < 0f
                 || data.Combat.SteamSeconds <= 0f || data.Combat.SteamInterval <= 0f || data.Combat.SteamRadius <= 0f
-                || data.Combat.SteamDamageRatio < 0f)
+                || data.Combat.SteamDamageRatio < 0f
+                || float.IsNaN(data.Combat.FreezeEnhancedSeconds) || float.IsInfinity(data.Combat.FreezeEnhancedSeconds)
+                || data.Combat.FreezeEnhancedSeconds <= 0f
+                || float.IsNaN(data.Combat.FreezeEnhancedImmunity) || float.IsInfinity(data.Combat.FreezeEnhancedImmunity)
+                || data.Combat.FreezeEnhancedImmunity < 0f)
                 throw new FormatException("강화 트리 밸런스 범위가 유효하지 않습니다.");
             return data;
         }
