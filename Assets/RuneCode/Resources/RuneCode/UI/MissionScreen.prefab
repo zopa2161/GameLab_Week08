@@ -644,6 +644,7 @@ MonoBehaviour:
   _energyFill: {fileID: 1665972199711615168}
   _stageLabel: {fileID: 1398573897431161874}
   _statsLabel: {fileID: 668822232485430597}
+  _upgradePointSprite: {fileID: 21300000, guid: 2643626be2a0ac24bb80b4e383df738d, type: 3}
   _timerLabel: {fileID: 34548006383403310}
   _timerWarningLabel: {fileID: 4915405236418103829}
   _timerVisual: {fileID: 2563925627693194086}

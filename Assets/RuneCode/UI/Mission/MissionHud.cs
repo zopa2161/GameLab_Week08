@@ -24,6 +24,8 @@ namespace RuneCode
         private const float ROUND_START_LABEL_WIDTH = 480f;
         private const float ROUND_START_LABEL_HEIGHT = 160f;
         private const float ROUND_START_LABEL_Y_OFFSET = 150f;
+        private const float POINT_ICON_SIZE = 12f;
+        private const float POINT_ICON_SPACE = 18f;
 
         private static readonly float HP_DELAY_NORMALIZER = Mathf.Exp(HP_DELAY_EXPONENT) - 1f;
         private static readonly Color ENERGY_SHORTAGE_COLOR = new Color(1f, 0.3f, 0.25f, 1f);
@@ -41,6 +43,7 @@ namespace RuneCode
         [Header("전투 정보")]
         [SerializeField] private TextMeshProUGUI _stageLabel;
         [SerializeField] private TextMeshProUGUI _statsLabel;
+        [SerializeField] private Sprite _upgradePointSprite;
         [SerializeField] private TextMeshProUGUI _timerLabel;
         [SerializeField] private TextMeshProUGUI _timerWarningLabel;
         [SerializeField] private UiStateVisual _timerVisual;
@@ -70,6 +73,7 @@ namespace RuneCode
         [SerializeField] private Button _debugBossButtonTemplate;
 
         private bool _isBound;
+        private Image _upgradePointIcon;
         private readonly List<Button> _debugBossButtons = new List<Button>();
         private readonly List<Button> _debugActionButtons = new List<Button>();
         private Outline _workshopOutline;
@@ -375,8 +379,32 @@ namespace RuneCode
             _hpFraction = hpFraction;
         }
 
-        /// <summary>처치·조각 문구를 표시한다.</summary>
-        public void SetStats(string text) => _statsLabel.text = text;
+        /// <summary>처치 문구와 강화 포인트를 표시하고 포인트 앞에 기존 재화 이미지를 같은 텍스트 행에 배치한다.</summary>
+        public void SetStats(string killsText, string pointsText)
+        {
+            string prefix = killsText + "  ·  ";
+            string text = prefix + "<space=" + POINT_ICON_SPACE + ">" + pointsText;
+            if (_statsLabel.text == text && _upgradePointIcon != null) return;
+            if (_upgradePointIcon == null)
+            {
+                var iconObject = new GameObject("UpgradePointIcon", typeof(RectTransform), typeof(Image));
+                _upgradePointIcon = iconObject.GetComponent<Image>();
+                RectTransform iconRect = _upgradePointIcon.rectTransform;
+                iconRect.SetParent(_statsLabel.transform, false);
+                iconRect.anchorMin = iconRect.anchorMax = _statsLabel.rectTransform.pivot;
+                iconRect.sizeDelta = Vector2.one * POINT_ICON_SIZE;
+                _upgradePointIcon.sprite = _upgradePointSprite;
+                _upgradePointIcon.color = new Color(0.43f, 1f, 0.82f);
+                _upgradePointIcon.preserveAspect = true;
+                _upgradePointIcon.raycastTarget = false;
+            }
+            _statsLabel.text = text;
+            _statsLabel.ForceMeshUpdate();
+            if (_statsLabel.textInfo.characterCount <= prefix.Length) return;
+            TMP_CharacterInfo firstPointCharacter = _statsLabel.textInfo.characterInfo[prefix.Length];
+            _upgradePointIcon.rectTransform.anchoredPosition = new Vector2(firstPointCharacter.origin - POINT_ICON_SPACE * 0.5f,
+                (firstPointCharacter.ascender + firstPointCharacter.descender) * 0.5f);
+        }
 
         /// <summary>전투 목표 또는 대기·완료 문구를 표시하고 isWarning이면 경고 표시로 바꾼다.</summary>
         public void SetTimer(string text, bool isWarning)

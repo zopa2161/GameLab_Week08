@@ -151,6 +151,21 @@ namespace RuneCode
             _frontNodeId = nodeId;
         }
 
+        /// <summary>드래그 묶음의 본체와 모든 라벨을 팔레트 위 레이어로 옮기고 나머지 노드는 원래 부모에 둔다.</summary>
+        public void SetDragLayer(ICollection<string> nodeIds, RectTransform layer)
+        {
+            foreach (var pair in _nodeLayers)
+            {
+                string id = pair.Key;
+                RectTransform parent = layer != null && nodeIds.Contains(id) ? layer : _parent;
+                pair.Value.transform.SetParent(parent, false);
+                _labels[id].transform.SetParent(parent, false);
+                _metricLabels.SetNodeParent(id, parent);
+                foreach (TextMeshProUGUI label in _portLabels[id]) label.transform.SetParent(parent, false);
+                foreach (TextMeshProUGUI label in _slotLabels[id]) label.transform.SetParent(parent, false);
+            }
+        }
+
         /// <summary>선택·실행·연결 표시가 변했을 때 모든 노드 본체의 메시 갱신을 예약하고 슬롯 색·장착 가능 표시를 갱신한다.</summary>
         public void RefreshMeshes()
         {

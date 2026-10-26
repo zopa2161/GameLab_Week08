@@ -43,6 +43,7 @@ namespace RuneCode
         private const float SELECTION_LINE_WIDTH = 1f;
 
         private static readonly Color LOCKED_NODE_COLOR = new Color(1f, 0.25f, 0.25f);
+        private static readonly Color REJECTED_SNAP_COLOR = new Color(1f, 0.3f, 0.3f);
         private static readonly Color LOCKED_NODE_FILL_COLOR = new Color(0.24f, 0.07f, 0.08f);
 
         private readonly GraphVisualStyle _style;
@@ -93,13 +94,15 @@ namespace RuneCode
             DrawBoxSelection(mesh);
         }
 
-        /// <summary>현재 연결 대상의 외곽과 입력 홈을 채움 없이 최상단에 그려 인접 블록에 테두리가 가려지지 않게 한다.</summary>
+        /// <summary>연결 가능 대상은 초록색, 거부된 대상은 붉은색으로 외곽과 입력 홈을 최상단에 그린다.</summary>
         private void DrawSnapOutline(VertexHelper mesh)
         {
-            if (_state.SnapHighlightNode == null) return;
-            GraphNode node = _layout.FindNode(_state.SnapHighlightNode);
-            if (node == null || !_isRuneUnlocked(node.RuneId)) return;
-            DrawNodeOutline(mesh, node, _style.GetColor(CONNECTABLE_PORT_COLOR));
+            string nodeId = _state.SnapHighlightNode ?? _state.RejectedSnapNode;
+            if (nodeId == null) return;
+            GraphNode node = _layout.FindNode(nodeId);
+            if (node == null) return;
+            DrawNodeOutline(mesh, node, _state.SnapHighlightNode != null
+                ? _style.GetColor(CONNECTABLE_PORT_COLOR) : REJECTED_SNAP_COLOR);
         }
 
         /// <summary>지정 노드의 외곽·입력 홈·출력 돌출부를 지정 색의 테두리로 그리고 내부는 채우지 않는다.</summary>
@@ -292,11 +295,13 @@ namespace RuneCode
             RuneMesh.Line(mesh, new Vector2(selection.xMin, selection.yMax), new Vector2(selection.xMax, selection.yMax), SELECTION_LINE_WIDTH, _style.GetColor(SELECTION_BORDER_COLOR));
         }
 
-        /// <summary>연결 후보의 초록색을 선택된 블록의 흰색보다 우선하고 그 외에는 잠금·실행·기본 테두리 색을 반환한다.</summary>
+        /// <summary>연결 후보의 초록색 또는 연결 거부의 붉은색을 선택 테두리보다 우선하고 그 외에는 기존 상태 색을 반환한다.</summary>
         private Color NodeBorderColor(GraphNode node, Color accent, bool isExecuted, bool isRuneUnlocked)
         {
             if (isRuneUnlocked && node.Id == _state.SnapHighlightNode)
                 return _style.GetColor(CONNECTABLE_PORT_COLOR);
+            if (_state.SnapHighlightNode == null && node.Id == _state.RejectedSnapNode)
+                return REJECTED_SNAP_COLOR;
             if (_state.Selected.Contains(node.Id)) return Color.white;
             if (!isRuneUnlocked) return LOCKED_NODE_COLOR;
             if (isExecuted) return _style.GetColor(EXECUTED_BORDER_COLOR);
