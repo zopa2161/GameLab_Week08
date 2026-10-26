@@ -474,7 +474,7 @@ namespace RuneCode
 
         /// <summary>
         /// 다른 종류 상태 이상 위에 새 상태 이상이 걸린 적을 원점·대상으로 onStatusStack 시작 노드 슬롯을 시전한다.
-        /// 시전할 수 있는 슬롯이 있을 때만 그 적의 상태 이상을 모두 지운 뒤 시전하고, 없으면 상태 이상을 그대로 둔다.
+        /// 해당 트리거가 장착되어 있으면 그 적의 상태 이상을 모두 지운 뒤 적별로 독립 실행하고, 없으면 상태 이상을 그대로 둔다.
         /// </summary>
         private void CastStatusStackTrigger(SimulationEnemy enemy)
         {

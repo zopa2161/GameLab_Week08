@@ -130,8 +130,8 @@ namespace RuneCode
         internal bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false) => BeginRootCast(spell, slot, null);
 
         /// <summary>
-        /// 상태 이상 중첩 트리거처럼 적을 원점·대상으로 삼는 시전 경로다. 결제·쿨다운·루트 실행은 플레이어 시전과 같은 흐름을 쓰고
-        /// 같은 틱 재진입은 슬롯 쿨다운과 틱당 행동 예산에 맡긴다. 대상이 없거나 이미 죽었으면 시전하지 않는다.
+        /// 상태 이상 중첩 트리거처럼 적을 원점·대상으로 삼는 시전 경로다. 적마다 슬롯 잠금과 분리된 실행 추적기를 사용하고
+        /// 같은 틱 실행량은 공통 행동 예산으로 제한한다. 대상이 없거나 이미 죽었으면 시전하지 않는다.
         /// </summary>
         internal void TryCastTriggerAtEnemy(string trigger, SimulationEnemy target)
         {
@@ -144,14 +144,16 @@ namespace RuneCode
             }
         }
 
-        /// <summary>지정 Trigger를 가진 슬롯 중 지금 시전을 시작할 수 있는(전투 단계, 쿨다운 종료, 실행 중 아님) 슬롯이 있는지 반환한다.</summary>
+        /// <summary>전투 단계에서 지정 Trigger의 실행 가능 여부를 반환한다. 상태 중첩은 적별 이벤트여서 슬롯 쿨다운·실행 잠금을 공유하지 않는다.</summary>
         internal bool IsTriggerReady(string trigger)
         {
             if (_world.Stage != MissionStage.Bench && _world.Stage != MissionStage.Combat && _world.Stage != MissionStage.RoundBreak) return false;
             for (int slot = 0; slot < _loadout.Length; slot++)
             {
                 CompiledSpell spell = _loadout[slot];
-                if (spell != null && spell.Trigger == trigger && _world.Player.Cooldowns[slot] <= 0.000001 && !_world.Player.IsSpellRunning(slot)) return true;
+                if (spell != null && spell.Trigger == trigger
+                    && (trigger == SpellGrammar.TRIGGER_ON_STATUS_STACK
+                        || _world.Player.Cooldowns[slot] <= 0.000001 && !_world.Player.IsSpellRunning(slot))) return true;
             }
             return false;
         }
@@ -160,17 +162,17 @@ namespace RuneCode
         private bool BeginRootCast(CompiledSpell spell, int slot, SimulationEnemy target)
         {
             if (spell == null || slot < 0 || slot >= _loadout.Length || (_world.Stage != MissionStage.Bench && _world.Stage != MissionStage.Combat && _world.Stage != MissionStage.RoundBreak)) return false;
-            if (_world.Player.Cooldowns[slot] > 0.000001 || _world.Player.IsSpellRunning(slot)) return false;
+            bool isEnemyCast = target != null;
+            if (!isEnemyCast && (_world.Player.Cooldowns[slot] > 0.000001 || _world.Player.IsSpellRunning(slot))) return false;
             double executionSeconds = spell.GetEstimatedExecutionSeconds(_world.Balance.Sim.ExecutionTimeScale);
             int cycleTicks = spell.GetSlotCycleTicks(_world.Balance.Sim.ExecutionTimeScale);
             double cooldownSeconds = spell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK && BeamChannelController.HasDirectBeam(spell)
                 ? cycleTicks / (double)RuneSimulation.TICK_RATE : spell.Cooldown + executionSeconds;
-            if (!_world.Player.TryBeginSpell(slot, executionSeconds, cooldownSeconds)) return false;
+            if (!isEnemyCast && !_world.Player.TryBeginSpell(slot, executionSeconds, cooldownSeconds)) return false;
             RecordNode(spell.CoreNodeId);
-            _beam.ClearQueued(slot);
+            if (!isEnemyCast) _beam.ClearQueued(slot);
             SimVector delta = _aimPoint.HasValue ? _aimPoint.Value - _world.Player.Position : SimVector.Zero;
             SimVector targetDirection = delta.LengthSquared > 0.000001 ? delta.Normalized() : _world.Player.AimDirection;
-            bool isEnemyCast = target != null;
             // 적 대상 시전은 적 위치를 원점으로 하고 플레이어 시전은 지팡이 끝을 원점으로 한다.
             SimVector origin = isEnemyCast ? target.Position
                 : _world.Player.Position + _world.Player.AimDirection * (_world.Sector.PlayerRadius + _world.Balance.Sim.WandOffset);
@@ -184,12 +186,14 @@ namespace RuneCode
                 + (_world.Time - _world.Player.LastDashStartTime <= _world.Balance.Player.PostDashBuffSeconds ? _world.Upgrades.PostDashDamageBonus : 0d);
             double costMultiplier = spell.Trigger == SpellGrammar.TRIGGER_ON_DASH_END ? 0d : 1d;
             bool isStatusStackCast = spell.Trigger == SpellGrammar.TRIGGER_ON_STATUS_STACK;
-            var context = new SpellContext(origin, direction, target, false, null,
+            // 적에게서 발생한 트리거는 후속 배치에서도 적 위치를 유지한다.
+            var context = new SpellContext(origin, direction, target, isEnemyCast, null,
                 caster: _world.Player, randomState: new SpellRandomState(), castDamageMultiplier: castDamageMultiplier, costMultiplier: costMultiplier,
                 isManaPrepaid: isStatusStackCast, suppressesTriggers: isStatusStackCast);
-            var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
+            var tracker = isEnemyCast ? new ExecutionTracker(null, null)
+                : new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
             ExecuteRootBranches(spell.Root, context, tracker);
-            RecordRootCastPayment(rootCast);
+            if (!isEnemyCast) RecordRootCastPayment(rootCast);
             return true;
         }
 
