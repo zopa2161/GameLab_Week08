@@ -21,18 +21,16 @@ namespace RuneCode
         private readonly ModifierGradeDropSource _synthesisGrades;
         private readonly UpgradeTreeDefinition _upgradeTree;
         private bool _isDebugEnabled;
-        private bool _isTestMode;
         private readonly SpellEditSession _spells;
         private string _statusMessage;
         private long _statusRevision;
         private bool _isSaveDirty;
         private bool _hasStartedGame;
         private bool _isRunSuspended;
+        private bool _resumeAtLaboratory;
         private int _workshopStage;
         private int _workshopRound;
-        private int _testOnboardingChapter;
-        private bool _hasEnteredTestEditorDuringWorkshop;
-        private bool _hasCompletedTestEditorVisit;
+        private bool _hasEnteredOnboardingEditorDuringWorkshop;
 
         private string _dockScenario = "dummy_single";
         private int _dockDummyCount = 1;
@@ -44,17 +42,15 @@ namespace RuneCode
         public ISpellEditor Spells => _spells;
         public bool IsDebugEnabled => _isDebugEnabled;
 
-        /// <summary>타이틀의 테스트 모드로 시작한 메모리 진행인지 반환한다. 규칙은 일반 진행과 같고 디버그 권한은 주지 않는다.</summary>
-        public bool IsTestMode => _isTestMode;
+        /// <summary>현재 진행에 저장한 마지막 온보딩 챕터 번호다. 아직 띄우지 않았으면 0이다.</summary>
+        public int OnboardingChapter => _save.OnboardingChapter;
 
-        /// <summary>테스트 모드에서 마지막으로 띄운 온보딩 챕터 번호다. 아직 띄우지 않았으면 0이다.</summary>
-        public int TestOnboardingChapter => _testOnboardingChapter;
+        /// <summary>일반 진행의 첫 클리어 이후 온보딩 편집창 방문과 복귀를 마칠 때까지 다음 전투 포털을 잠근다.</summary>
+        public bool IsOnboardingEditorVisitRequired => !_isDebugEnabled && (_save.HasProgressionRound || OnboardingChapter >= 2)
+            && !_save.HasCompletedOnboardingEditorVisit;
 
-        /// <summary>테스트 모드에서 요구된 편집창 방문과 정상 복귀를 마칠 때까지 다음 라운드 포털을 잠그는지 반환한다.</summary>
-        public bool IsTestEditorVisitRequired => _isTestMode && !_hasCompletedTestEditorVisit;
-
-        /// <summary>디버그·테스트처럼 저장 슬롯에 쓰지 않는 메모리 진행인지 반환한다.</summary>
-        public bool IsMemorySession => _isDebugEnabled || _isTestMode;
+        /// <summary>진행 파일에 쓰지 않는 디버그 메모리 진행인지 반환한다.</summary>
+        public bool IsMemorySession => _isDebugEnabled;
         public bool IsSaveDirty => _isSaveDirty;
         public bool ScreenShake => SaveStore.ScreenShake;
         public bool HitStop => SaveStore.HitStop;
@@ -64,6 +60,7 @@ namespace RuneCode
 
         /// <summary>라운드 대기 중 작업실을 열어 진행 중인 런을 보관하고 있는지 반환한다.</summary>
         public bool IsRunSuspended => _isRunSuspended;
+        public bool ResumeAtLaboratory => _resumeAtLaboratory && !IsMemorySession;
 
         public string DockScenario => _dockScenario;
         public int DockDummyCount => _dockDummyCount;
@@ -141,31 +138,35 @@ namespace RuneCode
         public void SuspendRunForWorkshop(int stage, int round)
         {
             _isRunSuspended = true;
-            _hasEnteredTestEditorDuringWorkshop = false;
+            _hasEnteredOnboardingEditorDuringWorkshop = false;
             _workshopStage = stage;
             _workshopRound = round;
         }
 
-        /// <summary>테스트 모드에서 편집창 재방문을 요구하고 이전 방문 완료와 현재 작업실 방문 기록을 초기화한다. 일반·디버그 진행에는 적용하지 않는다.</summary>
-        public void RequireTestEditorVisit()
+        /// <summary>마법 순서 안내 직전에 편집창 재방문을 요구하고 현재 방문 기록과 저장된 완료 상태를 초기화한다.</summary>
+        public void RequireOnboardingEditorVisit()
         {
-            if (!_isTestMode) return;
-            _hasCompletedTestEditorVisit = false;
-            _hasEnteredTestEditorDuringWorkshop = false;
+            if (_isDebugEnabled || OnboardingChapter != 5) return;
+            _save.SetOnboardingEditorVisitCompleted(false);
+            _hasEnteredOnboardingEditorDuringWorkshop = false;
+            PersistProgress();
         }
 
-        /// <summary>온보딩의 편집창 안내 단계에서 실제 편집창 탭에 들어왔음을 기록한다. 테스트 모드의 작업실 방문 중에만 적용한다.</summary>
-        public void RecordTestEditorVisit()
+        /// <summary>온보딩이 요구한 편집창 탭 방문을 현재 작업실 방문 상태에 기록한다.</summary>
+        public void RecordOnboardingEditorVisit()
         {
-            if (IsTestEditorVisitRequired && _isRunSuspended) _hasEnteredTestEditorDuringWorkshop = true;
+            if (IsOnboardingEditorVisitRequired && _isRunSuspended) _hasEnteredOnboardingEditorDuringWorkshop = true;
         }
 
-        /// <summary>검증을 마친 런의 보관 표시를 해제하고, 이번 작업실에서 테스트 편집창을 방문했다면 요구된 방문을 완료한다.</summary>
+        /// <summary>검증을 마친 런의 보관 표시를 해제하고, 이번 작업실에서 온보딩 편집창을 방문했다면 요구된 방문을 완료한다.</summary>
         public void ResumeSuspendedRun()
         {
-            if (_isRunSuspended && IsTestEditorVisitRequired && _hasEnteredTestEditorDuringWorkshop)
-                _hasCompletedTestEditorVisit = true;
-            _hasEnteredTestEditorDuringWorkshop = false;
+            if (_isRunSuspended && IsOnboardingEditorVisitRequired && _hasEnteredOnboardingEditorDuringWorkshop)
+            {
+                _save.SetOnboardingEditorVisitCompleted(true);
+                PersistProgress();
+            }
+            _hasEnteredOnboardingEditorDuringWorkshop = false;
             _isRunSuspended = false;
         }
 
@@ -181,16 +182,17 @@ namespace RuneCode
 
         /// <summary>
         /// 일반 저장 또는 메모리 디버그 진행을 열고, 빌드의 일반 시작은 로그 회차도 자동 생성한다.
+        /// resumeAtLaboratory이면 일반 진행을 마지막 완료 지점 또는 첫 전투 전 실험실에서 시작한다.
         /// 출격 요청을 기록한 뒤 전투 화면으로 바로 전환하며, 출격 준비에 실패하면 미션 화면이 작업실로 보낸다.
         /// </summary>
-        public void StartGame(bool isDebug)
+        public void StartGame(bool isDebug, bool resumeAtLaboratory = false)
         {
+            _resumeAtLaboratory = !isDebug && resumeAtLaboratory;
             _hasStartedGame = true;
             _isRunSuspended = false;
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("mode_changed", _spells.Graph);
             bool isFirstGameStart = !isDebug && !SaveStore.HasSlot(SaveStore.ActiveSlot);
             _isDebugEnabled = isDebug;
-            _isTestMode = false;
             _save = isDebug ? PlayerSave.CreateNew() : _normalSave;
             bool restoredRuneUnlocks = !isDebug && RestorePurchasedRuneUnlocks(_save);
             if (isFirstGameStart)
@@ -262,90 +264,13 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 익명 참가자 ID로 저장하지 않는 새 진행과 로컬 로그 세션을 열고 전투 화면으로 전환한다.
-        /// 진행 규칙은 일반 모드와 같으며 시작에 성공하면 true를 반환한다.
+        /// 일반 진행에서 chapter가 다음 순서의 온보딩이면 저장하고 로그를 남긴 뒤 true를 반환한다.
+        /// 디버그 진행이거나 순서가 맞지 않으면 false를 반환한다.
         /// </summary>
-        public bool StartTestGame(string participantId)
+        public bool TryAdvanceOnboarding(int chapter)
         {
-            if (string.IsNullOrWhiteSpace(participantId)) return false;
-            if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("restarted", _spells.Graph);
-            _isDebugEnabled = false;
-            _isTestMode = true;
-            _testOnboardingChapter = 0;
-            _hasEnteredTestEditorDuringWorkshop = false;
-            _hasCompletedTestEditorVisit = false;
-            _save = PlayerSave.CreateNew();
-            RestorePurchasedRuneUnlocks(_save);
-            _spells.Reload();
-
-            var stock = new Dictionary<string, object>(StringComparer.Ordinal);
-            foreach (KeyValuePair<string, int> pair in _save.CreateStockMap()) stock[pair.Key] = pair.Value;
-            var upgrades = new Dictionary<string, object>(StringComparer.Ordinal);
-            foreach (UpgradeTreeNodeDefinition node in _upgradeTree.Nodes)
-                if (node != null) upgrades[node.Id] = GetUpgradeNodeLevel(node.Id);
-            var startState = new Dictionary<string, object>
-            {
-                ["selected_stage"] = SelectedStage,
-                ["currency"] = _save.Currency,
-                ["max_energy"] = MaxEnergy,
-                ["max_hp"] = MaxHp,
-                ["unlocked_runes"] = new List<string>(_save.UnlockedRunes),
-                ["stock"] = stock,
-                ["upgrade_levels"] = upgrades,
-                ["inventory"] = GetInventoryLogSnapshot(),
-            };
-            var metadata = new Dictionary<string, object>
-            {
-                ["participant_id"] = participantId,
-                ["app_version"] = Application.version,
-                ["condition"] = "Develop",
-                ["editor_model"] = "combined_nodes",
-                ["test_order"] = null,
-                ["is_test_mode"] = true,
-                ["is_debug"] = false,
-                ["is_practice"] = false,
-                ["starting_state"] = startState,
-            };
-            try
-            {
-                LocalTelemetry.BeginUsabilityTest(metadata, null);
-                LocalTelemetry.RecordUsabilityEvent("test_start", "title", startState);
-                LocalTelemetry.SaveUsabilityBuild(null, _spells.Graph, new Dictionary<string, object>
-                {
-                    ["reason"] = "test_start",
-                    ["signature"] = GraphCompiler.Signature(_spells.Graph),
-                    ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(_spells.Graph),
-                    ["is_compile_valid"] = _spells.CompileResult.Ok,
-                });
-            }
-            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
-            {
-                LocalTelemetry.AbortUsabilityTest();
-                _isTestMode = false;
-                _save = _normalSave;
-                _spells.Reload();
-                Debug.LogException(exception);
-                return false;
-            }
-            _hasStartedGame = true;
-            _isRunSuspended = false;
-            LocalTelemetry.RecordUsabilityEvent("simulation_request", "title", new Dictionary<string, object>
-            {
-                ["input_method"] = "title_start",
-                ["stage"] = SelectedStage,
-            });
-            RequestScreen(AppScreen.Mission);
-            return true;
-        }
-
-        /// <summary>
-        /// 테스트 모드에서 chapter가 다음 순서의 온보딩이면 띄운 것으로 기록하고 로그를 남긴 뒤 true를 반환한다.
-        /// 테스트 모드가 아니거나 순서가 맞지 않으면 false를 반환한다.
-        /// </summary>
-        public bool TryAdvanceTestOnboarding(int chapter)
-        {
-            if (!_isTestMode || chapter != _testOnboardingChapter + 1) return false;
-            _testOnboardingChapter = chapter;
+            if (_isDebugEnabled || !_save.TryAdvanceOnboarding(chapter)) return false;
+            PersistProgress();
             LocalTelemetry.RecordUsabilityEvent("onboarding_shown", "onboarding", new Dictionary<string, object>
             {
                 ["chapter"] = chapter,
@@ -357,7 +282,6 @@ namespace RuneCode
         public bool SelectSaveSlot(int slot)
         {
             if (!SaveStore.TryLoadSlot(slot, out PlayerSave loaded)) return false;
-            SaveStore.SetActiveSlot(slot);
             _normalSave = loaded;
             if (!IsMemorySession)
             {
@@ -371,7 +295,7 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>빈 타이틀 슬롯에 새 진행을 만들고 현재 일반 세션에도 적용한다.</summary>
+        /// <summary>새 진행을 단일 저장에 기록하고 현재 일반 세션에도 적용한다. 기존 진행 교체 확인은 타이틀에서 처리한다.</summary>
         public bool CreateSaveSlot(int slot)
         {
             if (!SaveStore.CreateSlot(slot, out PlayerSave created)) return false;
@@ -680,10 +604,10 @@ namespace RuneCode
         /// <summary>현재 모드에 맞는 새 진행으로 바꾸고 보관 중인 런을 버린 뒤 편집 세션을 다시 연다. 일반 진행은 _normalSave도 함께 바꾸고 디버그면 룬을 전부 해금한다.</summary>
         private void RenewSave()
         {
-            _hasEnteredTestEditorDuringWorkshop = false;
+            _resumeAtLaboratory = false;
+            _hasEnteredOnboardingEditorDuringWorkshop = false;
             _save = PlayerSave.CreateNew();
             if (_isDebugEnabled) PrepareDebugSave();
-            else if (_isTestMode) RestorePurchasedRuneUnlocks(_save);
             else _normalSave = _save;
             _isRunSuspended = false;
             _spells.Reload();

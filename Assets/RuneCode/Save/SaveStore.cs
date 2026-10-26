@@ -9,9 +9,12 @@ namespace RuneCode
 {
     public static class SaveStore
     {
-        private const int SLOT_COUNT = 3;
+        private const int SLOT_COUNT = 1;
+        private const int LEGACY_SLOT_COUNT = 3;
         private const int DEFAULT_SLOT = 1;
         private const string SLOT_FILE_FORMAT = "runecode.slot.{0}.v4.json";
+        private const string PROGRESS_SAVE_FILE = "runecode.progress.v4.json";
+        private const string SINGLE_SAVE_MIGRATED_KEY = "runecode.save.single-migrated";
         private const string LEGACY_SAVE_V4_FILE = "runecode.save.v4.json";
         private const string LEGACY_SAVE_V3_FILE = "runecode.save.v3.json";
         private const string LEGACY_SAVE_V2_FILE = "runecode.save.v2.json";
@@ -30,21 +33,13 @@ namespace RuneCode
         private static string _lastWarning;
 
         public static string LastWarning => _lastWarning;
-        public static int ActiveSlot => Mathf.Clamp(PlayerPrefs.GetInt(ACTIVE_SLOT_KEY, DEFAULT_SLOT), 1, SLOT_COUNT);
+        public static int ActiveSlot => DEFAULT_SLOT;
         public static bool ScreenShake => PlayerPrefs.GetInt(SCREEN_SHAKE_KEY, 1) != 0;
         public static bool HitStop => PlayerPrefs.GetInt(HIT_STOP_KEY, 1) != 0;
         public static float MasterVolume => Mathf.Clamp01(PlayerPrefs.GetFloat(MASTER_VOLUME_KEY, 1f));
         public static float BGMVolume => Mathf.Clamp01(PlayerPrefs.GetFloat(MUSIC_VOLUME_KEY, 1f));
         public static float SFXVolume => Mathf.Clamp01(PlayerPrefs.GetFloat(SFX_VOLUME_KEY, 1f));
         public static string SavePath => GetSlotPath(ActiveSlot);
-
-        /// <summary>선택된 슬롯을 1부터 3까지의 범위 안에 저장하고 다른 실행에도 적용한다.</summary>
-        public static void SetActiveSlot(int slot)
-        {
-            if (!IsValidSlot(slot)) return;
-            PlayerPrefs.SetInt(ACTIVE_SLOT_KEY, slot);
-            PlayerPrefs.Save();
-        }
 
         /// <summary>확정한 마스터 음량을 0부터 1로 제한해 기기 공통 환경설정에 저장한다.</summary>
         public static void SetVolumes(float masterVolume, float bgmVolume, float sfxVolume)
@@ -85,7 +80,7 @@ namespace RuneCode
         {
             if (!IsValidSlot(slot)) return false;
             if (File.Exists(GetSlotPath(slot))) return true;
-            return slot == DEFAULT_SLOT && PlayerPrefs.GetInt(LEGACY_MIGRATED_KEY, 0) == 0 && FindLegacySavePath() != null;
+            return FindPreviousProgressPath() != null;
         }
 
         /// <summary>현재 선택된 슬롯의 데이터를 읽고, 없으면 새 진행을 반환한다.</summary>
@@ -105,8 +100,7 @@ namespace RuneCode
             bool isLegacySource = false;
             if (!File.Exists(sourcePath))
             {
-                if (slot != DEFAULT_SLOT || PlayerPrefs.GetInt(LEGACY_MIGRATED_KEY, 0) != 0) return false;
-                sourcePath = FindLegacySavePath();
+                sourcePath = FindPreviousProgressPath();
                 if (sourcePath == null) return false;
                 isLegacySource = true;
             }
@@ -118,7 +112,7 @@ namespace RuneCode
                 if (loaded != null && loaded.Validate(out _))
                 {
                     save = loaded;
-                    if (isLegacySource && WriteToSlot(slot, loaded)) ArchiveLegacySource(sourcePath);
+                    if (isLegacySource && !WriteToSlot(slot, loaded)) return false;
                     return true;
                 }
 
@@ -138,14 +132,13 @@ namespace RuneCode
             return false;
         }
 
-        /// <summary>빈 슬롯에 새 진행을 만들고 기록하며 성공 여부와 생성한 저장을 반환한다.</summary>
+        /// <summary>단일 저장에 새 진행을 원자적으로 기록하고 성공 여부와 생성한 저장을 반환한다. 덮어쓰기 확인은 호출 화면에서 처리한다.</summary>
         public static bool CreateSlot(int slot, out PlayerSave save)
         {
             save = null;
-            if (!IsValidSlot(slot) || HasSlot(slot)) return false;
+            if (!IsValidSlot(slot)) return false;
             PlayerSave created = PlayerSave.CreateNew();
             if (!WriteToSlot(slot, created)) return false;
-            SetActiveSlot(slot);
             save = created;
             return true;
         }
@@ -168,6 +161,8 @@ namespace RuneCode
                 File.WriteAllText(temporary, EncryptSave(JsonUtility.ToJson(save, true)));
                 if (File.Exists(path)) File.Replace(temporary, path, path + ".backup");
                 else File.Move(temporary, path);
+                PlayerPrefs.SetInt(SINGLE_SAVE_MIGRATED_KEY, 1);
+                PlayerPrefs.Save();
                 _lastWarning = null;
                 return true;
             }
@@ -191,7 +186,7 @@ namespace RuneCode
                 DeleteIfExists(path + ".invalid-backup");
                 if (slot == DEFAULT_SLOT)
                 {
-                    ArchiveLegacyFiles(".deleted-backup");
+                    PlayerPrefs.SetInt(SINGLE_SAVE_MIGRATED_KEY, 1);
                     PlayerPrefs.SetInt(LEGACY_MIGRATED_KEY, 1);
                     PlayerPrefs.Save();
                 }
@@ -272,7 +267,22 @@ namespace RuneCode
         /// <summary>지정 슬롯의 저장 파일 경로를 반환한다.</summary>
         private static string GetSlotPath(int slot)
         {
-            return Path.Combine(Application.persistentDataPath, string.Format(SLOT_FILE_FORMAT, slot));
+            return Path.Combine(Application.persistentDataPath, PROGRESS_SAVE_FILE);
+        }
+
+        /// <summary>단일 저장 이전 전이면 마지막 활성 슬롯을 우선 탐색하고 나머지 슬롯과 구버전 저장을 차례로 찾는다. 원본 파일은 보존한다.</summary>
+        private static string FindPreviousProgressPath()
+        {
+            if (PlayerPrefs.GetInt(SINGLE_SAVE_MIGRATED_KEY, 0) != 0) return null;
+            int activeSlot = Mathf.Clamp(PlayerPrefs.GetInt(ACTIVE_SLOT_KEY, DEFAULT_SLOT), 1, LEGACY_SLOT_COUNT);
+            string activePath = Path.Combine(Application.persistentDataPath, string.Format(SLOT_FILE_FORMAT, activeSlot));
+            if (File.Exists(activePath)) return activePath;
+            for (int slot = 1; slot <= LEGACY_SLOT_COUNT; slot++)
+            {
+                string path = Path.Combine(Application.persistentDataPath, string.Format(SLOT_FILE_FORMAT, slot));
+                if (File.Exists(path)) return path;
+            }
+            return PlayerPrefs.GetInt(LEGACY_MIGRATED_KEY, 0) == 0 ? FindLegacySavePath() : null;
         }
 
         /// <summary>이전 단일 저장 파일 중 우선순위가 가장 높은 경로를 반환한다.</summary>
@@ -294,35 +304,6 @@ namespace RuneCode
                 Path.Combine(Application.persistentDataPath, LEGACY_SAVE_V2_FILE),
                 Path.Combine(Application.persistentDataPath, LEGACY_SAVE_V1_FILE)
             };
-        }
-
-        /// <summary>이전 저장을 마이그레이션 백업으로 보존하고 재탐색을 막는다.</summary>
-        private static void ArchiveLegacySource(string sourcePath)
-        {
-            try
-            {
-                string backupPath = sourcePath + ".migrated-backup";
-                File.Copy(sourcePath, backupPath, true);
-                File.Delete(sourcePath);
-                PlayerPrefs.SetInt(LEGACY_MIGRATED_KEY, 1);
-                PlayerPrefs.Save();
-            }
-            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException)
-            {
-                PlayerPrefs.SetInt(LEGACY_MIGRATED_KEY, 1);
-                PlayerPrefs.Save();
-            }
-        }
-
-        /// <summary>이전 저장 파일을 삭제용 백업으로 보존한다.</summary>
-        private static void ArchiveLegacyFiles(string suffix)
-        {
-            foreach (string path in GetLegacyPaths())
-            {
-                if (!File.Exists(path)) continue;
-                File.Copy(path, path + suffix, true);
-                File.Delete(path);
-            }
         }
 
         /// <summary>지정 경로가 있으면 파일을 제거한다.</summary>

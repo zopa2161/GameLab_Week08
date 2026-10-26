@@ -9,6 +9,8 @@ namespace RuneCode
     [Serializable]
     public sealed class PlayerSave : ISerializationCallbackReceiver
     {
+        private const int ONBOARDING_CHAPTER_COUNT = 7;
+
         private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
 
         [Header("저장 버전")]
@@ -60,9 +62,15 @@ namespace RuneCode
         [SerializeField] private bool _screenShake = true;
         [SerializeField] private bool _hitStop = true;
 
+        [Header("온보딩 진행")]
+        [SerializeField] private int _onboardingChapter;
+        [SerializeField] private bool _hasCompletedOnboardingEditorVisit;
+
         private List<SpellGraph> _graphs = new List<SpellGraph>();
 
         public int Version => _version;
+        public int OnboardingChapter => _onboardingChapter;
+        public bool HasCompletedOnboardingEditorVisit => _hasCompletedOnboardingEditorVisit;
         public int Currency => _currency;
         public int UpgradePoints => _upgradePoints;
         public bool HasPendingElementPick => _hasPendingElementPick;
@@ -316,6 +324,20 @@ namespace RuneCode
             }
         }
 
+        /// <summary>chapter가 바로 다음 온보딩이면 저장 진행을 한 단계 올리고 true를 반환한다.</summary>
+        public bool TryAdvanceOnboarding(int chapter)
+        {
+            if (chapter != _onboardingChapter + 1 || chapter > ONBOARDING_CHAPTER_COUNT) return false;
+            _onboardingChapter = chapter;
+            return true;
+        }
+
+        /// <summary>온보딩 편집창 방문과 복귀의 완료 여부를 저장한다.</summary>
+        public void SetOnboardingEditorVisitCompleted(bool isCompleted)
+        {
+            _hasCompletedOnboardingEditorVisit = isCompleted;
+        }
+
         /// <summary>시작 룬과 계속 강화할 첫 마법(에너지 볼트)을 가진 새 진행 데이터를 반환한다.</summary>
         public static PlayerSave CreateNew()
         {
@@ -523,7 +545,8 @@ namespace RuneCode
                 error = "save.invalidValues";
                 return false;
             }
-            if (_version != 5 || _currency < 0 || _currency > 100000000 || _upgradePoints < 0 ||
+            if (_version != 5 || _onboardingChapter < 0 || _onboardingChapter > ONBOARDING_CHAPTER_COUNT
+                || _currency < 0 || _currency > 100000000 || _upgradePoints < 0 ||
                 _highestClearedStage < 0 || _highestClearedStage >= 1000000 ||
                 _selectedStage < 1 || _selectedStage > _highestClearedStage + 1 ||
                 _slotCount != 1)
@@ -704,7 +727,7 @@ namespace RuneCode
             _version = 4;
         }
 
-        /// <summary>버전 4 저장을 버전 5로 이전한다. 온보딩 단계 데이터는 더 이상 저장하지 않으므로 다른 값 변경은 없다.</summary>
+        /// <summary>버전 4 저장을 버전 5로 이전한다. 새 온보딩 기록이 없는 저장은 첫 안내부터 진행한다.</summary>
         public void MigrateToOnboarding()
         {
             if (_version != 4) return;
