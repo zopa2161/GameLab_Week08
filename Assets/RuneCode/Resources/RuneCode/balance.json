@@ -5,6 +5,7 @@
     "_maxEnergy": 100,
     "_manaPerLevel": 10,
     "_energyRegen": 15,
+    "_roundClearHealRatio": 0.1,
     "_dashDistance": 140,
     "_dashDuration": 0.18,
     "_dashCooldown": 1,

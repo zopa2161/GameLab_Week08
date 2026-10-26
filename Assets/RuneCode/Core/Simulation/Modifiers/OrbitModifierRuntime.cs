@@ -56,6 +56,7 @@ namespace RuneCode
         /// </summary>
         public override bool TryMove(SpellRuntimeContext context, SimulationSpellEntity entity, object state)
         {
+            if (entity.IsSlash) return false;
             SpellBehaviorRules rules = entity.Action.Rules;
             if (rules == null || rules.MotionKind == SpellMotionKind.Path) return false;
             var orbit = (OrbitState)state;
