@@ -667,6 +667,7 @@ namespace RuneCode
             _statuses.ClearAll();
             _world.Player.CancelDash(Time);
             _loot.CollectRemainingDrops();
+            _world.Player.Heal(_world.Player.MaxHp * _world.Balance.Player.RoundClearHealRatio);
             if (_world.StageNumber == StageCatalog.PROGRESSION_STAGE_COUNT && _world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT)
             {
                 _world.Stage = MissionStage.Cleared;

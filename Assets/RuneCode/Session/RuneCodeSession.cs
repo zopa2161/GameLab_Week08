@@ -90,7 +90,8 @@ namespace RuneCode
             }
         }
         public float MaxHp => GameData.Balance.Player.MaxHp + GetUpgradeTreeEffectTotal(UpgradeEffectType.MaxHp);
-        public float EnergyRegen => GameData.Balance.Player.EnergyRegen + GetUpgradeTreeEffectTotal(UpgradeEffectType.EnergyRegen);
+        public float EnergyRegen => GameData.Balance.Player.EnergyRegen * MaxEnergy / GameData.Balance.Player.MaxEnergy
+            + GetUpgradeTreeEffectTotal(UpgradeEffectType.EnergyRegen);
         public float DamageMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.Damage);
         public float MoveSpeedMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.MoveSpeed);
         public float ScrapGainMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.ScrapGain);
