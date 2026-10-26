@@ -38,8 +38,8 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private readonly Queue<string> _itemToasts = new Queue<string>();
-        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview)> _debugBossTargets
-            = new List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview)>();
+        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview, bool StartsRadiatePreview, bool IsSummonTest)> _debugBossTargets
+            = new List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview, bool StartsRadiatePreview, bool IsSummonTest)>();
         private readonly List<(HexaDebugActionKind Kind, int EntityId)> _hexaDebugActions
             = new List<(HexaDebugActionKind Kind, int EntityId)>();
         private readonly List<string> _hexaDebugActionLabels = new List<string>();
@@ -397,7 +397,7 @@ namespace RuneCode
             RenderHud();
         }
 
-        /// <summary>보스별 첫 배치와 디버그 진입을 구성하고, Hexa 나선·자동 모드와 일반 웨이브 소환 소유권 시험 항목을 추가한다.</summary>
+        /// <summary>보스별 첫 배치, Hexa 시험과 3스테이지 1·3라운드의 첫 웨이브 바로가기를 구성한다.</summary>
         private void BuildDebugBosses()
         {
             var labels = new List<string>();
@@ -408,16 +408,31 @@ namespace RuneCode
                 bool isHexaPreview = stage == 0 && boss.IsHexaPattern;
                 if (stage == 0 && !isHexaPreview) continue;
                 if (isHexaPreview) stage = 1;
-                _debugBossTargets.Add((stage, round, isHexaPreview, false, false, false));
+                _debugBossTargets.Add((stage, round, isHexaPreview, false, false, false, false, false));
                 labels.Add((boss.IsMiniBoss ? "" : "보스 ") + GameData.L(boss.EnemyId)
                     + (isHexaPreview ? " · 기본 모드" : " · 스테이지 " + stage));
             }
-            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, true, false));
+            foreach (EnemyDefinition enemy in GameData.Enemies.Enemies)
+            {
+                if (string.IsNullOrEmpty(enemy.VariantOf) || !GameData.Bosses.TryGet(enemy.PatternSourceId, out BossDefinition pattern)
+                    || enemy.GetRank(pattern) != EnemyDefinition.RANK_MINI_BOSS) continue;
+                int stage = FindBossStage(enemy.Id, StageCatalog.MINI_BOSS_ROUND);
+                if (stage == 0) continue;
+                _debugBossTargets.Add((stage, StageCatalog.MINI_BOSS_ROUND, false, false, false, false, false, false));
+                labels.Add(GameData.L(enemy.Id) + " · 스테이지 " + stage);
+            }
+            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, true, false, false, false));
             labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 나선 모드");
-            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, false, true));
+            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, false, true, false, false));
             labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 자동 모드");
-            _debugBossTargets.Add((1, 1, false, true, false, false));
+            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, false, false, true, false));
+            labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 방사 모드");
+            _debugBossTargets.Add((1, 1, false, true, false, false, false, true));
             labels.Add(GameData.L(HexaDefinition.ID) + " 소환 테스트 · 일반 웨이브");
+            _debugBossTargets.Add((3, 1, false, true, false, false, false, false));
+            labels.Add("3-1 라운드 바로가기");
+            _debugBossTargets.Add((3, 3, false, true, false, false, false, false));
+            labels.Add("3-3 라운드 바로가기");
             labels.Add("모드 보상 선택지 · 속성 포함 (임시)");
             _hud.BuildDebugBosses(labels);
         }
@@ -470,15 +485,17 @@ namespace RuneCode
                 return;
             }
             if (index < 0 || index >= _debugBossTargets.Count) return;
-            (int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview) target = _debugBossTargets[index];
+            var target = _debugBossTargets[index];
             ResetHexaDebugActions();
             bool isStarted = target.StartsNormalWave
                 ? _run.DebugStartNormalWave(target.Stage, target.Round)
                 : _run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview,
-                    isHexaSpiralPreview: target.StartsSpiralPreview, isHexaAutoPreview: target.StartsAutoPreview);
+                    isHexaSpiralPreview: target.StartsSpiralPreview, isHexaAutoPreview: target.StartsAutoPreview,
+                    isHexaRadiatePreview: target.StartsRadiatePreview);
             if (!isStarted) return;
-            _isHexaSummonTestActive = target.StartsNormalWave
-                || (target.IsHexaPreview && !target.StartsSpiralPreview && !target.StartsAutoPreview);
+            _isHexaSummonTestActive = target.IsSummonTest
+                || (target.IsHexaPreview && !target.StartsSpiralPreview && !target.StartsAutoPreview
+                    && !target.StartsRadiatePreview);
             _isInitialDebugRoundBreak = false;
             _result.HideClearModifierChoices();
             _result.Hide();
@@ -893,12 +910,11 @@ namespace RuneCode
         /// <summary>포인터가 버튼 등 UI 입력 대상 위에 있는지 반환한다.</summary>
         private static bool IsPointerOverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
-        /// <summary>연속 미션은 현재 스테이지·라운드·웨이브와 각 총수를, 기존 전투는 스테이지 번호만 반환한다.</summary>
+        /// <summary>연속 미션은 현재 스테이지·라운드와 각 총수를, 기존 전투는 스테이지 번호만 반환한다.</summary>
         private static string GetStageText(RuneSimulation sim)
             => sim.IsProgressionMission
                 ? "스테이지 " + sim.StageNumber + "/" + StageCatalog.PROGRESSION_STAGE_COUNT
                     + " · 라운드 " + sim.RoundNumber + "/" + StageCatalog.PROGRESSION_ROUND_COUNT
-                    + " · 웨이브 " + sim.WaveNumber + "/" + StageCatalog.PROGRESSION_WAVE_COUNT
                 : GameData.L("ui.stage") + " " + sim.StageNumber;
 
         /// <summary>
@@ -942,7 +958,8 @@ namespace RuneCode
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
-            _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount);
+            _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount,
+                string.Format(GameData.L("ui.tree.points"), _session.Save.UpgradePoints));
             string objective = _run.IsFinished ? (sim.Completed ? "미션 완료" : sim.IsFailed ? "전투 패배" : "전투 중단")
                 : sim.IsWaitingForNextRound ? (_run.IsNextRoundReady ? "포털로 이동해 다음 라운드 시작" : "다음 라운드 대기")
                 : (sim.IsBossStage ? "보스를 처치하세요 · " : "") + "남은 적 " + sim.RemainingWaveEnemyCount;

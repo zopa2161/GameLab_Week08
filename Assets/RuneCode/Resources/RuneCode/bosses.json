@@ -23,7 +23,7 @@
         "_initialDelay": 1.5,
         "_attackCooldown": 1.3,
         "_burnMultiplier": 5,
-        "_dpsHealthRatio": 0.016666666666666666,
+        "_dpsHealthRatio": 0.022222222222222223,
         "_dpsWindow": 1,
         "_excessDamageMultiplier": 0.25,
         "_neckWidth": 22,
@@ -76,6 +76,9 @@
     {
       "_enemyId": "hexa",
       "_pattern": "hexa",
+      "_dpsHealthRatio": 0.022222222222222223,
+      "_dpsWindow": 1,
+      "_excessDamageMultiplier": 0.25,
       "_reinforcement": { "_enemyId": "enemy.hunter", "_formation": "surround" },
       "_dropTable": ""
     },

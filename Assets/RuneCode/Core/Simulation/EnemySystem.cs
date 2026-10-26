@@ -90,6 +90,12 @@ namespace RuneCode
                     if (!wasSpin && enemy.Hydra.Attack != HydraAttack.Spin && !enemy.Hydra.IsAirborne) HurtByContact(enemy);
                     continue;
                 }
+                if (enemy.Hexa != null && !enemy.Hexa.IsCancelled)
+                {
+                    _bossSourceEnemyId = enemy.Id;
+                    enemy.Hexa.AdvanceRadiateWaves(enemy, _world, _hurtPlayer);
+                    _bossSourceEnemyId = 0;
+                }
                 if (_statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze))
                 {
                     if (enemy.Definition.Attack == EnemyDefinition.ATTACK_SNIPER)
@@ -269,7 +275,7 @@ namespace RuneCode
         { double slow = Math.Max(0, 1 - _world.Balance.Combat.ChillSlow * _statuses.GetChillStacks(enemy)); enemy.Move(_world.Map.Move(enemy.Position, direction * (speed * enemy.SpeedMultiplier * slow * RuneSimulation.STEP_SECONDS), enemy.Radius), direction); }
 
         /// <summary>적 분리에서 밀리지 않는 고정 대상인지 반환한다. 보스, 빙결 중인 적, 돌진 중인 적은 자리를 지키고 상대만 밀어낸다.</summary>
-        internal bool IsSeparationFixed(SimulationEnemy enemy) => enemy.Boss != null || _statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze) || _world.Time < enemy.DashUntil;
+        internal bool IsSeparationFixed(SimulationEnemy enemy) => enemy.IsBossOrMiniBoss || _statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze) || _world.Time < enemy.DashUntil;
 
         /// <summary>적과 플레이어가 겹치면 피해를 적용하고 접촉 여부를 반환한다.</summary>
         private bool HurtByContact(SimulationEnemy enemy)
@@ -366,7 +372,7 @@ namespace RuneCode
         /// </summary>
         private void AdvanceBoss(SimulationEnemy boss, BossDefinition pattern, SimVector direction)
         {
-            if (pattern.IsMiniBoss) { AdvanceMiniGovernor(boss, pattern, direction); return; }
+            if (pattern.IsMiniGovernorPattern) { AdvanceMiniGovernor(boss, pattern, direction); return; }
             double multiplier = boss.Phase == 3 ? pattern.PhaseThreeMultiplier : 1;
             if (_world.Time + 0.000001 >= boss.AttackAt)
             {
@@ -376,7 +382,7 @@ namespace RuneCode
                 boss.AttackAt = _world.Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval) / multiplier;
             }
             if (boss.Phase >= 2 && _world.Time >= boss.HazardAt)
-            { _stats.RecordBossPatternUse(_world, boss, "hazard"); BossHazard hazard = pattern.GetHazard(boss.Phase); _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, hazard.Damage * boss.DamageMultiplier, hazard.Radius, hazard.Lifetime + hazard.Warning, true, hazard.Warning, sourceEnemyId: boss.Id, sourcePattern: "hazard")); bool setEnded = --boss.HazardRemaining <= 0; if (setEnded) boss.HazardRemaining = hazard.Count; boss.HazardAt = _world.Time + (setEnded ? hazard.SetInterval : hazard.Interval) / multiplier; }
+            { _stats.RecordBossPatternUse(_world, boss, "hazard"); BossHazard hazard = pattern.GetHazard(boss.Phase); _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, hazard.Damage * boss.DamageMultiplier, hazard.Radius * boss.Definition.HazardRadiusMultiplier, hazard.Lifetime + hazard.Warning, true, hazard.Warning, sourceEnemyId: boss.Id, sourcePattern: "hazard")); bool setEnded = --boss.HazardRemaining <= 0; if (setEnded) boss.HazardRemaining = hazard.Count; boss.HazardAt = _world.Time + (setEnded ? hazard.SetInterval : hazard.Interval) / multiplier; }
             if (_world.Time >= boss.ReinforcementAt)
             {
                 _stats.RecordBossPatternUse(_world, boss, "reinforcement");
@@ -424,7 +430,7 @@ namespace RuneCode
         internal void CheckBossPatch(SimulationEnemy boss, BossDefinition pattern)
         {
             if (boss.IsPatching) return;
-            if (pattern.IsMiniBoss)
+            if (pattern.IsMiniGovernorPattern)
             {
                 if (boss.Phase != 1 || boss.Hp / boss.MaxHp > pattern.PhaseTwoThreshold) return;
                 boss.Patch(2, _world.Time, pattern.PatchSeconds);
@@ -518,7 +524,7 @@ namespace RuneCode
             foreach (SimulationEnemy target in _world.Enemies)
             {
                 if (!target.IsAlive || target.IsPatching || SimVector.Distance(source.Position, target.Position) > radius + target.Radius) continue;
-                double incoming = target.Hydra == null ? damage : target.Hydra.LimitDamage(damage, false, _world.Time, target.MaxHp);
+                double incoming = target.LimitIncomingDamage(damage, false, _world.Time);
                 double actual = target.Hurt(incoming, _world.Time);
                 if (actual > 0)
                 {

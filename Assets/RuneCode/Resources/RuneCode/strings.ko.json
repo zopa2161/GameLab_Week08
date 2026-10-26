@@ -1,5 +1,8 @@
 {
   "_entries": [
+    { "_key": "enemy.mini_governor", "_value": "미니 거버너" },
+    { "_key": "enemy.legolas", "_value": "레골라스" },
+    { "_key": "boss.governor_squad", "_value": "거버너" },
     { "_key": "result.rerollAvailable", "_value": "다시 뽑기 · 1회" },
     { "_key": "result.rerollUsed", "_value": "사용 완료" },
     { "_key": "result.rerollUnavailable", "_value": "새 후보 없음" },
@@ -1040,7 +1043,7 @@
     },
     {
       "_key": "ui.tree.elementDamageDescription",
-      "_value": "화염·냉기·전격 속성 피해가 10% 증가합니다. 지속 피해에도 적용되지만 무속성과 기능 속성은 제외됩니다"
+      "_value": "화염·냉기·전격 속성 피해가 20% 증가합니다. 지속 피해에도 적용되지만 무속성과 기능 속성은 제외됩니다"
     },
     {
       "_key": "ui.tree.elementCost",
@@ -1072,7 +1075,7 @@
     },
     {
       "_key": "ui.tree.arcEnhanceDescription",
-      "_value": "전격 피해가 적에게 EMP를 겁니다. 이 강화가 없으면 전격은 연쇄 피해만 줍니다"
+      "_value": "전격 연쇄의 적용 거리가 110px에서 300px로, 최대 대상이 2명에서 4명으로 늘어납니다. 전격의 EMP 부여는 기본 효과입니다"
     },
     {
       "_key": "ui.tree.iceEnhance",
@@ -1080,7 +1083,7 @@
     },
     {
       "_key": "ui.tree.iceEnhanceDescription",
-      "_value": "냉기 스택이 최대에 도달하면 적을 빙결시킵니다. 이 강화가 없으면 감속 효과만 쌓입니다"
+      "_value": "빙결 지속시간이 1초에서 2초로 늘고 빙결 면역 시간이 4초에서 3초로 줄어듭니다. 최대 냉기 스택의 빙결은 기본 효과입니다"
     },
     {
       "_key": "ui.tree.fireEnhance",
@@ -1096,7 +1099,7 @@
     },
     {
       "_key": "ui.tree.statusStackStartDescription",
-      "_value": "마법 편집 캔버스에 상태 이상 중첩 시작 노드를 엽니다. 다른 속성의 상태 이상이 걸린 적에게 새 상태 이상이 걸리면 그 적의 상태 이상을 모두 지우고 그 적에게서 발동합니다"
+      "_value": "마법 편집 캔버스에 상태 이상 중첩 시작 노드를 엽니다. 다른 속성의 상태 이상이 걸린 적에게 새 상태 이상이 걸리면 그 적의 상태 이상을 모두 지우고 그 적에게서 발동합니다. 발동한 행동은 마나를 소모하지 않으며 명중·소멸 트리거를 발동시키지 않습니다"
     },
     {
       "_key": "ui.tree.elementSlot",
@@ -1168,7 +1171,7 @@
     },
     {
       "_key": "ui.tree.damageDescription",
-      "_value": "모든 피해가 5% 증가합니다"
+      "_value": "모든 피해가 15% 증가합니다"
     },
     {
       "_key": "ui.tree.nearDamage",
@@ -1238,7 +1241,7 @@
     },
     {
       "_key": "ui.tree.runMoveSpeedDescription",
-      "_value": "이동 속도가 5% 증가합니다"
+      "_value": "이동 속도가 10% 증가합니다"
     },
     {
       "_key": "ui.tree.runRegen",
@@ -1246,7 +1249,7 @@
     },
     {
       "_key": "ui.tree.runRegenDescription",
-      "_value": "초당 마나 회복량이 3 증가합니다"
+      "_value": "초당 마나 회복량이 6 증가합니다"
     },
     {
       "_key": "ui.tree.runMaxEnergy",
@@ -1911,8 +1914,8 @@
     {"_key": "rune.behavior.slash.desc", "_value": "마법 칼날을 휘둘러 적마다 한 번 타격합니다."},
     {"_key": "rune.element.neutral.desc", "_value": "속성 효과 없이 기본 피해만 줍니다."},
     {"_key": "rune.element.fire.desc", "_value": "적에게 화상을 부여해 {burnSeconds}초 동안 {burnInterval}초마다 공격 피해의 {burnPercent}% 피해를 줍니다."},
-    {"_key": "rune.element.ice.desc", "_value": "적을 둔화시키고 냉기가 누적되면 빙결시킵니다."},
-    {"_key": "rune.element.lightning.desc", "_value": "주변 적 최대 2명에게 번개가 퍼져 공격 피해의 50%를 줍니다."},
+    {"_key": "rune.element.ice.desc", "_value": "적을 둔화시키고 냉기가 최대 스택에 도달하면 빙결시킵니다. 빙결이 끝나면 잠시 면역이 생깁니다."},
+    {"_key": "rune.element.lightning.desc", "_value": "맞은 적에게 EMP를 걸고 주변 적 최대 2명에게 공격 피해의 50%를 연쇄로 줍니다. 전격 강화 시 연쇄 거리와 대상이 늘어납니다."},
     {"_key": "rune.mod.knockback.desc", "_value": "실제로 준 직접 피해에 비례해 적을 밀어냅니다."},
     {"_key": "rune.mod.saving.desc", "_value": "장착한 행동의 기본 마나 소비를 줄입니다."},
     {"_key": "rune.mod.amplify.desc", "_value": "행동의 피해를 높입니다."},

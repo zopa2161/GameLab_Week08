@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace RuneCode
 {
-    /// <summary>적 상태 이상(화염·냉기·빙결·EMP·감전·찜통)의 부여, 틱 진행과 만료를 관리한다.</summary>
+    /// <summary>적 상태 이상(화염·냉기·빙결·EMP·찜통과 호환용 감전)의 부여, 틱 진행과 만료를 관리한다.</summary>
     internal sealed class EnemyStatusSystem
     {
         private const int STATUS_TYPE_COUNT = 6;
@@ -87,7 +87,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 피해 속성에 맞는 상태 이상을 부여한다. 전격은 전격 강화(전역 또는 같은 속성 두 개)가 켜져 있으면 EMP를, 꺼져 있으면 효과 없는 감전(Shock)을 부여하고,
+        /// 피해 속성에 맞는 상태 이상을 부여한다. 전격은 강화 여부와 무관하게 항상 EMP를 부여하고,
         /// 화염·냉기 전파(fire_arc·ice_arc)는 각각 화상·냉기만, 찜통(steam)은 Steam 상태만 부여한다.
         /// 새 상태 이상이 다른 속성의 상태 이상 위에 걸리면 부여 후 상태 중첩 콜백을 호출하며, 중첩 판정에서 화염·냉기 전파는 각각 화염·냉기로 본다.
         /// 화염은 전투 공통 보정 전 공격 피해 sourceDamage를 틱 피해 계산에 전달한다.
@@ -103,9 +103,7 @@ namespace RuneCode
             else if (element == "ice" || element == SpellGrammar.ELEMENT_ICE_ARC) { ApplyChill(enemy, sourceAction); isGranted = !isSameElementPresent; }
             else if (element == "arc")
             {
-                // 감전은 EMP와 같은 지속시간을 쓰고 전투 효과는 없다.
-                EnemyStatusType arcStatus = IsArcEnhanced(sourceAction) ? EnemyStatusType.Emp : EnemyStatusType.Shock;
-                GetOrAddStatus(enemy.Id, arcStatus).Until = _world.Time + _world.Balance.Combat.EmpSeconds * StatusDurationMultiplier;
+                GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = _world.Time + _world.Balance.Combat.EmpSeconds * StatusDurationMultiplier;
                 isGranted = !isSameElementPresent;
             }
             else if (element == SpellGrammar.ELEMENT_STEAM) { ApplySteam(enemy, form, noise, sourceDamage, sourceAction); isGranted = !isSameElementPresent; }
@@ -185,8 +183,9 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 냉기 스택과 지속시간을 강화 배율로 갱신하고, 냉기 강화(전역 또는 같은 속성 두 개)가 켜져 있을 때 최대 스택에서 빙결 면역이 아니면 빙결을 부여하며 냉기를 제거한다.
-        /// 강화가 꺼지면 스택은 최대에서 멈추고 빙결하지 않는다. 빙결 면역 중에는 냉기 스택이 면역 중 상한(백서 기준 2)을 넘지 않는다.
+        /// 냉기 스택과 지속시간을 강화 배율로 갱신하고, 최대 스택에서 빙결 면역이 아니면 빙결을 부여하며 냉기를 제거한다.
+        /// 빙결 부여는 기본 효과이며, 냉기 강화(전역 또는 같은 속성 두 개)가 켜지면 빙결 지속시간과 빙결 후 면역 시간을 강화 수치로 바꾼다.
+        /// 빙결 면역 중에는 냉기 스택이 면역 중 상한(백서 기준 2)을 넘지 않는다.
         /// </summary>
         private void ApplyChill(SimulationEnemy enemy, SpellAction sourceAction)
         {
@@ -196,9 +195,11 @@ namespace RuneCode
             EnemyStatusEffect chill = GetOrAddStatus(enemy.Id, EnemyStatusType.Chill);
             int maxStacks = isImmune ? combat.ChillImmuneMaxStacks : combat.ChillMaxStacks;
             chill.Stacks = Math.Min(maxStacks, chill.Stacks + 1); chill.Until = _world.Time + combat.ChillSeconds * StatusDurationMultiplier;
-            if (isImmune || !IsIceEnhanced(sourceAction) || chill.Stacks < combat.ChillMaxStacks) return;
+            if (isImmune || chill.Stacks < combat.ChillMaxStacks) return;
+            bool isEnhanced = IsIceEnhanced(sourceAction);
             freeze ??= AddStatus(enemy.Id, EnemyStatusType.Freeze);
-            freeze.Until = _world.Time + combat.FreezeSeconds * StatusDurationMultiplier; freeze.ImmuneUntil = freeze.Until + combat.FreezeImmunity;
+            freeze.Until = _world.Time + (isEnhanced ? combat.FreezeEnhancedSeconds : combat.FreezeSeconds) * StatusDurationMultiplier;
+            freeze.ImmuneUntil = freeze.Until + (isEnhanced ? combat.FreezeEnhancedImmunity : combat.FreezeImmunity);
             _stats.FreezeStartEventCount++;
             RemoveStatusIndex(chill); _enemyStatuses.Remove(chill);
         }
@@ -246,13 +247,10 @@ namespace RuneCode
             return sourceAction != null && sourceAction.IsElementEnhanced;
         }
 
-        /// <summary>전역 전격 강화 또는 같은 속성 두 개 강화가 켜져 있는지 반환한다.</summary>
-        private bool IsArcEnhanced(SpellAction sourceAction) => _world.Upgrades.HasArcEnhance || IsActionElementEnhanced(sourceAction);
-
         /// <summary>전역 화염 강화 또는 같은 속성 두 개 강화가 켜져 있는지 반환한다.</summary>
         private bool IsFireEnhanced(SpellAction sourceAction) => _world.Upgrades.HasFireEnhance || IsActionElementEnhanced(sourceAction);
 
-        /// <summary>전역 냉기 강화 또는 같은 속성 두 개 강화가 켜져 있는지 반환한다.</summary>
+        /// <summary>전역 냉기 강화 또는 같은 속성 두 개 강화가 켜져 있는지 반환한다. 빙결 부여 자체가 아니라 빙결 지속시간·면역 시간 강화에 쓴다.</summary>
         private bool IsIceEnhanced(SpellAction sourceAction) => _world.Upgrades.HasIceEnhance || IsActionElementEnhanced(sourceAction);
 
         /// <summary>적에게 전달한 속성 외의 다른 속성 상태 이상이 활성으로 걸려 있는지 반환한다.</summary>

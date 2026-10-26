@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text;
 
 namespace RuneCode
@@ -49,6 +50,12 @@ namespace RuneCode
         private int _summonCooldown;
         private int _spiralCooldown;
         private int _autoCompletionCount;
+        private bool _isRadiating;
+        private readonly int[] _radiateOrder = new int[HexaDefinition.RADIATE_SECTOR_COUNT];
+        private int _radiateIndex;
+        private int _radiateWarningTicks;
+        private int _radiateCooldownTicks;
+        private readonly List<HexaRadiateWave> _radiateWaves = new List<HexaRadiateWave>();
         private EnemyDefinition _projectileDefinition;
         private EnemyDefinition _sniperDefinition;
         public bool IsCancelled => _isCancelled;
@@ -87,6 +94,13 @@ namespace RuneCode
         public int SummonCooldown => _summonCooldown;
         public int SpiralCooldown => _spiralCooldown;
         public int AutoCompletionCount => _autoCompletionCount;
+        public bool IsRadiating => _isRadiating;
+        public IReadOnlyList<HexaRadiateWave> RadiateWaves => _radiateWaves;
+        public bool IsRadiateWarning => _isRadiating && _radiateIndex < HexaDefinition.RADIATE_SECTOR_COUNT;
+        public SimVector RadiateWarningDirection => IsRadiateWarning
+            ? HexaRadiateWave.GetSectorDirection(_radiateOrder[_radiateIndex]) : SimVector.Zero;
+        public double RadiateWarningProgress => IsRadiateWarning
+            ? Math.Max(0, Math.Min(1, 1 - _radiateWarningTicks / (double)HexaDefinition.RADIATE_WARNING_TICKS)) : 0;
 
         /// <summary>원본 탄환 정의를 저장하고 첫 공격 전 대기부터 단독 난사 한 번을 준비한다. 취소되거나 이미 시작한 개체는 무시한다.</summary>
         internal void BeginSpray(EnemyDefinition projectileDefinition)
@@ -222,6 +236,7 @@ namespace RuneCode
         internal void Advance(SimulationEnemy owner, SimulationWorld world, RuneSimulation simulation)
         {
             if (_isCancelled) return;
+            AdvanceRadiateSequence(owner, world, simulation);
             if (_delayTicks > 0) { _delayTicks--; return; }
             if (_hasAutoOperation)
             {
@@ -319,6 +334,64 @@ namespace RuneCode
             _autoCompletionCount++;
             _autoPattern = HexaTopPattern.None;
             _delayTicks = HexaDefinition.AUTO_INTERVAL_TICKS;
+        }
+
+        /// <summary>
+        /// 자동 운영·대기와 무관하게 매 틱 방사 쿨타임을 줄이고, 체력이 최대치의 절반 이하로 떨어지고 쿨타임이 없으면 구역 순서를 섞어 방사를 시작한다.
+        /// 경고 틱이 끝날 때마다 해당 구역 파동을 발사하고 다음 구역 경고를 시작하며, 네 발을 모두 발사한 뒤 파동이 모두 사라지면 종료하고 쿨타임을 시작한다.
+        /// </summary>
+        private void AdvanceRadiateSequence(SimulationEnemy owner, SimulationWorld world, RuneSimulation simulation)
+        {
+            if (_radiateCooldownTicks > 0) _radiateCooldownTicks--;
+            if (!_isRadiating)
+            {
+                if (_radiateCooldownTicks > 0 || owner.Hp > owner.MaxHp * HexaDefinition.RADIATE_HP_RATIO) return;
+                BeginRadiate(owner, world, simulation);
+                return;
+            }
+            if (IsRadiateWarning && --_radiateWarningTicks <= 0)
+            {
+                FireRadiateWave(owner, world);
+                _radiateIndex++;
+                if (IsRadiateWarning) _radiateWarningTicks = HexaDefinition.RADIATE_WARNING_TICKS;
+            }
+            if (_radiateIndex >= HexaDefinition.RADIATE_SECTOR_COUNT && _radiateWaves.Count == 0)
+            {
+                _isRadiating = false;
+                _radiateCooldownTicks = HexaDefinition.RADIATE_COOLDOWN_TICKS;
+            }
+        }
+
+        /// <summary>4구역 순서를 world.Random의 Fisher-Yates 셔플로 정하고 경고·발사 진행을 초기화한 뒤 패턴 사용을 기록한다.</summary>
+        private void BeginRadiate(SimulationEnemy owner, SimulationWorld world, RuneSimulation simulation)
+        {
+            for (int index = 0; index < _radiateOrder.Length; index++) _radiateOrder[index] = index;
+            for (int index = _radiateOrder.Length - 1; index > 0; index--)
+            {
+                int swap = (int)(world.Random.Next() * (index + 1));
+                int order = _radiateOrder[index];
+                _radiateOrder[index] = _radiateOrder[swap];
+                _radiateOrder[swap] = order;
+            }
+            _isRadiating = true;
+            _radiateIndex = 0;
+            _radiateWarningTicks = HexaDefinition.RADIATE_WARNING_TICKS;
+            simulation.RecordBossPatternUse(owner, "radiate");
+        }
+
+        /// <summary>다음 발사 구역의 방향과 맵 경계상 가장 먼 점까지의 거리로 부채꼴 파동을 하나 만들어 목록에 추가한다.</summary>
+        private void FireRadiateWave(SimulationEnemy owner, SimulationWorld world)
+        {
+            SimVector direction = HexaRadiateWave.GetSectorDirection(_radiateOrder[_radiateIndex]);
+            double maxRadius = HexaRadiateWave.GetSectorFarthestDistance(owner.Position, direction, world.Map.Width, world.Map.Height);
+            _radiateWaves.Add(new HexaRadiateWave(owner.Position, direction, world.Time, owner.Radius, maxRadius));
+        }
+
+        /// <summary>모든 방사 파동을 한 틱 진행하고 소멸한 파동을 목록에서 제거한다. 빙결 중에도 호출된다.</summary>
+        internal void AdvanceRadiateWaves(SimulationEnemy owner, SimulationWorld world, Action<double, string> hurt)
+        {
+            for (int index = _radiateWaves.Count - 1; index >= 0; index--)
+                if (_radiateWaves[index].Advance(world, owner.DamageMultiplier, hurt)) _radiateWaves.RemoveAt(index);
         }
 
         /// <summary>매 발사 시 현재 플레이어 방향에 독립 편차를 더한 탄환을 3틱 간격으로 100발 발사하고 300틱에 완료한다. 난사 탄환은 원본 속도의 2배로 발사한다.</summary>
@@ -494,9 +567,11 @@ namespace RuneCode
             _isSniperAttacking = false; _isSniperPaused = false; _isSniperLocked = false;
             _sniperRemainingAimSeconds = 0; _sniperRemainingLockSeconds = 0;
             owner.AimEndsAt = 0; owner.WarningUntil = 0;
+            _isRadiating = false; _radiateIndex = 0; _radiateWarningTicks = 0; _radiateCooldownTicks = 0;
+            _radiateWaves.Clear();
         }
 
-        /// <summary>난사·유도·저격·복합·소환·나선 선택, 자동 운영의 현재 패턴·쿨타임·완료 횟수, 취소, 진행 틱·횟수, 복합 순서·경과·완료 횟수, 소환 묶음·다음 틱, 나선 묶음·발사 수, 보존한 저격 시간과 원본 탄환·저격 ID를 결정성 상태 버퍼에 추가한다.</summary>
+        /// <summary>난사·유도·저격·복합·소환·나선 선택, 자동 운영의 현재 패턴·쿨타임·완료 횟수, 취소, 진행 틱·횟수, 복합 순서·경과·완료 횟수, 소환 묶음·다음 틱, 나선 묶음·발사 수, 방사 진행·쿨타임·구역 순서·파동, 보존한 저격 시간과 원본 탄환·저격 ID를 결정성 상태 버퍼에 추가한다.</summary>
         internal void WriteState(StringBuilder state)
         {
             state.Append("|hexa:").Append(_isCancelled).Append(':').Append(_hasStartedSpray).Append(':').Append(_isSpraying)
@@ -517,6 +592,10 @@ namespace RuneCode
                 .Append(':').Append(_hasAutoOperation).Append(':').Append((int)_autoPattern)
                 .Append(':').Append(_summonCooldown).Append(':').Append(_spiralCooldown).Append(':').Append(_autoCompletionCount)
                 .Append(FormattableString.Invariant($":{_sniperRemainingAimSeconds:R}:{_sniperRemainingLockSeconds:R}"));
+            state.Append("|hexaRadiate:").Append(_isRadiating).Append(':').Append(_radiateIndex)
+                .Append(':').Append(_radiateWarningTicks).Append(':').Append(_radiateCooldownTicks);
+            for (int index = 0; index < _radiateOrder.Length; index++) state.Append(':').Append(_radiateOrder[index]);
+            foreach (HexaRadiateWave wave in _radiateWaves) wave.WriteState(state);
         }
     }
 }

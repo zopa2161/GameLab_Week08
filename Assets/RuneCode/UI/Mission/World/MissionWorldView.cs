@@ -194,10 +194,11 @@ namespace RuneCode
             foreach (string id in _additionalEnemyPrefabs.Keys) _additionalEnemyCounts[id] = 0;
             foreach (SimulationEnemy enemy in sim.Enemies)
             {
-                if (_additionalEnemyPrefabs.TryGetValue(enemy.Kind, out EnemyView prefab))
+                string viewId = enemy.Definition.PatternSourceId;
+                if (_additionalEnemyPrefabs.TryGetValue(viewId, out EnemyView prefab))
                 {
-                    int index = _additionalEnemyCounts[enemy.Kind]++;
-                    GetView(_additionalEnemyViews[enemy.Kind], prefab, index).Apply(enemy, sim, origin);
+                    int index = _additionalEnemyCounts[viewId]++;
+                    GetView(_additionalEnemyViews[viewId], prefab, index).Apply(enemy, sim, origin);
                 }
                 else GetView(_enemyViews, _enemyPrefab, count++).Apply(enemy, sim, origin);
             }

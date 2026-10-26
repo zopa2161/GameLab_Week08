@@ -82,10 +82,10 @@ namespace RuneCode
         public bool HasReturningBurst { get; }
         public bool HasBehaviorEvolution => HasFlyingSlash || HasReturningLaunch || HasReturningBurst;
 
-        /// <summary>전격 강화(EMP 부여)를 켜는지 나타낸다.</summary>
+        /// <summary>전격 강화(연쇄 거리·대상 수 증가)를 켜는지 나타낸다. EMP 부여는 이 강화와 무관한 기본 효과다.</summary>
         public bool HasArcEnhance { get; }
 
-        /// <summary>냉기 강화(최대 스택 빙결)를 켜는지 나타낸다.</summary>
+        /// <summary>냉기 강화(빙결 지속시간·면역 시간 강화)를 켜는지 나타낸다. 최대 스택 빙결은 이 강화와 무관한 기본 효과다.</summary>
         public bool HasIceEnhance { get; }
 
         /// <summary>화염 강화(화상 중첩 폭발)를 켜는지 나타낸다.</summary>

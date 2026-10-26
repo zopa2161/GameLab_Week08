@@ -329,6 +329,8 @@ namespace RuneCode
         private HydraBossState _hydra;
         private HexaBossState _hexa;
         private LegolasBossState _legolas;
+        private double _bossDamageBudget;
+        private double _lastBossDamageAt;
         private readonly bool _isDummy;
         private readonly bool _isElite;
         private readonly bool _isKillTarget;
@@ -398,6 +400,9 @@ namespace RuneCode
         public string LastDamageForm => _lastDamageForm;
         public EnemyDefinition Definition => _definition;
         public BossDefinition Boss => _boss;
+        public bool IsBoss => _definition.GetRank(_boss) == EnemyDefinition.RANK_BOSS;
+        public bool IsMiniBoss => _definition.GetRank(_boss) == EnemyDefinition.RANK_MINI_BOSS;
+        public bool IsBossOrMiniBoss => IsBoss || IsMiniBoss;
         public HydraBossState Hydra => _hydra;
         public HexaBossState Hexa => _hexa;
         public LegolasBossState Legolas => _legolas;
@@ -445,11 +450,30 @@ namespace RuneCode
         /// <summary>예고, 패치 및 피격 표시 판정에 사용할 관측 시각을 갱신한다.</summary>
         internal void Observe(double time) { _observedTime = time; }
 
-        /// <summary>보스 정의에 맞춰 생성 시각·최대 체력을 사용하는 Hydra 상태 또는 레골라스 공격 상태를 만든다.</summary>
+        /// <summary>보스 정의에 맞춰 공격 상태를 만들고 생성 시각·최대 체력으로 개체별 DPS 피해 예산을 초기화한다.</summary>
         internal void InitializeBossState(double time)
         {
-            if (_boss != null && _boss.IsHydraPattern) _hydra = new HydraBossState(_boss.Hydra, time, _maxHp);
+            if (_boss != null && _boss.IsHydraPattern) _hydra = new HydraBossState(_boss.Hydra, time);
             if (_boss != null && _boss.IsLegolasPattern) _legolas = new LegolasBossState(_boss.Legolas);
+            if (_boss != null && _boss.HasDamageBudget)
+            {
+                _lastBossDamageAt = time;
+                _bossDamageBudget = _maxHp * _boss.DpsHealthRatio * _boss.DpsWindow;
+            }
+        }
+
+        /// <summary>현재 시각까지 개체별 보스 피해 예산을 회복하고 초과 피해를 감쇠해 반환한다. 히드라 화상은 예산을 우회해 고유 약점 배율을 적용한다.</summary>
+        internal double LimitIncomingDamage(double damage, bool isBurn, double time)
+        {
+            if (_boss == null || !_boss.HasDamageBudget) return damage;
+            if (_boss.IsHydraPattern && isBurn) return damage * _boss.Hydra.BurnMultiplier;
+            double dps = _maxHp * _boss.DpsHealthRatio;
+            _bossDamageBudget = Math.Min(dps * _boss.DpsWindow,
+                _bossDamageBudget + Math.Max(0, time - _lastBossDamageAt) * dps);
+            _lastBossDamageAt = time;
+            double fullDamage = Math.Min(Math.Max(0, damage), _bossDamageBudget);
+            _bossDamageBudget -= fullDamage;
+            return fullDamage + Math.Max(0, damage - fullDamage) * _boss.ExcessDamageMultiplier;
         }
 
         /// <summary>Hexa 정의가 있는 개체에 새 비공격 보스 상태를 생성한다.</summary>
@@ -541,6 +565,9 @@ namespace RuneCode
         /// <summary>체력을 회복량만큼 올리고 최대 체력을 넘지 않게 하며 실제 회복량을 반환한다.</summary>
         internal double Heal(double amount) { double actual = Math.Min(_maxHp - _hp, Math.Max(0, amount)); _hp += actual; return actual; }
 
+        /// <summary>디버그 보스 준비에서 체력을 지정값으로 만든다. 0과 최대 체력 사이로 잘라낸다.</summary>
+        internal void SetHp(double hp) { _hp = Math.Min(_maxHp, Math.Max(0, hp)); }
+
         /// <summary>보스 페이즈를 변경하고 패치 무적 만료 시간을 설정한다.</summary>
         internal void Patch(int phase, double time, double duration) { _phase = phase; _patchUntil = time + duration; }
 
@@ -553,6 +580,8 @@ namespace RuneCode
             state.Append(_id).Append('|').Append(Kind).Append('|').Append(_isDummy).Append('|').Append(_isElite).Append('|').Append(_speedMultiplier);
             _hydra?.WriteState(state);
             _hexa?.WriteState(state);
+            if (_boss != null && _boss.HasDamageBudget)
+                state.Append(FormattableString.Invariant($"|bossDamageBudget:{_bossDamageBudget:R}:{_lastBossDamageAt:R}"));
             if (_hexa != null && (_hexa.HasStartedSniper || _hexa.HasStartedComposite))
                 state.Append(FormattableString.Invariant($"|hexaAim:{_attackOrigin.X:R}:{_attackOrigin.Y:R}:{_attackDirection.X:R}:{_attackDirection.Y:R}:{_aimUntil:R}:{_warningUntil:R}"));
             if (_boss != null && _boss.IsMiniGovernorPattern) state.Append('|').Append(_isNextBossBurst);
@@ -588,6 +617,7 @@ namespace RuneCode
         private readonly double _castDamageMultiplier;
         private readonly SimulationPlayer _caster;
         private readonly bool _hasBehaviorEvolution;
+        private readonly bool _suppressesTriggers;
         private readonly SimVector _spawnPosition;
         private readonly SpellBehaviorRuntime _behavior;
         private readonly object _behaviorState;
@@ -654,6 +684,7 @@ namespace RuneCode
         public double ExplosionRadius => _stats.Speed * GetExplosionTravelTime(_age);
 
         public bool HasBehaviorEvolution => _hasBehaviorEvolution;
+        internal bool SuppressesTriggers => _suppressesTriggers;
         public double SlashSweepAngle => _action.ConeAngle;
         internal bool IsReturning => _isReturning;
         internal SimVector SpawnPosition => _spawnPosition;
@@ -757,9 +788,10 @@ namespace RuneCode
         internal SimulationSpellEntity(int id, SpellAction action, SpellStats stats, string element, SimVector position,
             SimVector direction, bool fromEvent, SimVector anchor, double angle, string castNoiseElement,
             double visualSeconds, double warmupSeconds, SpellModifierValues modifiers, double costMultiplier, SimulationPlayer caster,
-            double castDamageMultiplier = 1d, bool hasBehaviorEvolution = false)
+            double castDamageMultiplier = 1d, bool hasBehaviorEvolution = false, bool suppressesTriggers = false)
         {
             _hasBehaviorEvolution = hasBehaviorEvolution;
+            _suppressesTriggers = suppressesTriggers;
             _spawnPosition = position;
             _warmupSeconds = warmupSeconds;
             _costMultiplier = costMultiplier;
@@ -914,6 +946,7 @@ namespace RuneCode
             _modifiers.AppendState(state);
             var ids = new List<int>(_hitTimes.Keys); ids.Sort();
             foreach (int id in ids) state.Append(FormattableString.Invariant($"|{id}:{_hitTimes[id]:R}"));
+            if (_suppressesTriggers) state.Append("|noTriggers");
             if (_hasBehaviorEvolution)
                 state.Append(FormattableString.Invariant($"|evolution:{_isReturning}:{_spawnPosition.X:R}:{_spawnPosition.Y:R}"));
             _behavior.WriteState(this, state);

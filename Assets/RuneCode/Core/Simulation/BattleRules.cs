@@ -34,7 +34,7 @@ namespace RuneCode
         internal void RecordKillProgress(SimulationEnemy enemy)
         {
             if (enemy.IsKillTarget) _targetKills++;
-            if (enemy.Boss != null && !enemy.Boss.IsMiniBoss) _isBossDefeated = true;
+            if (enemy.IsBoss) _isBossDefeated = true;
         }
 
         /// <summary>보스 웨이브는 보스 처치로, 일반 웨이브는 모든 배출·예약·적 소멸로 종료 가능한지 반환한다.</summary>

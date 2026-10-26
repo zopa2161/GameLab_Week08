@@ -14,6 +14,7 @@ namespace RuneCode
         private readonly double _directionOffset;
         private readonly SpellRandomState _randomState;
         private readonly bool _isManaPrepaid;
+        private readonly bool _suppressesTriggers;
         private readonly SpellAction _onHitSource;
         private readonly double _castDamageMultiplier;
         public SpellAction OnHitSource => _onHitSource;
@@ -26,6 +27,7 @@ namespace RuneCode
         public double DirectionOffset => _directionOffset;
         public SpellRandomState RandomState => _randomState;
         public bool IsManaPrepaid => _isManaPrepaid;
+        public bool SuppressesTriggers => _suppressesTriggers;
 
         /// <summary>이 경로의 노드 비용에 곱하는 배율이다. 프리셋 호출 안에서는 호출 노드 효과의 비용 배율이 곱해진다.</summary>
         public double CostMultiplier => _costMultiplier;
@@ -46,27 +48,28 @@ namespace RuneCode
             string noiseElement, SpellModifierValues modifiers = null,
             double costMultiplier = 1d, SimulationPlayer caster = null, int sourceEntityId = 0,
             double directionOffset = 0, SpellRandomState randomState = null, bool isManaPrepaid = false, SpellAction onHitSource = null,
-            double castDamageMultiplier = 1d)
+            double castDamageMultiplier = 1d, bool suppressesTriggers = false)
         {
             _origin = origin; _direction = direction; _target = target; _fromEvent = fromEvent; _noiseElement = noiseElement;
             _modifiers = modifiers ?? SpellModifierValues.None; _costMultiplier = costMultiplier;
             _caster = caster; _sourceEntityId = sourceEntityId; _directionOffset = directionOffset;
             _randomState = randomState ?? new SpellRandomState(noiseElement);
             _isManaPrepaid = isManaPrepaid;
+            _suppressesTriggers = suppressesTriggers;
             _onHitSource = onHitSource;
             _castDamageMultiplier = castDamageMultiplier;
         }
 
         /// <summary>실행 위치만 바꾼 문맥을 반환한다.</summary>
         public SpellContext WithOrigin(SimVector origin)
-            => new SpellContext(origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource, _castDamageMultiplier);
+            => new SpellContext(origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource, _castDamageMultiplier, _suppressesTriggers);
 
         /// <summary>시전 시점 문맥의 원점과 방향을 완료 순간 값으로 바꾼 복사본을 반환한다.</summary>
         public SpellContext WithOriginAndDirection(SimVector origin, SimVector direction)
-            => new SpellContext(origin, direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource, _castDamageMultiplier);
+            => new SpellContext(origin, direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, _isManaPrepaid, _onHitSource, _castDamageMultiplier, _suppressesTriggers);
 
         /// <summary>위치·예약 문맥을 유지하고 onHit 전력 선결제 여부만 바꾼 복사본을 반환한다.</summary>
         public SpellContext WithManaPrepaid(bool isManaPrepaid)
-            => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, isManaPrepaid, _onHitSource, _castDamageMultiplier);
+            => new SpellContext(_origin, _direction, _target, _fromEvent, _noiseElement, _modifiers, _costMultiplier, _caster, _sourceEntityId, _directionOffset, _randomState, isManaPrepaid, _onHitSource, _castDamageMultiplier, _suppressesTriggers);
     }
 }

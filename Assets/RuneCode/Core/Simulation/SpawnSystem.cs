@@ -161,6 +161,13 @@ namespace RuneCode
                 position = PickArenaPoint(radius);
                 warningCenter = position;
             }
+            EnemyDefinition definition = _world.EnemyCatalog.Get(enemyId);
+            if (_world.Bosses.TryGet(definition.PatternSourceId, out _))
+            {
+                position = FindSeparatedPatternSpawn(position, radius);
+                warningCenter = position;
+                warningRadius = radius;
+            }
             int warningTicks = (int)Math.Round(_world.Stages.Spawn.WarningSeconds * RuneSimulation.TICK_RATE);
             _pendingSpawns.Add(new PendingSpawn(_world.Tick + warningTicks, enemyId, position, elite, isKillTarget, warningCenter, warningRadius));
         }
@@ -205,7 +212,7 @@ namespace RuneCode
             {
                 PendingSpawn spawn = _pendingSpawns[i];
                 if (spawn.Tick > _world.Tick) { i++; continue; }
-                SimulationEnemy enemy = SpawnEnemy(spawn.EnemyId, spawn.Position, false, 0, spawn.Elite, spawn.IsKillTarget);
+                SimulationEnemy enemy = SpawnEnemy(spawn.EnemyId, spawn.Position, false, 0, spawn.Elite, spawn.IsKillTarget, pendingSpawnIndex: i);
                 if (enemy == null) return;
                 if (spawn.StartsHexaAutoOperation)
                     enemy.Hexa.BeginAutoOperation(_world.EnemyCatalog.Get(HexaDefinition.PROJECTILE_SOURCE_ID),
@@ -364,13 +371,14 @@ namespace RuneCode
         internal SimulationEnemy SpawnBenchDummy(SimVector position, double hp) => SpawnEnemy("enemy.scout", position, true, hp);
 
         /// <summary>설정 ID, 위치, 더미 여부, 체력, 엘리트 정의, 목표 집계 여부, 캐리어 소유자와 소환한 Hexa ID로 적을 생성하고 공격 일정을 설정한다. 미니보스를 포함한 보스는 스테이지 체력 배율을 받지 않고 엘리트는 체력·보상·이동 속도·반경 배율을 적용하며 캐리어 자식의 보상은 0으로 설정한다. 라운드 대기 중에는 무반격 더미 생성만 허용한다.</summary>
-        internal SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0, int summonerId = 0)
+        internal SimulationEnemy SpawnEnemy(string id, SimVector position, bool isDummy = false, double hp = 0, EliteSpawnDefinition elite = null, bool isKillTarget = false, int carrierOwnerId = 0, int summonerId = 0, int pendingSpawnIndex = -1)
         {
             if (_world.IsMission && _world.Stage != MissionStage.Combat && !(isDummy && _world.Stage == MissionStage.RoundBreak) || _world.Enemies.Count >= _world.EnemyLimit) return null;
             EnemyDefinition definition = _world.EnemyCatalog.Get(id);
-            _world.Bosses.TryGet(id, out BossDefinition boss);
-            double hpMultiplier = boss == null && _world.IsMission ? _world.Stages.GetHpMultiplier(_world.StageNumber) : 1;
-            if (boss == null && _world.IsProgressionMission)
+            _world.Bosses.TryGet(definition.PatternSourceId, out BossDefinition boss);
+            bool isNormal = definition.GetRank(boss) == EnemyDefinition.RANK_NORMAL;
+            double hpMultiplier = isNormal && !definition.HasFixedHp && _world.IsMission ? _world.Stages.GetHpMultiplier(_world.StageNumber) : 1;
+            if (isNormal && !definition.HasFixedHp && _world.IsProgressionMission)
                 hpMultiplier = _world.Stages.Growth.GetActHpMultiplier(_world.StageNumber, _world.RoundNumber);
             if (elite != null) hpMultiplier *= elite.HpMultiplier;
             double damageMultiplier = _world.IsMission ? _world.Stages.Growth.GetDamageMultiplier(_world.StageNumber) : 1;
@@ -385,16 +393,66 @@ namespace RuneCode
                     throw new FormatException("Hexa의 맵 중앙 생성 위치가 벽과 겹칩니다.");
             }
             else spawnPosition = _world.Map.NearestFree(position, radius);
+            if (boss != null && !boss.IsHexaPattern) spawnPosition = FindSeparatedPatternSpawn(spawnPosition, radius, pendingSpawnIndex);
             var enemy = new SimulationEnemy(_world.AllocateEntityId(), definition, EnemyMovements.Resolve(definition.Movement), boss, spawnPosition, isDummy, hp, _world.Balance.Sim.HitFlashSeconds, hpMultiplier, damageMultiplier, carrierOwnerId == 0 ? reward : 0, elite != null, elite != null ? elite.SpeedMultiplier : 1, elite, isKillTarget, carrierOwnerId, summonerId);
             enemy.AttackAt = _world.Time + definition.AttackInterval;
             enemy.InitializeBossState(_world.Time);
             enemy.InitializeHexa();
             if (definition.Attack == EnemyDefinition.ATTACK_SNIPER) enemy.AttackAt = _world.Time;
             if (definition.HasTrait(EnemyDefinition.TRAIT_CARRIER)) enemy.SpawnRemainingSeconds = definition.CarrierInterval;
-            if (boss != null && boss.IsGovernorPattern && !boss.IsMiniBoss)
+            if (boss != null && boss.IsGovernorPattern && !boss.IsMiniGovernorPattern)
             { BossHazard hazard = boss.GetHazard(2); enemy.ReinforcementAt = _world.Time + boss.Reinforcement.Interval; enemy.HazardAt = _world.Time + hazard.Interval; enemy.HazardRemaining = hazard.Count; }
             enemy.Observe(_world.Time); _world.Enemies.Add(enemy);
             _stats.RecordEnemySpawn(_world, enemy); if (_world.IsMission && !isDummy) _spawnedEnemies++; return enemy;
+        }
+
+        /// <summary>보스 패턴 개체와 생성 대기 위치 사이에 몸체·증원 여유 거리를 확보한다. 겹치면 가까운 타일 중심을 찾고 자리가 부족하면 가장 덜 겹치는 위치를 반환한다.</summary>
+        private SimVector FindSeparatedPatternSpawn(SimVector position, double radius, int pendingSpawnIndex = -1)
+        {
+            if (GetPatternSpawnClearance(position, radius, pendingSpawnIndex) >= 0) return position;
+            SimVector best = position;
+            double bestClearance = double.NegativeInfinity;
+            double bestDistance = double.PositiveInfinity;
+            double step = _world.Map.TileSize;
+            for (double y = step * 0.5; y < _world.Map.Height; y += step)
+                for (double x = step * 0.5; x < _world.Map.Width; x += step)
+                {
+                    var candidate = new SimVector(x, y);
+                    double playerDistance = SimVector.Distance(candidate, _world.Player.Position);
+                    if (!_world.Map.CanOccupy(candidate, radius) || playerDistance < _world.Stages.Spawn.MinPlayerDistance
+                        || _world.Stages.Spawn.MaxPlayerDistance > 0 && playerDistance > _world.Stages.Spawn.MaxPlayerDistance) continue;
+                    double clearance = GetPatternSpawnClearance(candidate, radius, pendingSpawnIndex);
+                    double distance = (candidate - position).LengthSquared;
+                    if (clearance >= 0)
+                    {
+                        if (bestClearance >= 0 && distance >= bestDistance) continue;
+                    }
+                    else if (bestClearance >= 0 || clearance <= bestClearance) continue;
+                    best = candidate;
+                    bestClearance = clearance;
+                    bestDistance = distance;
+                }
+            return best;
+        }
+
+        /// <summary>현재·대기 중인 보스 패턴 개체들과 후보 위치 사이의 최소 여유 거리를 반환한다. 음수이면 요구한 스폰 간격보다 가깝다.</summary>
+        private double GetPatternSpawnClearance(SimVector position, double radius, int pendingSpawnIndex)
+        {
+            double clearance = double.PositiveInfinity;
+            double gap = _world.Stages.Spawn.ReinforcementGap;
+            foreach (SimulationEnemy enemy in _world.Enemies)
+                if (enemy.IsAlive && !enemy.IsDummy && enemy.Boss != null)
+                    clearance = Math.Min(clearance, SimVector.Distance(position, enemy.Position) - radius - enemy.Radius - gap);
+            for (int index = 0; index < _pendingSpawns.Count; index++)
+            {
+                if (index == pendingSpawnIndex) continue;
+                PendingSpawn spawn = _pendingSpawns[index];
+                EnemyDefinition definition = _world.EnemyCatalog.Get(spawn.EnemyId);
+                if (!_world.Bosses.TryGet(definition.PatternSourceId, out _)) continue;
+                double pendingRadius = definition.Radius * (spawn.Elite != null ? spawn.Elite.RadiusMultiplier : 1);
+                clearance = Math.Min(clearance, SimVector.Distance(position, spawn.Position) - radius - pendingRadius - gap);
+            }
+            return clearance;
         }
     }
 }

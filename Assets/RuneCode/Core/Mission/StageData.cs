@@ -519,25 +519,28 @@ namespace RuneCode
                         int miniBossCount = 0;
                         foreach (WaveUnit unit in wave.Units)
                         {
+                            EnemyDefinition enemy = enemies.Get(unit.EnemyId);
+                            bosses.TryGet(enemy.PatternSourceId, out BossDefinition boss);
+                            string rank = enemy.GetRank(boss);
                             if (unit.IsElite)
                             {
-                                if (bosses.TryGet(unit.EnemyId, out _) || unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal))
+                                if (rank != EnemyDefinition.RANK_NORMAL)
                                     throw new FormatException("보스는 엘리트 유닛이 될 수 없습니다: " + unit.EnemyId + " (스테이지 " + stage.Stage + ")");
                                 if (!stage.TryGetElite(unit.EnemyId, out _))
                                     throw new FormatException("엘리트 유닛의 스테이지 엘리트 정의가 없습니다: " + unit.EnemyId + " (스테이지 " + stage.Stage + ")");
                             }
-                            if (!bosses.TryGet(unit.EnemyId, out BossDefinition boss))
+                            if (boss == null)
                             {
                                 if (unit.EnemyId.StartsWith("boss.", StringComparison.Ordinal)) bosses.Get(unit.EnemyId);
                                 continue;
                             }
-                            if (boss.IsMiniBoss) miniBossCount += unit.Count;
-                            else bossCount += unit.Count;
+                            if (rank == EnemyDefinition.RANK_MINI_BOSS) miniBossCount += unit.Count;
+                            else if (rank == EnemyDefinition.RANK_BOSS) bossCount += unit.Count;
                         }
                         if (bossCount != (isBossWave ? 1 : 0))
                             throw new FormatException("보스는 각 스테이지의 마지막 웨이브에 1기만 있어야 합니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
-                        if (miniBossCount != (isMiniBossWave ? 1 : 0))
-                            throw new FormatException("미니 보스는 각 스테이지 3라운드 마지막 웨이브에 1기만 있어야 합니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
+                        if (isMiniBossWave ? miniBossCount < 1 : miniBossCount != 0)
+                            throw new FormatException("미니 보스는 각 스테이지 3라운드 마지막 웨이브에만 1기 이상 있어야 합니다: " + stage.Stage + "/" + (roundIndex + 1) + "/" + (waveIndex + 1));
                     }
                 }
                 var eliteIds = new HashSet<string>(StringComparer.Ordinal);

@@ -399,7 +399,38 @@ namespace RuneCode
                 issue = new CompileIssue("E2", edge.ToNode);
             else if (HasPath(graph, edge.ToNode, edge.FromNode, new HashSet<string>()))
                 issue = new CompileIssue("E4", edge.ToNode);
+            else if (AddsStatusStackEvent(graph, edge, runes))
+                issue = new CompileIssue("E3", edge.ToNode);
             return issue == null;
+        }
+
+        /// <summary>후보 연결로 상태 이상 중첩 시작 경로에 명중·소멸 후속 실행이 포함되는지 검사한다. 이미 후속이 붙은 묶음의 삽입도 거부한다.</summary>
+        private static bool AddsStatusStackEvent(SpellGraph graph, GraphEdge candidate, RuneCatalog runes)
+        {
+            foreach (GraphNode root in graph.Nodes)
+            {
+                if (root.RuneId != SpellGrammar.STATUS_STACK_CORE_RUNE
+                    || (root.Id != candidate.FromNode && !HasPath(graph, root.Id, candidate.FromNode, new HashSet<string>()))) continue;
+                var pending = new Stack<string>();
+                var visited = new HashSet<string>();
+                pending.Push(root.Id);
+                while (pending.Count > 0)
+                {
+                    string nodeId = pending.Pop();
+                    if (!visited.Add(nodeId)) continue;
+                    foreach (GraphEdge edge in graph.Edges.Concat(new[] { candidate }))
+                    {
+                        if (edge.FromNode != nodeId) continue;
+                        PortDefinition port = runes.Get(graph.FindNode(nodeId).RuneId)
+                            .FindPort(edge.FromPort, SpellGrammar.DIRECTION_OUT);
+                        if (port == null || port.Kind != SpellGrammar.EXEC_KIND) continue;
+                        if (edge.FromPort == SpellGrammar.ON_HIT_PORT || edge.FromPort == SpellGrammar.ON_EXPIRE_PORT
+                            || edge.FromPort == SpellGrammar.ON_FIRST_HIT_OR_EXPIRE_PORT) return true;
+                        pending.Push(edge.ToNode);
+                    }
+                }
+            }
+            return false;
         }
 
         /// <summary>접속 후보 검증을 수행하고 연결 불가 사유를 반환한다.</summary>
