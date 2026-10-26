@@ -12,6 +12,7 @@ namespace RuneCode
     internal sealed class GraphNodeLayout
     {
         public const float NODE_WIDTH = 160f;
+        public const float SLOT_IMAGE_SCALE = 0.5f;
         public const float NODE_BASE_HEIGHT = 51f;
         public const float PUZZLE_DEPTH = 12f;
         public const float PUZZLE_HALF_HEIGHT = 10f;
