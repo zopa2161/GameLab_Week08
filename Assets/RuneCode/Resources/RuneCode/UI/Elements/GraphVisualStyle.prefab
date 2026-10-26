@@ -552,6 +552,8 @@ MonoBehaviour:
     _prefab: {fileID: 7029807311910387661, guid: 8b5d1f586ed7b8842aa3177899698cbf, type: 3}
   _elementSlotPrefab: {fileID: 1461802279248299226, guid: 1ca33e62b8203f6438bb0a3f04ed56a6, type: 3}
   _modifierSlotPrefab: {fileID: 7251549967064535640, guid: 5695b752e6f731a4aaa813979892d9ab, type: 3}
+  _slotOutlineSprite: {fileID: 21300000, guid: 7620e0772c470864a9f67675ac25126b, type: 3}
+  _slotOutlineWidth: 1
 --- !u!1 &2546652097161780974
 GameObject:
   m_ObjectHideFlags: 0

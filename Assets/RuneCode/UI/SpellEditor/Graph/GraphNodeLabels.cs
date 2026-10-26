@@ -21,7 +21,6 @@ namespace RuneCode
         private const float PORT_FONT_SIZE = 12f;
         private const float PORT_LABEL_HEIGHT = 16f;
         private const float SLOT_FONT_SIZE = 10f;
-        private const float SLOT_IMAGE_SCALE = 0.5f;
         private const float LABEL_WIDTH = GraphNodeLayout.NODE_WIDTH - LABEL_PADDING_X - LABEL_PADDING_RIGHT;
 
         private static readonly Color SLOT_LOCKED_COLOR = new Color(0.05f, 0.05f, 0.06f);
@@ -244,11 +243,17 @@ namespace RuneCode
                 string slotKey = GraphNodeLayout.SlotKeys[index];
                 SlotView view = EnsureSlotView(node, views, index, slotKey);
                 bool isShown = view != null && _layout.TryGetSlotRect(node, rune, slotKey, out _);
-                if (view != null) view.Image.gameObject.SetActive(isShown);
+                if (view != null)
+                {
+                    view.Image.gameObject.SetActive(isShown);
+                    if (view.OutlineImage != null) view.OutlineImage.gameObject.SetActive(isShown);
+                }
             }
             for (int index = count; index < views.Count; index++)
             {
-                if (views[index] != null) views[index].Image.gameObject.SetActive(false);
+                if (views[index] == null) continue;
+                views[index].Image.gameObject.SetActive(false);
+                if (views[index].OutlineImage != null) views[index].OutlineImage.gameObject.SetActive(false);
             }
             RefreshSlotColors(node);
         }
@@ -282,18 +287,31 @@ namespace RuneCode
             RectTransform rect = image.rectTransform;
             rect.anchorMin = rect.anchorMax = new Vector2(0, 1);
             rect.pivot = new Vector2(0, .5f);
-            Outline outline = image.GetComponent<Outline>();
-            if (outline != null)
+            Outline originalOutline = image.GetComponent<Outline>();
+            if (originalOutline != null) originalOutline.enabled = false;
+            Image outlineImage = null;
+            if (_style.SlotOutlineSprite != null)
             {
-                outline.effectColor = Color.white;
-                outline.enabled = false;
+                var outlineRoot = new GameObject("SlotOutline", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                RectTransform outlineRect = (RectTransform)outlineRoot.transform;
+                outlineRect.SetParent(rect.parent, false);
+                outlineRect.anchorMin = outlineRect.anchorMax = new Vector2(0f, 1f);
+                outlineRect.pivot = new Vector2(0.5f, 0.5f);
+                outlineRect.SetSiblingIndex(rect.GetSiblingIndex());
+                outlineImage = outlineRoot.GetComponent<Image>();
+                outlineImage.sprite = _style.SlotOutlineSprite;
+                outlineImage.type = Image.Type.Sliced;
+                outlineImage.pixelsPerUnitMultiplier = image.pixelsPerUnitMultiplier;
+                outlineImage.color = Color.white;
+                outlineImage.raycastTarget = false;
+                outlineImage.enabled = false;
             }
-            var view = new SlotView(image, outline);
+            var view = new SlotView(image, outlineImage);
             views.Add(view);
             return view;
         }
 
-        /// <summary>슬롯 이미지를 잠금색 또는 기본색으로 칠하고 장착 가능한 칸에만 흰 테두리를 켠다.</summary>
+        /// <summary>슬롯의 잠금색을 갱신하고 장착 가능한 칸의 뒤쪽 흰색 테두리만 표시한다.</summary>
         private void RefreshSlotColors(GraphNode node)
         {
             if (!_slotViews.TryGetValue(node.Id, out List<SlotView> views)) return;
@@ -305,7 +323,8 @@ namespace RuneCode
                 string slotKey = GraphNodeLayout.SlotKeys[index];
                 bool isLocked = GraphNodeLayout.IsSlotLocked(node, slotKey);
                 view.Image.color = isLocked ? SLOT_LOCKED_COLOR : Color.white;
-                if (view.Outline != null) view.Outline.enabled = !isLocked && equippable != null && equippable.Contains(slotKey);
+                if (view.OutlineImage != null)
+                    view.OutlineImage.enabled = !isLocked && equippable != null && equippable.Contains(slotKey);
             }
         }
 
@@ -321,8 +340,16 @@ namespace RuneCode
                 if (!_layout.TryGetSlotRect(node, rune, GraphNodeLayout.SlotKeys[index], out Rect cell)) continue;
                 RectTransform rect = view.Image.rectTransform;
                 rect.anchoredPosition = new Vector2(cell.x, cell.center.y - _parent.rect.yMax);
-                rect.sizeDelta = new Vector2(cell.width / zoom, cell.height / zoom) / SLOT_IMAGE_SCALE;
-                rect.localScale = scale * SLOT_IMAGE_SCALE;
+                rect.sizeDelta = new Vector2(cell.width / zoom, cell.height / zoom) / GraphNodeLayout.SLOT_IMAGE_SCALE;
+                rect.localScale = scale * GraphNodeLayout.SLOT_IMAGE_SCALE;
+                if (view.OutlineImage != null)
+                {
+                    RectTransform outlineRect = view.OutlineImage.rectTransform;
+                    outlineRect.anchoredPosition = new Vector2(cell.center.x, cell.center.y - _parent.rect.yMax);
+                    outlineRect.sizeDelta = (cell.size / zoom + Vector2.one * (_style.SlotOutlineWidth * 2f))
+                        / GraphNodeLayout.SLOT_IMAGE_SCALE;
+                    outlineRect.localScale = rect.localScale;
+                }
             }
         }
 
@@ -373,13 +400,13 @@ namespace RuneCode
         private sealed class SlotView
         {
             public Image Image { get; }
-            public Outline Outline { get; }
+            public Image OutlineImage { get; }
 
-            /// <summary>슬롯 표시 이미지와 장착 가능 테두리 컴포넌트를 묶는다.</summary>
-            public SlotView(Image image, Outline outline)
+            /// <summary>슬롯 본체와 그 뒤에 배치할 흰색 테두리 이미지를 보관한다.</summary>
+            public SlotView(Image image, Image outlineImage)
             {
                 Image = image;
-                Outline = outline;
+                OutlineImage = outlineImage;
             }
         }
     }

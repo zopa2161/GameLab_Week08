@@ -20,12 +20,20 @@ namespace RuneCode
         [Header("행동 노드 슬롯")]
         [SerializeField] private Image _elementSlotPrefab;
         [SerializeField] private Image _modifierSlotPrefab;
+        [SerializeField] private Sprite _slotOutlineSprite;
+        [SerializeField, Min(0f)] private float _slotOutlineWidth = 2f;
 
         /// <summary>속성 슬롯에 사용할 표시 프리팹을 반환한다.</summary>
         public Image ElementSlotPrefab => _elementSlotPrefab;
 
         /// <summary>모디파이어 슬롯에 사용할 표시 프리팹을 반환한다.</summary>
         public Image ModifierSlotPrefab => _modifierSlotPrefab;
+
+        /// <summary>슬롯 본체 뒤에 확대해 표시할 흰색 테두리 스프라이트를 반환한다.</summary>
+        public Sprite SlotOutlineSprite => _slotOutlineSprite;
+
+        /// <summary>그래프 배율 적용 전 슬롯 바깥으로 확장할 테두리 너비를 반환한다.</summary>
+        public float SlotOutlineWidth => _slotOutlineWidth;
 
         /// <summary>index에 해당하는 프리팹 템플릿의 색을 반환한다.</summary>
         public Color GetColor(int index) => _templates[index].color;
