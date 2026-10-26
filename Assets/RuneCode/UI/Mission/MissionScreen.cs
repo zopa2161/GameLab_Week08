@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 using UnityEngine.InputSystem;
 
@@ -64,6 +64,9 @@ namespace RuneCode
         {
             _damageVignette.SetLowHealth(level);
         }
+
+        /// <summary>현재 미션의 레벨업 연출이 끝났는지 반환한다.</summary>
+        public bool HasFinishedLevelUp(RuneSimulation simulation) => _worldView.HasFinishedLevelUp(simulation);
 
         /// <summary>전투 시간을 진행하지 않고 월드 종료 연출만 갱신하며 완료 여부를 반환한다.</summary>
         public bool AdvanceEnding(RuneSimulation simulation, float deltaTime)

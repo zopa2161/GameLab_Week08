@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using UnityEngine;
@@ -113,9 +113,14 @@ namespace RuneCode
         private readonly List<SpriteRenderer> _clockLines = new List<SpriteRenderer>();
         private float _endingElapsed;
         private bool _hasRenderedEnding;
+        private bool _hasStartedClearEnding;
 
         /// <summary>월드를 따라가는 미션 카메라다. 화면 View가 조준 좌표 변환에 쓴다.</summary>
         public MissionCamera Camera => _camera;
+
+        /// <summary>현재 시뮬레이션의 기존 레벨업 연출이 끝났는지 반환한다.</summary>
+        public bool HasFinishedLevelUp(RuneSimulation sim)
+            => _observedSimulation == sim && _hasLevelUp && _endingElapsed >= _victoryEndingSeconds + _levelUpSeconds;
 
         /// <summary>시뮬레이션·효과 설정·포털 상태·레벨 조회를 연결해 클리어 흡수 뒤 레벨 상승을 표시한다.</summary>
         public void Initialize(Func<RuneSimulation> simulation, Func<bool> isShakeEnabled, Func<bool> isHitStopEnabled,
@@ -134,6 +139,15 @@ namespace RuneCode
         {
             if (!sim.Completed && !sim.IsFailed && !sim.IsWaitingForNextRound) return true;
             if (_observedSimulation != sim) BeginSimulation(sim);
+            if (sim.Completed || sim.IsWaitingForNextRound)
+            {
+                if (sim.HasPendingClearPickups) return false;
+                if (!_hasStartedClearEnding)
+                {
+                    _hasStartedClearEnding = true;
+                    _endingElapsed = _victoryEndingSeconds;
+                }
+            }
             int level = _level.Invoke();
             if (level > _observedLevel) _hasLevelUp = true;
             _observedLevel = level;
@@ -178,6 +192,7 @@ namespace RuneCode
             {
                 _endingElapsed = 0;
                 _hasLevelUp = false;
+                _hasStartedClearEnding = false;
                 _observedLevel = _level.Invoke();
             }
             bool isHitStop = !sim.Completed && !sim.IsFailed && _hitStopUntil > Time.unscaledTime && (_isHitStopEnabled?.Invoke() ?? false);
@@ -227,7 +242,7 @@ namespace RuneCode
             foreach (SimulationItemDrop drop in sim.ItemDrops) GetView(_itemDropViews, _itemDropPrefab, count++).Apply(drop, sim.Tick - drop.SpawnTick, origin);
             HideFrom(_itemDropViews, count);
             // 라운드 대기 중에는 남은 오브·드롭이 ClearOrbs/ClearItemDrops 로 옮겨져 일반 루프가 비므로 같은 뷰 풀에 흡수 연출을 덧그린다.
-            if (sim.IsWaitingForNextRound && _endingElapsed < _victoryEndingSeconds) RenderClearAbsorb(sim);
+            if (sim.IsWaitingForNextRound) RenderClearAbsorb(sim);
             count = 0;
             foreach (DamageNumber number in sim.DamageNumbers)
             {
@@ -317,19 +332,16 @@ namespace RuneCode
             }
         }
 
-        /// <summary>남은 오브·드롭 뷰를 재사용해 플레이어 쪽으로 빨려 들어가는 흡수 연출을 표시한다. 진행도는 종료 연출 시간으로 정하고 1에 도달하면 뷰를 숨긴다.</summary>
+        /// <summary>시뮬레이션에서 실제 이동·회수 중인 클리어 스크랩과 룬만 표시한다. 별도 시간 보간이나 도착 추정은 하지 않는다.</summary>
         private void RenderClearAbsorb(RuneSimulation sim)
         {
-            float progress = Mathf.Clamp01(_endingElapsed / _victoryEndingSeconds);
-            double blend = progress * progress;
             int count = 0;
             foreach (FragmentOrb orb in sim.ClearOrbs)
             {
                 OrbView view = GetView(_orbViews, _orbPrefab, count++);
                 view.Apply(orb, sim.MapCenter);
-                view.transform.localPosition = MissionWorldSpace.ToWorld(orb.Position + (sim.Player.Position - orb.Position) * blend, sim.MapCenter);
                 view.transform.localScale = Vector3.one;
-                MissionWorldSpace.SetVisible(view, progress < 1f);
+                MissionWorldSpace.SetVisible(view, true);
             }
             HideFrom(_orbViews, count);
             count = 0;
@@ -337,9 +349,8 @@ namespace RuneCode
             {
                 ItemDropView view = GetView(_itemDropViews, _itemDropPrefab, count++);
                 view.Apply(drop, sim.Tick - drop.SpawnTick, sim.MapCenter);
-                view.transform.localPosition = MissionWorldSpace.ToWorld(drop.Position + (sim.Player.Position - drop.Position) * blend, sim.MapCenter);
                 view.transform.localScale = Vector3.one;
-                MissionWorldSpace.SetVisible(view, progress < 1f);
+                MissionWorldSpace.SetVisible(view, true);
             }
             HideFrom(_itemDropViews, count);
         }
@@ -445,6 +456,7 @@ namespace RuneCode
         {
             _endingElapsed = 0;
             _hasRenderedEnding = false;
+            _hasStartedClearEnding = false;
             _hasLevelUp = false;
             _observedLevel = _level.Invoke();
             if (_playerView != null) _playerView.ApplyLevelUp(-1f);
