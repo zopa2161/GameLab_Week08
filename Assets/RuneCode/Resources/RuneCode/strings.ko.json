@@ -539,6 +539,10 @@
       "_value": "새 마법"
     },
     {
+      "_key": "spell.starterName",
+      "_value": "에너지볼트"
+    },
+    {
       "_key": "editor.copySuffix",
       "_value": " 사본"
     },

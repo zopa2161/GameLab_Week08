@@ -19,14 +19,18 @@ namespace RuneCode
         /// <summary>전투 속성(fire·ice·arc) 노드 비용에서 뺄 감소량이다. 0이면 감소하지 않는다.</summary>
         public float ElementCostReduction { get; }
 
+        /// <summary>속성 슬롯 확장 강화로 모든 행동 등급에 더할 속성 슬롯 수다. 0이면 등급표 슬롯 수만 연다.</summary>
+        public int ElementSlotBonus { get; }
+
         /// <summary>
-        /// 해금 룬, 최대 에너지, 참조 가능한 마법 보관함, Modifier 소지량, 행동 하나 고정 여부와
-        /// 전투 속성 비용 감소량으로 컴파일 문맥을 만든다.
+        /// 해금 룬, 최대 에너지, 참조 가능한 마법 보관함, Modifier 소지량, 행동 하나 고정 여부,
+        /// 전투 속성 비용 감소량과 속성 슬롯 확장 보너스로 컴파일 문맥을 만든다.
         /// </summary>
         public SpellCompileContext(IEnumerable<string> unlockedRunes, float maxEnergy, IEnumerable<SpellGraph> library,
             IReadOnlyDictionary<string, int> modifierStock = null, IReadOnlyDictionary<string, float> maxResourceCosts = null,
-            bool isSingleBehavior = false, float elementCostReduction = 0f)
+            bool isSingleBehavior = false, float elementCostReduction = 0f, int elementSlotBonus = 0)
         {
+            ElementSlotBonus = elementSlotBonus;
             UnlockedRunes = unlockedRunes;
             MaxEnergy = maxEnergy;
             Library = library;

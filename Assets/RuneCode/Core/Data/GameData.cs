@@ -32,14 +32,12 @@ namespace RuneCode
         private static RuneCatalog _runes;
         private static ModifierGradeTable _modifierGrades;
         private static BalanceData _balance;
-        private static IReadOnlyList<SpellGraph> _spells;
         private static Dictionary<string, string> _strings;
         private static readonly HashSet<string> _reportedMissingKeys = new HashSet<string>();
         public static bool IsLoaded => _runes != null;
         public static RuneCatalog Runes => _runes;
         public static ModifierGradeTable ModifierGrades => _modifierGrades;
         public static BalanceData Balance => _balance;
-        public static IReadOnlyList<SpellGraph> Spells => _spells;
 
         private static EnemyCatalog _enemies;
         private static SectorDefinition _sector;
@@ -107,18 +105,6 @@ namespace RuneCode
             ModifierGradeTable modifierGrades = ModifierGradeTable.FromJson(ReadResource(MODIFIER_GRADE_TABLE), runes);
             runes.AttachModifierGrades(modifierGrades);
             BalanceData balance = BalanceData.FromJson(ReadResource("balance"));
-            List<string> allRuneIds = new List<string>(runes.All.Count);
-            foreach (RuneDefinition rune in runes.All) allRuneIds.Add(rune.Id);
-            List<SpellGraph> spells = new List<SpellGraph>
-            {
-                ShareCodec.Deserialize(ReadResource("spells/energybolt"), modifierGrades),
-                ShareCodec.Deserialize(ReadResource("spells/triplemissile"), modifierGrades)
-            };
-            foreach (SpellGraph graph in spells)
-            {
-                CompileResult result = GraphCompiler.Compile(graph, runes, balance.Grammar, allRuneIds);
-                if (!result.Ok) throw new FormatException("시작 마법이 유효하지 않습니다: " + graph.Name);
-            }
             EnemyCatalog enemies = EnemyCatalog.FromJson(ReadResource("enemies"));
             SectorDefinition sector = SectorDefinition.FromJson(ReadResource("sector1"));
             FormationCatalog formations = FormationCatalog.FromJson(ReadResource("formations"));
@@ -133,7 +119,6 @@ namespace RuneCode
             _stages = stages;
             _balance = balance;
             _modifierGrades = modifierGrades;
-            _spells = spells;
             _runes = runes;
         }
 
@@ -183,14 +168,6 @@ namespace RuneCode
             foreach (SpellModifierRuntime runtime in SpellModifierRuntimeRegistry.All)
                 if (!SpellModifierRuleRegistry.TryGetByRuneId(runtime.RuneId, out _))
                     throw new FormatException("동작 모드 실행에 맞는 규칙이 등록되지 않았습니다: " + runtime.RuneId);
-        }
-
-        /// <summary>시작 마법 템플릿 중 ID가 일치하는 그래프를 반환하며 없으면 null을 반환한다.</summary>
-        public static SpellGraph FindSpell(string id)
-        {
-            foreach (SpellGraph graph in _spells)
-                if (graph.Id == id) return graph;
-            return null;
         }
 
         /// <summary>현지화 키의 한국어 문구를 반환하고 누락된 키는 그대로 표시한다. 에디터·개발 빌드에서는 누락 키마다 경고를 한 번 남긴다.</summary>

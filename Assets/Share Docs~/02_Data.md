@@ -19,12 +19,11 @@ flowchart LR
         J4["enemies.json · bosses.json · formations.json"]
         J5["stages.json · drops.json · sector1.json"]
         J6["strings.ko.json · encyclopedia.json"]
-        J7["spells/*.json (시작 마법)"]
         SO["UpgradeTree.asset (SO)"]
         PF["enemies/Carrier.prefab (캐리어 설정)"]
     end
     GD["GameData (static)"]
-    J1 & J2 & J3 & J4 & J5 & J6 & J7 --> GD
+    J1 & J2 & J3 & J4 & J5 & J6 --> GD
     PF --> GD
     subgraph Persist["영속 데이터"]
         SAVEFILE["runecode.slot.N.v4.json (AES 암호화)"]
@@ -56,7 +55,6 @@ flowchart LR
 | 3 | (레지스트리 대조) | — | 활성 `behavior` 룬마다 행동 규칙 등록 여부, 규칙마다 실행 동작 등록 여부, 모드 규칙과 실행의 짝 (`ValidateBehaviorRegistries`, `ValidateModifierRegistries`) |
 | 4 | `tables/elite_modifier_drops.json` | `ModifierGradeTable` | 룬 카탈로그와 대조. 이후 `runes.AttachModifierGrades`로 카탈로그에 연결 |
 | 5 | `balance.json` | `BalanceData` | |
-| 6 | `spells/energybolt.json`, `spells/triplemissile.json` | `IReadOnlyList<SpellGraph>` | 모든 룬 해금 상태로 컴파일해 오류가 없어야 함 |
 | 7 | `enemies.json` | `EnemyCatalog` | |
 | 8 | `sector1.json` | `SectorDefinition` | |
 | 9 | `formations.json` | `FormationCatalog` | |
@@ -73,7 +71,6 @@ flowchart LR
 | `GameData.Runes` | `RuneCatalog` | 룬 정의, 속성 정의, 모드 장착 대상, 행동 등급별 슬롯 수, 시작 해금 룬 |
 | `GameData.ModifierGrades` | `ModifierGradeTable` | 모드 등급별 효과량, 스테이지별 등급 확률 |
 | `GameData.Balance` | `BalanceData` | 플레이어·한도·적응·전투·경제·RAM·시뮬레이션 수치 |
-| `GameData.Spells` | 시작 마법 템플릿 | `FindSpell(id)`로 조회 |
 | `GameData.Enemies`, `Bosses`, `Formations`, `Drops`, `Stages`, `Sector`, `Carrier` | 전투 카탈로그 | 시뮬레이션 생성 시 `SimulationSetup`으로 전달 |
 | `GameData.Encyclopedia` | 도움말 | 온보딩·도움말 팝업 |
 
@@ -270,7 +267,6 @@ Stage Table Editor의 진행 편성 탭에서도 선택한 라운드의 보상�
 | `drops.json` | `DropCatalog` | 일반 적 드롭 확률(스테이지별), 드롭 테이블(분류 확률 `_categoryChances`, 분류별 등급 확률 `_gradeChances`, 후보 룬·가중치 `_entries`) |
 | `sector1.json` | `SectorDefinition` | 타일 크기 32, 플레이어 반경 12, 시험 도크 맵 타일 문자열(`_benchTiles`) |
 | `encyclopedia.json` | `EncyclopediaData` | 온보딩·도움말 항목(제목, 페이지 본문·영상·이미지 경로) |
-| `spells/*.json` | `SpellGraphData` | 시작 마법 템플릿(현재 `core.cast` 노드만 가진 빈 마법) |
 
 ### 2.7 ScriptableObject와 Prefab 설정
 

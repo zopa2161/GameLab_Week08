@@ -6,7 +6,7 @@ namespace RuneCode
     /// <summary>적 상태 이상(화염·냉기·빙결·EMP·감전)의 부여, 틱 진행과 만료를 관리한다.</summary>
     internal sealed class EnemyStatusSystem
     {
-        private const int STATUS_TYPE_COUNT = 5;
+        private const int STATUS_TYPE_COUNT = 6;
         private readonly SimulationWorld _world;
         private readonly SimulationStats _stats;
         private readonly RuneSimulation _simulation;

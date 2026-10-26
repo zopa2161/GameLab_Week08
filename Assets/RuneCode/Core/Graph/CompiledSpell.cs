@@ -477,6 +477,7 @@ namespace RuneCode
         private readonly string _form;
         private readonly string _element;
         private readonly string _sourceElement;
+        private readonly bool _isElementEnhanced;
         private readonly string _calledSpellId;
         private readonly bool _isNoise;
         private readonly int _count;
@@ -523,6 +524,9 @@ namespace RuneCode
         public string Form => _form;
         public string Element => _element;
         public string SourceElement => _sourceElement;
+
+        /// <summary>같은 전투 속성을 두 슬롯에 장착해 그 속성 강화 효과를 이 마법에만 적용하는지 여부다.</summary>
+        public bool IsElementEnhanced => _isElementEnhanced;
         public string CalledSpellId => _calledSpellId;
         public bool Noise => _isNoise;
         public int Count => _count;
