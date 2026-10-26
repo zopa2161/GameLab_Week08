@@ -27,7 +27,7 @@ namespace RuneCode
 
         [Header("다음 구매 비용 표시")]
         [SerializeField] private GameObject _costBadge;
-        [SerializeField] private UpgradeTreeNodeIconGraphic _costIcon;
+        [SerializeField] private Image _costIcon;
         [SerializeField] private TextMeshProUGUI _costText;
 
         private Action _purchaseAction;
@@ -67,7 +67,6 @@ namespace RuneCode
             _levelText.text = isComplete ? "MAX" : level + "/" + maxLevel;
             _costBadge.SetActive(isAvailable && !isComplete && nextCost >= 0);
             _costText.text = nextCost >= 0 ? nextCost.ToString() : string.Empty;
-            _costIcon.Configure(UpgradeEffectType.ScrapGain, null);
             _spriteIcon.gameObject.SetActive(sprite != null);
             _icon.gameObject.SetActive(sprite == null);
             if (sprite == null)

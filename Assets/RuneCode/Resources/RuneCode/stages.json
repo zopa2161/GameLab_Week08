@@ -264,7 +264,7 @@
                         }
                     ],
                     "_rewardDropTable": "drop.round.behavior.1",
-                    "_upgradePoints": 1
+                    "_upgradePoints": 0
                 },
                 {
                     "_waves": [
@@ -407,7 +407,7 @@
                         }
                     ],
                     "_rewardDropTable": "drop.round.modifier",
-                    "_upgradePoints": 1
+                    "_upgradePoints": 0
                 },
                 {
                     "_waves": [
@@ -576,7 +576,7 @@
                         }
                     ],
                     "_rewardDropTable": "drop.round.modifier",
-                    "_upgradePoints": 1
+                    "_upgradePoints": 0
                 },
                 {
                     "_waves": [
@@ -734,7 +734,7 @@
                         }
                     ],
                     "_rewardDropTable": "drop.round.behavior.2",
-                    "_upgradePoints": 1
+                    "_upgradePoints": 0
                 },
                 {
                     "_waves": [
@@ -882,7 +882,7 @@
                         }
                     ],
                     "_rewardDropTable": "drop.round.modifier",
-                    "_upgradePoints": 1
+                    "_upgradePoints": 0
                 },
                 {
                     "_waves": [
@@ -1041,7 +1041,7 @@
                         }
                     ],
                     "_rewardDropTable": "drop.round.modifier",
-                    "_upgradePoints": 1
+                    "_upgradePoints": 0
                 },
                 {
                     "_waves": [
@@ -1194,7 +1194,7 @@
                         }
                     ],
                     "_rewardDropTable": "drop.round.behavior.3",
-                    "_upgradePoints": 1
+                    "_upgradePoints": 0
                 },
                 {
                     "_waves": [
@@ -1337,7 +1337,7 @@
                         }
                     ],
                     "_rewardDropTable": "drop.round.modifier",
-                    "_upgradePoints": 1
+                    "_upgradePoints": 0
                 },
                 {
                     "_waves": [

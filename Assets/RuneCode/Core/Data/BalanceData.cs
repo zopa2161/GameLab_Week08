@@ -12,7 +12,7 @@ namespace RuneCode
         [SerializeField] private float _maxHp;
         [SerializeField] private float _moveSpeed;
         [SerializeField] private float _maxEnergy;
-        [SerializeField, Min(0f)] private float _manaPerLevel = 5f;
+        [SerializeField, Min(0f)] private float _manaPerLevel = 10f;
         [SerializeField] private float _energyRegen;
         [SerializeField] private float _dashDistance;
         [SerializeField] private float _dashDuration;

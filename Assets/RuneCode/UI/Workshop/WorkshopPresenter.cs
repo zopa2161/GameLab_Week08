@@ -151,10 +151,10 @@ namespace RuneCode
             RefreshHeader();
         }
 
-        /// <summary>보유 스크랩을 헤더에 표시한다.</summary>
+        /// <summary>보유 강화 포인트를 기존 아이콘 옆 헤더에 표시한다.</summary>
         private void RefreshHeader()
         {
-            _view.SetHeader(GameData.L("ui.fragments") + "  " + _session.Save.Currency);
+            _view.SetHeader(string.Format(GameData.L("ui.tree.points"), _session.Save.UpgradePoints));
         }
 
         /// <summary>컴파일 변경을 테스트 로그에 결과·오류·그래프 크기로 기록한다.</summary>

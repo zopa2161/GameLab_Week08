@@ -74,7 +74,7 @@ namespace RuneCode
         public float MaxEnergy => GameData.Balance.Player.MaxEnergy + (Level - 1) * GameData.Balance.Player.ManaPerLevel
             + GetUpgradeTreeEffectTotal(UpgradeEffectType.MaxEnergy);
 
-        /// <summary>저장된 연속 미션 클리어 위치로 현재 레벨을 반환한다. 시작은 1이며 라운드 클리어마다 1씩 오른다.</summary>
+        /// <summary>클리어한 라운드의 강화 포인트 보상 합계로 현재 레벨을 반환한다. 시작은 1이며 첫 두 전투는 매번, 이후 두 전투마다 오른다.</summary>
         public int Level
         {
             get
@@ -82,8 +82,9 @@ namespace RuneCode
                 int level = 1;
                 foreach (ProgressionStageDefinition stage in GameData.Stages.ProgressionStages)
                 {
-                    if (_save.HasClearedProgression || stage.Stage < _save.ProgressionStage) level += stage.Rounds.Count;
-                    else if (stage.Stage == _save.ProgressionStage) level += Math.Min(_save.ProgressionRound, stage.Rounds.Count);
+                    int clearedRounds = _save.HasClearedProgression || stage.Stage < _save.ProgressionStage ? stage.Rounds.Count
+                        : stage.Stage == _save.ProgressionStage ? Math.Min(_save.ProgressionRound, stage.Rounds.Count) : 0;
+                    for (int index = 0; index < clearedRounds; index++) level += stage.Rounds[index].UpgradePoints;
                 }
                 return level;
             }
@@ -772,7 +773,7 @@ namespace RuneCode
 
         /// <summary>
         /// 라운드 동안 모아 둔 조각과 소지 아이템 드롭을 세이브에 한 번에 지급하고, 끝낸 라운드 위치와 그 시점 체력, 라운드 보상 후보를 기록한다.
-        /// 라운드 클리어마다 레벨과 강화 포인트를 올리고 증가한 최대 마나로 다시 컴파일한다. persist이면 후보와 진행 상태를 함께 기록한다.
+        /// 라운드 보상 설정에 따라 레벨과 강화 포인트를 올리고 최대 마나로 다시 컴파일한다. persist이면 후보와 진행 상태를 함께 기록한다.
         /// </summary>
         public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, int stageNumber, int roundNumber,
             double hp, double maxHp, IReadOnlyList<string> roundChoiceIds, IReadOnlyList<string> roundChoiceGrades, bool persist = true,
