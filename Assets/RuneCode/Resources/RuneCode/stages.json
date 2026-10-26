@@ -130,7 +130,8 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.modifier"
+                    "_rewardDropTable": "drop.round.modifier",
+                    "_upgradePoints": 1
                 },
                 {
                     "_waves": [
@@ -188,7 +189,8 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.modifier"
+                    "_rewardDropTable": "drop.round.modifier",
+                    "_upgradePoints": 1
                 },
                 {
                     "_waves": [
@@ -261,7 +263,8 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.behavior.1"
+                    "_rewardDropTable": "drop.round.behavior.1",
+                    "_upgradePoints": 1
                 },
                 {
                     "_waves": [
@@ -1259,7 +1262,8 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.modifier"
+                    "_rewardDropTable": "drop.round.modifier",
+                    "_upgradePoints": 1
                 },
                 {
                     "_waves": [
@@ -1332,7 +1336,8 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.round.modifier"
+                    "_rewardDropTable": "drop.round.modifier",
+                    "_upgradePoints": 1
                 },
                 {
                     "_waves": [
@@ -1400,7 +1405,8 @@
                             ]
                         }
                     ],
-                    "_rewardDropTable": "drop.stageClear.3"
+                    "_rewardDropTable": "drop.stageClear.3",
+                    "_upgradePoints": 1
                 }
             ],
             "_eliteTypes": [

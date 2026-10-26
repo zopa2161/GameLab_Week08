@@ -71,7 +71,23 @@ namespace RuneCode
         public bool DockAdaptation => _dockAdaptation;
         public float DockSpeed => _dockSpeed;
 
-        public float MaxEnergy => GameData.Balance.Player.MaxEnergy + GetUpgradeTreeEffectTotal(UpgradeEffectType.MaxEnergy);
+        public float MaxEnergy => GameData.Balance.Player.MaxEnergy + (Level - 1) * GameData.Balance.Player.ManaPerLevel
+            + GetUpgradeTreeEffectTotal(UpgradeEffectType.MaxEnergy);
+
+        /// <summary>저장된 연속 미션 클리어 위치로 현재 레벨을 반환한다. 시작은 1이며 라운드 클리어마다 1씩 오른다.</summary>
+        public int Level
+        {
+            get
+            {
+                int level = 1;
+                foreach (ProgressionStageDefinition stage in GameData.Stages.ProgressionStages)
+                {
+                    if (_save.HasClearedProgression || stage.Stage < _save.ProgressionStage) level += stage.Rounds.Count;
+                    else if (stage.Stage == _save.ProgressionStage) level += Math.Min(_save.ProgressionRound, stage.Rounds.Count);
+                }
+                return level;
+            }
+        }
         public float MaxHp => GameData.Balance.Player.MaxHp + GetUpgradeTreeEffectTotal(UpgradeEffectType.MaxHp);
         public float EnergyRegen => GameData.Balance.Player.EnergyRegen + GetUpgradeTreeEffectTotal(UpgradeEffectType.EnergyRegen);
         public float DamageMultiplier => 1 + GetUpgradeTreeEffectTotal(UpgradeEffectType.Damage);
@@ -734,6 +750,12 @@ namespace RuneCode
             {
                 if (isProgressionMission)
                 {
+                    if (!_save.HasClearedProgression)
+                    {
+                        ProgressionStageDefinition finalStage = GameData.Stages.GetProgressionStage(stageNumber);
+                        if (_save.ProgressionStage < stageNumber || _save.ProgressionRound < finalStage.Rounds.Count)
+                            _save.GrantUpgradePoints(finalStage.Rounds[finalStage.Rounds.Count - 1].UpgradePoints);
+                    }
                     if (!_save.HasClearedProgression && progressionChoiceIds != null && progressionChoiceGrades != null
                         && progressionChoiceIds.Count > 0)
                         _save.SetPendingProgressionChoice(progressionChoiceIds, progressionChoiceGrades);
@@ -744,13 +766,13 @@ namespace RuneCode
             _save.Settle(fragments, isCleared && !isProgressionMission);
             foreach (var pair in killCounts) _save.RecordKills(pair.Key, pair.Value);
             PersistProgress();
-            if (modifierRewards.Count > 0) _spells.Recompile();
+            if (modifierRewards.Count > 0 || (isCleared && isProgressionMission)) _spells.Recompile();
             return modifierRewards;
         }
 
         /// <summary>
         /// 라운드 동안 모아 둔 조각과 소지 아이템 드롭을 세이브에 한 번에 지급하고, 끝낸 라운드 위치와 그 시점 체력, 라운드 보상 후보를 기록한다.
-        /// 새 런은 라운드 분류의 다음 보상 등급을 소비하므로 속성 후보의 위치와 무관하다. persist이면 후보와 소비 상태를 함께 기록하고 아이템이 늘면 다시 컴파일한다.
+        /// 라운드 클리어마다 레벨과 강화 포인트를 올리고 증가한 최대 마나로 다시 컴파일한다. persist이면 후보와 진행 상태를 함께 기록한다.
         /// </summary>
         public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, int stageNumber, int roundNumber,
             double hp, double maxHp, IReadOnlyList<string> roundChoiceIds, IReadOnlyList<string> roundChoiceGrades, bool persist = true,
@@ -767,8 +789,8 @@ namespace RuneCode
             _save.GrantUpgradePoints(GameData.Stages.GetRoundUpgradePoints(stageNumber, roundNumber));
             foreach (SimulationItemDrop drop in drops)
                 GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup", persist: false);
-            if (drops.Count > 0) _spells.Recompile();
             _save.RecordProgressionRound(stageNumber, roundNumber, hp, maxHp, roundChoiceIds, roundChoiceGrades, rewardGrade);
+            _spells.Recompile();
             if (persist) PersistProgress();
         }
 

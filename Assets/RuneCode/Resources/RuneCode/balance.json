@@ -3,6 +3,7 @@
     "_maxHp": 100,
     "_moveSpeed": 220,
     "_maxEnergy": 100,
+    "_manaPerLevel": 5,
     "_energyRegen": 15,
     "_dashDistance": 140,
     "_dashDuration": 0.18,

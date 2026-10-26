@@ -579,6 +579,7 @@ namespace RuneCode
             _session.CommitRoundRewards(fragments - _grantedFragments, _pendingRoundDrops,
                 _simulation.StageNumber, _simulation.RoundNumber, _simulation.Player.Hp, _simulation.Player.MaxHp,
                 _clearModifierChoices, _clearModifierGrades, rewardGrade: _clearRewardGrade);
+            TryApplyUpgradeStats();
             _grantedFragments = fragments;
             _pendingRoundDrops.Clear();
         }
