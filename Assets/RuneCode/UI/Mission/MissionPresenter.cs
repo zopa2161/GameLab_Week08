@@ -893,12 +893,11 @@ namespace RuneCode
         /// <summary>포인터가 버튼 등 UI 입력 대상 위에 있는지 반환한다.</summary>
         private static bool IsPointerOverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
 
-        /// <summary>연속 미션은 현재 스테이지·라운드·웨이브와 각 총수를, 기존 전투는 스테이지 번호만 반환한다.</summary>
+        /// <summary>연속 미션은 현재 스테이지·라운드와 각 총수를, 기존 전투는 스테이지 번호만 반환한다.</summary>
         private static string GetStageText(RuneSimulation sim)
             => sim.IsProgressionMission
                 ? "스테이지 " + sim.StageNumber + "/" + StageCatalog.PROGRESSION_STAGE_COUNT
                     + " · 라운드 " + sim.RoundNumber + "/" + StageCatalog.PROGRESSION_ROUND_COUNT
-                    + " · 웨이브 " + sim.WaveNumber + "/" + StageCatalog.PROGRESSION_WAVE_COUNT
                 : GameData.L("ui.stage") + " " + sim.StageNumber;
 
         /// <summary>
@@ -942,7 +941,8 @@ namespace RuneCode
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
-            _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount);
+            _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount,
+                string.Format(GameData.L("ui.tree.points"), _session.Save.UpgradePoints));
             string objective = _run.IsFinished ? (sim.Completed ? "미션 완료" : sim.IsFailed ? "전투 패배" : "전투 중단")
                 : sim.IsWaitingForNextRound ? (_run.IsNextRoundReady ? "포털로 이동해 다음 라운드 시작" : "다음 라운드 대기")
                 : (sim.IsBossStage ? "보스를 처치하세요 · " : "") + "남은 적 " + sim.RemainingWaveEnemyCount;
