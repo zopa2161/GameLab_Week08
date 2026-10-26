@@ -143,7 +143,7 @@ namespace RuneCode
     public sealed class HydraBossState
     {
         public const int HEAD_COUNT = 9;
-        public const int STRETCH_HEAD_COUNT = 6;
+        public const int STRETCH_HEAD_COUNT = 9;
         public const int SPIN_HEAD_COUNT = 5;
         private const int REPEAT_COUNT = 3;
         private const int NECK_SWEEP_SAMPLES = 4;

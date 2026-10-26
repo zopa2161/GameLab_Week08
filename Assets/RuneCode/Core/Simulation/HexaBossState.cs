@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -470,8 +470,8 @@ namespace RuneCode
             _isSniperLocked = isLocked && !isReady;
             if (!isReady) return;
             world.EnemyProjectiles.Add(new SimulationProjectile(owner.AttackOrigin, owner.AimedDirection,
-                _sniperDefinition.ProjectileSpeed, _sniperDefinition.Damage * owner.DamageMultiplier,
-                _sniperDefinition.ProjectileRadius, _sniperDefinition.ProjectileLifetime, sourceEnemyId: owner.Id,
+                _sniperDefinition.ProjectileSpeed + 400, _sniperDefinition.Damage * owner.DamageMultiplier,
+                _sniperDefinition.ProjectileRadius + 7, _sniperDefinition.ProjectileLifetime, sourceEnemyId: owner.Id,
                 style: HostileProjectileStyle.Sniper, sourcePattern: LogPattern));
             owner.AimEndsAt = 0; owner.WarningUntil = 0;
             _sniperShotCount++;
