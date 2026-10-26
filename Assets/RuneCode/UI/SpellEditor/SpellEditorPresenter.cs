@@ -221,10 +221,10 @@ namespace RuneCode
             _view.SetTooltip(text + "  ·  " + GameData.L("ui.nodeCost") + " " + SpellCostText.Format(action?.OwnCosts ?? rune.Costs));
         }
 
-        /// <summary>룬·등급과 선택적 피해량·지속시간의 설명을 커서 옆에 표시하고 룬이 null이면 숨긴다.</summary>
-        private void PreviewRuneDescription(RuneDefinition rune, string grade, float? damage = null, float? lifetime = null)
+        /// <summary>룬·등급과 선택적 피해량·지속시간·타격 간격의 설명을 커서 옆에 표시하고 룬이 null이면 숨긴다.</summary>
+        private void PreviewRuneDescription(RuneDefinition rune, string grade, float? damage = null, float? lifetime = null, float? tickInterval = null)
         {
-            _inspector.PreviewRune(rune, grade, damage, lifetime);
+            _inspector.PreviewRune(rune, grade, damage, lifetime, tickInterval);
             _view.ShowHoverDescription(rune == null ? null : _view.Inspector.Description);
         }
 
@@ -239,7 +239,8 @@ namespace RuneCode
                     SpellAction action = _editor.CompileResult.Spell?.FindNodeAction(_editor.Graph, node.Id);
                     PreviewRuneDescription(rune, node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE),
                         action?.Stats == null ? (float?)null : action.Stats.Damage,
-                        action?.Stats == null ? (float?)null : action.Stats.Lifetime);
+                        action?.Stats == null ? (float?)null : action.Stats.Lifetime,
+                        action?.Stats == null ? (float?)null : action.Stats.TickInterval);
                     return;
                 }
             }

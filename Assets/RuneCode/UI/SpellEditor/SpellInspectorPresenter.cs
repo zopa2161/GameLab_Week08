@@ -18,6 +18,7 @@ namespace RuneCode
         private string _hoveredGrade;
         private float? _hoveredDamage;
         private float? _hoveredLifetime;
+        private float? _hoveredTickInterval;
 
         /// <summary>편집 세션과 인스펙터 View로 Presenter를 만든다.</summary>
         public SpellInspectorPresenter(ISpellEditor editor, SpellInspectorView view)
@@ -26,16 +27,17 @@ namespace RuneCode
             _view = view;
         }
 
-        /// <summary>룬·등급과 선택적 피해량·지속시간으로 호버 설명을 갱신하고 룬이 null이면 호버 정보를 비운다.</summary>
-        public void PreviewRune(RuneDefinition rune, string grade, float? damage = null, float? lifetime = null)
+        /// <summary>룬·등급과 선택적 피해량·지속시간·타격 간격으로 호버 설명을 갱신하고 룬이 null이면 호버 정보를 비운다.</summary>
+        public void PreviewRune(RuneDefinition rune, string grade, float? damage = null, float? lifetime = null, float? tickInterval = null)
         {
             if (_hoveredNode == null && _hoveredRune == rune && _hoveredGrade == grade && _hoveredDamage == damage
-                && _hoveredLifetime == lifetime) return;
+                && _hoveredLifetime == lifetime && _hoveredTickInterval == tickInterval) return;
             _hoveredNode = null;
             _hoveredRune = rune;
             _hoveredGrade = grade;
             _hoveredDamage = damage;
             _hoveredLifetime = lifetime;
+            _hoveredTickInterval = tickInterval;
             Refresh();
         }
 
@@ -48,6 +50,7 @@ namespace RuneCode
             _hoveredGrade = null;
             _hoveredDamage = null;
             _hoveredLifetime = null;
+            _hoveredTickInterval = null;
             Refresh();
         }
 
@@ -71,6 +74,13 @@ namespace RuneCode
                         if (!lifetime.HasValue && SpellBehaviorRuleRegistry.TryGetByRuneId(_hoveredRune.Id, out SpellBehaviorRules persistRules)
                             && GameData.Runes.TryGet(persistRules.StatsRuneId, out RuneDefinition persistStats)) lifetime = persistStats.Stats.Lifetime;
                         _view.AddNote(GameData.L("ui.runeLifetime") + " " + (lifetime.HasValue ? lifetime.Value.ToString("0.#") + "초" : "—"), 24f, 4f);
+                    }
+                    if (_hoveredRune.Id == "behavior.persist" || _hoveredRune.Id == "behavior.beam")
+                    {
+                        float? interval = _hoveredTickInterval;
+                        if (!interval.HasValue && SpellBehaviorRuleRegistry.TryGetByRuneId(_hoveredRune.Id, out SpellBehaviorRules intervalRules)
+                            && GameData.Runes.TryGet(intervalRules.StatsRuneId, out RuneDefinition intervalStats)) interval = intervalStats.Stats.TickInterval;
+                        _view.AddNote(GameData.L("ui.runeInterval") + " " + (interval.HasValue ? interval.Value.ToString("0.##") + "초마다 1회" : "—"), 24f, 4f);
                     }
                 }
                 return;
