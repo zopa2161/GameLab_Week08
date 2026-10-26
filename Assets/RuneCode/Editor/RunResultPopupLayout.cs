@@ -65,7 +65,7 @@ namespace RuneCode.EditorTools
                 RectTransform line = UiFactory.Rect(stats, "Divider", 24, 186, 392, 1);
                 line.gameObject.AddComponent<Image>().color = new Color(0.2f, 0.33f, 0.4f);
                 string[] fields = { "_killLabel", "_damageTakenLabel", "_shieldLabel", "_dpsLabel", "_energyLabel", "_dashLabel" };
-                string[] labels = { "처치한 적", "받은 HP 피해", "보호막으로 막은 피해", "평균 초당 피해", "소모 전력", "대시 횟수" };
+                string[] labels = { "처치한 적", "받은 HP 피해", "보호막으로 막은 피해", "평균 초당 피해", "소모 마나", "대시 횟수" };
                 for (int index = 0; index < fields.Length; index++)
                 {
                     float y = 206 + index * 40;

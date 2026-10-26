@@ -44,7 +44,7 @@ namespace RuneCode
         {
             _statsBuilder.Clear();
             //AppendStat(UpgradeEffectType.EnergyRegen, "ui.tree.mainboard", "/s");
-            AppendStat(UpgradeEffectType.EnergyRegen, "전력 회복 속도", "/s");
+            AppendStat(UpgradeEffectType.EnergyRegen, "마나 회복 속도", "/s");
             //AppendStat(UpgradeEffectType.MaxEnergy, "ui.tree.maxEnergy", " 전력");
             AppendStat(UpgradeEffectType.MaxEnergy, "ui.tree.maxEnergy", "");
             AppendStat(UpgradeEffectType.RamCapacity, "ui.tree.ramCapacity", " RAM");
@@ -123,8 +123,8 @@ namespace RuneCode
             switch (node.EffectType)
             {
                 case UpgradeEffectType.EnergyRegen: unit = "/s"; break;
-                case UpgradeEffectType.MaxEnergy: unit = " 전력"; break;
-                case UpgradeEffectType.KillEnergy: unit = " 전력/처치"; break;
+                case UpgradeEffectType.MaxEnergy: unit = " 마나"; break;
+                case UpgradeEffectType.KillEnergy: unit = " 마나/처치"; break;
                 case UpgradeEffectType.RamCapacity: unit = " RAM"; break;
                 case UpgradeEffectType.MaxHp: unit = " HP"; break;
                 case UpgradeEffectType.Damage:

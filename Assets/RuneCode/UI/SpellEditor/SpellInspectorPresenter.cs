@@ -16,6 +16,7 @@ namespace RuneCode
         private GraphNode _hoveredNode;
         private RuneDefinition _hoveredRune;
         private string _hoveredGrade;
+        private float? _hoveredDamage;
 
         /// <summary>편집 세션과 인스펙터 View로 Presenter를 만든다.</summary>
         public SpellInspectorPresenter(ISpellEditor editor, SpellInspectorView view)
@@ -25,12 +26,13 @@ namespace RuneCode
         }
 
         /// <summary>호버한 룬과 등급의 설명을 표시하고 null이면 기존 선택 내용을 복구한다.\n</summary>
-        public void PreviewRune(RuneDefinition rune, string grade)
+        public void PreviewRune(RuneDefinition rune, string grade, float? damage = null)
         {
-            if (_hoveredNode == null && _hoveredRune == rune && _hoveredGrade == grade) return;
+            if (_hoveredNode == null && _hoveredRune == rune && _hoveredGrade == grade && _hoveredDamage == damage) return;
             _hoveredNode = null;
             _hoveredRune = rune;
             _hoveredGrade = grade;
+            _hoveredDamage = damage;
             Refresh();
         }
 
@@ -41,10 +43,11 @@ namespace RuneCode
             _hoveredNode = node;
             _hoveredRune = null;
             _hoveredGrade = null;
+            _hoveredDamage = null;
             Refresh();
         }
 
-        /// <summary>호버 룬이 있으면 제목과 설명을, 아니면 호버 노드를 그래프에서 다시 찾아 설명을 다시 쌓는다.</summary>
+        /// <summary>호버 룬의 이름·등급을 제목에 한 번 표시하고 효과 설명을 붙이며, 호버 노드는 그래프에서 다시 찾아 정보를 쌓는다.</summary>
         public void Refresh()
         {
             _view.Begin();
@@ -52,16 +55,28 @@ namespace RuneCode
             {
                 _view.AddTitle(ModifierGradeText.FormatName(_hoveredRune.Name, _hoveredGrade));
                 _view.AddNote(RuneDescriptionBuilder.GetHoverText(_hoveredRune, _hoveredGrade), 60f, 10f);
+                if (_hoveredRune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
+                {
+                    float? damage = _hoveredDamage;
+                    if (!damage.HasValue && SpellBehaviorRuleRegistry.TryGetByRuneId(_hoveredRune.Id, out SpellBehaviorRules rules)
+                        && GameData.Runes.TryGet(rules.StatsRuneId, out RuneDefinition statsRune)) damage = statsRune.Stats.Damage;
+                    _view.AddNote("\n" + GameData.L("ui.runeDamageAmount") + " " + (damage.HasValue ? damage.Value.ToString("0.#") : "—"), 24f, 4f);
+                }
                 return;
             }
             if (_hoveredNode != null) _hoveredNode = _editor.Graph.FindNode(_hoveredNode.Id);
             if (_hoveredNode != null) ShowNode(_hoveredNode);
         }
 
-        /// <summary>노드 룬의 이름·RAM과 슬롯·효과 설명 텍스트를 쌓는다.</summary>
+        /// <summary>시작 노드는 공격 시 실행 안내만 표시하고, 다른 노드는 룬 이름·RAM과 슬롯·효과 설명을 쌓는다.</summary>
         private void ShowNode(GraphNode node)
         {
             RuneDefinition rune = GameData.Runes.Get(node.RuneId);
+            if (rune.Id == SpellGrammar.CORE_RUNE)
+            {
+                _view.AddNote("공격 시 실행됩니다", 24f, 4f);
+                return;
+            }
             string title = rune.Name;
             if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
             {
@@ -176,7 +191,7 @@ namespace RuneCode
                 lines.Add(GameData.L("ui.beamInitialCost") + " " + initialCost.ToString("0.##"));
                 lines.Add(GameData.L("ui.beamDuration") + " " + period.ToString("0.##") + "s"
                     + (isSlotCycle ? " · " + GameData.L("ui.beamUnlimitedHold") : ""));
-                if (isSlotCycle) lines.Add("연장 소모 전력 " + initialCost.ToString("0.##") + " / 구간");
+                if (isSlotCycle) lines.Add("연장 소모 마나 " + initialCost.ToString("0.##") + " / 구간");
                 lines.Add(GameData.L("ui.runeDamageAmount") + " " + (beam?.Damage ?? form.Stats.Damage).ToString("0.##")
                     + " / " + form.Stats.TickInterval.ToString("0.##") + "s");
                 lines.Add(GameData.L("ui.beamWidth") + " " + (beam?.BoxWidth ?? GameData.Runes.Get("form.bolt").Stats.Radius).ToString("0.##") + "px");

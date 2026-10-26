@@ -94,12 +94,12 @@ namespace RuneCode
                 : GameData.Format(CLEAR_MODIFIER_TARGETS_KEY, ("targets", string.Join(NAME_SEPARATOR, names)));
         }
 
-        /// <summary>호버 문구를 반환한다. 등급 색 이름, 짧은 설명, 등급 색 수치를 포함한 간략 등급 효과, 장착 가능 행동 순서로 잇는다.</summary>
+        /// <summary>제목과 중복되는 이름·등급을 제외하고 룬의 짧은 설명, 등급별 효과 수치, 장착 가능 행동을 호버 본문으로 반환한다.</summary>
         public static string GetHoverText(RuneDefinition rune, string grade)
         {
-            string text = ModifierGradeText.FormatName(rune.Name, grade) + NAME_SEPARATOR + GetDescription(rune);
+            string text = GetDescription(rune);
             List<string> lines = GetGradeLines(rune, grade, false, true);
-            if (lines.Count > 0) text += "\n" + string.Join(NAME_SEPARATOR, lines);
+            if (lines.Count > 0) text += "\n\n" + string.Join(NAME_SEPARATOR, lines);
             string targets = GetModifierTargets(rune);
             if (targets != null) text += "\n\n" + targets;
             return text;
@@ -195,10 +195,11 @@ namespace RuneCode
             AddLines(lines, GameData.Format(DETAIL_KEY_PREFIX + name, ("value", value)));
         }
 
-        /// <summary>여러 줄 문구를 줄바꿈 기준으로 나눠 lines에 더한다.</summary>
+        /// <summary>여러 줄 문구를 줄바꿈 기준으로 나누고 빈 항목을 제외해 lines에 더한다.</summary>
         private static void AddLines(List<string> lines, string text)
         {
-            lines.AddRange(text.Split('\n'));
+            foreach (string line in text.Split('\n'))
+                if (!string.IsNullOrWhiteSpace(line)) lines.Add(line);
         }
 
         /// <summary>효과 문구를 줄 단위로 나눠 lines에 더한다. colorValues면 등급 수치 표식을 같은 굵은 표시 구간의 단위까지 확장해 색칠한다.</summary>

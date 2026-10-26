@@ -3,7 +3,7 @@
     { "_key": "hexa", "_value": "Hexa" },
     { "_key": "boss.mini_governor", "_value": "미니 거버너" },
     { "_key": "boss.legolas", "_value": "레골라스" },
-    {"_key": "ui.mod.savingHint", "_value": "장착한 행동의 기본 비용에 다른 모드와 함께 전력 소비 배율을 곱합니다. 이후 더해지는 속성·형태 비용과 후속 행동의 비용은 줄이지 않습니다. 빔은 연장 결제에도 적용됩니다."},
+    {"_key": "ui.mod.savingHint", "_value": "장착한 행동의 기본 비용에 다른 모드와 함께 마나 소비 배율을 곱합니다. 이후 더해지는 속성·형태 비용과 후속 행동의 비용은 줄이지 않습니다. 빔은 연장 결제에도 적용됩니다."},
     {"_key": "tag.slash", "_value": "참격"},
     {"_key": "form.slash", "_value": "참격"},
     {"_key": "ui.slashLength", "_value": "칼날 길이"},
@@ -209,7 +209,7 @@
     },
     {
       "_key": "ui.energy",
-      "_value": "전력"
+      "_value": "마나"
     },
     {
       "_key": "resource.mana",
@@ -561,7 +561,7 @@
     },
     {
       "_key": "editor.energyBlocked",
-      "_value": "전력 소모량이 최대 전력을 초과해 출격할 수 없습니다 (소모 {0:0.##} / 최대 {1:0.##})"
+      "_value": "마나 소모량이 최대 마나을 초과해 출격할 수 없습니다 (소모 {0:0.##} / 최대 {1:0.##})"
     },
     {
       "_key": "editor.invalidConnection",
@@ -881,7 +881,7 @@
     },
     {
       "_key": "ui.incrementalLoop",
-      "_value": "적 처치로 스크랩 획득 · 트리에서 전력 / RAM 용량 강화 · 더 높은 단계 도전"
+      "_value": "적 처치로 스크랩 획득 · 트리에서 마나 / RAM 용량 강화 · 더 높은 단계 도전"
     },
     {
       "_key": "ui.tree.title",
@@ -897,19 +897,19 @@
     },
     {
       "_key": "ui.tree.regen",
-      "_value": "전력 회복량"
+      "_value": "마나 회복량"
     },
     {
       "_key": "ui.tree.regenDescription",
-      "_value": "초당 전력 회복"
+      "_value": "초당 마나 회복"
     },
     {
       "_key": "ui.tree.maxEnergy",
-      "_value": "최대 전력"
+      "_value": "최대 마나"
     },
     {
       "_key": "ui.tree.maxEnergyDescription",
-      "_value": "최대 보유 전력"
+      "_value": "최대 보유 마나"
     },
     {
       "_key": "ui.tree.ramCapacity",
@@ -933,7 +933,7 @@
     },
     {
       "_key": "ui.tree.mainboardDescription",
-      "_value": "전력 회복 속도 증가"
+      "_value": "마나 회복 속도 증가"
     },
     {
       "_key": "ui.tree.cpu",
@@ -985,11 +985,11 @@
     },
     {
       "_key": "ui.tree.killEnergy",
-      "_value": "처치 시 전력 회복"
+      "_value": "처치 시 마나 회복"
     },
     {
       "_key": "ui.tree.killEnergyDescription",
-      "_value": "적을 처치할 때 추가로 회복하는 전력 증가"
+      "_value": "적을 처치할 때 추가로 회복하는 마나 증가"
     },
     {
       "_key": "ui.tree.level",
@@ -1229,15 +1229,15 @@
     },
     {
       "_key": "ui.runeBasePower",
-      "_value": "기본 전력"
+      "_value": "기본 마나"
     },
     {
       "_key": "ui.runeUsedEnergy",
-      "_value": "사용 전력"
+      "_value": "사용 마나"
     },
     {
       "_key": "ui.runePowerMultiplier",
-      "_value": "전력 배율"
+      "_value": "마나 배율"
     },
     {
       "_key": "ui.runeElementalElement",
@@ -1660,27 +1660,27 @@
       "_value": "저장된 진행을 불러왔습니다."
     },
     {"_key": "rune.behavior.launch.desc", "_value": "마법을 발사합니다."},
-    {"_key": "rune.behavior.burst.desc", "_value": "생성 위치에서 원형 폭발을 일으킵니다."},
+    {"_key": "rune.behavior.burst.desc", "_value": "원형 폭발을 일으킵니다."},
     {"_key": "rune.behavior.persist.desc", "_value": "일정 시간 유지되는 장판을 생성합니다."},
-    {"_key": "rune.behavior.beam.desc", "_value": "버튼을 누르는 동안 길게 뻗는 빔을 유지합니다."},
+    {"_key": "rune.behavior.beam.desc", "_value": "공격하는 동안 길게 뻗는 빔을 유지합니다."},
     {"_key": "rune.behavior.slash.desc", "_value": "마법 칼날을 휘둘러 적마다 한 번 타격합니다."},
     {"_key": "rune.element.neutral.desc", "_value": "속성 효과 없이 기본 피해만 줍니다."},
     {"_key": "rune.element.fire.desc", "_value": "적에게 화상을 부여해 {burnSeconds}초 동안 {burnInterval}초마다 공격 피해의 {burnPercent}% 피해를 줍니다."},
     {"_key": "rune.element.ice.desc", "_value": "적을 둔화시키고 냉기가 누적되면 빙결시킵니다."},
-    {"_key": "rune.element.lightning.desc", "_value": "전격 피해와 EMP 효과를 부여합니다."},
+    {"_key": "rune.element.lightning.desc", "_value": "주변 적 최대 2명에게 번개가 퍼져 공격 피해의 50%를 줍니다."},
     {"_key": "rune.mod.knockback.desc", "_value": "실제로 준 직접 피해에 비례해 적을 밀어냅니다."},
-    {"_key": "rune.mod.saving.desc", "_value": "장착한 행동의 기본 전력 소비를 줄입니다."},
+    {"_key": "rune.mod.saving.desc", "_value": "장착한 행동의 기본 마나 소비를 줄입니다."},
     {"_key": "rune.mod.amplify.desc", "_value": "행동의 피해를 높입니다."},
-    {"_key": "rune.mod.multi.desc", "_value": "생성 개수를 늘리거나 폭발을 여러 회차로 반복합니다. 폭발은 회차마다 피해가 감소하며, 잔류에는 사용할 수 없습니다."},
+    {"_key": "rune.mod.multi.desc", "_value": "마법을 다중으로 발동시킵니다. 폭발은 회차마다 피해가 감소합니다."},
     {"_key": "rune.mod.beamEmpower.desc", "_value": "빔을 오래 유지할수록 피해·마나 소비·빔 폭이 커집니다."},
     {"_key": "rune.mod.pierce.desc", "_value": "적을 관통해 뒤쪽 대상도 타격합니다."},
     {"_key": "rune.mod.homing.desc", "_value": "탐색 범위 안의 적을 향해 방향을 조정합니다."},
     {"_key": "rune.mod.orbit.desc", "_value": "생성된 개체가 시전자 주위 궤도를 돕니다."},
-    {"_key": "rune.mod.expand.desc", "_value": "효과 면적을 늘립니다. 일반 형상의 길이는 면적 배율의 제곱근만큼 커집니다."},
+    {"_key": "rune.mod.expand.desc", "_value": "효과 면적을 늘립니다."},
     {"_key": "rune.mod.speed.desc", "_value": "이동 속도를 높입니다."},
     {"_key": "rune.mod.duration.desc", "_value": "효과의 지속시간을 늘립니다."},
     {"_key": "rune.effect.effectMultiplier", "_value": "피해 <b>×{value}</b>"},
-    {"_key": "rune.effect.energyCostMultiplier", "_value": "전력 소비 <b>×{value}</b>"},
+    {"_key": "rune.effect.energyCostMultiplier", "_value": "마나 소비 <b>×{value}</b>"},
     {"_key": "rune.effect.multipleCount", "_value": "생성 개수 <b>{value}</b>"},
     {"_key": "rune.effect.launchCount", "_value": ""},
     {"_key": "rune.effect.waveCount", "_value": ""},
