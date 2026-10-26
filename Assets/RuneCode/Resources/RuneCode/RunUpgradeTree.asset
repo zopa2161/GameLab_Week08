@@ -56,19 +56,19 @@ MonoBehaviour:
     _runeId: 
     _initialLevel: 0
     _prerequisites:
-    - _nodeId: upgrade.dashInvulnerability.0
+    - _nodeId: upgrade.dashInvulnerability.1
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
     - _cost: 1
-      _amount: 0.05
-  - _id: upgrade.dashTeleport.0
+      _amount: 0.15
+  - _id: upgrade.dashInvulnerability.0
     _requiredStage: 1
-    _titleKey: ui.tree.dashTeleport
-    _descriptionKey: ui.tree.dashTeleportDescription
+    _titleKey: ui.tree.dashInvulnerability
+    _descriptionKey: ui.tree.dashInvulnerabilityLongDescription
     _icon: {fileID: 0}
     _layoutCell: {x: 6, y: 11}
-    _effectType: 24
+    _effectType: 17
     _runeId: 
     _initialLevel: 0
     _prerequisites:
@@ -77,7 +77,7 @@ MonoBehaviour:
     _exclusiveGroupId: exclusive.dashMove
     _levels:
     - _cost: 1
-      _amount: 1
+      _amount: 0.2
   - _id: upgrade.postDashDamage.0
     _requiredStage: 1
     _titleKey: ui.tree.postDashDamage
@@ -93,8 +93,8 @@ MonoBehaviour:
     _exclusiveGroupId: exclusive.dashMove
     _levels:
     - _cost: 1
-      _amount: 0.2
-  - _id: upgrade.dashInvulnerability.0
+      _amount: 0.5
+  - _id: upgrade.dashInvulnerability.1
     _requiredStage: 1
     _titleKey: ui.tree.dashInvulnerability
     _descriptionKey: ui.tree.dashInvulnerabilityDescription
@@ -104,7 +104,7 @@ MonoBehaviour:
     _runeId: 
     _initialLevel: 0
     _prerequisites:
-    - _nodeId: upgrade.dashTeleport.0
+    - _nodeId: upgrade.dashInvulnerability.0
       _requiredLevel: 1
     - _nodeId: upgrade.postDashDamage.0
       _requiredLevel: 1
@@ -143,7 +143,7 @@ MonoBehaviour:
     _exclusiveGroupId: 
     _levels:
     - _cost: 1
-      _amount: 0.1
+      _amount: 0.15
   - _id: upgrade.mainboard
     _requiredStage: 1
     _titleKey: ui.tree.core
@@ -436,7 +436,7 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
-    - _cost: 0
+    - _cost: 1
       _amount: 6
   - _id: upgrade.returningLaunch.0
     _requiredStage: 1
@@ -452,5 +452,5 @@ MonoBehaviour:
       _requiredLevel: 1
     _exclusiveGroupId: exclusive.stance
     _levels:
-    - _cost: 0
+    - _cost: 1
       _amount: 0

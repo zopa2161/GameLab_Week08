@@ -86,7 +86,7 @@ namespace RuneCode
             if (_mouseControls != null) return;
             TMP_FontAsset font = _summary.font;
             _mouseControls = UiFactory.CreateMouseControls(_viewport, font, _mouseWheelIcon, _mouseLeftIcon,
-                _mouseRightIcon, GameData.L("ui.mouseControls.upgrade"));
+                _mouseRightIcon, GameData.L("ui.mouseControls.upgrade"), GameData.L("ui.mouseControls.refund"));
         }
 
         /// <summary>이전 Build에서 생성한 노드·연결선 뷰를 제거해 재진입에 대비한다.</summary>

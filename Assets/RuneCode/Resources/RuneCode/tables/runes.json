@@ -167,7 +167,7 @@
           "_portId": "exec",
           "_kind": "exec",
           "_direction": "out",
-          "_max": 0
+          "_max": 1
         }
       ]
     },

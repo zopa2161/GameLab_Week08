@@ -182,8 +182,7 @@ namespace RuneCode
             double castDamageMultiplier = 1d
                 + (_world.Player.Energy >= _world.Player.MaxEnergy - 0.000001 ? _world.Upgrades.FullManaDamageBonus : 0d)
                 + (_world.Time - _world.Player.LastDashStartTime <= _world.Balance.Player.PostDashBuffSeconds ? _world.Upgrades.PostDashDamageBonus : 0d);
-            // 대시 종료 시작 노드는 밸런스의 비용 배율을 루트 문맥에 두고 각 행동 결제(TrySpendFor)에서 곱해진다.
-            double costMultiplier = spell.Trigger == SpellGrammar.TRIGGER_ON_DASH_END ? _world.Balance.Player.DashEndCostMultiplier : 1d;
+            double costMultiplier = spell.Trigger == SpellGrammar.TRIGGER_ON_DASH_END ? 0d : 1d;
             bool isStatusStackCast = spell.Trigger == SpellGrammar.TRIGGER_ON_STATUS_STACK;
             var context = new SpellContext(origin, direction, target, false, null,
                 caster: _world.Player, randomState: new SpellRandomState(), castDamageMultiplier: castDamageMultiplier, costMultiplier: costMultiplier,

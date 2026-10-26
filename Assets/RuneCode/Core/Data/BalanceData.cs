@@ -22,7 +22,6 @@ namespace RuneCode
 
         [Header("강화 트리 대시")]
         [SerializeField] private float _postDashBuffSeconds = 1f;
-        [SerializeField] private float _dashEndCostMultiplier = 0.9f;
         [SerializeField] private float _dashGuardInvulnerability = 1f;
 
         public float MaxHp => _maxHp;
@@ -42,9 +41,6 @@ namespace RuneCode
 
         /// <summary>대시 시작 후 이 시간 안에 시전한 주문에 대시 후 피해 강화를 적용한다.</summary>
         public float PostDashBuffSeconds => _postDashBuffSeconds;
-
-        /// <summary>대시 종료 시작 노드 주문의 마나 비용 배율이다.</summary>
-        public float DashEndCostMultiplier => _dashEndCostMultiplier;
 
         /// <summary>대시 충돌 보호가 발동할 때 주는 무적 시간이다.</summary>
         public float DashGuardInvulnerability => _dashGuardInvulnerability;
@@ -389,7 +385,7 @@ namespace RuneCode
                     || data.Limits.MaxEnemies <= 0 || data.Limits.MaxCompiledActions <= 0
                     || data.Limits.MaxScheduledExecutions <= 0 || data.Limits.MaxActionsPerTick <= 0)
                     throw new FormatException("밸런스 범위가 유효하지 않습니다.");
-            if (data.Player.PostDashBuffSeconds < 0f || data.Player.DashEndCostMultiplier <= 0f || data.Player.DashEndCostMultiplier > 1f
+            if (data.Player.PostDashBuffSeconds < 0f
                 || data.Player.DashGuardInvulnerability < 0f || data.Combat.BurnMaxStacks < 2
                 || data.Combat.BurnBurstMultiplier <= 0f || data.Combat.AuraRadius <= 0f
                 || data.Combat.AuraTickInterval <= 0f || data.Combat.AuraTickDamage < 0f

@@ -76,21 +76,24 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 지정한 부모의 우측 하단에 마우스 조작 안내 세 줄을 만들고 새 루트를 반환한다.
-        /// 첫 줄은 uniqueText와 leftIcon을 쓰고, 둘째·셋째 줄은 휠·우클릭 공통 현지화 문구와 아이콘을 쓴다.
+        /// 지정한 부모의 우측 하단에 마우스 조작 안내를 만들고 새 루트를 반환한다.
+        /// 첫 줄은 uniqueText와 leftIcon을 쓰고, secondaryText가 있으면 그 아래에 우클릭 안내를 추가한 뒤 휠·화면 이동 안내를 둔다.
         /// 아이콘 스프라이트가 없으면 그 아이콘만 숨기며 텍스트는 한 줄로 유지한다.
         /// </summary>
         public static RectTransform CreateMouseControls(RectTransform parent, TMP_FontAsset font, Sprite wheelIcon, Sprite leftIcon,
-            Sprite rightIcon, string uniqueText)
+            Sprite rightIcon, string uniqueText, string secondaryText = null)
         {
             if (font == null) font = TMP_Settings.defaultFontAsset;
-            float height = MOUSE_HINT_ROW_HEIGHT * 3f + MOUSE_HINT_ROW_GAP * 2f;
+            bool hasSecondary = !string.IsNullOrEmpty(secondaryText);
+            int rowCount = hasSecondary ? 4 : 3;
+            float height = MOUSE_HINT_ROW_HEIGHT * rowCount + MOUSE_HINT_ROW_GAP * (rowCount - 1);
             RectTransform root = Rect(parent, "MouseControls", 0f, 0f, MOUSE_HINT_WIDTH, height);
             root.anchorMin = root.anchorMax = new Vector2(1f, 0f);
             root.pivot = new Vector2(1f, 0f);
             root.anchoredPosition = new Vector2(-MOUSE_HINT_RIGHT_MARGIN, MOUSE_HINT_BOTTOM_MARGIN);
 
-            CreateMouseControlRow(root, "Primary", leftIcon, uniqueText, 2, font);
+            CreateMouseControlRow(root, "Primary", leftIcon, uniqueText, rowCount - 1, font);
+            if (hasSecondary) CreateMouseControlRow(root, "Secondary", rightIcon, secondaryText, 2, font);
             CreateMouseControlRow(root, "Zoom", wheelIcon, GameData.L("ui.mouseControls.zoom"), 1, font);
             CreateMouseControlRow(root, "Pan", rightIcon, GameData.L("ui.mouseControls.pan"), 0, font);
             return root;
