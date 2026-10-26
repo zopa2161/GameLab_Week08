@@ -46,7 +46,7 @@ namespace RuneCode
         public const int RADIATE_SECTOR_COUNT = 4;
         public const double RADIATE_SECTOR_HALF_DEGREES = 45;
         public const int RADIATE_WARNING_TICKS = RuneSimulation.TICK_RATE;
-        public const double RADIATE_SPEED = 400;
+        public const double RADIATE_SPEED = 600;
         public const double RADIATE_WIDTH = 24;
         public const double RADIATE_DAMAGE = 18;
         public const int RADIATE_COOLDOWN_TICKS = 10 * RuneSimulation.TICK_RATE;

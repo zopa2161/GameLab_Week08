@@ -211,7 +211,7 @@ namespace RuneCode
             MissionWorldSpace.Place(_hexaSecondTriangle, Vector2.zero, radius * 2, tint);
         }
 
-        /// <summary>Hexa의 방사 경고 구역과 발사된 부채꼴 파동을 표시하고 방사 중이 아니면 숨긴다. 런타임 자식 오브젝트를 재사용한다.</summary>
+        /// <summary>Hexa의 방사 경고 구역과 발사된 부채꼴 파동을 표시한다. 경고는 다음 발사 구역이 남아 있을 때만, 파동은 방사 중에만 보이고 나머지는 숨긴다. 런타임 자식 오브젝트를 재사용한다.</summary>
         private void ApplyRadiate(SimulationEnemy enemy, RuneSimulation sim)
         {
             HexaBossState hexa = enemy.Hexa;
@@ -222,7 +222,9 @@ namespace RuneCode
                 HideRadiateWaves(0);
                 return;
             }
-            RenderRadiateWarning(enemy, sim, hexa);
+            // 네 번째 발사 뒤에는 파동이 사라질 때까지 방사 중이지만 경고할 구역은 없다.
+            if (hexa.IsRadiateWarning) RenderRadiateWarning(enemy, sim, hexa);
+            else if (_radiateWarningRoot != null) _radiateWarningRoot.gameObject.SetActive(false);
             RenderRadiateWaves(enemy, hexa);
         }
 
