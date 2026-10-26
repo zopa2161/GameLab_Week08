@@ -37,10 +37,16 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _hoverIncrease;
         [SerializeField] private TextMeshProUGUI _hoverCost;
 
+        [Header("마우스 조작 안내")]
+        [SerializeField] private Sprite _mouseWheelIcon;
+        [SerializeField] private Sprite _mouseLeftIcon;
+        [SerializeField] private Sprite _mouseRightIcon;
+
         private readonly Dictionary<string, UpgradeTreeNodeView> _nodeViews = new Dictionary<string, UpgradeTreeNodeView>();
         private UpgradeTreeConnectionView[] _connections = Array.Empty<UpgradeTreeConnectionView>();
         private readonly Vector3[] _tooltipCorners = new Vector3[4];
         private string _tooltipNodeId;
+        private RectTransform _mouseControls;
 
         /// <summary>표시 중인 트리 자산이다.</summary>
         public UpgradeTreeDefinition Definition => _definition;
@@ -54,6 +60,7 @@ namespace RuneCode
         /// <summary>SO 배치 노드에서 노드·연결선 뷰를 생성해 데이터에 연결하고 화면과 연결선을 준비한다.</summary>
         public void Build()
         {
+            EnsureMouseControls();
             _nodeViews.Clear();
             _hoverPanel.gameObject.SetActive(false);
             ClearGeneratedViews();
@@ -62,6 +69,15 @@ namespace RuneCode
             CreateConnectionViews();
             ResetContent();
             foreach (UpgradeTreeConnectionView connection in _connections) connection.RefreshLayout();
+        }
+
+        /// <summary>트리 뷰포트 우측 하단에 강화 트리 마우스 조작 안내를 패널당 한 번만 만들고 이후 재진입에서는 재사용한다.</summary>
+        private void EnsureMouseControls()
+        {
+            if (_mouseControls != null) return;
+            TMP_FontAsset font = _summary.font != null ? _summary.font : _statsSummary.font;
+            _mouseControls = UiFactory.CreateMouseControls(_viewport, font, _mouseWheelIcon, _mouseLeftIcon,
+                _mouseRightIcon, GameData.L("ui.mouseControls.upgrade"));
         }
 
         /// <summary>이전 Build에서 생성한 노드·연결선 뷰를 제거해 재진입에 대비한다.</summary>

@@ -179,15 +179,14 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 포인터 아래 노드의 피해·노드 비용을 도구줄에 표시한다. Shape·Modifier 노드는 합쳐지거나 붙은 명령의 수치를 쓰고,
-        /// 속성·모디 슬롯의 효과는 인스펙터에 미리 표시하고 호버 종료 시 기존 선택 정보를 복구한다.
+        /// 포인터 아래 노드·슬롯의 설명을 인스펙터와 커서 옆에 미리 표시하고,
+        /// 호버가 끝나면 기존 선택 정보를 복구한다.
         /// </summary>
         private void ShowTooltip(GraphNode node, string slotKey)
         {
             if (node == null)
             {
                 PreviewRuneDescription(null, null);
-                _view.SetTooltip(GameData.L("ui.executionOrder"));
                 return;
             }
             if (slotKey != null && SpellGrammar.TryParseSlotKey(slotKey, out bool isElement, out _))
@@ -215,10 +214,6 @@ namespace RuneCode
                 return;
             }
             PreviewNodeDescription(node);
-            SpellAction action = _editor.CompileResult.Spell?.FindNodeAction(_editor.Graph, node.Id);
-            string text = rune.Name;
-            if (action?.Stats != null) text += "  ·  " + GameData.L("ui.damage") + " " + action.Stats.Damage.ToString("0.#");
-            _view.SetTooltip(text + "  ·  " + GameData.L("ui.nodeCost") + " " + SpellCostText.Format(action?.OwnCosts ?? rune.Costs));
         }
 
         /// <summary>룬·등급과 선택적 피해량·지속시간·타격 간격의 설명을 커서 옆에 표시하고 룬이 null이면 숨긴다.</summary>
