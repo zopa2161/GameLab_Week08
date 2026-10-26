@@ -41,12 +41,16 @@ namespace RuneCode
         [SerializeField] private Button _arrangeButton;
         [SerializeField] private Button _copyButton;
         [SerializeField] private Button _pasteButton;
-        [SerializeField] private TextMeshProUGUI _tooltipText;
 
         [Header("공용")]
         [SerializeField] private TMP_FontAsset _font;
         [SerializeField] private GameObject _panelPrefab;
         [SerializeField] private GameObject _buttonPrefab;
+
+        [Header("마우스 조작 안내")]
+        [SerializeField] private Sprite _mouseWheelIcon;
+        [SerializeField] private Sprite _mouseLeftIcon;
+        [SerializeField] private Sprite _mouseRightIcon;
 
         private SpellEditorPresenter _presenter;
         private readonly Dictionary<UiRow, ViewPool<UiRow>> _paletteRows = new Dictionary<UiRow, ViewPool<UiRow>>();
@@ -55,6 +59,7 @@ namespace RuneCode
 
         private RectTransform _hoverPanel;
         private TextMeshProUGUI _hoverLabel;
+        private RectTransform _mouseControls;
 
 
         /// <summary>노드 그래프 View다.</summary>
@@ -87,6 +92,7 @@ namespace RuneCode
         {
             if (_presenter != null) return;
             if (_font == null) _font = TMP_Settings.defaultFontAsset;
+            EnsureMouseControls();
             _inspector = new SpellInspectorView();
             BindButtons();
             _presenter = new SpellEditorPresenter(editor, host, ui, this);
@@ -121,13 +127,6 @@ namespace RuneCode
 
         /// <summary>RAM·비용·쿨다운 지표 문구를 표시한다.</summary>
         public void SetMetrics(string text) => _metricsText.text = text;
-
-        /// <summary>도구줄 툴팁 문구를 표시한다.</summary>
-        public void SetTooltip(string text)
-        {
-            _tooltipText.richText = true;
-            _tooltipText.text = text;
-        }
 
         /// <summary>호버한 룬과 등급 정보를 Presenter에 전달한다.</summary>
         public void ShowRuneInfo(RuneDefinition rune, string grade)
@@ -343,6 +342,14 @@ namespace RuneCode
                 label.text = ModifierGradeText.Colorize(grade + GameData.L("ui.modifierGrade"), grade);
                 _gradeButtons[index].onClick.AddListener(() => GradeClicked?.Invoke(grade));
             }
+        }
+
+        /// <summary>화면 우측 하단에 편집창 마우스 조작 안내를 패널당 한 번만 만들고 이후 진입에서는 재사용한다.</summary>
+        private void EnsureMouseControls()
+        {
+            if (_mouseControls != null) return;
+            _mouseControls = UiFactory.CreateMouseControls((RectTransform)transform, _font, _mouseWheelIcon, _mouseLeftIcon,
+                _mouseRightIcon, GameData.L("ui.mouseControls.editor"));
         }
     }
 }

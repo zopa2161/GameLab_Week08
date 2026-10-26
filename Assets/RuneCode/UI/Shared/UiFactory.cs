@@ -15,6 +15,16 @@ namespace RuneCode
     public sealed class UiFactory
     {
         private const float DESTRUCTIVE_BUTTON_PIXELS_PER_UNIT = 2f;
+        private const float MOUSE_HINT_WIDTH = 520f;
+        private const float MOUSE_HINT_ROW_HEIGHT = 26f;
+        private const float MOUSE_HINT_ROW_GAP = 4f;
+        private const float MOUSE_HINT_RIGHT_MARGIN = 24f;
+        // 강화 트리 뷰포트의 하단 여백(35)보다 안쪽에 두어 안내가 프레임을 넘지 않게 한다.
+        private const float MOUSE_HINT_BOTTOM_MARGIN = 40f;
+        private const float MOUSE_HINT_ICON_SIZE = 22f;
+        private const float MOUSE_HINT_ICON_SPACING = 8f;
+        private const float MOUSE_HINT_FONT_SIZE = 17f;
+        private static readonly Color MOUSE_HINT_COLOR = new Color(0.54f, 0.67f, 0.77f, 1f);
 
         private readonly TMP_FontAsset _font;
         private readonly GameObject _panelPrefab;
@@ -64,6 +74,73 @@ namespace RuneCode
             rect.anchoredPosition = new Vector2(x, -y);
             rect.sizeDelta = new Vector2(width, height);
             return rect;
+        }
+
+        /// <summary>
+        /// 지정한 부모의 우측 하단에 마우스 조작 안내 세 줄을 만들고 새 루트를 반환한다.
+        /// 첫 줄은 uniqueText와 leftIcon을 쓰고, 둘째·셋째 줄은 휠·우클릭 공통 현지화 문구와 아이콘을 쓴다.
+        /// 아이콘 스프라이트가 없으면 그 아이콘만 숨기며 텍스트는 한 줄로 유지한다.
+        /// </summary>
+        public static RectTransform CreateMouseControls(RectTransform parent, TMP_FontAsset font, Sprite wheelIcon, Sprite leftIcon,
+            Sprite rightIcon, string uniqueText)
+        {
+            if (font == null) font = TMP_Settings.defaultFontAsset;
+            float height = MOUSE_HINT_ROW_HEIGHT * 3f + MOUSE_HINT_ROW_GAP * 2f;
+            RectTransform root = Rect(parent, "MouseControls", 0f, 0f, MOUSE_HINT_WIDTH, height);
+            root.anchorMin = root.anchorMax = new Vector2(1f, 0f);
+            root.pivot = new Vector2(1f, 0f);
+            root.anchoredPosition = new Vector2(-MOUSE_HINT_RIGHT_MARGIN, MOUSE_HINT_BOTTOM_MARGIN);
+
+            CreateMouseControlRow(root, "Primary", leftIcon, uniqueText, 2, font);
+            CreateMouseControlRow(root, "Zoom", wheelIcon, GameData.L("ui.mouseControls.zoom"), 1, font);
+            CreateMouseControlRow(root, "Pan", rightIcon, GameData.L("ui.mouseControls.pan"), 0, font);
+            return root;
+        }
+
+        /// <summary>안내 한 줄을 우측 정렬로 만들고 아이콘과 문구를 수평 배치한다. rowIndex는 아래에서부터의 줄 위치다.</summary>
+        private static void CreateMouseControlRow(RectTransform parent, string name, Sprite icon, string text, int rowIndex,
+            TMP_FontAsset font)
+        {
+            RectTransform row = Rect(parent, name, 0f, 0f, MOUSE_HINT_WIDTH, MOUSE_HINT_ROW_HEIGHT);
+            row.anchorMin = row.anchorMax = new Vector2(1f, 0f);
+            row.pivot = new Vector2(1f, 0f);
+            row.anchoredPosition = new Vector2(0f, rowIndex * (MOUSE_HINT_ROW_HEIGHT + MOUSE_HINT_ROW_GAP));
+
+            HorizontalLayoutGroup layout = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.childAlignment = TextAnchor.MiddleRight;
+            layout.spacing = MOUSE_HINT_ICON_SPACING;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
+
+            if (icon != null)
+            {
+                RectTransform iconRect = Rect(row, "Icon", 0f, 0f, MOUSE_HINT_ICON_SIZE, MOUSE_HINT_ICON_SIZE);
+                iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0.5f);
+                iconRect.pivot = new Vector2(0.5f, 0.5f);
+                Image image = iconRect.gameObject.AddComponent<Image>();
+                image.sprite = icon;
+                image.preserveAspect = true;
+                image.raycastTarget = false;
+                LayoutElement iconLayout = iconRect.gameObject.AddComponent<LayoutElement>();
+                iconLayout.preferredWidth = MOUSE_HINT_ICON_SIZE;
+                iconLayout.preferredHeight = MOUSE_HINT_ICON_SIZE;
+            }
+
+            TextMeshProUGUI label = UnityEngine.Object.Instantiate(
+                Resources.Load<TextMeshProUGUI>("RuneCode/UI/Elements/UiText"), row, false);
+            label.name = "Text";
+            label.font = font;
+            label.fontSize = MOUSE_HINT_FONT_SIZE;
+            label.fontStyle = FontStyles.Normal;
+            label.color = MOUSE_HINT_COLOR;
+            label.text = text;
+            label.raycastTarget = false;
+            label.enableAutoSizing = false;
+            label.textWrappingMode = TextWrappingModes.NoWrap;
+            label.overflowMode = TextOverflowModes.Overflow;
+            label.alignment = TextAlignmentOptions.MidlineRight;
         }
 
         /// <summary>공통 패널 Prefab을 지정 위치에 배치하고 포인터 차단 여부를 설정한다.</summary>

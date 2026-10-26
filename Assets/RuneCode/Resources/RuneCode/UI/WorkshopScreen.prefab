@@ -941,10 +941,12 @@ MonoBehaviour:
   _arrangeButton: {fileID: 2178210417759182653}
   _copyButton: {fileID: 3782753162027013243}
   _pasteButton: {fileID: 5229039604631994724}
-  _tooltipText: {fileID: 7390151822443832130}
   _font: {fileID: 11400000, guid: 6e22b7e028833a74aaf22c6466fb8f2f, type: 2}
   _panelPrefab: {fileID: 1589036622568036755, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
   _buttonPrefab: {fileID: 8208534833691763984, guid: 0c38440755903e6479644e3872006499, type: 3}
+  _mouseWheelIcon: {fileID: -532697093, guid: 005c4867f12b9eb4c9381c343bb7e0a5, type: 3}
+  _mouseLeftIcon: {fileID: -22115288, guid: 005c4867f12b9eb4c9381c343bb7e0a5, type: 3}
+  _mouseRightIcon: {fileID: -1333527551, guid: 005c4867f12b9eb4c9381c343bb7e0a5, type: 3}
 --- !u!1 &2300391922029923053
 GameObject:
   m_ObjectHideFlags: 0
@@ -2188,6 +2190,9 @@ MonoBehaviour:
   _hoverLevel: {fileID: 5247465804280692658}
   _hoverIncrease: {fileID: 5558233902390860972}
   _hoverCost: {fileID: 3505375804183580143}
+  _mouseWheelIcon: {fileID: -532697093, guid: 005c4867f12b9eb4c9381c343bb7e0a5, type: 3}
+  _mouseLeftIcon: {fileID: -22115288, guid: 005c4867f12b9eb4c9381c343bb7e0a5, type: 3}
+  _mouseRightIcon: {fileID: -1333527551, guid: 005c4867f12b9eb4c9381c343bb7e0a5, type: 3}
 --- !u!1 &4774036508987419527
 GameObject:
   m_ObjectHideFlags: 0
