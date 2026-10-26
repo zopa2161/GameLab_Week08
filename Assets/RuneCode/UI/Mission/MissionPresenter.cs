@@ -388,8 +388,8 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 작업실 오버레이를 닫고 보관 중인 런을 이어 간다. 재개에 실패하면 작업실을 유지하며
-        /// 실패 원인은 세션 상태 문구와 다시 그려진 보상 카드로 남는다.
+        /// 작업실 오버레이를 닫고 보관 중인 런을 이어 간다. 종료 정리가 끝난 뒤 복귀 온보딩을 표시하며 속성 선택 중이면 선택 완료까지 미룬다.
+        /// 재개에 실패하면 작업실을 유지하며 실패 원인은 세션 상태 문구와 다시 그려진 보상 카드로 남는다.
         /// </summary>
         private void CloseWorkshop()
         {
@@ -397,6 +397,7 @@ namespace RuneCode
             if (!workshop.IsVisible) return;
             if (!ResumeRun()) return;
             workshop.Hide();
+            if (!_run.IsElementPickChoice) OpenTestOnboarding(ONBOARDING_ROUND_RETURN);
             RenderHud();
         }
 
@@ -758,16 +759,19 @@ namespace RuneCode
             return 2 + grade * 2 + (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR ? 0 : 1);
         }
 
-        /// <summary>클리어 Modifier 후보를 지급하고 선택 확정 상태와 결과 문구를 갱신한다. 유효한 선택이 아니거나 안내 팝업이 열려 있으면 무시한다.</summary>
+        /// <summary>후보 index를 지급하고 결과 문구를 갱신하며, 속성 선택을 마쳤으면 미뤄 둔 복귀 온보딩을 표시한다. 유효하지 않은 선택이나 안내 팝업 중 입력은 무시한다.</summary>
         private void ChooseClearModifier(int index)
         {
-            if (_run == null || _ui.IsPopupOpen || !_run.ChooseClearModifier(index)) return;
+            if (_run == null || _ui.IsPopupOpen) return;
+            bool wasElementPickChoice = _run.IsElementPickChoice;
+            if (!_run.ChooseClearModifier(index)) return;
             if (_run.IsWaitingForNextRound)
             {
                 _result.HideClearModifierChoices();
                 _result.Hide();
                 if (_run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowRoundChoices(isResumed: true);
                 if (_run.IsClearModifierChosen) ShowFirstRewardOnboarding();
+                if (wasElementPickChoice && !_run.IsElementPickChoice) OpenTestOnboarding(ONBOARDING_ROUND_RETURN);
                 RenderHud();
                 return;
             }
@@ -888,7 +892,6 @@ namespace RuneCode
             }
             // 결과 패널은 화면과 함께 꺼졌다 켜질 뿐 상태가 남으므로, 같은 후보를 다시 그려 선택 포커스만 되살린다.
             if (_hasPresentedChoices && _run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowPendingChoices();
-            OpenTestOnboarding(ONBOARDING_ROUND_RETURN);
             RenderHud();
             return true;
         }
