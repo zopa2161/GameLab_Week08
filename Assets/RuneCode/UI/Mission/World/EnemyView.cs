@@ -80,7 +80,7 @@ namespace RuneCode
             float radius = (float)enemy.Radius;
             transform.localPosition = MissionWorldSpace.ToWorld(enemy.Position, origin);
             _rotator.localRotation = Quaternion.Euler(0, 0, MissionWorldSpace.ToWorldAngle(enemy.Facing));
-            EnemyAppearance appearance = FindAppearance(enemy.Kind);
+            EnemyAppearance appearance = FindAppearance(enemy.Definition.PatternSourceId);
             Color tint = appearance != null ? appearance.Tint : _defaultTint;
             if (enemy.IsDummy) tint = DummyColor;
             if (enemy.IsFlashing) tint = Color.white;

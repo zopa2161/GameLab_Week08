@@ -66,9 +66,11 @@ namespace RuneCode
         [SerializeField] private string _variantOf;
         [SerializeField] private string _rank;
         [SerializeField] private bool _hasFixedHp;
+        [SerializeField] private double _hazardRadiusMultiplier;
         public string VariantOf => _variantOf;
         public string PatternSourceId => string.IsNullOrEmpty(_variantOf) ? _id : _variantOf;
         public bool HasFixedHp => _hasFixedHp;
+        public double HazardRadiusMultiplier => _hazardRadiusMultiplier > 0 ? _hazardRadiusMultiplier : 1;
 
         /// <summary>명시된 전투 등급을 반환하고, 기존 적은 보스 패턴의 기존 등급 또는 일반 적 등급을 사용한다.</summary>
         public string GetRank(BossDefinition pattern)
@@ -77,7 +79,7 @@ namespace RuneCode
             return pattern == null ? RANK_NORMAL : pattern.IsMiniBoss ? RANK_MINI_BOSS : RANK_BOSS;
         }
 
-        /// <summary>원본의 공격·이동 설정을 공유하는 독립 변형 정의를 만들고 ID·체력·보상·전투 등급·고정 체력 여부만 덮어쓴다. 변형의 중첩은 허용하지 않는다.</summary>
+        /// <summary>원본의 공격·이동 설정을 공유하는 독립 변형 정의를 만들고 ID·체력·보상·등급·고정 체력·장판 반경 배율을 덮어쓴다. 변형의 중첩은 허용하지 않는다.</summary>
         internal EnemyDefinition CreateVariant(EnemyDefinition source)
         {
             if (!string.IsNullOrEmpty(source._variantOf) || source._id == _id || !IsPositive(_hp)
@@ -90,6 +92,7 @@ namespace RuneCode
             variant._hp = _hp;
             variant._reward = _reward;
             variant._hasFixedHp = _hasFixedHp;
+            variant._hazardRadiusMultiplier = _hazardRadiusMultiplier;
             return variant;
         }
 
@@ -163,6 +166,8 @@ namespace RuneCode
         /// <summary>이동·공격 방식과 특수 능력 값이 정의된 어휘 안에 있는지 검사하고 모르는 값에는 데이터 오류를 발생시킨다.</summary>
         public void Validate()
         {
+            if (double.IsNaN(_hazardRadiusMultiplier) || double.IsInfinity(_hazardRadiusMultiplier) || _hazardRadiusMultiplier < 0)
+                throw new FormatException("장판 반경 배율은 0 이상의 유한값이어야 합니다: " + _id);
             if (!string.IsNullOrEmpty(_rank) && _rank != RANK_NORMAL && _rank != RANK_MINI_BOSS && _rank != RANK_BOSS)
                 throw new FormatException("알 수 없는 적 전투 등급입니다: " + _id + ", " + _rank);
             if (Array.IndexOf(MOVEMENT_TYPES, _movement) < 0) throw new FormatException("알 수 없는 적 이동 방식입니다: " + _id + ", " + _movement);

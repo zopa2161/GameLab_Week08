@@ -376,7 +376,7 @@ namespace RuneCode
                 boss.AttackAt = _world.Time + (boss.Phase == 2 ? pattern.AimInterval : pattern.RadialInterval) / multiplier;
             }
             if (boss.Phase >= 2 && _world.Time >= boss.HazardAt)
-            { _stats.RecordBossPatternUse(_world, boss, "hazard"); BossHazard hazard = pattern.GetHazard(boss.Phase); _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, hazard.Damage * boss.DamageMultiplier, hazard.Radius, hazard.Lifetime + hazard.Warning, true, hazard.Warning, sourceEnemyId: boss.Id, sourcePattern: "hazard")); bool setEnded = --boss.HazardRemaining <= 0; if (setEnded) boss.HazardRemaining = hazard.Count; boss.HazardAt = _world.Time + (setEnded ? hazard.SetInterval : hazard.Interval) / multiplier; }
+            { _stats.RecordBossPatternUse(_world, boss, "hazard"); BossHazard hazard = pattern.GetHazard(boss.Phase); _world.EnemyProjectiles.Add(new SimulationProjectile(_world.Player.Position, SimVector.Zero, 0, hazard.Damage * boss.DamageMultiplier, hazard.Radius * boss.Definition.HazardRadiusMultiplier, hazard.Lifetime + hazard.Warning, true, hazard.Warning, sourceEnemyId: boss.Id, sourcePattern: "hazard")); bool setEnded = --boss.HazardRemaining <= 0; if (setEnded) boss.HazardRemaining = hazard.Count; boss.HazardAt = _world.Time + (setEnded ? hazard.SetInterval : hazard.Interval) / multiplier; }
             if (_world.Time >= boss.ReinforcementAt)
             {
                 _stats.RecordBossPatternUse(_world, boss, "reinforcement");
