@@ -139,7 +139,7 @@ namespace RuneCode
         { state.Append(FormattableString.Invariant($"|wave:{_center.X:R}:{_center.Y:R}:{_startedAt:R}:{_age:R}:{_hasHit}")); }
     }
 
-    /// <summary>Hydra 한 개체의 공격·잔류물·피해 예산을 소유하며 같은 기하를 판정과 표시에 제공한다.</summary>
+    /// <summary>Hydra 한 개체의 공격·잔류물을 소유하며 같은 기하를 판정과 표시에 제공한다.</summary>
     public sealed class HydraBossState
     {
         public const int HEAD_COUNT = 9;
@@ -170,8 +170,6 @@ namespace RuneCode
         private SimVector _spinTarget;
         private double _spinDashDuration;
         private bool _hasSpinHit;
-        private double _damageBudget;
-        private double _lastDamageAt;
 
         public HydraAttack Attack => _attack;
         public double Elapsed => _elapsed;
@@ -197,25 +195,11 @@ namespace RuneCode
         public SimVector JumpTarget => _jumpTarget;
         public double StompLocalTime => _elapsed % _settings.StompInterval;
 
-        /// <summary>공유 설정과 생성 시각·최대 체력으로 개별 공격 대기와 1구간 피해 예산을 초기화한다.</summary>
-        internal HydraBossState(HydraDefinition settings, double time, double maxHp)
+        /// <summary>공유 설정과 생성 시각으로 개별 공격 대기를 초기화한다.</summary>
+        internal HydraBossState(HydraDefinition settings, double time)
         {
             _settings = settings;
             _cooldownUntil = time + settings.InitialDelay;
-            _lastDamageAt = time;
-            _damageBudget = maxHp * settings.DpsHealthRatio * settings.DpsWindow;
-        }
-
-        /// <summary>현재 시각까지 피해 예산을 회복하고 예산 초과 피해만 감쇠해 반환한다. 화상은 예산을 쓰지 않고 약점 배율을 적용한다.</summary>
-        internal double LimitDamage(double damage, bool isBurn, double time, double maxHp)
-        {
-            if (isBurn) return damage * _settings.BurnMultiplier;
-            double dps = maxHp * _settings.DpsHealthRatio;
-            _damageBudget = Math.Min(dps * _settings.DpsWindow, _damageBudget + Math.Max(0, time - _lastDamageAt) * dps);
-            _lastDamageAt = time;
-            double fullDamage = Math.Min(Math.Max(0, damage), _damageBudget);
-            _damageBudget -= fullDamage;
-            return fullDamage + Math.Max(0, damage - fullDamage) * _settings.ExcessDamageMultiplier;
         }
 
         /// <summary>잔류물과 현재 공격을 한 틱 진행하며 쿨타임 추적·도약 이동과 목·파동·독 피해를 처리한다.</summary>
@@ -455,10 +439,10 @@ namespace RuneCode
         /// <summary>전투 취소 시 공격과 잔류물 목록을 비워 재표시 때 이전 판정을 남기지 않는다.</summary>
         internal void Cancel() { _attack = HydraAttack.Idle; _elapsed = 0; _hasJumpStarted = false; _hasSpinHit = false; _spinDashDuration = 0; _poisons.Clear(); _waves.Clear(); }
 
-        /// <summary>추첨 결과·공격 시각·목 길이·피해 예산·잔류물 상태를 결정성 버퍼에 기록한다.</summary>
+        /// <summary>추첨 결과·공격 시각·목 길이·잔류물 상태를 결정성 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
         {
-            state.Append(FormattableString.Invariant($"|hydra:{_attack}:{_lastAttack}:{_startedAt:R}:{_elapsed:R}:{_cooldownUntil:R}:{_angle:R}:{_repeat}:{_poisonTarget.X:R}:{_poisonTarget.Y:R}:{_damageBudget:R}:{_lastDamageAt:R}"));
+            state.Append(FormattableString.Invariant($"|hydra:{_attack}:{_lastAttack}:{_startedAt:R}:{_elapsed:R}:{_cooldownUntil:R}:{_angle:R}:{_repeat}:{_poisonTarget.X:R}:{_poisonTarget.Y:R}"));
             state.Append(FormattableString.Invariant($"|jump:{_jumpOrigin.X:R}:{_jumpOrigin.Y:R}:{_jumpTarget.X:R}:{_jumpTarget.Y:R}:{_hasJumpStarted}"));
             state.Append(FormattableString.Invariant($"|poisonOrigin:{_poisonOrigin.X:R}:{_poisonOrigin.Y:R}"));
             state.Append(FormattableString.Invariant($"|spinDash:{_spinOrigin.X:R}:{_spinOrigin.Y:R}:{_spinTarget.X:R}:{_spinTarget.Y:R}:{_spinDashDuration:R}:{_hasSpinHit}"));

@@ -518,7 +518,7 @@ namespace RuneCode
             foreach (SimulationEnemy target in _world.Enemies)
             {
                 if (!target.IsAlive || target.IsPatching || SimVector.Distance(source.Position, target.Position) > radius + target.Radius) continue;
-                double incoming = target.Hydra == null ? damage : target.Hydra.LimitDamage(damage, false, _world.Time, target.MaxHp);
+                double incoming = target.LimitIncomingDamage(damage, false, _world.Time);
                 double actual = target.Hurt(incoming, _world.Time);
                 if (actual > 0)
                 {

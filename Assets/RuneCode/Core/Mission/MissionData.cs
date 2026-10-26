@@ -293,6 +293,11 @@ namespace RuneCode
         [SerializeField] private HydraDefinition _hydra;
         [Header("레골라스")]
         [SerializeField] private LegolasDefinition _legolas;
+
+        [Header("Hexa DPS 제한")]
+        [SerializeField] private double _dpsHealthRatio;
+        [SerializeField] private double _dpsWindow;
+        [SerializeField] private double _excessDamageMultiplier;
         public string EnemyId => _enemyId;
         public string Pattern => _pattern;
         public double PhaseTwoThreshold => _phaseTwoThreshold;
@@ -313,6 +318,10 @@ namespace RuneCode
         public HydraDefinition Hydra => _hydra;
         public bool IsLegolasPattern => _pattern == LEGOLAS_PATTERN;
         public LegolasDefinition Legolas => _legolas;
+        public bool HasDamageBudget => IsHydraPattern || IsHexaPattern;
+        public double DpsHealthRatio => IsHydraPattern ? _hydra.DpsHealthRatio : _dpsHealthRatio;
+        public double DpsWindow => IsHydraPattern ? _hydra.DpsWindow : _dpsWindow;
+        public double ExcessDamageMultiplier => IsHydraPattern ? _hydra.ExcessDamageMultiplier : _excessDamageMultiplier;
 
         /// <summary>페이즈에 대응하는 장판 세트 설정을 반환하고 2페이즈가 아니면 3페이즈 설정을 반환한다.</summary>
         public BossHazard GetHazard(int phase)
@@ -324,6 +333,9 @@ namespace RuneCode
             if (IsHexaPattern)
             {
                 HexaDefinition.Validate(enemies.Get(_enemyId));
+                if (!IsPositive(_dpsHealthRatio) || _dpsHealthRatio > 1 || !IsPositive(_dpsWindow)
+                    || !IsPositive(_excessDamageMultiplier) || _excessDamageMultiplier > 1)
+                    throw new FormatException("Hexa DPS 제한 수치는 유한한 양수이며 체력 비율·초과 피해 배율은 1 이하여야 합니다: " + _enemyId);
                 ValidateReinforcementTarget(enemies, formations);
                 return;
             }
