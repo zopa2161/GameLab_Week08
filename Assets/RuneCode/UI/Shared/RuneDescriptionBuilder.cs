@@ -94,10 +94,10 @@ namespace RuneCode
                 : GameData.Format(CLEAR_MODIFIER_TARGETS_KEY, ("targets", string.Join(NAME_SEPARATOR, names)));
         }
 
-        /// <summary>호버 문구를 반환한다. 등급 색 이름, 짧은 설명, 등급 색 수치를 포함한 간략 등급 효과, 장착 가능 행동 순서로 잇는다.</summary>
+        /// <summary>제목과 중복되는 이름·등급을 제외하고 룬의 짧은 설명, 등급별 효과 수치, 장착 가능 행동을 호버 본문으로 반환한다.</summary>
         public static string GetHoverText(RuneDefinition rune, string grade)
         {
-            string text = ModifierGradeText.FormatName(rune.Name, grade) + NAME_SEPARATOR + GetDescription(rune);
+            string text = GetDescription(rune);
             List<string> lines = GetGradeLines(rune, grade, false, true);
             if (lines.Count > 0) text += "\n" + string.Join(NAME_SEPARATOR, lines);
             string targets = GetModifierTargets(rune);

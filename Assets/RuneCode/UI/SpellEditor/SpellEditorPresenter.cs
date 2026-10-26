@@ -210,7 +210,7 @@ namespace RuneCode
             {
                 string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
                 PreviewRuneDescription(rune, grade);
-                _view.SetTooltip(ModifierGradeText.FormatName(rune.Name, grade) + "  ·  " + GameData.L("ui.costMultiplier") + " ×"
+                _view.SetTooltip(GameData.L("ui.costMultiplier") + " ×"
                     + GameData.ModifierGrades.GetEnergyMultiplier(rune.Id, grade).ToString("0.##"));
                 return;
             }
@@ -222,15 +222,26 @@ namespace RuneCode
         }
 
         /// <summary>호버한 룬과 등급의 인스펙터 설명을 커서 옆에도 표시하며 null이면 호버 안내를 숨긴다.</summary>
-        private void PreviewRuneDescription(RuneDefinition rune, string grade)
+        private void PreviewRuneDescription(RuneDefinition rune, string grade, float? damage = null)
         {
-            _inspector.PreviewRune(rune, grade);
+            _inspector.PreviewRune(rune, grade, damage);
             _view.ShowHoverDescription(rune == null ? null : _view.Inspector.Description);
         }
 
-        /// <summary>호버한 노드의 현재 인스펙터 설명과 적용 수치를 커서 옆에 표시한다.</summary>
+        /// <summary>행동 노드는 현재 등급의 팔레트 설명과 컴파일된 피해량만 표시하고, 그 외 노드는 기존 인스펙터 정보를 표시한다.</summary>
         private void PreviewNodeDescription(GraphNode node)
         {
+            if (node != null)
+            {
+                RuneDefinition rune = GameData.Runes.Get(node.RuneId);
+                if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
+                {
+                    SpellAction action = _editor.CompileResult.Spell?.FindNodeAction(_editor.Graph, node.Id);
+                    PreviewRuneDescription(rune, node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE),
+                        action?.Stats == null ? (float?)null : action.Stats.Damage);
+                    return;
+                }
+            }
             _inspector.PreviewNode(node);
             _view.ShowHoverDescription(node == null ? null : _view.Inspector.Description);
         }
