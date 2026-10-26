@@ -17,6 +17,7 @@ namespace RuneCode
         private RuneDefinition _hoveredRune;
         private string _hoveredGrade;
         private float? _hoveredDamage;
+        private float? _hoveredLifetime;
 
         /// <summary>편집 세션과 인스펙터 View로 Presenter를 만든다.</summary>
         public SpellInspectorPresenter(ISpellEditor editor, SpellInspectorView view)
@@ -25,14 +26,16 @@ namespace RuneCode
             _view = view;
         }
 
-        /// <summary>호버한 룬과 등급의 설명을 표시하고 null이면 기존 선택 내용을 복구한다.\n</summary>
-        public void PreviewRune(RuneDefinition rune, string grade, float? damage = null)
+        /// <summary>룬·등급과 선택적 피해량·지속시간으로 호버 설명을 갱신하고 룬이 null이면 호버 정보를 비운다.</summary>
+        public void PreviewRune(RuneDefinition rune, string grade, float? damage = null, float? lifetime = null)
         {
-            if (_hoveredNode == null && _hoveredRune == rune && _hoveredGrade == grade && _hoveredDamage == damage) return;
+            if (_hoveredNode == null && _hoveredRune == rune && _hoveredGrade == grade && _hoveredDamage == damage
+                && _hoveredLifetime == lifetime) return;
             _hoveredNode = null;
             _hoveredRune = rune;
             _hoveredGrade = grade;
             _hoveredDamage = damage;
+            _hoveredLifetime = lifetime;
             Refresh();
         }
 
@@ -44,6 +47,7 @@ namespace RuneCode
             _hoveredRune = null;
             _hoveredGrade = null;
             _hoveredDamage = null;
+            _hoveredLifetime = null;
             Refresh();
         }
 
@@ -61,6 +65,13 @@ namespace RuneCode
                     if (!damage.HasValue && SpellBehaviorRuleRegistry.TryGetByRuneId(_hoveredRune.Id, out SpellBehaviorRules rules)
                         && GameData.Runes.TryGet(rules.StatsRuneId, out RuneDefinition statsRune)) damage = statsRune.Stats.Damage;
                     _view.AddNote("\n" + GameData.L("ui.runeDamageAmount") + " " + (damage.HasValue ? damage.Value.ToString("0.#") : "—"), 24f, 4f);
+                    if (_hoveredRune.Id == "behavior.persist")
+                    {
+                        float? lifetime = _hoveredLifetime;
+                        if (!lifetime.HasValue && SpellBehaviorRuleRegistry.TryGetByRuneId(_hoveredRune.Id, out SpellBehaviorRules persistRules)
+                            && GameData.Runes.TryGet(persistRules.StatsRuneId, out RuneDefinition persistStats)) lifetime = persistStats.Stats.Lifetime;
+                        _view.AddNote(GameData.L("ui.runeLifetime") + " " + (lifetime.HasValue ? lifetime.Value.ToString("0.#") + "초" : "—"), 24f, 4f);
+                    }
                 }
                 return;
             }
