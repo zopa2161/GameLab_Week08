@@ -87,9 +87,21 @@ namespace RuneCode
 
         /// <summary>바닥에 떨어져 줍기를 기다리는 Modifier 드롭 목록이다.</summary>
         public IReadOnlyList<SimulationItemDrop> ItemDrops => _loot.ItemDrops;
-        /// <summary>지급과 분리한 승리 흡수 연출용 잔여 스크랩 위치를 반환한다.</summary>
+        /// <summary>실제 자동 회수가 아직 끝나지 않은 클리어 스크랩·룬이 있는지 반환한다.</summary>
+        public bool HasPendingClearPickups => _loot.ClearOrbs.Count > 0 || _loot.ClearItemDrops.Count > 0;
+
+        /// <summary>실제 자동 회수가 아직 끝나지 않은 스크랩이 있는지 반환한다.</summary>
+        public bool HasPendingClearScrap => _loot.ClearOrbs.Count > 0;
+
+        /// <summary>클리어 상태에서도 잔여 스크랩과 룬을 한 고정 스텝 이동시키고 도착한 항목만 실제 획득 처리한다.</summary>
+        public void AdvanceClearPickups()
+        {
+            if (Completed || IsWaitingForNextRound) _loot.AdvanceClearPickups();
+        }
+
+        /// <summary>클리어 후 플레이어에게 실제로 이동·회수되는 스크랩 목록이다.</summary>
         public IReadOnlyList<FragmentOrb> ClearOrbs => _loot.ClearOrbs;
-        /// <summary>지급과 분리한 승리 흡수 연출용 잔여 룬을 반환한다.</summary>
+        /// <summary>클리어 후 플레이어에게 실제로 이동·회수되는 룬 목록이다.</summary>
         public IReadOnlyList<SimulationItemDrop> ClearItemDrops => _loot.ClearItemDrops;
 
         /// <summary>이번 전투에서 주워 확정한 Modifier 드롭의 누적 목록이다.</summary>
@@ -270,7 +282,7 @@ namespace RuneCode
         /// <summary>라운드 대기 중 한 번만 대시를 취소하고 플레이어를 맵 중앙으로 옮긴 뒤 오른쪽에 왼쪽부터 1·2·3개 열로 무반격 허수아비를 배치한다. 포털도 이때 열린다. 이미 배치했거나 대기가 아니면 false.</summary>
         public bool TryPrepareRoundBreakArena()
         {
-            if (!IsWaitingForNextRound || _isRoundBreakArenaReady) return false;
+            if (!IsWaitingForNextRound || HasPendingClearPickups || _isRoundBreakArenaReady) return false;
             _stats.ResetRoundBreakDamage();
             _world.Player.CancelDash(Time);
             SimVector center = MapCenter;
@@ -330,7 +342,7 @@ namespace RuneCode
         /// <summary>소강상태에서 다음 라운드 또는 스테이지로 전환하며 이전 피해 표시와 라운드 대기 시험장 허수아비·대기 중 시전을 정리하고 전력을 최대로 회복한 뒤 첫 웨이브를 시작한다.</summary>
         public bool TryStartNextRound()
         {
-            if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak) return false;
+            if (!_world.IsProgressionMission || _world.Stage != MissionStage.RoundBreak || HasPendingClearPickups) return false;
             _feedback.ClearDamageNumbers();
             _world.Player.RestoreEnergy(_world.Player.MaxEnergy);
             _loot.ClearClearFeedback();
@@ -583,6 +595,10 @@ namespace RuneCode
             foreach (SimulationProjectile projectile in _world.EnemyProjectiles) projectile.WriteState(state);
             Adaptation.WriteState(state);
             _executor.WriteScheduledState(state);
+            foreach (FragmentOrb orb in _loot.ClearOrbs)
+            { state.Append("clearScrap|"); SimHash.AppendNumber(state, orb.Position.X); SimHash.AppendNumber(state, orb.Position.Y); state.Append(orb.Amount).Append('|').Append(orb.IsAttracted).Append('|').Append(orb.IsBigScrap); }
+            foreach (SimulationItemDrop drop in _loot.ClearItemDrops)
+            { state.Append("clearItem|").Append(drop.RuneId).Append('|').Append(drop.Grade).Append('|').Append(drop.Count).Append('|'); SimHash.AppendNumber(state, drop.Position.X); SimHash.AppendNumber(state, drop.Position.Y); }
             foreach (FragmentOrb orb in _loot.Orbs) { SimHash.AppendNumber(state, orb.Position.X); SimHash.AppendNumber(state, orb.Position.Y); state.Append(orb.Amount).Append('|').Append(orb.IsAttracted).Append('|').Append(orb.IsBigScrap); }
             foreach (SimulationItemDrop drop in _loot.ItemDrops) SimHash.AppendItemDropState(state, drop);
             foreach (SimulationItemDrop drop in _loot.PickedUpItems) SimHash.AppendItemDropState(state, drop);

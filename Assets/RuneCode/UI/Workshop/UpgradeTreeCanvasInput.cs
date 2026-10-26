@@ -7,7 +7,7 @@ namespace RuneCode
     public sealed class UpgradeTreeCanvasInput : MonoBehaviour,
         IBeginDragHandler, IDragHandler, IEndDragHandler, IScrollHandler
     {
-        private const float MIN_ZOOM = 0.45f;
+        private const float MIN_ZOOM = 0.30f;
         private const float MAX_ZOOM = 1.65f;
         private const float ZOOM_STEP = 1.12f;
 

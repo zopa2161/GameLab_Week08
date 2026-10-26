@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using UnityEngine;
@@ -74,7 +74,7 @@ namespace RuneCode
 
         /// <summary>라운드 대기 중 보상 선택지를 표시했거나 디버그 최초 대기 상태이면 작업실을 열 수 있는지 반환한다. 일시정지·팝업 입력 잠금은 따로 확인한다.</summary>
         private bool CanOpenWorkshop => _run != null && !_run.IsFinished && _run.IsWaitingForNextRound
-            && !_run.IsDebugRewardChoice && !_run.IsElementPickChoice && (_isInitialDebugRoundBreak || _hasPresentedChoices);
+            && !_run.Simulation.HasPendingClearPickups && !_run.IsDebugRewardChoice && !_run.IsElementPickChoice && (_isInitialDebugRoundBreak || _hasPresentedChoices);
 
         /// <summary>단축키·바로가기 버튼이 기존 진입 조건과 보상·팝업·문자 입력·합성창 잠금을 만족하는지 반환한다.</summary>
         private bool CanToggleWorkshop => CanOpenWorkshop && !_run.IsPaused && !_ui.IsPopupOpen && !UiFactory.IsTyping()
@@ -169,7 +169,6 @@ namespace RuneCode
             if (_run.IsFinished)
             {
                 if (_pausePopup != null && _pausePopup.IsVisible) return;
-                RenderHud();
                 SoundManager.Instance.StopShotBeam();
                 PlayEnemyHitSounds();
                 PlayShotSounds();
@@ -177,7 +176,9 @@ namespace RuneCode
                 PlayScrapPickupSounds();
                 // 전투가 끝나면 저체력 지속 비네트는 목표를 0으로 두고 남은 점등만 자연스럽게 사라지게 한다.
                 _screen.ShowLowHealth(0f);
-                if (!_isResultShown && _screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime)) ShowResult();
+                bool isEndingComplete = !_isResultShown && _screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime);
+                RenderHud();
+                if (isEndingComplete) ShowResult();
                 return;
             }
             bool isTyping = UiFactory.IsTyping();
@@ -205,9 +206,9 @@ namespace RuneCode
             PlayElementalSounds();
             PlayScrapPickupSounds();
             UpdateDamageFeedback(playerDamageBefore);
-            if (_run.IsWaitingForNextRound && _run.HasClearModifierChoices && !_hasPresentedChoices && !_ui.IsPopupOpen)
+            if (_run.IsWaitingForNextRound && !_hasPresentedChoices && !_ui.IsPopupOpen)
             {
-                if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime))
+                if (_screen.AdvanceEnding(_run.Simulation, unscaledDeltaTime) && _run.HasClearModifierChoices)
                 {
                     ShowRoundChoices();
                     ShowSpellOrderOnboarding();
@@ -974,6 +975,7 @@ namespace RuneCode
             else if (isDebugActionsVisible) UpdateHexaDebugActions(!_run.IsPaused && !_ui.IsPopupOpen);
             else _hud.SetDebugBossMenu(false, false);
             _hud.SetBars(sim.Player.Hp, sim.Player.MaxHp, sim.Player.Energy, sim.Player.MaxEnergy, sim.EnergyRegen);
+            _hud.SetScrapProgress(_run.GetScrapLevelProgress(_screen.HasFinishedLevelUp(sim)));
             _hud.SetCooldowns(sim.Player.Cooldowns[0], sim.Player.CooldownDurations[0],
                 sim.Player.DashCooldown, sim.Player.DashCooldownDuration);
             _hud.SetStats(GameData.L("ui.kills") + " " + sim.KillCount,

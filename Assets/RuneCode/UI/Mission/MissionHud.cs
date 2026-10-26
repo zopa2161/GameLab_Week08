@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using UnityEngine;
@@ -32,6 +32,11 @@ namespace RuneCode
         private static readonly Color WORKSHOP_HIGHLIGHT_COLOR = new Color(1f, 0.85f, 0.2f, 1f);
         private static readonly Vector2 WORKSHOP_HIGHLIGHT_DISTANCE = new Vector2(4f, -4f);
 
+
+        [Header("스크랩 진행 표시")]
+        [SerializeField, Min(1)] private float _scrapProgressHeight = 4f;
+        [SerializeField] private Color _scrapProgressColor = new Color(0.25f, 0.95f, 0.35f, 1f);
+        [SerializeField] private Color _scrapProgressBackground = new Color(0.025f, 0.07f, 0.035f, 0.8f);
 
         [Header("막대")]
         [SerializeField] private TextMeshProUGUI _hpCaption;
@@ -74,6 +79,9 @@ namespace RuneCode
 
         private bool _isBound;
         private Image _upgradePointIcon;
+        private RectTransform _scrapProgressRoot;
+        private RectTransform _scrapProgressFill;
+        private float _scrapProgressFraction = -1;
         private readonly List<Button> _debugBossButtons = new List<Button>();
         private readonly List<Button> _debugActionButtons = new List<Button>();
         private Outline _workshopOutline;
@@ -218,6 +226,8 @@ namespace RuneCode
         /// <summary>버튼 클릭을 이벤트로 처음 한 번만 연결하고 디버그 버튼 표시 여부를 정한다.</summary>
         public void Bind(bool isDebugVisible)
         {
+            EnsureScrapProgressBar();
+            SetScrapProgress(0);
             _energyBaseColor = _energyFill.color;
             if (!_isBound)
             {
@@ -377,6 +387,45 @@ namespace RuneCode
 
             _previousHp = hp;
             _hpFraction = hpFraction;
+        }
+
+        /// <summary>미션 화면 맨 아래에 입력을 가리지 않는 얇은 진행 막대와 초록색 채움 이미지를 한 번 생성한다.</summary>
+        private void EnsureScrapProgressBar()
+        {
+            if (_scrapProgressFill != null) return;
+            var backgroundObject = new GameObject("ScrapProgressBar", typeof(RectTransform), typeof(Image));
+            RectTransform background = backgroundObject.GetComponent<RectTransform>();
+            _scrapProgressRoot = background;
+            background.SetParent(transform, false);
+            background.anchorMin = new Vector2(0, 0);
+            background.anchorMax = new Vector2(1, 0);
+            background.pivot = new Vector2(0.5f, 0);
+            background.anchoredPosition = Vector2.zero;
+            background.sizeDelta = new Vector2(0, _scrapProgressHeight);
+            Image backgroundImage = backgroundObject.GetComponent<Image>();
+            backgroundImage.color = _scrapProgressBackground;
+            backgroundImage.raycastTarget = false;
+            var fillObject = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            _scrapProgressFill = fillObject.GetComponent<RectTransform>();
+            _scrapProgressFill.SetParent(background, false);
+            _scrapProgressFill.anchorMin = Vector2.zero;
+            _scrapProgressFill.anchorMax = new Vector2(0, 1);
+            _scrapProgressFill.offsetMin = _scrapProgressFill.offsetMax = Vector2.zero;
+            Image fillImage = fillObject.GetComponent<Image>();
+            fillImage.color = _scrapProgressColor;
+            fillImage.raycastTarget = false;
+        }
+
+        /// <summary>표시 전용 진행률을 0~1로 제한해 막대를 채우며 0이면 배경까지 숨긴다.</summary>
+        public void SetScrapProgress(double progress)
+        {
+            float fraction = Mathf.Clamp01((float)progress);
+            if (_scrapProgressFill == null) return;
+            bool isVisible = fraction > 0;
+            if (_scrapProgressRoot.gameObject.activeSelf != isVisible) _scrapProgressRoot.gameObject.SetActive(isVisible);
+            if (Mathf.Approximately(_scrapProgressFraction, fraction)) return;
+            _scrapProgressFraction = fraction;
+            _scrapProgressFill.anchorMax = new Vector2(fraction, 1);
         }
 
         /// <summary>처치 문구와 강화 포인트를 표시하고 포인트 앞에 기존 재화 이미지를 같은 텍스트 행에 배치한다.</summary>

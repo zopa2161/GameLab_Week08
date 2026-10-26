@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -39,12 +39,16 @@ namespace RuneCode
         private const int REROLL_STAGE_SEED_FACTOR = 73856093;
         private const int REROLL_ROUND_SEED_FACTOR = 19349663;
         private const int REROLL_CARD_SEED_FACTOR = 83492791;
+        private const double SCRAP_PROGRESS_ACTIVE_LIMIT = 0.99;
         private const double FIXED_STEP = 1.0 / RuneSimulation.TICK_RATE;
         private const string DEBUG_MODIFIER_REWARD_TABLE = "drop.round.modifier";
         private static readonly string[] ELEMENT_PICK_CHOICES = { "element.fire", "element.ice", "element.lightning" };
 
         private readonly RuneCodeSession _session;
         private readonly RuneSimulation _simulation;
+        private readonly double[] _scrapRoundBudgets;
+        private int _scrapRoundStartFragments;
+        private bool _hasCommittedRoundRewards;
         private readonly int _seed;
         private readonly string _testCombatId;
         private CompiledSpell _spell;
@@ -97,6 +101,72 @@ namespace RuneCode
 
         /// <summary>현재 전투 시뮬레이션을 반환한다. 경기장 그래픽과 HUD가 읽는다.</summary>
         public RuneSimulation Simulation => _simulation;
+
+        /// <summary>실제 스크랩 획득 누계로 표시 진행률을 반환한다. 클리어 스크랩도 실제 회수 완료 후 채우고 레벨업 연출 종료 시 0으로 초기화한다.</summary>
+        public double GetScrapLevelProgress(bool hasFinishedLevelUp)
+        {
+            if (!_simulation.IsProgressionMission) return 0;
+            int current = (_simulation.StageNumber - 1) * StageCatalog.PROGRESSION_ROUND_COUNT + _simulation.RoundNumber - 1;
+            if (current < 0 || current >= _scrapRoundBudgets.Length) return 0;
+            bool isRoundComplete = _simulation.IsWaitingForNextRound || _simulation.Completed;
+            if (isRoundComplete && GetRoundUpgradePoints(current) > 0)
+            {
+                if (hasFinishedLevelUp) return 0;
+                if (!_simulation.HasPendingClearScrap) return 1;
+            }
+            int start = current;
+            while (start > 0 && GetRoundUpgradePoints(start - 1) == 0) start--;
+            int end = current;
+            while (end + 1 < _scrapRoundBudgets.Length && GetRoundUpgradePoints(end) == 0) end++;
+            double expected = 0;
+            double completed = 0;
+            for (int index = start; index <= end; index++)
+            {
+                expected += _scrapRoundBudgets[index];
+                if (index < current) completed += _scrapRoundBudgets[index];
+            }
+            if (expected <= 0) return 0;
+            double picked = Math.Max(0, _simulation.EarnedFragments - _scrapRoundStartFragments)
+                / Math.Max(0.000001, _session.ScrapGainMultiplier);
+            double roundProgress = isRoundComplete && !_simulation.HasPendingClearScrap ? _scrapRoundBudgets[current]
+                : Math.Min(picked, _scrapRoundBudgets[current] * SCRAP_PROGRESS_ACTIVE_LIMIT);
+            return Math.Min(SCRAP_PROGRESS_ACTIVE_LIMIT, Math.Max(0, (completed + roundProgress) / expected));
+        }
+
+        /// <summary>평탄화한 라운드 순번에 해당하는 기존 강화 포인트 보상을 반환한다.</summary>
+        private static int GetRoundUpgradePoints(int index)
+            => GameData.Stages.GetRoundUpgradePoints(index / StageCatalog.PROGRESSION_ROUND_COUNT + 1,
+                index % StageCatalog.PROGRESSION_ROUND_COUNT + 1);
+
+        /// <summary>현재 편성의 적 수·보상표·엘리트 배율·분열 자식을 합산해 라운드별 기본 스크랩 예상량을 만든다.</summary>
+        private static double[] CreateScrapRoundBudgets()
+        {
+            var budgets = new double[GameData.Stages.ProgressionStages.Count * StageCatalog.PROGRESSION_ROUND_COUNT];
+            for (int stageIndex = 0; stageIndex < GameData.Stages.ProgressionStages.Count; stageIndex++)
+            {
+                ProgressionStageDefinition stage = GameData.Stages.ProgressionStages[stageIndex];
+                for (int roundIndex = 0; roundIndex < stage.Rounds.Count; roundIndex++)
+                    foreach (WaveDefinition wave in stage.Rounds[roundIndex].Waves)
+                        foreach (WaveUnit unit in wave.Units)
+                        {
+                            EliteSpawnDefinition elite = null;
+                            if (unit.IsElite) stage.TryGetElite(unit.EnemyId, out elite);
+                            budgets[stageIndex * StageCatalog.PROGRESSION_ROUND_COUNT + roundIndex]
+                                += unit.Count * GetExpectedEnemyScrap(unit.EnemyId, elite);
+                        }
+            }
+            return budgets;
+        }
+
+        /// <summary>한 적과 처치 후 분열 자식의 보상표 스크랩을 엘리트 보상 배율과 같은 반올림 규칙으로 합산한다.</summary>
+        private static double GetExpectedEnemyScrap(string enemyId, EliteSpawnDefinition elite)
+        {
+            EnemyDefinition enemy = GameData.Enemies.Get(enemyId);
+            double reward = GameData.Stages.GetReward(enemyId, enemy.Reward);
+            if (elite != null) reward = Math.Round(reward * elite.RewardMultiplier, MidpointRounding.AwayFromZero);
+            if (enemy.CanSplit) reward += enemy.SplitCount * GetExpectedEnemyScrap(enemy.SplitInto, elite);
+            return reward;
+        }
 
         /// <summary>시전할 마법 이름을 반환한다.</summary>
         public string SpellName => _spellName;
@@ -180,6 +250,7 @@ namespace RuneCode
         public MissionRun(RuneCodeSession session, CompiledSpell spell, string spellName)
         {
             _session = session;
+            _scrapRoundBudgets = CreateScrapRoundBudgets();
             _spell = spell;
             _spellName = spellName;
             // 미션마다 시드를 바꿔 스폰·드롭·보상 순서가 매번 달라지게 한다. 재현용으로 시작 텔레메트리에 남긴다.
@@ -187,6 +258,7 @@ namespace RuneCode
             _seed = seed;
             PlayerSave save = session.Save;
             _isResumedRoundBreak = save.HasProgressionRound || session.ResumeAtLaboratory;
+            _hasCommittedRoundRewards = _isResumedRoundBreak;
             double resumeHp = 0;
             if (_isResumedRoundBreak)
             {
@@ -289,7 +361,7 @@ namespace RuneCode
         /// <summary>라운드 대기 중 한 번만 플레이어를 맵 중앙으로 옮기고 시험용 허수아비를 배치한다. 정산이 끝났거나 이미 배치했으면 false를 반환한다.</summary>
         public bool TryPrepareRoundBreakArena()
         {
-            if (_settled) return false;
+            if (_settled || !_hasCommittedRoundRewards) return false;
             return _simulation.TryPrepareRoundBreakArena();
         }
 
@@ -335,6 +407,7 @@ namespace RuneCode
 
         /// <summary>라운드 대기 중 보상 선택과 테스트 모드의 첫 편집창 방문을 마쳐 다음 라운드로 넘어갈 수 있는지 반환한다. 일시정지 여부는 보지 않는다.</summary>
         public bool IsNextRoundReady => !_settled && _simulation.IsWaitingForNextRound
+            && _hasCommittedRoundRewards && !_simulation.HasPendingClearPickups
             && !_session.IsOnboardingEditorVisitRequired
             && (!HasClearModifierChoices || _isClearModifierChosen);
 
@@ -390,6 +463,8 @@ namespace RuneCode
         private void EndRoundBreak(int completedStage, int completedRound, string reason)
         {
             _roundBreakClock.Stop();
+            _scrapRoundStartFragments = _simulation.EarnedFragments;
+            _hasCommittedRoundRewards = false;
             LocalTelemetry.RecordUsabilityEvent("round_break_end", "round_break", new Dictionary<string, object>
             {
                 ["stage"] = completedStage, ["round"] = completedRound,
@@ -420,7 +495,8 @@ namespace RuneCode
                 _simulation.CancelBeamInput();
                 return;
             }
-            bool isInputLocked = _simulation.IsWaitingForNextRound && HasClearModifierChoices && !_isClearModifierChosen;
+            bool isInputLocked = _simulation.HasPendingClearPickups
+                || _simulation.IsWaitingForNextRound && HasClearModifierChoices && !_isClearModifierChosen;
             if (isInputLocked)
             {
                 isCasting = false; castPressed = false; castReleased = false;
@@ -463,6 +539,7 @@ namespace RuneCode
                 _simulation.Step(new SimulationInput(movement, aim, isCasting, false, false, _hasPendingDash,
                     castPressed: _hasPendingCastPress, castReleased: _hasPendingCastRelease,
                     aimPoint: hasPointer ? pointer : (SimVector?)null, isRightClickPressed: isRightClickPressed));
+                _simulation.AdvanceClearPickups();
                 _hasPendingCastPress = false;
                 _hasPendingCastRelease = false;
                 _hasPendingDash = false;
@@ -479,7 +556,6 @@ namespace RuneCode
             if (_simulation.IsWaitingForNextRound && _roundBreakClock == null)
             {
                 SetRoundModifierChoices();
-                CommitRoundRewards();
                 _roundBreakClock = Stopwatch.StartNew();
                 LocalTelemetry.RecordUsabilityEvent("round_break_start", "round_break", new Dictionary<string, object>
                 {
@@ -488,7 +564,12 @@ namespace RuneCode
                     ["enemy_stats"] = _simulation.TakeEnemyCombatLogSnapshot(),
                 });
             }
-            if (_simulation.Completed || _simulation.IsFailed) FinishMission();
+            if (_simulation.IsWaitingForNextRound && !_simulation.HasPendingClearPickups && !_hasCommittedRoundRewards)
+            {
+                CommitRoundRewards();
+                _hasCommittedRoundRewards = true;
+            }
+            if (_simulation.Completed && !_simulation.HasPendingClearPickups || _simulation.IsFailed) FinishMission();
         }
 
         /// <summary>라운드 보상 후보를 만든다. 새 런은 저장된 다음 등급을 사용하고 기존 진행은 확률표를 쓰며, 소비는 라운드 기록과 함께 처리한다.</summary>

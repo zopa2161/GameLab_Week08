@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace RuneCode
@@ -169,26 +169,36 @@ namespace RuneCode
         }
 
         /// <summary>스크랩을 매 틱 끌어당기고 도착한 오브의 재화·획득 횟수를 더하며 살아 있는 플레이어의 최대 체력 비율만큼 회복한다.</summary>
-        internal void CollectNearbyOrbs()
+        internal void CollectNearbyOrbs() => CollectOrbs(_orbs, false, true);
+
+        /// <summary>일반 또는 클리어 회수 목록의 실제 위치를 진행하고 도착한 오브만 수집량·줍기 횟수에 반영한다.</summary>
+        private void CollectOrbs(List<FragmentOrb> orbs, bool forceAttract, bool applyPickupHeal)
         {
-            for (int i = _orbs.Count - 1; i >= 0; i--)
+            for (int i = orbs.Count - 1; i >= 0; i--)
             {
-                FragmentOrb orb = _orbs[i];
-                if (!TryAttractPickup(orb.Position, orb.IsAttracted, out SimVector nextPosition, out bool hasArrived)) continue;
+                FragmentOrb orb = orbs[i];
+                if (!TryAttractPickup(orb.Position, forceAttract || orb.IsAttracted, out SimVector nextPosition, out bool hasArrived)) continue;
                 if (hasArrived)
                 {
                     _collectedFragments += orb.Amount;
-                    if (ScrapHealRatio > 0 && _world.Player.Hp > 0) _world.Player.Heal(_world.Player.MaxHp * ScrapHealRatio);
+                    if (applyPickupHeal && ScrapHealRatio > 0 && _world.Player.Hp > 0) _world.Player.Heal(_world.Player.MaxHp * ScrapHealRatio);
                     if (orb.IsBigScrap) _bigScrapPickupEventCount++;
                     else _normalScrapPickupEventCount++;
-                    _orbs.RemoveAt(i);
+                    orbs.RemoveAt(i);
                 }
                 else
                 {
                     orb.AttractTo(nextPosition);
-                    _orbs[i] = orb;
+                    orbs[i] = orb;
                 }
             }
+        }
+
+        /// <summary>클리어 잔여 스크랩과 룬을 일반 줍기와 같은 이동·도착 처리로 회수한다. 기존 클리어의 스크랩 회복 효과는 추가하지 않는다.</summary>
+        internal void AdvanceClearPickups()
+        {
+            CollectOrbs(_clearOrbs, true, false);
+            CollectItemDrops(_clearItemDrops, true);
         }
 
         /// <summary>공통 줍기 반경과 추적 상태로 자석 이동 여부를 반환하고 다음 위치와 플레이어 도착 여부를 계산한다.</summary>
@@ -208,15 +218,12 @@ namespace RuneCode
         /// <summary>전투 종료 시 획득하지 않은 스크랩 오브를 보상에 더하지 않고 정리한다.</summary>
         internal void DiscardUncollectedOrbs() { _orbs.Clear(); }
 
-        /// <summary>클리어 시 잔여 드롭을 연출용으로 보존하고 스크랩과 룬을 한 번 회수한 뒤 바닥 드롭 목록을 비운다.</summary>
+        /// <summary>클리어 시 잔여 드롭을 실제 자동 회수 목록으로 옮긴다. 수집량은 플레이어에게 도착할 때만 증가한다.</summary>
         internal void CollectRemainingDrops()
         {
             _clearOrbs.AddRange(_orbs);
             _clearItemDrops.AddRange(_itemDrops);
-            foreach (FragmentOrb orb in _orbs) _collectedFragments += orb.Amount;
             _orbs.Clear();
-            _pickedUpItems.AddRange(_itemDrops);
-            _newPickedItems.AddRange(_itemDrops);
             _itemDrops.Clear();
         }
 
@@ -262,15 +269,18 @@ namespace RuneCode
         }
 
         /// <summary>스크랩과 같은 반경에서 Modifier를 끌어당기고 플레이어에게 도착하면 누적 목록과 미지급 목록에 넣는다.</summary>
-        internal void CollectNearbyItemDrops()
+        internal void CollectNearbyItemDrops() => CollectItemDrops(_itemDrops, false);
+
+        /// <summary>지정 목록의 룬을 이동시키고 플레이어에게 도착했을 때 획득 목록에 한 번 추가한다.</summary>
+        private void CollectItemDrops(List<SimulationItemDrop> drops, bool forceAttract)
         {
-            for (int i = _itemDrops.Count - 1; i >= 0; i--)
+            for (int i = drops.Count - 1; i >= 0; i--)
             {
-                SimulationItemDrop drop = _itemDrops[i];
-                if (!TryAttractPickup(drop.Position, drop.IsAttracted, out SimVector nextPosition, out bool hasArrived)) continue;
+                SimulationItemDrop drop = drops[i];
+                if (!TryAttractPickup(drop.Position, forceAttract || drop.IsAttracted, out SimVector nextPosition, out bool hasArrived)) continue;
                 drop.AttractTo(nextPosition);
                 if (!hasArrived) continue;
-                _itemDrops.RemoveAt(i);
+                drops.RemoveAt(i);
                 _pickedUpItems.Add(drop);
                 _newPickedItems.Add(drop);
             }
