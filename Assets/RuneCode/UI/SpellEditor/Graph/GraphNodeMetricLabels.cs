@@ -60,6 +60,12 @@ namespace RuneCode
             if (_details.TryGetValue(nodeId, out TextMeshProUGUI details)) details.transform.SetAsLastSibling();
         }
 
+        /// <summary>지정 노드의 지표를 같은 좌표계를 쓰는 드래그 레이어 또는 원래 부모로 옮긴다.</summary>
+        public void SetNodeParent(string nodeId, RectTransform parent)
+        {
+            if (_details.TryGetValue(nodeId, out TextMeshProUGUI details)) details.transform.SetParent(parent, false);
+        }
+
         /// <summary>사용 전력을 노드 이름 바로 아래 오른쪽 끝에 맞춰 배치한다.</summary>
         private void LayoutDetailsLabel(TextMeshProUGUI label, Rect nodeRect, Vector3 scale)
         {

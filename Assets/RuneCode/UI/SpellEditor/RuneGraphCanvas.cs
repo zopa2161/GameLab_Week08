@@ -56,6 +56,7 @@ namespace RuneCode
         private int _moduleInputFrame = -1;
         private bool _hasDetachedDrag;
         private bool _isBehaviorDrag;
+        private RectTransform _blockDragLayer;
 
         public bool HasPickedModule => _pickedModulePreview != null;
 
@@ -358,6 +359,9 @@ namespace RuneCode
 
         protected override void OnDisable()
         {
+            _labels?.SetDragLayer(null, null);
+            if (_blockDragLayer != null) Destroy(_blockDragLayer.gameObject);
+            _blockDragLayer = null;
             CancelPickedModule();
             _editor?.EndBlockEdit();
             _hasDetachedDrag = false;
@@ -735,10 +739,41 @@ namespace RuneCode
         private void LayoutLabels()
         {
             if (!HasGraph) return;
+            UpdateBlockDragLayer();
             _layout.PlaceGhosts();
             _labels.Layout(_editor.Graph);
             _overlayLayer.transform.SetAsLastSibling();
             RefreshMeshes();
+        }
+
+        /// <summary>이동 중인 행동 묶음만 루트 캔버스 위에 표시하고 드래그가 끝나면 원래 편집기 레이어로 복구한다.</summary>
+        private void UpdateBlockDragLayer()
+        {
+            bool isDragging = _isBehaviorDrag && _state.IsNodeDragging && _hasDetachedDrag;
+            if (isDragging)
+            {
+                if (_blockDragLayer == null)
+                {
+                    _blockDragLayer = (RectTransform)new GameObject("BlockDragLayer", typeof(RectTransform), typeof(CanvasGroup)).transform;
+                    _blockDragLayer.SetParent(canvas.rootCanvas.transform, false);
+                    _blockDragLayer.GetComponent<CanvasGroup>().blocksRaycasts = false;
+                }
+                _blockDragLayer.pivot = rectTransform.pivot;
+                _blockDragLayer.anchorMin = _blockDragLayer.anchorMax = new Vector2(0.5f, 0.5f);
+                _blockDragLayer.sizeDelta = rectTransform.rect.size;
+                _blockDragLayer.position = rectTransform.position;
+                _blockDragLayer.rotation = rectTransform.rotation;
+                Vector3 parentScale = _blockDragLayer.parent.lossyScale;
+                Vector3 sourceScale = rectTransform.lossyScale;
+                _blockDragLayer.localScale = new Vector3(sourceScale.x / parentScale.x, sourceScale.y / parentScale.y, 1f);
+                _blockDragLayer.SetAsLastSibling();
+            }
+            _labels.SetDragLayer(_state.DragOrigins.Keys, isDragging ? _blockDragLayer : null);
+            if (!isDragging && _blockDragLayer != null)
+            {
+                Destroy(_blockDragLayer.gameObject);
+                _blockDragLayer = null;
+            }
         }
 
         /// <summary>배경·연결선·노드 본체·최상단 조작 표시의 메시 갱신을 함께 예약한다.</summary>
