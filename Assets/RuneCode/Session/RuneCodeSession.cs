@@ -28,6 +28,7 @@ namespace RuneCode
         private bool _isSaveDirty;
         private bool _hasStartedGame;
         private bool _isRunSuspended;
+        private bool _resumeAtLaboratory;
         private int _workshopStage;
         private int _workshopRound;
         private int _testOnboardingChapter;
@@ -64,6 +65,7 @@ namespace RuneCode
 
         /// <summary>라운드 대기 중 작업실을 열어 진행 중인 런을 보관하고 있는지 반환한다.</summary>
         public bool IsRunSuspended => _isRunSuspended;
+        public bool ResumeAtLaboratory => _resumeAtLaboratory && !IsMemorySession;
 
         public string DockScenario => _dockScenario;
         public int DockDummyCount => _dockDummyCount;
@@ -181,10 +183,12 @@ namespace RuneCode
 
         /// <summary>
         /// 일반 저장 또는 메모리 디버그 진행을 열고, 빌드의 일반 시작은 로그 회차도 자동 생성한다.
+        /// resumeAtLaboratory이면 일반 진행을 마지막 완료 지점 또는 첫 전투 전 실험실에서 시작한다.
         /// 출격 요청을 기록한 뒤 전투 화면으로 바로 전환하며, 출격 준비에 실패하면 미션 화면이 작업실로 보낸다.
         /// </summary>
-        public void StartGame(bool isDebug)
+        public void StartGame(bool isDebug, bool resumeAtLaboratory = false)
         {
+            _resumeAtLaboratory = !isDebug && resumeAtLaboratory;
             _hasStartedGame = true;
             _isRunSuspended = false;
             if (LocalTelemetry.IsUsabilityTestActive) LocalTelemetry.EndUsabilityTest("mode_changed", _spells.Graph);
@@ -357,7 +361,6 @@ namespace RuneCode
         public bool SelectSaveSlot(int slot)
         {
             if (!SaveStore.TryLoadSlot(slot, out PlayerSave loaded)) return false;
-            SaveStore.SetActiveSlot(slot);
             _normalSave = loaded;
             if (!IsMemorySession)
             {
@@ -371,7 +374,7 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>빈 타이틀 슬롯에 새 진행을 만들고 현재 일반 세션에도 적용한다.</summary>
+        /// <summary>새 진행을 단일 저장에 기록하고 현재 일반 세션에도 적용한다. 기존 진행 교체 확인은 타이틀에서 처리한다.</summary>
         public bool CreateSaveSlot(int slot)
         {
             if (!SaveStore.CreateSlot(slot, out PlayerSave created)) return false;
@@ -680,6 +683,7 @@ namespace RuneCode
         /// <summary>현재 모드에 맞는 새 진행으로 바꾸고 보관 중인 런을 버린 뒤 편집 세션을 다시 연다. 일반 진행은 _normalSave도 함께 바꾸고 디버그면 룬을 전부 해금한다.</summary>
         private void RenewSave()
         {
+            _resumeAtLaboratory = false;
             _hasEnteredTestEditorDuringWorkshop = false;
             _save = PlayerSave.CreateNew();
             if (_isDebugEnabled) PrepareDebugSave();

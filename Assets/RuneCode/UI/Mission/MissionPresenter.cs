@@ -829,7 +829,7 @@ namespace RuneCode
             _lastBigScrapPickupEventCount = 0;
             _lastBigScrapSpawnEventCount = _run.Simulation.BigScrapSpawnEventCount;
             _isResultShown = false;
-            _hasPresentedChoices = false;
+            _hasPresentedChoices = _run.IsResumedRoundBreak && _run.IsClearModifierChosen;
             _ui.CloseAllPopups();
             _result.Hide();
             _lastPickedItemCount = 0;
@@ -908,7 +908,8 @@ namespace RuneCode
 
         /// <summary>연속 미션은 현재 스테이지·라운드와 각 총수를, 기존 전투는 스테이지 번호만 반환한다.</summary>
         private static string GetStageText(RuneSimulation sim)
-            => sim.IsProgressionMission
+            => sim.IsProgressionMission && sim.RoundNumber == 0 ? GameData.L("save.initialLaboratory")
+                : sim.IsProgressionMission
                 ? "스테이지 " + sim.StageNumber + "/" + StageCatalog.PROGRESSION_STAGE_COUNT
                     + " · 라운드 " + sim.RoundNumber + "/" + StageCatalog.PROGRESSION_ROUND_COUNT
                 : GameData.L("ui.stage") + " " + sim.StageNumber;

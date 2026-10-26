@@ -1,5 +1,7 @@
 {
   "_entries": [
+    {"_key": "save.replaceConfirm", "_value": "기존 진행을 초기화하고 새 게임을 시작합니다. 소리와 화면 설정은 유지됩니다."},
+    {"_key": "save.initialLaboratory", "_value": "첫 전투 전 실험실"},
     { "_key": "enemy.mini_governor", "_value": "미니 거버너" },
     { "_key": "enemy.legolas", "_value": "레골라스" },
     { "_key": "boss.governor_squad", "_value": "거버너" },
@@ -27,7 +29,7 @@
     {"_key": "ui.mouseControls.pan", "_value": "우클릭 후 마우스를 움직여 화면 이동"},
     {"_key": "save.newGameHint", "_value": "새 게임을 시작할 빈 저장 슬롯을 선택하세요."},
     {"_key": "save.continueHint", "_value": "이어서 시작할 저장 데이터를 선택하세요."},
-    {"_key": "save.manageHint", "_value": "저장 데이터를 삭제할 수 있습니다. 새로 하기와 이어 하기는 타이틀에서 선택하세요."},
+    {"_key": "save.manageHint", "_value": "진행 데이터를 삭제할 수 있습니다. 새로 하기와 이어 하기는 타이틀에서 선택하세요."},
     {"_key": "save.noEmptySlots", "_value": "빈 저장 슬롯이 없습니다. 저장 관리에서 세이브 데이터를 관리해 주세요."},
     {"_key": "save.occupiedSlot", "_value": "이미 데이터가 있는 슬롯입니다. 저장 관리에서 세이브 데이터를 관리해 주세요."},
     {"_key": "save.noContinueSlots", "_value": "이어 할 저장 데이터가 없습니다."},
@@ -1869,7 +1871,7 @@
     },
     {
       "_key": "save.deleteConfirm",
-      "_value": "이 슬롯의 저장 데이터를 삭제합니다. 삭제한 슬롯은 새 게임으로 다시 만들 수 있습니다."
+      "_value": "진행 데이터를 삭제합니다. 소리와 화면 설정은 유지됩니다."
     },
     {
       "_key": "save.save",
@@ -1885,7 +1887,7 @@
     },
     {
       "_key": "save.loadConfirm",
-      "_value": "저장된 진행을 불러오면 현재 저장하지 않은 변경사항을 덮어씁니다."
+      "_value": "저장하지 않은 변경사항을 버리고 마지막으로 완료한 스테이지의 실험실로 돌아갑니다. 진행 중이던 전투는 처음부터 다시 시작합니다."
     },
     {
       "_key": "save.loadSlot",

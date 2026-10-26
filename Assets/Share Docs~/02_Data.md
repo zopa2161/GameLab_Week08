@@ -26,7 +26,7 @@ flowchart LR
     J1 & J2 & J3 & J4 & J5 & J6 --> GD
     PF --> GD
     subgraph Persist["영속 데이터"]
-        SAVEFILE["runecode.slot.N.v4.json (AES 암호화)"]
+        SAVEFILE["runecode.progress.v4.json (AES 암호화)"]
         PREFS["PlayerPrefs"]
     end
     SAVEFILE <--> SS["SaveStore"] <--> PS["PlayerSave"]
@@ -331,7 +331,7 @@ classDiagram
 
 | 항목 | 값 |
 |---|---|
-| 경로 | `Application.persistentDataPath/runecode.slot.{1~3}.v4.json` |
+| 경로 | `Application.persistentDataPath/runecode.progress.v4.json` |
 | 슬롯 수 | 3 (`SaveStore.SLOT_COUNT`) |
 | 형식 | `JsonUtility` JSON을 AES-256-CBC로 암호화, 앞에 `RC-AES-CBC-1:` 표식. 표식이 없는 평문도 읽을 수 있다 |
 | 쓰기 | 임시 파일에 쓴 뒤 원자적 교체, 직전 정상 파일 백업 (`WriteToSlot`) |
