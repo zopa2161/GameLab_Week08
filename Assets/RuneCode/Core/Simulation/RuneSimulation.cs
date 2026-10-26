@@ -473,7 +473,8 @@ namespace RuneCode
             bool wasDashing = _world.Player.DashRemaining > 0.000001;
             _world.Player.Aim(input.AimDirection);
             double regen = _world.EnergyRegen;
-            if (input.Movement.LengthSquared <= 0.000001 && !wasDashing) regen *= 1 + _world.Upgrades.StationaryRegenBonus;
+            if (input.Movement.LengthSquared <= 0.000001 && !wasDashing && _world.Upgrades.StationaryRegenBonus > 0)
+                regen *= PlayerUpgradeStats.STATIONARY_REGEN_MULTIPLIER;
             _world.Player.Advance(STEP_SECONDS, Time, regen);
             bool startedDash = MovePlayer(input);
             if (startedDash) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_START);

@@ -48,11 +48,11 @@ MonoBehaviour:
       _amount: 1
   - _id: upgrade.runMoveSpeed.0
     _requiredStage: 1
-    _titleKey: ui.tree.runMoveSpeed
-    _descriptionKey: ui.tree.runMoveSpeedDescription
+    _titleKey: ui.tree.dashCooldown
+    _descriptionKey: ui.tree.dashCooldownDescription
     _icon: {fileID: 0}
     _layoutCell: {x: 7, y: 14}
-    _effectType: 7
+    _effectType: 16
     _runeId: 
     _initialLevel: 0
     _prerequisites:
@@ -220,9 +220,11 @@ MonoBehaviour:
     _runeId: 
     _initialLevel: 0
     _prerequisites:
-    - _nodeId: upgrade.stationaryRegen.0
+    - _nodeId: upgrade.returningBurst.0
       _requiredLevel: 1
-    - _nodeId: upgrade.aura.0
+    - _nodeId: upgrade.flyingSlash.0
+      _requiredLevel: 1
+    - _nodeId: upgrade.returningLaunch.0
       _requiredLevel: 1
     _exclusiveGroupId: 
     _levels:
@@ -244,13 +246,13 @@ MonoBehaviour:
     _levels:
     - _cost: 1
       _amount: 0.1
-  - _id: upgrade.aura.0
+  - _id: upgrade.flyingSlash.0
     _requiredStage: 1
-    _titleKey: ui.tree.aura
-    _descriptionKey: ui.tree.auraDescription
+    _titleKey: ui.tree.flyingSlash
+    _descriptionKey: ui.tree.flyingSlashDescription
     _icon: {fileID: 0}
     _layoutCell: {x: 10, y: 11}
-    _effectType: 26
+    _effectType: 36
     _runeId: 
     _initialLevel: 0
     _prerequisites:
@@ -260,13 +262,13 @@ MonoBehaviour:
     _levels:
     - _cost: 1
       _amount: 1
-  - _id: upgrade.stationaryRegen.0
+  - _id: upgrade.returningBurst.0
     _requiredStage: 1
-    _titleKey: ui.tree.stationaryRegen
-    _descriptionKey: ui.tree.stationaryRegenDescription
+    _titleKey: ui.tree.returningBurst
+    _descriptionKey: ui.tree.returningBurstDescription
     _icon: {fileID: 0}
     _layoutCell: {x: 12, y: 11}
-    _effectType: 23
+    _effectType: 38
     _runeId: 
     _initialLevel: 0
     _prerequisites:
@@ -404,13 +406,13 @@ MonoBehaviour:
     _levels:
     - _cost: 1
       _amount: 1
-  - _id: upgrade.rightClickStart.0
+  - _id: upgrade.stationaryRegen.0
     _requiredStage: 1
-    _titleKey: ui.tree.rightClickStart
-    _descriptionKey: ui.tree.rightClickStartDescription
+    _titleKey: ui.tree.stationaryRegen
+    _descriptionKey: ui.tree.stationaryRegenDescription
     _icon: {fileID: 0}
     _layoutCell: {x: 12, y: 16}
-    _effectType: 33
+    _effectType: 23
     _runeId: 
     _initialLevel: 0
     _prerequisites:
@@ -433,6 +435,22 @@ MonoBehaviour:
     - _nodeId: upgrade.damage.0
       _requiredLevel: 1
     _exclusiveGroupId: 
+    _levels:
+    - _cost: 0
+      _amount: 0
+  - _id: upgrade.returningLaunch.0
+    _requiredStage: 1
+    _titleKey: ui.tree.returningLaunch
+    _descriptionKey: ui.tree.returningLaunchDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 11, y: 11}
+    _effectType: 37
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.new
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.stance
     _levels:
     - _cost: 0
       _amount: 0

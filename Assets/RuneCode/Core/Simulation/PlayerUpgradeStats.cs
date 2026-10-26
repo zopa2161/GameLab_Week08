@@ -6,6 +6,9 @@ namespace RuneCode
     /// </summary>
     public sealed class PlayerUpgradeStats
     {
+        /// <summary>'정지 마나 회복' 강화를 보유했을 때 정지 중 마나 회복량에 적용하는 배율이다.</summary>
+        public const double STATIONARY_REGEN_MULTIPLIER = 5;
+
         /// <summary>강화가 없는 기본 묶음이다.</summary>
         public static readonly PlayerUpgradeStats None = new PlayerUpgradeStats();
 

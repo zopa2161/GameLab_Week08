@@ -1210,7 +1210,7 @@
     },
     {
       "_key": "ui.tree.stationaryRegenDescription",
-      "_value": "움직이지 않을 때 마나 회복 속도가 2배가 됩니다"
+      "_value": "움직이지 않을 때 마나 회복 속도가 5배가 됩니다"
     },
     {
       "_key": "ui.tree.singleBehavior",
