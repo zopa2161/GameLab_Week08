@@ -141,6 +141,7 @@ namespace RuneCode
             _stats.GetActionCombatStats(entity.Action).RecordOnHit();
             bool tracksDirectHit = entity.Behavior.TracksDirectHit;
             if (tracksDirectHit) entity.HasDirectHit = true;
+            if (entity.SuppressesTriggers) return;
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action,
                 castDamageMultiplier: entity.CastDamageMultiplier);
@@ -236,6 +237,7 @@ namespace RuneCode
         /// <summary>소멸 이벤트를 개체 위치와 대상 없이 실행한다. OnExpire 다음 첫 이벤트 순서다.</summary>
         internal void RaiseExpireEvent(SimulationSpellEntity entity)
         {
+            if (entity.SuppressesTriggers) return;
             SpellContext context = new SpellContext(entity.Position, entity.Direction, null, true,
                 entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id,
                 castDamageMultiplier: entity.CastDamageMultiplier);

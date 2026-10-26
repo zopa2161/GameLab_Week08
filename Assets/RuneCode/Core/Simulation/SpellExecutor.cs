@@ -83,6 +83,7 @@ namespace RuneCode
                 SimHash.AppendNumber(state, pending.Context.CostMultiplier);
                 SimHash.AppendNumber(state, pending.Context.CastDamageMultiplier);
                 if (pending.Context.IsManaPrepaid) state.Append("|manaPrepaid");
+                if (pending.Context.SuppressesTriggers) state.Append("|noTriggers");
                 state.Append(pending.Context.SourceEntityId).Append('|');
                 if (pending.Tracker != null)
                 {
@@ -183,8 +184,10 @@ namespace RuneCode
                 + (_world.Time - _world.Player.LastDashStartTime <= _world.Balance.Player.PostDashBuffSeconds ? _world.Upgrades.PostDashDamageBonus : 0d);
             // 대시 종료 시작 노드는 밸런스의 비용 배율을 루트 문맥에 두고 각 행동 결제(TrySpendFor)에서 곱해진다.
             double costMultiplier = spell.Trigger == SpellGrammar.TRIGGER_ON_DASH_END ? _world.Balance.Player.DashEndCostMultiplier : 1d;
+            bool isStatusStackCast = spell.Trigger == SpellGrammar.TRIGGER_ON_STATUS_STACK;
             var context = new SpellContext(origin, direction, target, false, null,
-                caster: _world.Player, randomState: new SpellRandomState(), castDamageMultiplier: castDamageMultiplier, costMultiplier: costMultiplier);
+                caster: _world.Player, randomState: new SpellRandomState(), castDamageMultiplier: castDamageMultiplier, costMultiplier: costMultiplier,
+                isManaPrepaid: isStatusStackCast, suppressesTriggers: isStatusStackCast);
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
             ExecuteRootBranches(spell.Root, context, tracker);
             RecordRootCastPayment(rootCast);
@@ -522,7 +525,8 @@ namespace RuneCode
                     context.Modifiers, context.CostMultiplier, context.Caster, context.CastDamageMultiplier,
                     action.Form == SlashBehaviorRules.KIND ? _world.Upgrades.HasFlyingSlash
                         : action.Form == SpellGrammar.FORM_BOLT ? _world.Upgrades.HasReturningLaunch
-                        : action.Form == SpellGrammar.FORM_BURST && _world.Upgrades.HasReturningBurst);
+                        : action.Form == SpellGrammar.FORM_BURST && _world.Upgrades.HasReturningBurst,
+                    suppressesTriggers: context.SuppressesTriggers);
                 if (entity.BehaviorState is SlashBehaviorRuntime.SlashState slash) slash.SetAnchorTarget(context.Target);
                 _stats.RecordActionSpawn(action, context);
                 _world.SpellEntities.Add(entity); _stats.PeakSpellEntities = Math.Max(_stats.PeakSpellEntities, _world.SpellEntities.Count);
