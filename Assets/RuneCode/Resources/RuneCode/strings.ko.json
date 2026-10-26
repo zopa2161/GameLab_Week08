@@ -1,8 +1,8 @@
 {
   "_entries": [
-    { "_key": "result.rerollAvailable", "_value": "다시 뽑기 · 무료 1회" },
-    { "_key": "result.rerollUsed", "_value": "다시 뽑기 · 사용 완료" },
-    { "_key": "result.rerollUnavailable", "_value": "다시 뽑기 · 새 후보 없음" },
+    { "_key": "result.rerollAvailable", "_value": "다시 뽑기 · 1회" },
+    { "_key": "result.rerollUsed", "_value": "사용 완료" },
+    { "_key": "result.rerollUnavailable", "_value": "새 후보 없음" },
     { "_key": "hexa", "_value": "Hexa" },
     { "_key": "boss.mini_governor", "_value": "미니 거버너" },
     { "_key": "boss.legolas", "_value": "레골라스" },

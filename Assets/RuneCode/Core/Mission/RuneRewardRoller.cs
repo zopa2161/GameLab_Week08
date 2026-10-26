@@ -37,28 +37,15 @@ namespace RuneCode
             return DrawChoices(table, category, grade, count, random);
         }
 
-        /// <summary>같은 분류·등급에서 직전 후보 밖의 룬을 먼저 가중 추첨하고 부족한 자리만 직전 후보로 채운다. 대체 후보가 없으면 빈 목록을 반환한다.</summary>
-        public static List<DropRoll> DrawRerolledChoices(DropTableDefinition table, string category, string grade,
-            IReadOnlyList<string> previousIds, Func<double> random)
+        /// <summary>같은 보상 분류·등급에서 아직 보지 않은 룬 하나를 우선 추첨한다. 부족하면 과거 후보를 허용하되 현재 화면의 룬은 제외하고, 대체 후보가 없으면 false를 반환한다.</summary>
+        public static bool TryDrawRerolledChoice(DropTableDefinition table, string category, string grade,
+            IReadOnlyList<string> currentIds, IReadOnlyList<string> seenIds, Func<double> random, out DropRoll roll)
         {
-            var choices = new List<DropRoll>();
-            var excludedIds = new HashSet<string>(previousIds, StringComparer.Ordinal);
-            var chosenIds = new HashSet<string>(StringComparer.Ordinal);
-            for (int slot = 0; slot < previousIds.Count; slot++)
-            {
-                if (!TryDrawCandidate(table, category, grade, excludedIds, random, out DropRoll roll, true)) break;
-                choices.Add(roll);
-                chosenIds.Add(roll.RuneId);
-                excludedIds.Add(roll.RuneId);
-            }
-            if (choices.Count == 0) return choices;
-            while (choices.Count < previousIds.Count)
-            {
-                if (!TryDrawCandidate(table, category, grade, chosenIds, random, out DropRoll roll, true)) break;
-                choices.Add(roll);
-                chosenIds.Add(roll.RuneId);
-            }
-            return choices;
+            var excludedIds = new HashSet<string>(seenIds, StringComparer.Ordinal);
+            excludedIds.UnionWith(currentIds);
+            if (TryDrawCandidate(table, category, grade, excludedIds, random, out roll, true)) return true;
+            excludedIds = new HashSet<string>(currentIds, StringComparer.Ordinal);
+            return TryDrawCandidate(table, category, grade, excludedIds, random, out roll, true);
         }
 
         /// <summary>이전 저장의 후보 등급 또는 속성 보상 항목에서 공통 보상 등급을 복원한다. 속성 등급이 모호하면 null을 반환한다.</summary>

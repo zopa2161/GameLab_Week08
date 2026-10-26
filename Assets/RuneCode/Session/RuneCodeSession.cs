@@ -761,24 +761,42 @@ namespace RuneCode
             if (persist) PersistProgress();
         }
 
-        /// <summary>현재 라운드에 아직 선택하지 않은 보상의 첫 리롤이면 후보·등급과 사용 여부를 함께 저장하고 성공 여부를 반환한다.</summary>
-        public bool TrySaveRerolledRoundChoice(int stage, int round, IReadOnlyList<string> ids,
-            IReadOnlyList<string> grades, string rewardGrade)
+        /// <summary>현재 라운드의 미사용 카드 index 하나만 교체하고 후보·카드별 사용 상태·열람 이력을 함께 저장한다. 저장 실패 시 이전 상태를 복원하고 false를 반환한다.</summary>
+        public bool TrySaveRerolledRoundChoice(int stage, int round, int index, string runeId, string grade, string rewardGrade)
         {
-            if (_save.ProgressionStage != stage || _save.ProgressionRound != round || _save.HasRerolledRoundChoice
-                || _save.PendingRoundChoiceIds.Count == 0 || ids.Count != _save.PendingRoundChoiceIds.Count
-                || ids.Count != grades.Count || string.IsNullOrEmpty(rewardGrade)) return false;
-            for (int index = 0; index < ids.Count; index++)
-                if (!RuneRewardRoller.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, ids[index], grades[index]))
-                    return false;
+            if (_save.ProgressionStage != stage || _save.ProgressionRound != round
+                || index < 0 || index >= _save.PendingRoundChoiceIds.Count || _save.HasRerolledRoundChoice(index)
+                || _save.PendingRoundChoiceIds.Contains(runeId) || string.IsNullOrEmpty(rewardGrade)
+                || !RuneRewardRoller.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, runeId, grade)) return false;
+            string tableId = GameData.Stages.GetProgressionStage(stage).Rounds[round - 1].RewardDropTable;
+            DropTableDefinition table = GameData.Drops.Get(tableId);
+            string category = GameData.Stages.GetRoundRewardCategory(stage, round, GameData.Drops);
+            string expectedRewardGrade = _save.PendingRoundRewardGrade;
+            if (string.IsNullOrEmpty(expectedRewardGrade))
+                expectedRewardGrade = RuneRewardRoller.ResolveChoiceGrade(table, _save.PendingRoundChoiceIds, _save.PendingRoundChoiceGrades);
+            string expectedGrade = GameData.Runes.Get(runeId).Category == SpellGrammar.CATEGORY_ELEMENT ? "" : rewardGrade;
+            if (rewardGrade != expectedRewardGrade || grade != expectedGrade
+                || !RuneRewardRoller.CollectChoiceCandidates(table, category, rewardGrade, GameData.Runes,
+                    GameData.ModifierGrades, null).Exists(candidate => candidate.Key == runeId && candidate.Value > 0)) return false;
             IReadOnlyList<string> previousIds = _save.PendingRoundChoiceIds;
             IReadOnlyList<string> previousGrades = _save.PendingRoundChoiceGrades;
+            IReadOnlyList<string> previousSeenIds = _save.PendingRoundSeenRuneIds;
             string previousRewardGrade = _save.PendingRoundRewardGrade;
+            var previousRerolls = new bool[previousIds.Count];
+            for (int slot = 0; slot < previousRerolls.Length; slot++) previousRerolls[slot] = _save.HasRerolledRoundChoice(slot);
+            var ids = new List<string>(previousIds);
+            var grades = new List<string>(previousGrades);
+            var rerolls = (bool[])previousRerolls.Clone();
+            var seenIds = new List<string>(previousSeenIds);
+            ids[index] = runeId;
+            grades[index] = grade;
+            rerolls[index] = true;
+            if (!seenIds.Contains(runeId)) seenIds.Add(runeId);
             bool wasSaveDirty = _isSaveDirty;
-            _save.SetPendingRoundChoice(ids, grades, rewardGrade, true);
+            _save.SetPendingRoundChoice(ids, grades, rewardGrade, rerolls, seenIds);
             if (!IsMemorySession && !WriteCurrentSave(_save))
             {
-                _save.SetPendingRoundChoice(previousIds, previousGrades, previousRewardGrade);
+                _save.SetPendingRoundChoice(previousIds, previousGrades, previousRewardGrade, previousRerolls, previousSeenIds);
                 _isSaveDirty = wasSaveDirty;
                 SetStatusText(SaveStore.LastWarning);
                 return false;

@@ -88,6 +88,9 @@ namespace RuneCode
         /// <summary>소강상태의 작업실 열기 버튼을 눌렀을 때 알린다.</summary>
         public event Action WorkshopClicked;
 
+        public float WorkshopButtonHeight => ((RectTransform)_workshopButton.transform).rect.height;
+        public ColorBlock WorkshopButtonColors => _workshopButton.colors;
+
         /// <summary>편집창 또는 강화 트리 바로가기를 눌렀을 때 대상 탭 ID를 알린다.</summary>
         public event Action<string> WorkshopTabClicked;
 

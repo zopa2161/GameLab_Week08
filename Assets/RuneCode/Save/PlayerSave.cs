@@ -43,7 +43,10 @@ namespace RuneCode
         [SerializeField] private string[] _pendingRoundChoiceIds;
         [SerializeField] private string[] _pendingRoundChoiceGrades;
         [SerializeField] private string _pendingRoundRewardGrade;
+        // 이전 전체 리롤 저장의 사용 여부를 카드별 상태로 읽기 위한 필드다.
         [SerializeField] private bool _hasRerolledRoundChoice;
+        [SerializeField] private bool[] _pendingRoundChoiceRerolls;
+        [SerializeField] private string[] _pendingRoundSeenRuneIds;
 
         [Header("런 선택 보상 순서")]
         [SerializeField] private bool _usesFixedRewardGrades;
@@ -74,7 +77,7 @@ namespace RuneCode
         public IReadOnlyList<string> PendingRoundChoiceIds => _pendingRoundChoiceIds ?? Array.Empty<string>();
         public IReadOnlyList<string> PendingRoundChoiceGrades => _pendingRoundChoiceGrades ?? Array.Empty<string>();
         public string PendingRoundRewardGrade => _pendingRoundRewardGrade;
-        public bool HasRerolledRoundChoice => _hasRerolledRoundChoice;
+        public IReadOnlyList<string> PendingRoundSeenRuneIds => _pendingRoundSeenRuneIds ?? PendingRoundChoiceIds;
         public int SelectedStage => _selectedStage;
         public string ActiveSpellId => _activeSpellId;
         public bool SectorCleared => _sectorCleared;
@@ -605,10 +608,23 @@ namespace RuneCode
                     }
                 }
             }
-            if (_hasRerolledRoundChoice && (PendingRoundChoiceIds.Count == 0 || string.IsNullOrEmpty(_pendingRoundRewardGrade)))
+            if ((_pendingRoundChoiceRerolls != null && _pendingRoundChoiceRerolls.Length != PendingRoundChoiceIds.Count)
+                || (_hasRerolledRoundChoice || _pendingRoundChoiceRerolls != null && Array.Exists(_pendingRoundChoiceRerolls, used => used))
+                    && (PendingRoundChoiceIds.Count == 0 || string.IsNullOrEmpty(_pendingRoundRewardGrade)))
             {
                 error = "save.invalidValues";
                 return false;
+            }
+            if (_pendingRoundSeenRuneIds != null)
+            {
+                var seenRuneIds = new HashSet<string>(StringComparer.Ordinal);
+                if (_pendingRoundSeenRuneIds.Length > PendingRoundChoiceIds.Count * 2
+                    || _pendingRoundSeenRuneIds.Any(id => string.IsNullOrEmpty(id) || !seenRuneIds.Add(id) || !GameData.Runes.TryGet(id, out _))
+                    || PendingRoundChoiceIds.Any(id => !seenRuneIds.Contains(id)))
+                {
+                    error = "save.invalidValues";
+                    return false;
+                }
             }
             if (_graphs == null || _graphs.Count == 0 || _graphs.Count > economy.MaxLibrary ||
                 _loadout == null || _loadout.Count != 3 || _unlockedRunes == null || _killCounts == null || _upgradeNodeProgress == null)
@@ -747,9 +763,16 @@ namespace RuneCode
             SetPendingRoundChoice(choiceIds, choiceGrades, rewardGrade);
         }
 
-        /// <summary>대기 보상 후보·공통 등급·리롤 사용 여부를 교체한다. 후보가 없거나 개수가 맞지 않으면 대기 보상을 비운다.</summary>
+        /// <summary>후보 index 자리의 리롤 사용 여부를 반환한다. 카드별 기록이 없는 이전 저장은 전체 리롤 사용 여부를 각 자리에 적용한다.</summary>
+        public bool HasRerolledRoundChoice(int index)
+        {
+            return index >= 0 && index < PendingRoundChoiceIds.Count
+                && (_pendingRoundChoiceRerolls == null ? _hasRerolledRoundChoice : _pendingRoundChoiceRerolls[index]);
+        }
+
+        /// <summary>대기 보상 후보·공통 등급·카드별 리롤 상태와 열람 이력을 복사해 교체한다. 새 보상은 모든 기회를 초기화하고 최초 후보를 이력으로 기록한다.</summary>
         public void SetPendingRoundChoice(IReadOnlyList<string> choiceIds, IReadOnlyList<string> choiceGrades,
-            string rewardGrade, bool hasRerolled = false)
+            string rewardGrade, IReadOnlyList<bool> rerolls = null, IReadOnlyList<string> seenIds = null)
         {
             if (choiceIds == null || choiceGrades == null || choiceIds.Count == 0 || choiceIds.Count != choiceGrades.Count)
             {
@@ -757,7 +780,11 @@ namespace RuneCode
                 return;
             }
             _pendingRoundRewardGrade = rewardGrade;
-            _hasRerolledRoundChoice = hasRerolled;
+            _hasRerolledRoundChoice = false;
+            _pendingRoundChoiceRerolls = new bool[choiceIds.Count];
+            if (rerolls != null)
+                for (int index = 0; index < choiceIds.Count; index++) _pendingRoundChoiceRerolls[index] = rerolls[index];
+            _pendingRoundSeenRuneIds = (seenIds ?? choiceIds).ToArray();
             _pendingRoundChoiceIds = new string[choiceIds.Count];
             _pendingRoundChoiceGrades = new string[choiceGrades.Count];
             for (int index = 0; index < choiceIds.Count; index++) _pendingRoundChoiceIds[index] = choiceIds[index];
@@ -771,6 +798,8 @@ namespace RuneCode
             _pendingRoundChoiceGrades = null;
             _pendingRoundRewardGrade = null;
             _hasRerolledRoundChoice = false;
+            _pendingRoundChoiceRerolls = null;
+            _pendingRoundSeenRuneIds = null;
         }
 
         /// <summary>ID와 일치하는 보관함 마법을 반환하며 없으면 null을 반환한다.</summary>

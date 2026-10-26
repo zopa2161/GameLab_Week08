@@ -38,6 +38,7 @@ namespace RuneCode
     {
         private const int REROLL_STAGE_SEED_FACTOR = 73856093;
         private const int REROLL_ROUND_SEED_FACTOR = 19349663;
+        private const int REROLL_CARD_SEED_FACTOR = 83492791;
         private const double FIXED_STEP = 1.0 / RuneSimulation.TICK_RATE;
         private const string DEBUG_MODIFIER_REWARD_TABLE = "drop.round.modifier";
 
@@ -72,7 +73,8 @@ namespace RuneCode
         private List<string> _clearModifierGrades;
         private bool _isClearModifierChosen;
         private string _clearRewardGrade;
-        private bool _hasRerolledClearChoice;
+        private readonly List<bool> _clearChoiceRerolls = new List<bool>();
+        private readonly List<string> _clearChoiceSeenIds = new List<string>();
         private readonly bool _isResumedRoundBreak;
         private Stopwatch _roundBreakClock;
         private readonly Stopwatch _activeMissionClock = Stopwatch.StartNew();
@@ -133,16 +135,33 @@ namespace RuneCode
         /// <summary>보스 클리어 Modifier 선택이 이미 확정됐는지 반환한다.</summary>
         public bool IsClearModifierChosen => _isClearModifierChosen;
 
-        public bool HasRerolledClearChoice => _hasRerolledClearChoice;
+        /// <summary>카드 index 자리에 무료 리롤 사용 기록이 있는지 반환한다.</summary>
+        public bool HasRerolledClearChoice(int index)
+        {
+            return index >= 0 && index < _clearChoiceRerolls.Count && _clearChoiceRerolls[index];
+        }
 
-        /// <summary>미선택 라운드 보상에 무료 리롤이 남아 있고 같은 조건의 새로운 후보가 있는지 반환한다.</summary>
-        public bool CanRerollClearChoice => !_settled && !_isPaused && !_isDebugRewardChoice
+        /// <summary>미선택 라운드의 카드 index에 무료 리롤이 남아 있고 현재 화면 밖의 대체 후보가 있는지 반환한다.</summary>
+        public bool CanRerollClearChoice(int index)
+        {
+            return !_settled && !_isPaused && !_isDebugRewardChoice
             && _simulation.IsWaitingForNextRound && HasClearModifierChoices && !_isClearModifierChosen
-            && !_hasRerolledClearChoice && !string.IsNullOrEmpty(_clearRewardGrade)
+            && index >= 0 && index < _clearChoiceRerolls.Count && !_clearChoiceRerolls[index]
+            && !string.IsNullOrEmpty(_clearRewardGrade)
             && RuneRewardRoller.CollectChoiceCandidates(GetRoundRewardTable(),
                 GameData.Stages.GetRoundRewardCategory(_simulation.StageNumber, _simulation.RoundNumber, GameData.Drops),
                 _clearRewardGrade, GameData.Runes, GameData.ModifierGrades,
                 new HashSet<string>(_clearModifierChoices, StringComparer.Ordinal)).Count > 0;
+        }
+
+        /// <summary>현재 보상에서 리롤을 사용한 카드 자리 수를 반환한다.</summary>
+        private int GetClearChoiceRerollCount()
+        {
+            int count = 0;
+            foreach (bool hasRerolled in _clearChoiceRerolls)
+                if (hasRerolled) count++;
+            return count;
+        }
 
         /// <summary>
         /// 세션 능력치로 연속 미션을 만들고 출격 그래프 스냅샷·전투 ID와 시작 텔레메트리를 기록한다.
@@ -168,7 +187,9 @@ namespace RuneCode
                     _clearModifierChoices = new List<string>(save.PendingRoundChoiceIds);
                     _clearModifierGrades = new List<string>(save.PendingRoundChoiceGrades);
                     _clearRewardGrade = save.PendingRoundRewardGrade;
-                    _hasRerolledClearChoice = save.HasRerolledRoundChoice;
+                    for (int index = 0; index < _clearModifierChoices.Count; index++)
+                        _clearChoiceRerolls.Add(save.HasRerolledRoundChoice(index));
+                    _clearChoiceSeenIds.AddRange(save.PendingRoundSeenRuneIds);
                     if (string.IsNullOrEmpty(_clearRewardGrade))
                     {
                         string tableId = GameData.Stages.GetProgressionStage(save.ProgressionStage)
@@ -475,7 +496,10 @@ namespace RuneCode
             _clearModifierChoices = candidates;
             _clearModifierGrades = grades;
             _isClearModifierChosen = false;
-            _hasRerolledClearChoice = false;
+            _clearChoiceRerolls.Clear();
+            for (int index = 0; index < candidates.Count; index++) _clearChoiceRerolls.Add(false);
+            _clearChoiceSeenIds.Clear();
+            _clearChoiceSeenIds.AddRange(candidates);
             RecordModifierChoices();
         }
 
@@ -487,36 +511,34 @@ namespace RuneCode
             return GameData.Drops.Get(tableId);
         }
 
-        /// <summary>라운드 보상을 무료로 한 번 재추첨하고 종류·공통 등급을 유지한다. 후보 저장에 성공한 뒤 표시 상태를 교체하고 로그를 기록한다.</summary>
-        public bool TryRerollClearChoice()
+        /// <summary>카드 index 하나를 같은 보상 분류·등급으로 무료 재추첨한다. 저장 성공 후 해당 자리만 사용 완료로 바꾸고 열람 이력과 로그를 갱신한다.</summary>
+        public bool TryRerollClearChoice(int index)
         {
-            if (!CanRerollClearChoice) return false;
+            if (!CanRerollClearChoice(index)) return false;
             string category = GameData.Stages.GetRoundRewardCategory(_simulation.StageNumber, _simulation.RoundNumber, GameData.Drops);
             var random = new System.Random(unchecked(_seed ^ (_simulation.StageNumber * REROLL_STAGE_SEED_FACTOR)
-                ^ (_simulation.RoundNumber * REROLL_ROUND_SEED_FACTOR)));
-            List<DropRoll> choices = RuneRewardRoller.DrawRerolledChoices(GetRoundRewardTable(), category,
-                _clearRewardGrade, _clearModifierChoices, random.NextDouble);
-            if (choices.Count != _clearModifierChoices.Count) return false;
-            var ids = new List<string>();
-            var grades = new List<string>();
-            foreach (DropRoll choice in choices)
-            {
-                ids.Add(choice.RuneId);
-                grades.Add(choice.Grade);
-            }
-            if (!_session.TrySaveRerolledRoundChoice(_simulation.StageNumber, _simulation.RoundNumber, ids, grades,
-                _clearRewardGrade)) return false;
+                ^ (_simulation.RoundNumber * REROLL_ROUND_SEED_FACTOR) ^ ((index + 1) * REROLL_CARD_SEED_FACTOR)));
+            if (!RuneRewardRoller.TryDrawRerolledChoice(GetRoundRewardTable(), category,
+                _clearRewardGrade, _clearModifierChoices, _clearChoiceSeenIds, random.NextDouble, out DropRoll choice)) return false;
+            string previousId = _clearModifierChoices[index];
+            string previousGrade = _clearModifierGrades[index];
+            if (!_session.TrySaveRerolledRoundChoice(_simulation.StageNumber, _simulation.RoundNumber, index,
+                choice.RuneId, choice.Grade, _clearRewardGrade)) return false;
+            _clearModifierChoices[index] = choice.RuneId;
+            _clearModifierGrades[index] = choice.Grade;
+            _clearChoiceRerolls[index] = true;
+            if (!_clearChoiceSeenIds.Contains(choice.RuneId)) _clearChoiceSeenIds.Add(choice.RuneId);
             LocalTelemetry.RecordUsabilityEvent("clear_reward_rerolled", "round_break", new Dictionary<string, object>
             {
                 ["combat_id"] = _testCombatId, ["spell_build_id"] = _spellBuildId,
                 ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber,
                 ["category"] = category, ["reward_grade"] = _clearRewardGrade,
-                ["previous_choices"] = _clearModifierChoices, ["previous_grades"] = _clearModifierGrades,
-                ["choices"] = ids, ["grades"] = grades, ["reroll_count"] = 1, ["cost"] = 0,
+                ["choice_index"] = index, ["previous_rune_id"] = previousId, ["previous_grade"] = previousGrade,
+                ["rune_id"] = choice.RuneId, ["grade"] = choice.Grade,
+                ["choices"] = new List<string>(_clearModifierChoices), ["grades"] = new List<string>(_clearModifierGrades),
+                ["rerolled_slots"] = new List<bool>(_clearChoiceRerolls), ["seen_rune_ids"] = new List<string>(_clearChoiceSeenIds),
+                ["reroll_count"] = GetClearChoiceRerollCount(), ["cost"] = 0,
             });
-            _clearModifierChoices = ids;
-            _clearModifierGrades = grades;
-            _hasRerolledClearChoice = true;
             RecordModifierChoices();
             return true;
         }
@@ -679,7 +701,8 @@ namespace RuneCode
             {
                 ["combat_id"] = _testCombatId, ["spell_build_id"] = _spellBuildId,
                 ["stage"] = _simulation.StageNumber, ["round"] = _simulation.RoundNumber, ["choices"] = choices,
-                ["reroll_count"] = _hasRerolledClearChoice ? 1 : 0,
+                ["reroll_count"] = GetClearChoiceRerollCount(),
+                ["rerolled_slots"] = new List<bool>(_clearChoiceRerolls),
             });
         }
 
@@ -714,7 +737,8 @@ namespace RuneCode
                 ["stage"] = _simulation.StageNumber, ["rune_id"] = _clearModifierChoices[index],
                 ["round"] = _simulation.RoundNumber, ["choice_index"] = index,
                 ["grade"] = grade, ["count"] = 1,
-                ["reroll_count"] = _hasRerolledClearChoice ? 1 : 0,
+                ["reroll_count"] = GetClearChoiceRerollCount(),
+                ["rerolled_slots"] = new List<bool>(_clearChoiceRerolls),
                 ["inventory"] = _session.GetInventoryLogSnapshot(),
             });
             _lastResult += "\n" + GameData.L("result.modifierReward") + " "
