@@ -111,6 +111,7 @@ namespace RuneCode
             _result.Bind();
             _result.RetryClicked += RetryStage;
             _result.ClearModifierChoiceClicked += ChooseClearModifier;
+            _result.ClearChoiceRerollClicked += RerollClearChoice;
             screen.Workshop.CloseRequested += CloseWorkshop;
         }
 
@@ -673,8 +674,18 @@ namespace RuneCode
                 }
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions, targetTexts,
                     _run.ClearModifierGrades, _run.ClearModifierChoices);
+                _result.SetClearChoiceReroll(_run.CanRerollClearChoice, _run.HasRerolledClearChoice, _run.IsDebugRewardChoice);
             }
             else _result.HideClearModifierChoices();
+        }
+
+        /// <summary>현재 보상을 한 번 리롤하고 성공 여부와 관계없이 최신 후보·남은 횟수를 다시 표시한다.</summary>
+        private void RerollClearChoice()
+        {
+            if (_run == null) return;
+            if (!_run.TryRerollClearChoice() && !string.IsNullOrEmpty(_session.StatusMessage))
+                _ui.ShowToast(_session.StatusMessage);
+            ShowPendingChoices();
         }
 
         /// <summary>결과 View에 정산 문구와 스테이지·진행 정보를 채운다.</summary>

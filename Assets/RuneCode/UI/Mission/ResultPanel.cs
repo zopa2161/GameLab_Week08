@@ -18,6 +18,10 @@ namespace RuneCode
     {
         private const float REWARD_HEIGHT = 72f;
         private const float SCROLL_EPSILON = 0.5f;
+        private const float REROLL_BUTTON_WIDTH = 224f;
+        private const float REROLL_BUTTON_HEIGHT = 42f;
+        private const float REROLL_BUTTON_RIGHT_MARGIN = 24f;
+        private const float REROLL_BUTTON_TOP = 48f;
 
         [Header("보상 공개 연출")]
         [SerializeField, Min(0.05f)] private float _rewardRevealInterval = 0.3f;
@@ -80,6 +84,10 @@ namespace RuneCode
         private bool _isWaitingForRelease;
         private bool _isCompletionOnly;
         private bool _hasNextStage;
+        private Button _rerollChoiceButton;
+        private TextMeshProUGUI _rerollChoiceLabel;
+        private bool _canRerollChoice;
+        private int _choiceInputReadyFrame;
 
         public bool CanContinue => !_isRevealing && !_isWaitingForRelease && Time.frameCount > _revealCompletedFrame;
 
@@ -94,6 +102,9 @@ namespace RuneCode
 
         /// <summary>클리어 Modifier 선택 후보 버튼을 눌렀을 때 후보 순번으로 알린다.</summary>
         public event Action<int> ClearModifierChoiceClicked;
+
+        /// <summary>보상 후보 전체의 무료 재추첨을 요청했을 때 알린다.</summary>
+        public event Action ClearChoiceRerollClicked;
 
         /// <summary>버튼 클릭을 처음 한 번 연결하고 속성 팔레트 배경과 원래 모드 카드 배경을 캐싱한다.</summary>
         public void Bind()
@@ -116,15 +127,55 @@ namespace RuneCode
             _resultContent = content.gameObject;
             _rewardCanvas = _rewardScroll.GetComponentInParent<Canvas>().rootCanvas;
             _rewardScroll.onValueChanged.AddListener(HandleRewardScroll);
+            CreateRerollChoiceButton();
             _nextStageButton.onClick.AddListener(() => { if (CanContinue && _hasNextStage && !_isCompletionOnly) NextStageClicked?.Invoke(); });
             _improveButton.onClick.AddListener(() => { if (CanContinue && !_isCompletionOnly) ImproveClicked?.Invoke(); });
             _retryButton.onClick.AddListener(() => { if (CanContinue && !_isCompletionOnly) RetryClicked?.Invoke(); });
             for (int i = 0; i < _clearChoiceButtons.Length; i++)
             {
                 int index = i;
-                _clearChoiceButtons[i].onClick.AddListener(() => { if (CanContinue) ClearModifierChoiceClicked?.Invoke(index); });
+                _clearChoiceButtons[i].onClick.AddListener(() =>
+                {
+                    if (CanContinue && Time.frameCount > _choiceInputReadyFrame) ClearModifierChoiceClicked?.Invoke(index);
+                });
             }
             _isBound = true;
+        }
+
+        /// <summary>기존 결과 버튼 모양을 재사용해 보상 제목 오른쪽에 리롤 버튼을 만들고 전용 클릭 이벤트를 연결한다.</summary>
+        private void CreateRerollChoiceButton()
+        {
+            _rerollChoiceButton = Instantiate(_nextStageButton, _clearChoiceTitleLabel.transform.parent, false);
+            _rerollChoiceButton.name = "RerollChoiceButton";
+            _rerollChoiceButton.onClick = new Button.ButtonClickedEvent();
+            UiFactory.BindClickSound(_rerollChoiceButton);
+            RectTransform rect = (RectTransform)_rerollChoiceButton.transform;
+            rect.anchorMin = new Vector2(1f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(1f, 0.5f);
+            rect.anchoredPosition = new Vector2(-REROLL_BUTTON_RIGHT_MARGIN, -REROLL_BUTTON_TOP);
+            rect.sizeDelta = new Vector2(REROLL_BUTTON_WIDTH, REROLL_BUTTON_HEIGHT);
+            _rerollChoiceLabel = _rerollChoiceButton.GetComponentInChildren<TextMeshProUGUI>(true);
+            _rerollChoiceLabel.fontSize = 16f;
+            _rerollChoiceButton.onClick.AddListener(() =>
+            {
+                if (!_canRerollChoice || !CanContinue || Time.frameCount <= _choiceInputReadyFrame) return;
+                _canRerollChoice = false;
+                _rerollChoiceButton.interactable = false;
+                ClearChoiceRerollClicked?.Invoke();
+            });
+            _rerollChoiceButton.gameObject.SetActive(true);
+        }
+
+        /// <summary>리롤 가능 여부와 사용 완료·대체 후보 없음 상태를 문구와 버튼에 반영하고 이번 프레임의 카드 입력을 막는다.</summary>
+        public void SetClearChoiceReroll(bool canReroll, bool hasRerolled, bool isPreview)
+        {
+            _canRerollChoice = canReroll;
+            _rerollChoiceButton.gameObject.SetActive(!isPreview);
+            _rerollChoiceButton.interactable = canReroll;
+            _rerollChoiceLabel.text = GameData.L(hasRerolled ? "result.rerollUsed"
+                : canReroll ? "result.rerollAvailable" : "result.rerollUnavailable");
+            _choiceInputReadyFrame = Time.frameCount;
         }
 
         /// <summary>결과 문구와 승리별 버튼을 설정한다. isChoiceOnly이면 결과 본문과 불투명 배경을 숨겨 선택 팝업의 어두운 배경만 사용한다.</summary>
@@ -427,6 +478,7 @@ namespace RuneCode
         /// <summary>클리어 Modifier 선택 팝업을 닫고 결과 버튼을 다시 활성화한다.</summary>
         public void HideClearModifierChoices()
         {
+            _canRerollChoice = false;
             _clearChoicePopup.SetActive(false);
             _rewardTitleLabel.gameObject.SetActive(true);
             for (int i = 0; i < _clearChoiceButtons.Length; i++)
