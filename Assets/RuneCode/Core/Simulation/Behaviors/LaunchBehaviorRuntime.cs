@@ -24,9 +24,29 @@ namespace RuneCode
                 position += direction.Normalized() * (stats.BoxLength * 0.5);
         }
 
-        /// <summary>진행 방향으로 이동 속도만큼 직진한다. 유도는 이동 모드(HomingModifierRuntime)가 이동을 맡아 처리한다.</summary>
+        /// <summary>일반 발사는 직진하고 진화 발사의 귀환 구간은 시전자 또는 후속 생성 위치로 이동해 도착 시 소멸한다.</summary>
         public override void MoveAlongPath(SpellRuntimeContext context, SimulationSpellEntity entity)
-            => entity.Move(entity.Position + entity.Direction * (entity.Stats.Speed * RuneSimulation.STEP_SECONDS), entity.Direction);
+        {
+            if (!entity.HasBehaviorEvolution || !entity.IsReturning)
+            {
+                entity.Move(entity.Position + entity.Direction * (entity.Stats.Speed * RuneSimulation.STEP_SECONDS), entity.Direction);
+                return;
+            }
+            SimVector target = entity.FromEvent ? entity.SpawnPosition : entity.Caster.Position;
+            SimVector offset = target - entity.Position;
+            double step = entity.Stats.Speed * RuneSimulation.STEP_SECONDS;
+            entity.MarkPassingWalls();
+            if (offset.Length <= step + RuneSimulation.COLLISION_EPSILON)
+            {
+                entity.Move(target, entity.Direction);
+                entity.HasExpired = true;
+            }
+            else entity.Move(entity.Position + offset.Normalized() * step, offset.Normalized());
+        }
+
+        /// <summary>진화 발사체에는 편도와 귀환의 수명을 부여하고 그 외에는 기존 수명을 반환한다.</summary>
+        public override double GetLifetime(SimulationSpellEntity entity)
+            => entity.Stats.Lifetime * (entity.HasBehaviorEvolution ? 2 : 1);
 
         /// <summary>
         /// 이번 틱 이동 구간(PreviousPosition → Position)에서 벽·원형 쉴드 충돌과 가장 가까운 순서의 관통 적중을 처리한다.
@@ -76,6 +96,7 @@ namespace RuneCode
                 double damage = stats.Damage;
                 bool isConsumed = true;
                 entity.ApplyHitModifiers(context, enemy, ref damage, ref isConsumed);
+                if (entity.HasBehaviorEvolution && entity.IsReturning) isConsumed = false;
                 SimVector pushDirection = next - previous;
                 if (pushDirection.Length <= RuneSimulation.COLLISION_EPSILON) pushDirection = direction;
                 entity.HitTimes[enemy.Id] = context.Time; context.Hit(entity, enemy, damage, false, pushDirection); entity.Hits++;

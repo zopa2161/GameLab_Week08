@@ -126,7 +126,8 @@ namespace RuneCode
             shieldOwner.HurtShield(damage * _world.DamageMultiplier * _world.Adaptation.GetMultiplier(entity.Element, entity.Kind)
                 * GetElementDamageMultiplier(entity.Element) * GetRangeDamageMultiplier(shieldOwner, isDot: false) * entity.CastDamageMultiplier);
             RaiseHitEvent(entity, contact, shieldOwner);
-            RaiseExpireEvent(entity);
+            if (!entity.HasBehaviorEvolution || entity.IsReturning || entity.Kind != SpellGrammar.FORM_BOLT)
+                RaiseExpireEvent(entity);
         }
 
         /// <summary>

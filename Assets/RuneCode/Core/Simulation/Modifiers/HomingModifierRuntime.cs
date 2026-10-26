@@ -36,10 +36,12 @@ namespace RuneCode
         public override bool TryMove(SpellRuntimeContext context, SimulationSpellEntity entity, object state)
         {
             SpellBehaviorRules rules = entity.Action.Rules;
+            if (entity.IsSlash) return false;
             if (rules == null || rules.MotionKind == SpellMotionKind.Path) return false;
+            bool isMoving = rules.MotionKind == SpellMotionKind.Moving;
             if (entity.HasModifierPath)
-                return TryChaseOnPath(context, entity, (HomingState)state, rules.MotionKind == SpellMotionKind.Moving);
-            if (rules.MotionKind == SpellMotionKind.Moving) return TrySteerMoving(context, entity);
+                return TryChaseOnPath(context, entity, (HomingState)state, isMoving);
+            if (isMoving) return TrySteerMoving(context, entity);
             if (rules.MotionKind == SpellMotionKind.Stationary) return TryChaseStationary(context, entity);
             return false;
         }

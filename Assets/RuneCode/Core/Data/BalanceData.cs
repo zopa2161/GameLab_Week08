@@ -23,10 +23,12 @@ namespace RuneCode
         [SerializeField] private float _postDashBuffSeconds = 1f;
         [SerializeField] private float _dashEndCostMultiplier = 0.9f;
         [SerializeField] private float _dashGuardInvulnerability = 1f;
+
         public float MaxHp => _maxHp;
         public float MoveSpeed => _moveSpeed;
         public float MaxEnergy => _maxEnergy;
         public float ManaPerLevel => _manaPerLevel;
+
         public float EnergyRegen => _energyRegen;
         public float DashDistance => _dashDistance;
         public float DashCooldown => _dashCooldown;

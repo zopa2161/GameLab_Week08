@@ -587,6 +587,8 @@ namespace RuneCode
         private readonly double _costMultiplier;
         private readonly double _castDamageMultiplier;
         private readonly SimulationPlayer _caster;
+        private readonly bool _hasBehaviorEvolution;
+        private readonly SimVector _spawnPosition;
         private readonly SpellBehaviorRuntime _behavior;
         private readonly object _behaviorState;
         private readonly SpellModifierRuntime[] _modifierRuntimes;
@@ -604,6 +606,7 @@ namespace RuneCode
         private bool _hasExpired;
         private bool _hasFiredFirstEvent;
         private bool _hasDirectHit;
+        private bool _isReturning;
         public int Id => _id;
         public string Kind => _action.Form;
         public string Element => _element;
@@ -647,8 +650,13 @@ namespace RuneCode
         /// <summary>참격의 마지막 판정 회전 진행률을 반환한다. 표시는 아직 지나가지 않은 범위에 잔상을 만들지 않는다.</summary>
         public double SlashProgress => _behaviorState is SlashBehaviorRuntime.SlashState slash ? slash.Progress : 0;
 
-        /// <summary>폭발의 생성 후 시간과 확장·속도 배율을 반영한 파동 반경이다.</summary>
-        public double ExplosionRadius => _stats.Speed * _age;
+        /// <summary>폭발의 시간·속도로 계산한 파동 반경이다. 진화 폭발은 편도 수명 이후 원점까지 줄어든다.</summary>
+        public double ExplosionRadius => _stats.Speed * GetExplosionTravelTime(_age);
+
+        public bool HasBehaviorEvolution => _hasBehaviorEvolution;
+        public double SlashSweepAngle => _action.ConeAngle;
+        internal bool IsReturning => _isReturning;
+        internal SimVector SpawnPosition => _spawnPosition;
 
         /// <summary>확장 배율에 영향받지 않는 폭발의 고정 전체 각도다.</summary>
         public double ExplosionAngle => _action.ConeAngle;
@@ -657,7 +665,7 @@ namespace RuneCode
         public double ExplosionThickness => _stats.Radius * 2;
 
         /// <summary>현재 호의 원 중심이다. 투사체 위치는 호의 정면 중앙점이다.</summary>
-        public SimVector ExplosionCenter => _position - _direction * ExplosionRadius;
+        public SimVector ExplosionCenter => _hasBehaviorEvolution ? _spawnPosition : _position - _direction * ExplosionRadius;
 
         /// <summary>호의 왼쪽 끝 0부터 오른쪽 끝 1까지의 중심선 위치를 현재 표시 시점 기준으로 반환한다.</summary>
         public SimVector GetExplosionPoint(double fraction)
@@ -749,8 +757,10 @@ namespace RuneCode
         internal SimulationSpellEntity(int id, SpellAction action, SpellStats stats, string element, SimVector position,
             SimVector direction, bool fromEvent, SimVector anchor, double angle, string castNoiseElement,
             double visualSeconds, double warmupSeconds, SpellModifierValues modifiers, double costMultiplier, SimulationPlayer caster,
-            double castDamageMultiplier = 1d)
+            double castDamageMultiplier = 1d, bool hasBehaviorEvolution = false)
         {
+            _hasBehaviorEvolution = hasBehaviorEvolution;
+            _spawnPosition = position;
             _warmupSeconds = warmupSeconds;
             _costMultiplier = costMultiplier;
             _castDamageMultiplier = castDamageMultiplier;
@@ -780,6 +790,20 @@ namespace RuneCode
 
         /// <summary>스펠 개체의 위치와 진행 방향을 갱신한다.</summary>
         internal void Move(SimVector position, SimVector direction) { _position = position; _direction = direction; }
+
+        /// <summary>폭발 경과 시간을 왕복 반경 계산에 쓸 편도 시간으로 변환한다. 미진화는 기존 확장을 유지한다.</summary>
+        internal double GetExplosionTravelTime(double age)
+            => !_hasBehaviorEvolution ? age : Math.Max(0, age <= _stats.Lifetime ? age : _stats.Lifetime * 2 - age);
+
+        /// <summary>귀환을 시작하고 왕복별 타격 기록과 관통 횟수만 초기화한다. 최초 명중 이벤트 기록은 유지한다.</summary>
+        internal void BeginReturn()
+        {
+            if (_isReturning) return;
+            _isReturning = true;
+            _hasExpired = false;
+            _hitTimes.Clear();
+            _hits = 0;
+        }
 
         /// <summary>이번 틱 이동 전 위치를 현재 위치로 기록하고 벽 무시 표시를 끈다. 이동 단계 직전에 한 번 호출한다.</summary>
         internal void MarkPreviousPosition() { _previousPosition = _position; _previousDirection = _direction; _isPassingWalls = false; }
@@ -890,6 +914,8 @@ namespace RuneCode
             _modifiers.AppendState(state);
             var ids = new List<int>(_hitTimes.Keys); ids.Sort();
             foreach (int id in ids) state.Append(FormattableString.Invariant($"|{id}:{_hitTimes[id]:R}"));
+            if (_hasBehaviorEvolution)
+                state.Append(FormattableString.Invariant($"|evolution:{_isReturning}:{_spawnPosition.X:R}:{_spawnPosition.Y:R}"));
             _behavior.WriteState(this, state);
             if (IsExpandingRing) state.Append(FormattableString.Invariant($"|explosionPrevious:{_previousPosition.X:R}:{_previousPosition.Y:R}:{_previousDirection.X:R}:{_previousDirection.Y:R}:{ExplosionAngle:R}:{_stats.RadiusMultiplier:R}"));
             for (int index = 0; index < _modifierRuntimes.Length; index++) _modifierRuntimes[index].WriteState(this, _modifierStates[index], state);
