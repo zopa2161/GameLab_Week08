@@ -538,6 +538,8 @@
         "_arcRange": 110,
         "_arcTargets": 2,
         "_arcMultiplier": 0.5,
+        "_arcEnhancedRange": 300,
+        "_arcEnhancedTargets": 4,
         "_learningMultiplier": 1
       },
       "_ports": [

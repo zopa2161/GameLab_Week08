@@ -48,6 +48,8 @@
     "_chillImmuneMaxStacks": 2,
     "_freezeSeconds": 1,
     "_freezeImmunity": 4,
+    "_freezeEnhancedSeconds": 2,
+    "_freezeEnhancedImmunity": 3,
     "_empSeconds": 2,
     "_aegisAngle": 120,
     "_aegisReduction": 0.7,
