@@ -82,11 +82,13 @@ namespace RuneCode
                 NextIncreaseText(node, currentLevel), CostText(node, currentLevel));
         }
 
-        /// <summary>다음 구매로 증가하는 효과량을 노드 종류의 단위와 함께 반환한다.</summary>
+        /// <summary>다음 구매로 증가하는 효과량을 노드 종류의 단위와 함께 반환하고, 해금형 노드는 고정 문구 또는 노드 이름을 표시한다.</summary>
         private static string NextIncreaseText(UpgradeTreeNodeDefinition node, int currentLevel)
         {
             if (currentLevel >= node.MaxLevel) return GameData.L("tree.maxed");
-            if (IsUnlockStyleEffect(node.EffectType)) return GameData.L("ui.tree.unlockEffect");
+            if (IsUnlockStyleEffect(node.EffectType))
+                return node.EffectType == UpgradeEffectType.DashInvulnerabilityUnlock
+                    ? GameData.L("ui.tree.dashInvulnerabilityUnlock") : GameData.L("ui.tree.unlockEffect");
             if (node.EffectType == UpgradeEffectType.CastSpeed) return GameData.L("ui.tree.pendingEffect");
             if (node.EffectType == UpgradeEffectType.ElementCostReduction)
                 return GameData.L("ui.tree.nextIncrease") + " -" + node.Levels[currentLevel].Amount.ToString("0.##") + " 마나";
@@ -129,6 +131,7 @@ namespace RuneCode
             {
                 case UpgradeEffectType.RuneUnlock:
                 case UpgradeEffectType.None:
+                case UpgradeEffectType.DashInvulnerabilityUnlock:
                 case UpgradeEffectType.DashTeleport:
                 case UpgradeEffectType.DashCollisionGuard:
                 case UpgradeEffectType.PlayerAura:

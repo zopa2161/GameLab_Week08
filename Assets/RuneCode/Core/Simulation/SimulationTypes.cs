@@ -247,9 +247,9 @@ namespace RuneCode
         /// <summary>에너지를 지정량만큼 회복하고 최대 에너지를 넘지 않게 한다.</summary>
         internal void RestoreEnergy(double amount) { _energy = Math.Min(_maxEnergy, _energy + Math.Max(0, amount)); }
 
-        /// <summary>대시가 가능한 경우 방향, 지속 시간, 강화 보너스가 더해진 무적 및 쿨다운을 설정하고 대시 시작 시각과 충돌 보호 사용 여부를 갱신한다.</summary>
-        internal bool StartDash(SimVector direction, double seconds, double cooldown, double time, double invulnerabilityBonus)
-        { if (_dashCooldown > 0.000001) return false; _dashesStarted++; _lastDashStartTime = time; _isDashGuardUsed = false; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds + invulnerabilityBonus); return true; }
+        /// <summary>대시가 가능한 경우 방향, 지속 시간, 쿨다운을 설정하고 무적 시간이 0보다 크면 무적 종료 시각을 늘린다. 대시 시작 시각과 충돌 보호 사용 여부를 갱신한다.</summary>
+        internal bool StartDash(SimVector direction, double seconds, double cooldown, double time, double invulnerabilitySeconds)
+        { if (_dashCooldown > 0.000001) return false; _dashesStarted++; _lastDashStartTime = time; _isDashGuardUsed = false; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; if (invulnerabilitySeconds > 0) _invulnerableUntil = Math.Max(_invulnerableUntil, time + invulnerabilitySeconds); return true; }
 
         /// <summary>현재 대시에서 대시 충돌 보호를 사용한 것으로 표시한다.</summary>
         internal void MarkDashGuardUsed() => _isDashGuardUsed = true;

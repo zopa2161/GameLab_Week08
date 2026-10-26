@@ -1246,7 +1246,8 @@ namespace RuneCode
                 hasReturningBurst: HasUpgradeEffect(UpgradeEffectType.ReturningBurst),
                 hasArcEnhance: HasUpgradeEffect(UpgradeEffectType.ArcEnhance),
                 hasIceEnhance: HasUpgradeEffect(UpgradeEffectType.IceEnhance),
-                hasFireEnhance: HasUpgradeEffect(UpgradeEffectType.FireEnhance));
+                hasFireEnhance: HasUpgradeEffect(UpgradeEffectType.FireEnhance),
+                hasDashInvulnerability: HasUpgradeEffect(UpgradeEffectType.DashInvulnerabilityUnlock));
         }
     }
 }

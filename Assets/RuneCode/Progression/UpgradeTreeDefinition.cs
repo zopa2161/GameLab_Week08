@@ -46,7 +46,8 @@ namespace RuneCode
         ElementSlot,
         FlyingSlash,
         ReturningLaunch,
-        ReturningBurst
+        ReturningBurst,
+        DashInvulnerabilityUnlock
     }
 
     [Serializable]
