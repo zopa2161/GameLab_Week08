@@ -39,6 +39,8 @@ namespace RuneCode
         public string SnapToNode { get; set; }
         public string SnapInsertNode { get; set; }
         public string SnapHighlightNode { get; set; }
+        public string RejectedSnapNode { get; set; }
+        public float RejectedSnapDistance { get; set; } = float.PositiveInfinity;
         public Vector2 SnapOffset { get; set; }
         public bool IsSnapConnected { get; set; }
 
@@ -50,6 +52,8 @@ namespace RuneCode
             SnapToNode = null;
             SnapInsertNode = null;
             SnapHighlightNode = null;
+            RejectedSnapNode = null;
+            RejectedSnapDistance = float.PositiveInfinity;
             SnapOffset = Vector2.zero;
             IsSnapConnected = false;
         }

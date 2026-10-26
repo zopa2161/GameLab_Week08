@@ -588,6 +588,7 @@ namespace RuneCode
         private readonly double _castDamageMultiplier;
         private readonly SimulationPlayer _caster;
         private readonly bool _hasBehaviorEvolution;
+        private readonly bool _suppressesTriggers;
         private readonly SimVector _spawnPosition;
         private readonly SpellBehaviorRuntime _behavior;
         private readonly object _behaviorState;
@@ -654,6 +655,7 @@ namespace RuneCode
         public double ExplosionRadius => _stats.Speed * GetExplosionTravelTime(_age);
 
         public bool HasBehaviorEvolution => _hasBehaviorEvolution;
+        internal bool SuppressesTriggers => _suppressesTriggers;
         public double SlashSweepAngle => _action.ConeAngle;
         internal bool IsReturning => _isReturning;
         internal SimVector SpawnPosition => _spawnPosition;
@@ -757,9 +759,10 @@ namespace RuneCode
         internal SimulationSpellEntity(int id, SpellAction action, SpellStats stats, string element, SimVector position,
             SimVector direction, bool fromEvent, SimVector anchor, double angle, string castNoiseElement,
             double visualSeconds, double warmupSeconds, SpellModifierValues modifiers, double costMultiplier, SimulationPlayer caster,
-            double castDamageMultiplier = 1d, bool hasBehaviorEvolution = false)
+            double castDamageMultiplier = 1d, bool hasBehaviorEvolution = false, bool suppressesTriggers = false)
         {
             _hasBehaviorEvolution = hasBehaviorEvolution;
+            _suppressesTriggers = suppressesTriggers;
             _spawnPosition = position;
             _warmupSeconds = warmupSeconds;
             _costMultiplier = costMultiplier;
@@ -914,6 +917,7 @@ namespace RuneCode
             _modifiers.AppendState(state);
             var ids = new List<int>(_hitTimes.Keys); ids.Sort();
             foreach (int id in ids) state.Append(FormattableString.Invariant($"|{id}:{_hitTimes[id]:R}"));
+            if (_suppressesTriggers) state.Append("|noTriggers");
             if (_hasBehaviorEvolution)
                 state.Append(FormattableString.Invariant($"|evolution:{_isReturning}:{_spawnPosition.X:R}:{_spawnPosition.Y:R}"));
             _behavior.WriteState(this, state);

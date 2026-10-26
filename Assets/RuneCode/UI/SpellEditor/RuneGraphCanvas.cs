@@ -842,7 +842,15 @@ namespace RuneCode
                     else if (isOutputMoving && (isSameOutput || isSameInput)) isOccupied = true;
                     if (isSameOutput && !isSameInput) insertNode = edge.ToNode;
                 }
-                if (isOccupied || (!isConnected && !_editor.CanDockBlocks(from.Id, output.Id, to.Id, previewNode))) continue;
+                if (isOccupied || (!isConnected && !_editor.CanDockBlocks(from.Id, output.Id, to.Id, previewNode)))
+                {
+                    if (distance < _state.RejectedSnapDistance)
+                    {
+                        _state.RejectedSnapNode = isOutputMoving ? to.Id : from.Id;
+                        _state.RejectedSnapDistance = distance;
+                    }
+                    continue;
+                }
                 closest = distance;
                 _state.SnapFromNode = from.Id;
                 _state.SnapFromPort = output.Id;

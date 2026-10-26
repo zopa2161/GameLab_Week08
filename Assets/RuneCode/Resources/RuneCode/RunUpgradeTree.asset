@@ -127,7 +127,7 @@ MonoBehaviour:
     _exclusiveGroupId: 
     _levels:
     - _cost: 1
-      _amount: 0.05
+      _amount: 0.1
   - _id: upgrade.dashCooldown.0
     _requiredStage: 1
     _titleKey: ui.tree.dashCooldown
@@ -189,7 +189,7 @@ MonoBehaviour:
     _exclusiveGroupId: 
     _levels:
     - _cost: 1
-      _amount: 0.05
+      _amount: 0.15
   - _id: upgrade.elementCost.0
     _requiredStage: 1
     _titleKey: ui.tree.elementCost
@@ -245,7 +245,7 @@ MonoBehaviour:
     _exclusiveGroupId: 
     _levels:
     - _cost: 1
-      _amount: 0.1
+      _amount: 0.2
   - _id: upgrade.flyingSlash.0
     _requiredStage: 1
     _titleKey: ui.tree.flyingSlash
@@ -341,7 +341,7 @@ MonoBehaviour:
     _exclusiveGroupId: 
     _levels:
     - _cost: 1
-      _amount: 0.1
+      _amount: 0.2
   - _id: upgrade.damage.2
     _requiredStage: 1
     _titleKey: ui.tree.damage
@@ -357,7 +357,7 @@ MonoBehaviour:
     _exclusiveGroupId: 
     _levels:
     - _cost: 1
-      _amount: 0.05
+      _amount: 0.15
   - _id: upgrade.statusStackStart.0
     _requiredStage: 1
     _titleKey: ui.tree.statusStackStart
@@ -437,7 +437,7 @@ MonoBehaviour:
     _exclusiveGroupId: 
     _levels:
     - _cost: 0
-      _amount: 0
+      _amount: 6
   - _id: upgrade.returningLaunch.0
     _requiredStage: 1
     _titleKey: ui.tree.returningLaunch
