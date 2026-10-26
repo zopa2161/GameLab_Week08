@@ -67,7 +67,7 @@ namespace RuneCode.Editor
         void OnEnable()
         {
             if (_definition == null)
-                _definition = Resources.Load<UpgradeTreeDefinition>("RuneCode/UpgradeTree");
+                _definition = Resources.Load<UpgradeTreeDefinition>("RuneCode/RunUpgradeTree");
             titleContent = new GUIContent("Upgrade Tree");
             Undo.undoRedoPerformed += RefreshState;
             RefreshState();

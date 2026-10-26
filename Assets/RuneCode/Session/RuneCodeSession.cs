@@ -83,6 +83,9 @@ namespace RuneCode
         public IReadOnlyList<string> PendingProgressionChoiceIds => _save.PendingProgressionChoiceIds;
         public IReadOnlyList<string> PendingProgressionChoiceGrades => _save.PendingProgressionChoiceGrades;
 
+        /// <summary>트리 속성 선택 노드를 사고 아직 속성을 고르지 않았는지 반환한다.</summary>
+        public bool HasPendingElementPick => _save.HasPendingElementPick;
+
         /// <summary>도움말에서 열람할 수 있는 항목 수다. 자동 개방 조건이 없으므로 항상 전체를 연다.</summary>
         public int UnlockedHelpCount => int.MaxValue;
 
@@ -491,9 +494,9 @@ namespace RuneCode
                 return false;
             }
             int cost = GetUpgradeNodeCost(nodeId);
-            if (cost < 0 || (!_isDebugEnabled && _save.Currency < cost))
+            if (cost < 0 || (!_isDebugEnabled && _save.UpgradePoints < cost))
             {
-                reasonKey = "tree.insufficient";
+                reasonKey = "tree.insufficientPoints";
                 return false;
             }
             return true;
@@ -564,7 +567,7 @@ namespace RuneCode
             };
         }
 
-        /// <summary>선행 조건을 만족하는 트리 노드를 구매하고 효과·룬 해금·저장을 반영한다.</summary>
+        /// <summary>선행 조건을 만족하는 트리 노드를 강화 포인트로 구매하고 효과·룬 해금·속성 선택 대기·저장을 반영한다.</summary>
         public bool BuyUpgradeNode(string nodeId)
         {
             if (!CanPurchaseUpgradeNode(nodeId, out string reasonKey))
@@ -575,20 +578,21 @@ namespace RuneCode
             UpgradeTreeNodeDefinition node = _upgradeTree.FindNode(nodeId);
             int currentLevel = GetUpgradeNodeLevel(nodeId);
             int cost = GetUpgradeNodeCost(nodeId);
-            int currencyBefore = _save.Currency;
-            if (!_save.Spend(cost))
+            int pointsBefore = _save.UpgradePoints;
+            if (!_save.TrySpendUpgradePoints(cost))
             {
-                SetStatus("tree.insufficient");
+                SetStatus("tree.insufficientPoints");
                 return false;
             }
             _save.SetUpgradeNodeLevel(nodeId, currentLevel + 1);
             if (node.EffectType == UpgradeEffectType.RuneUnlock) _save.Unlock(node.RuneId);
+            if (node.EffectType == UpgradeEffectType.ElementPick) _save.SetElementPickPending();
             PersistProgress();
             _spells.Recompile();
             LocalTelemetry.RecordUsabilityEvent("upgrade_purchase", "workshop", new Dictionary<string, object>
             {
                 ["node_id"] = nodeId, ["level_before"] = currentLevel, ["level_after"] = currentLevel + 1,
-                ["cost"] = cost, ["currency_before"] = currencyBefore, ["currency_after"] = _save.Currency,
+                ["cost"] = cost, ["points_before"] = pointsBefore, ["points_after"] = _save.UpgradePoints,
                 ["skill_tree"] = GetSkillTreeLogSnapshot(),
             });
             LocalTelemetry.Record(0, "upgradeTree.purchase", nodeId + ":" + (currentLevel + 1) + ":" + cost);
@@ -662,7 +666,7 @@ namespace RuneCode
             _spells.Recompile();
         }
 
-        /// <summary>마법을 저장·컴파일하고 RAM과 최대 전력 제한을 만족하면 출격할 마법을 반환한다. 유지형 빔은 첫 시전 비용으로 검사하며, 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
+        /// <summary>마법을 저장·컴파일하고 RAM과 최대 전력 제한을 만족하면 출격할 마법을 반환한다. 유지형 빔은 첫 시전 비용으로 검사하며 시작 노드별 결과 각각에 전력 검사를 적용한다. 불가하면 상태 문구를 남기고 false를 반환한다.</summary>
         public bool TryPrepareMission(out CompiledSpell spell)
         {
             _spells.Save();
@@ -673,18 +677,35 @@ namespace RuneCode
                 spell = null;
                 return false;
             }
-            CompiledSpell preparedSpell = _spells.CompileResult.Spell;
-            bool hasHeldBeam = preparedSpell.Trigger == SpellGrammar.TRIGGER_ON_ATTACK
-                && preparedSpell.Root.Any(action => action.Form == BeamBehaviorRules.BEAM_KIND);
-            double requiredEnergy = hasHeldBeam
-                ? preparedSpell.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale).GetAmount("mana") : preparedSpell.EnergyCost;
-            if (requiredEnergy > MaxEnergy)
+            if (!IsEntriesWithinMaxEnergy())
             {
-                SetStatusText(string.Format(GameData.L("editor.energyBlocked"), requiredEnergy, MaxEnergy));
                 spell = null;
                 return false;
             }
-            spell = preparedSpell;
+            spell = _spells.CompileResult.Spell;
+            return true;
+        }
+
+        /// <summary>
+        /// 시작 노드별 컴파일 결과(Entries) 각각의 필요 전력이 최대 전력 이하인지 검사한다. 유지형 빔 판단은 Entry의 Trigger가 onAttack일 때만 하고,
+        /// 대시 종료 Entry는 밸런스의 DashEndCostMultiplier를 곱한 값으로 비교한다. 하나라도 넘으면 editor.energyBlocked 문구를 남기고 false를 반환한다.
+        /// </summary>
+        private bool IsEntriesWithinMaxEnergy()
+        {
+            IReadOnlyList<CompiledSpell> entries = _spells.CompileResult.Entries;
+            if (entries == null || entries.Count == 0) entries = new[] { _spells.CompileResult.Spell };
+            foreach (CompiledSpell entry in entries)
+            {
+                if (entry == null) continue;
+                bool hasHeldBeam = entry.Trigger == SpellGrammar.TRIGGER_ON_ATTACK
+                    && entry.Root.Any(action => action.Form == BeamBehaviorRules.BEAM_KIND);
+                double requiredEnergy = hasHeldBeam
+                    ? entry.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale).GetAmount("mana") : entry.EnergyCost;
+                if (entry.Trigger == SpellGrammar.TRIGGER_ON_DASH_END) requiredEnergy *= GameData.Balance.Player.DashEndCostMultiplier;
+                if (requiredEnergy <= MaxEnergy) continue;
+                SetStatusText(string.Format(GameData.L("editor.energyBlocked"), requiredEnergy, MaxEnergy));
+                return false;
+            }
             return true;
         }
 
@@ -735,6 +756,7 @@ namespace RuneCode
                 _save.ConsumeRewardGrade(category, rewardGrade);
             }
             _save.Settle(fragments, false);
+            _save.GrantUpgradePoints(GameData.Stages.GetRoundUpgradePoints(stageNumber, roundNumber));
             foreach (SimulationItemDrop drop in drops)
                 GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup", persist: false);
             if (drops.Count > 0) _spells.Recompile();
@@ -788,6 +810,16 @@ namespace RuneCode
                 ["grade"] = grade, ["count"] = 1, ["stock_before"] = before, ["stock_after"] = _save.GetStock(runeId, grade),
                 ["reason"] = "round_clear_choice",
             });
+        }
+
+        /// <summary>트리 속성 선택 보상으로 고른 속성 룬을 지급하고 대기 상태를 해제한 뒤 한 번에 저장하고 다시 컴파일한다. 대기가 없으면 무시한다.</summary>
+        public void ChooseElementPick(string runeId)
+        {
+            if (!_save.HasPendingElementPick) return;
+            GrantRune(runeId, "", 1, "tree_element_pick", persist: false);
+            _save.ClearElementPickPending();
+            PersistProgress();
+            _spells.Recompile();
         }
 
         /// <summary>룬 소지량을 늘리고 persist가 참이면 저장 정책에 맞춰 기록한다.</summary>

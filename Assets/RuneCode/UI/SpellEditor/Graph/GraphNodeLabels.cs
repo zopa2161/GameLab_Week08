@@ -52,10 +52,10 @@ namespace RuneCode
         /// 그래프 노드마다 현재 컴파일 결과를 반영한 라벨을 갱신하고 사라진 노드의 라벨을 지운다.
         /// 남아 있는 노드 ID 집합을 반환한다(선택 정리용).
         /// </summary>
-        public HashSet<string> Refresh(SpellGraph graph, IEnumerable<SpellGraph> library, CompiledSpell compiledSpell)
+        public HashSet<string> Refresh(SpellGraph graph, IEnumerable<SpellGraph> library, IReadOnlyList<CompiledSpell> entries)
         {
             _existingNodes.Clear();
-            _metricLabels.Refresh(graph, library, compiledSpell);
+            _metricLabels.Refresh(graph, library, entries);
             foreach (GraphNode node in graph.Nodes)
             {
                 _existingNodes.Add(node.Id);

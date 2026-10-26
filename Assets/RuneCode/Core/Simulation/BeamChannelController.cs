@@ -8,8 +8,8 @@ namespace RuneCode
     {
         private readonly SimulationWorld _world;
         private readonly SimulationStats _stats;
-        private readonly bool[] _castHeld = new bool[3];
-        private readonly bool[] _beamQueued = new bool[3];
+        private readonly bool[] _castHeld = new bool[SpellGrammar.MAX_START_NODES];
+        private readonly bool[] _beamQueued = new bool[SpellGrammar.MAX_START_NODES];
         private readonly List<BeamBehaviorRuntime.BeamChannel> _beamChannels = new List<BeamBehaviorRuntime.BeamChannel>();
 
         /// <summary>월드와 자원 소비 통계 참조로 만든다.</summary>
@@ -32,7 +32,7 @@ namespace RuneCode
         {
             for (int slot = 0; slot < _castHeld.Length; slot++)
             {
-                bool held = slot == 0 ? input.CastA : slot == 1 ? input.CastB : input.CastC;
+                bool held = slot == 0 ? input.CastA : slot == 1 ? input.CastB : slot == 2 ? input.CastC : false;
                 bool released = _castHeld[slot] && !held || slot == 0 && input.CastReleased;
                 bool pressed = held && !_castHeld[slot] || slot == 0 && input.CastPressed;
                 if (released)

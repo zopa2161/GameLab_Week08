@@ -55,6 +55,7 @@ namespace RuneCode
         private readonly bool _castPressed;
         private readonly bool _castReleased;
         private readonly bool _isAutomatic;
+        private readonly bool _isRightClickPressed;
         public SimVector Movement => _movement;
         public SimVector AimDirection => _aimDirection;
         public SimVector? AimPoint => _aimPoint;
@@ -66,14 +67,16 @@ namespace RuneCode
         public bool CastPressed => _castPressed;
         public bool CastReleased => _castReleased;
         public bool IsAutomatic => _isAutomatic;
+        public bool IsRightClickPressed => _isRightClickPressed;
 
-        /// <summary>한 고정 틱의 이동, 조준 방향·선택적 포인터 위치, 슬롯 시전, 대시, 상호작용 입력을 보관한다.</summary>
+        /// <summary>한 고정 틱의 이동, 조준 방향·선택적 포인터 위치, 슬롯 시전, 대시, 상호작용, 우클릭 입력을 보관한다.</summary>
         public SimulationInput(SimVector movement, SimVector aimDirection, bool castA = false, bool castB = false, bool castC = false, bool dash = false, bool interact = false,
-            bool castPressed = false, bool castReleased = false, bool isAutomatic = false, SimVector? aimPoint = null)
+            bool castPressed = false, bool castReleased = false, bool isAutomatic = false, SimVector? aimPoint = null, bool isRightClickPressed = false)
         {
             _movement = movement; _aimDirection = aimDirection; _castA = castA; _castB = castB; _castC = castC;
             _aimPoint = aimPoint;
             _dash = dash; _interact = interact; _castPressed = castPressed; _castReleased = castReleased; _isAutomatic = isAutomatic;
+            _isRightClickPressed = isRightClickPressed;
         }
     }
 
@@ -81,10 +84,10 @@ namespace RuneCode
 
     public sealed class SimulationPlayer
     {
-        private readonly double[] _cooldowns = new double[3];
-        private readonly double[] _cooldownDurations = new double[3];
-        private readonly bool[] _isSpellRunning = new bool[3];
-        private readonly double[] _executionRemaining = new double[3];
+        private readonly double[] _cooldowns = new double[SpellGrammar.MAX_START_NODES];
+        private readonly double[] _cooldownDurations = new double[SpellGrammar.MAX_START_NODES];
+        private readonly bool[] _isSpellRunning = new bool[SpellGrammar.MAX_START_NODES];
+        private readonly double[] _executionRemaining = new double[SpellGrammar.MAX_START_NODES];
         private readonly Dictionary<string, double> _otherResources = new Dictionary<string, double>(StringComparer.Ordinal);
         private readonly Dictionary<string, double> _otherResourceCaps = new Dictionary<string, double>(StringComparer.Ordinal);
         private SimVector _position;

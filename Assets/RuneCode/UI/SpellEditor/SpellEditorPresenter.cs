@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using UnityEngine.InputSystem;
 
@@ -176,6 +177,17 @@ namespace RuneCode
                 + "  ·  " + GameData.L("ui.energy") + " 회복 " + _host.EnergyRegen.ToString("0.#") + " /s"
                 + "  ·  " + GameData.L("ui.cooldown") + " "
                 + spell.GetCooldownSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s";
+            // 시작 노드가 여러 개면 나머지 Entry의 트리거·시전 비용·쿨다운을 이어서 표시한다.
+            IReadOnlyList<CompiledSpell> entries = _editor.CompileResult.Entries;
+            for (int index = 1; index < entries.Count; index++)
+            {
+                CompiledSpell entry = entries[index];
+                string triggerName = GameData.TryL("trigger." + entry.Trigger, out string triggerText) ? triggerText : entry.Trigger;
+                text += "  ·  " + triggerName + " "
+                    + SpellCostText.FormatWithMaxEnergy(entry.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale), _host.MaxEnergy)
+                    + " / " + GameData.L("ui.cooldown") + " "
+                    + entry.GetCooldownSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s";
+            }
             _view.SetMetrics(text);
         }
 
@@ -216,7 +228,7 @@ namespace RuneCode
                 return;
             }
             PreviewNodeDescription(node);
-            SpellAction action = _editor.CompileResult.Spell?.FindNodeAction(_editor.Graph, node.Id);
+            SpellAction action = FindCompiledNodeAction(node.Id);
             string text = rune.Name;
             if (action?.Stats != null) text += "  ·  " + GameData.L("ui.damage") + " " + action.Stats.Damage.ToString("0.#");
             _view.SetTooltip(text + "  ·  " + GameData.L("ui.nodeCost") + " " + SpellCostText.Format(action?.OwnCosts ?? rune.Costs));
@@ -234,6 +246,17 @@ namespace RuneCode
         {
             _inspector.PreviewNode(node);
             _view.ShowHoverDescription(node == null ? null : _view.Inspector.Description);
+        }
+
+        /// <summary>시작 노드별 Entry에서 지정 노드가 속한 컴파일 명령을 찾는다. 없으면 null을 반환한다.</summary>
+        private SpellAction FindCompiledNodeAction(string nodeId)
+        {
+            foreach (CompiledSpell entry in _editor.CompileResult.Entries)
+            {
+                SpellAction action = entry?.FindNodeAction(_editor.Graph, nodeId);
+                if (action != null) return action;
+            }
+            return null;
         }
     }
 }

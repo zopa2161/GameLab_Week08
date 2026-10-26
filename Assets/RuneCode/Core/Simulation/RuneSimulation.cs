@@ -194,6 +194,7 @@ namespace RuneCode
             _beam = new BeamChannelController(_world, _stats);
             _executor = new SpellExecutor(_world, _feedback, _stats, _beam, _runtime);
             _statuses = new EnemyStatusSystem(_world, _stats, this);
+            _statuses.SetStatusStackedHandler(CastStatusStackTrigger);
             _rules = new BattleRules(_world);
             _spawn = new SpawnSystem(_world, _feedback, _stats);
             _bench = new BenchScenario(_world, _spawn);
@@ -209,7 +210,7 @@ namespace RuneCode
             else ResetBench("dummy_single");
         }
 
-        /// <summary>전투에서는 하나의 마법, 시험 도크에서는 최대 3슬롯의 컴파일 마법을 다음 시전부터 사용한다.</summary>
+        /// <summary>받은 컴파일 마법 목록을 슬롯 0부터 순서대로 장착하고 남는 슬롯은 비운다. 미션은 시작 노드별 목록을, 시험 도크는 기존 슬롯 목록을 받는다.</summary>
         public void SetLoadout(IReadOnlyList<CompiledSpell> spells) => _executor.SetLoadout(spells);
 
         /// <summary>해금한 속성 태그를 노이즈의 무작위 후보로 설정하고 기본 화염 후보를 보존한다.</summary>
@@ -432,6 +433,10 @@ namespace RuneCode
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         public bool TryCast(CompiledSpell spell, SimVector aimDirection, int slot = 0) { _world.Player.Aim(aimDirection); return TryCast(spell, slot); }
 
+        /// <summary>다른 종류 상태 이상 위에 새 상태 이상이 걸린 적을 원점·대상으로 onStatusStack 시작 노드 슬롯을 시전한다.</summary>
+        private void CastStatusStackTrigger(SimulationEnemy enemy)
+            => _executor.TryCastTriggerAtEnemy(SpellGrammar.TRIGGER_ON_STATUS_STACK, enemy);
+
         /// <summary>입력, 예약된 적 스폰, 전투, 적응 및 전투 종료(전부 처치·사망·보스 제한시간)를 정확히 한 60Hz 틱만큼 갱신한다. 라운드 대기 중에도 플레이어·마법 틱은 진행하며 적 스폰은 전투 중에만 진행한다.</summary>
         public void Step(SimulationInput input)
         {
@@ -447,6 +452,7 @@ namespace RuneCode
             if (startedDash) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_START);
             else if (wasDashing && _world.Player.DashRemaining <= 0.000001) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_END);
             if (input.Movement.LengthSquared > 0.000001) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_MOVE);
+            if (input.IsRightClickPressed) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_RIGHT_CLICK);
             if (_world.IsMission && _world.Stage == MissionStage.Combat) { _spawn.AdvancePendingSpawns(); _spawn.AdvanceSpawns(); _spawn.AdvanceSplits(); _spawn.RefreshSpawnWarnings(); }
             _executor.RunScheduled();
             _executor.TryCastAttackSlots(input);

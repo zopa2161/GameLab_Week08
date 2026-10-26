@@ -120,7 +120,7 @@ namespace RuneCode
         {
             if (!HasGraph) return;
             if (!_hasDetachedDrag && _editor.IsEditable && _layout.ArrangeBlockGroups()) _editor.MarkBlockLayoutChanged();
-            HashSet<string> existing = _labels.Refresh(_editor.Graph, _editor.Library, _editor.CompileResult.Spell);
+            HashSet<string> existing = _labels.Refresh(_editor.Graph, _editor.Library, _editor.CompileResult.Entries);
             _state.Selected.RemoveWhere(id => !existing.Contains(id));
             _isHoverValid = false;
             LayoutLabels();

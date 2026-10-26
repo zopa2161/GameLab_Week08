@@ -1167,17 +1167,28 @@ namespace RuneCode
         private readonly IReadOnlyList<CompileIssue> _errors;
         private readonly IReadOnlyList<CompileIssue> _warnings;
         private readonly CompiledSpell _spell;
+        private readonly IReadOnlyList<CompiledSpell> _entries;
         public bool Ok => _errors.Count == 0 && _spell != null;
         public IReadOnlyList<CompileIssue> Errors => _errors;
         public IReadOnlyList<CompileIssue> Warnings => _warnings;
         public CompiledSpell Spell => _spell;
+        // 시작 노드별 컴파일 결과이며 0번은 core.cast의 결과인 Spell이다. 실패하면 비어 있다.
+        public IReadOnlyList<CompiledSpell> Entries => _entries;
 
-        /// <summary>컴파일의 오류·경고와 성공한 마법을 반환 객체에 저장한다.</summary>
+        /// <summary>컴파일의 오류·경고와 성공한 마법을 반환 객체에 저장한다. 시작 노드 목록은 마법 하나만 담는다.</summary>
         public CompileResult(IReadOnlyList<CompileIssue> errors, IReadOnlyList<CompileIssue> warnings, CompiledSpell spell)
+            : this(errors, warnings, spell, spell == null ? Array.Empty<CompiledSpell>() : new[] { spell })
+        {
+        }
+
+        /// <summary>컴파일의 오류·경고, core.cast 마법, 시작 노드별 마법 목록(0번이 spell)을 반환 객체에 저장한다.</summary>
+        public CompileResult(IReadOnlyList<CompileIssue> errors, IReadOnlyList<CompileIssue> warnings, CompiledSpell spell,
+            IReadOnlyList<CompiledSpell> entries)
         {
             _errors = errors;
             _warnings = warnings;
             _spell = spell;
+            _entries = entries;
         }
     }
 }

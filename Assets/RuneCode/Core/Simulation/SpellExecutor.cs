@@ -16,7 +16,7 @@ namespace RuneCode
         private readonly BeamChannelController _beam;
         private readonly SpellRuntimeContext _runtime;
         private readonly List<ScheduledExecution> _scheduled = new List<ScheduledExecution>();
-        private readonly CompiledSpell[] _loadout = new CompiledSpell[3];
+        private readonly CompiledSpell[] _loadout = new CompiledSpell[SpellGrammar.MAX_START_NODES];
         private readonly List<string> _unlockedElements = new List<string> { "fire" };
         private SimVector? _aimPoint;
         private int _actionBudgetTick = -1;
@@ -102,12 +102,12 @@ namespace RuneCode
             foreach (string element in _unlockedElements) state.Append('|').Append(element);
         }
 
-        /// <summary>전투에서는 하나의 마법, 시험 도크에서는 최대 3슬롯의 컴파일 마법을 다음 시전부터 사용한다.</summary>
+        /// <summary>받은 컴파일 마법 목록을 슬롯 0부터 순서대로 장착하고 남는 슬롯은 비운다. 미션은 시작 노드별 목록을, 시험 도크는 기존 슬롯 목록을 받는다.</summary>
         internal void SetLoadout(IReadOnlyList<CompiledSpell> spells)
         {
             for (int i = 0; i < _loadout.Length; i++)
             {
-                CompiledSpell next = i < spells.Count && (!_world.IsMission || i == 0) ? spells[i] : null;
+                CompiledSpell next = i < spells.Count ? spells[i] : null;
                 if (!ReferenceEquals(_loadout[i], next)) CancelBeamChannels();
                 _loadout[i] = next;
             }
@@ -126,10 +126,27 @@ namespace RuneCode
         /// 슬롯 쿨다운을 시작하고 루트 실행을 등록한다. 루트 문맥에는 비용 결제 전 시점의 최대 전력·대시 직후 조건으로 합산한 시전 피해 배율을 넣는다.
         /// 직접 공격 빔은 구간 비용을 선결제하며 연장은 현재 슬롯 입력으로 판단한다.
         /// </summary>
-        internal bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false)
+        internal bool TryCast(CompiledSpell spell, int slot = 0, bool allowBeamHold = false) => BeginRootCast(spell, slot, null);
+
+        /// <summary>
+        /// 상태 이상 중첩 트리거처럼 적을 원점·대상으로 삼는 시전 경로다. 결제·쿨다운·루트 실행은 플레이어 시전과 같은 흐름을 쓰고
+        /// 같은 틱 재진입은 슬롯 쿨다운과 틱당 행동 예산에 맡긴다. 대상이 없거나 이미 죽었으면 시전하지 않는다.
+        /// </summary>
+        internal void TryCastTriggerAtEnemy(string trigger, SimulationEnemy target)
+        {
+            if (target == null || !target.IsAlive) return;
+            for (int slot = 0; slot < _loadout.Length; slot++)
+            {
+                CompiledSpell spell = _loadout[slot];
+                if (spell == null || spell.Trigger != trigger) continue;
+                BeginRootCast(spell, slot, target);
+            }
+        }
+
+        /// <summary>루트 시전의 공통 흐름이다. target이 있으면 적을 원점·대상으로 하고 없으면 플레이어 조준으로 시전한다.</summary>
+        private bool BeginRootCast(CompiledSpell spell, int slot, SimulationEnemy target)
         {
             if (spell == null || slot < 0 || slot >= _loadout.Length || (_world.Stage != MissionStage.Bench && _world.Stage != MissionStage.Combat && _world.Stage != MissionStage.RoundBreak)) return false;
-            if (_world.IsMission && slot != 0) return false;
             if (_world.Player.Cooldowns[slot] > 0.000001 || _world.Player.IsSpellRunning(slot)) return false;
             double executionSeconds = spell.GetEstimatedExecutionSeconds(_world.Balance.Sim.ExecutionTimeScale);
             int cycleTicks = spell.GetSlotCycleTicks(_world.Balance.Sim.ExecutionTimeScale);
@@ -140,14 +157,22 @@ namespace RuneCode
             _beam.ClearQueued(slot);
             SimVector delta = _aimPoint.HasValue ? _aimPoint.Value - _world.Player.Position : SimVector.Zero;
             SimVector targetDirection = delta.LengthSquared > 0.000001 ? delta.Normalized() : _world.Player.AimDirection;
+            bool isEnemyCast = target != null;
+            // 적 대상 시전은 적 위치를 원점으로 하고 플레이어 시전은 지팡이 끝을 원점으로 한다.
+            SimVector origin = isEnemyCast ? target.Position
+                : _world.Player.Position + _world.Player.AimDirection * (_world.Sector.PlayerRadius + _world.Balance.Sim.WandOffset);
+            SimVector direction = isEnemyCast ? (target.Position - _world.Player.Position).Normalized() : _world.Player.AimDirection;
             var rootCast = new RootSpellExecution(slot, spell, cycleTicks, _world.Tick + cycleTicks,
-                _world.Player.Position, targetDirection, _aimPoint ?? _world.Player.Position + targetDirection * _runtime.GetAreaPlacementRange());
+                _world.Player.Position, isEnemyCast ? direction : targetDirection,
+                isEnemyCast ? (SimVector?)null : _aimPoint ?? _world.Player.Position + targetDirection * _runtime.GetAreaPlacementRange());
             // 비용 결제 전 시점의 최대 전력과 대시 직후 조건 보너스를 합산해 시전 피해 배율을 정한다.
             double castDamageMultiplier = 1d
                 + (_world.Player.Energy >= _world.Player.MaxEnergy - 0.000001 ? _world.Upgrades.FullManaDamageBonus : 0d)
                 + (_world.Time - _world.Player.LastDashStartTime <= _world.Balance.Player.PostDashBuffSeconds ? _world.Upgrades.PostDashDamageBonus : 0d);
-            var context = new SpellContext(_world.Player.Position + _world.Player.AimDirection * (_world.Sector.PlayerRadius + _world.Balance.Sim.WandOffset), _world.Player.AimDirection, null, false, null,
-                caster: _world.Player, randomState: new SpellRandomState(), castDamageMultiplier: castDamageMultiplier);
+            // 대시 종료 시작 노드는 밸런스의 비용 배율을 루트 문맥에 두고 각 행동 결제(TrySpendFor)에서 곱해진다.
+            double costMultiplier = spell.Trigger == SpellGrammar.TRIGGER_ON_DASH_END ? _world.Balance.Player.DashEndCostMultiplier : 1d;
+            var context = new SpellContext(origin, direction, target, false, null,
+                caster: _world.Player, randomState: new SpellRandomState(), castDamageMultiplier: castDamageMultiplier, costMultiplier: costMultiplier);
             var tracker = new ExecutionTracker(rootCast, () => CompleteRootSpell(rootCast));
             ExecuteRootBranches(spell.Root, context, tracker);
             RecordRootCastPayment(rootCast);
@@ -374,10 +399,10 @@ namespace RuneCode
             }
         }
 
-        /// <summary>루트 시전은 효과 적용 시점의 지팡이 끝과 조준을 쓰고 이벤트 체인은 사건 문맥을 보존한다.</summary>
+        /// <summary>루트 시전은 효과 적용 시점의 지팡이 끝과 조준을 쓰고 적 대상 시전과 이벤트 체인은 시전 시점 문맥을 보존한다.</summary>
         private SpellContext GetEffectContext(SpellContext context, ExecutionTracker tracker)
         {
-            if (context.FromEvent || tracker.RootCast == null) return context;
+            if (context.FromEvent || tracker.RootCast == null || context.Target != null) return context;
             SimVector aim = _world.Player.AimDirection;
             SimVector origin = _world.Player.Position + aim * (_world.Sector.PlayerRadius + _world.Balance.Sim.WandOffset);
             return context.WithOriginAndDirection(origin, aim.Rotated(context.DirectionOffset));

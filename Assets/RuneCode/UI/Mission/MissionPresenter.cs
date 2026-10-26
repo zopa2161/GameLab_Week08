@@ -76,7 +76,7 @@ namespace RuneCode
 
         /// <summary>라운드 대기 중 보상 선택지를 표시했거나 디버그 최초 대기 상태이면 작업실을 열 수 있는지 반환한다. 일시정지·팝업 입력 잠금은 따로 확인한다.</summary>
         private bool CanOpenWorkshop => _run != null && !_run.IsFinished && _run.IsWaitingForNextRound
-            && !_run.IsDebugRewardChoice && (_isInitialDebugRoundBreak || _hasPresentedChoices);
+            && !_run.IsDebugRewardChoice && !_run.IsElementPickChoice && (_isInitialDebugRoundBreak || _hasPresentedChoices);
 
         /// <summary>보상 선택을 마쳐 라운드 대기 포털로 다음 라운드에 들어갈 수 있는지 반환한다. 경기장 그래픽이 포털 밝기를 정할 때 읽는다.</summary>
         public bool IsRoundBreakPortalActive => _run != null && _run.IsNextRoundReady;
@@ -171,9 +171,10 @@ namespace RuneCode
             bool hasPointer = !isTyping && !_ui.IsPopupOpen && _screen.TryGetPointer(out pointer);
             Mouse mouse = Mouse.current;
             bool isCasting = Application.isFocused && hasPointer && mouse != null && mouse.leftButton.isPressed && !IsPointerOverUi();
+            bool isRightClickPressed = Application.isFocused && hasPointer && mouse != null && mouse.rightButton.isPressed && !IsPointerOverUi();
             double playerDamageBefore = _run.Simulation.Player.DamageReceived + _run.Simulation.Player.ShieldAbsorbed;
             _run.Step(isTyping, hasPointer, pointer, isCasting, unscaledDeltaTime,
-                isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame);
+                isCasting && mouse.leftButton.wasPressedThisFrame, mouse != null && mouse.leftButton.wasReleasedThisFrame, isRightClickPressed);
             int rootCastFailures = _run.Simulation.RootCastFailures;
             if (rootCastFailures > _lastRootCastFailures)
             {
@@ -409,7 +410,7 @@ namespace RuneCode
         {
             if (_screen.Workshop.IsVisible) return;
             if (_run == null || _run.IsFinished || _run.IsPaused || _ui.IsPopupOpen || UiFactory.IsTyping()) return;
-            if (_run.IsDebugRewardChoice) return;
+            if (_run.IsDebugRewardChoice || _run.IsElementPickChoice) return;
             if (index == _debugBossTargets.Count)
             {
                 if (_run.DebugShowModifierRewardChoices())
@@ -742,8 +743,12 @@ namespace RuneCode
             _toastUntil = 0f;
             _hud.SetToast("");
             RenderHud();
-            if (_run.IsResumedRoundBreak && _run.HasClearModifierChoices && !_run.IsClearModifierChosen)
-                ShowRoundChoices(isResumed: true);
+            if (_run.IsResumedRoundBreak)
+            {
+                // 저장된 런에 속성 선택 대기가 남아 있으면 저장된 라운드 보상 대신 속성 선택 카드를 먼저 펼친다.
+                if (_run.TryShowElementPickChoices() || (_run.HasClearModifierChoices && !_run.IsClearModifierChosen))
+                    ShowRoundChoices(isResumed: true);
+            }
             ShowBattleStartOnboarding();
             return true;
         }
@@ -787,6 +792,13 @@ namespace RuneCode
             _run.TryApplyUpgradeStats();
             _run.Simulation.ResetRoundBreakDpsForWorkshopReturn();
             _session.ResumeSuspendedRun();
+            if (_run.TryShowElementPickChoices())
+            {
+                // 작업실에서 속성 선택 노드를 샀으면 라운드 보상 대신 속성 선택 카드를 먼저 펼친다.
+                ShowRoundChoices(isResumed: true);
+                RenderHud();
+                return true;
+            }
             // 결과 패널은 화면과 함께 꺼졌다 켜질 뿐 상태가 남으므로, 같은 후보를 다시 그려 선택 포커스만 되살린다.
             if (_hasPresentedChoices && _run.HasClearModifierChoices && !_run.IsClearModifierChosen) ShowPendingChoices();
             OpenTestOnboarding(ONBOARDING_ROUND_RETURN);

@@ -100,7 +100,22 @@ namespace RuneCode
             if (MigrateModifierGrades(graph, modifierGrades)) isChanged = true;
             if (RemoveBeamBehaviors(graph)) isChanged = true;
             if (RemoveShapeSizes(graph)) isChanged = true;
+            if (ReplaceRemovedDashEndTrigger(graph)) isChanged = true;
             if (SplitShapeElements(graph)) isChanged = true;
+            return isChanged;
+        }
+
+        /// <summary>core.cast 노드의 제거된 onDashEnd 시작 조건 값을 onAttack으로 바꾸고 변경 여부를 반환한다. 여러 번 호출해도 결과가 같다.</summary>
+        public static bool ReplaceRemovedDashEndTrigger(SpellGraph graph)
+        {
+            bool isChanged = false;
+            foreach (GraphNode node in graph.Nodes)
+            {
+                if (node == null || node.RuneId != SpellGrammar.CORE_RUNE) continue;
+                if (node.GetText(SpellGrammar.TRIGGER_PARAM, null) != SpellGrammar.TRIGGER_ON_DASH_END) continue;
+                node.SetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK);
+                isChanged = true;
+            }
             return isChanged;
         }
 

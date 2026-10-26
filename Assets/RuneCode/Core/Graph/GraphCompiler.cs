@@ -27,7 +27,7 @@ namespace RuneCode
             CompileResult result = CompileGraph(graph, runes, limits, context);
             List<CompileIssue> stockErrors = modifierStock == null ? null : FindModifierStockIssues(graph, runes, modifierStock);
             if (stockErrors == null || stockErrors.Count == 0) return result;
-            return new CompileResult(result.Errors.Concat(stockErrors).ToList(), result.Warnings, result.Spell);
+            return new CompileResult(result.Errors.Concat(stockErrors).ToList(), result.Warnings, result.Spell, result.Entries);
         }
 
         /// <summary>
@@ -170,9 +170,10 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 슬롯 정규화를 마친 그래프의 해금·RAM·에너지 조건을 검사하고 실행 트리 및 비용 상한을 계산한다.
+        /// 슬롯 정규화를 마친 그래프의 해금·RAM·에너지 조건을 검사하고 시작 노드별 실행 트리 및 비용 상한을 계산한다.
         /// 정규화 단계의 오류·경고 목록에 이어서 기록하며 chainRam은 정규화가 합산한 behavior 노드의 RAM이고,
         /// slotModifiers는 behavior 노드별 합성 Modifier 노드 목록이다.
+        /// 성공하면 시작 노드별 Entry 목록(0번이 core.cast)을 담은 CompileResult를 반환한다.
         /// </summary>
         private static CompileResult CompileGraphBody(SpellGraph graph, RuneCatalog runes, GrammarLimits limits, CompileContext context,
             List<CompileIssue> errors, List<CompileIssue> warnings, int chainRam,
@@ -207,7 +208,7 @@ namespace RuneCode
                 ValidateParameters(node, rune, runes.ModifierGrades, errors);
                 ValidateMagicNode(node, rune, errors);
             }
-            if (cores.Count != 1) errors.Add(new CompileIssue("E1"));
+            ValidateStartNodes(cores, errors);
             ValidateEdges(graph, definitions, errors);
             if (!errors.Any(issue => issue.Code == "E3") && HasCycle(graph, nodes)) errors.Add(new CompileIssue("E4"));
             int limit = context.Capacity < 0 ? limits.BaseCapacity : context.Capacity;
@@ -215,8 +216,10 @@ namespace RuneCode
             bool hasStructuralError = errors.Any(issue => issue.Code != "E7" && issue.Code != "E10");
             if (hasStructuralError) return new CompileResult(errors, warnings, null);
 
+            List<GraphNode> startNodes = OrderStartNodes(runes, cores);
             HashSet<string> reachable = new HashSet<string>();
-            FindReachable(graph, cores[0].Id, false, reachable, definitions, warnings);
+            foreach (GraphNode start in startNodes)
+                FindReachable(graph, start.Id, false, reachable, definitions, warnings);
             foreach (GraphNode node in graph.Nodes)
             {
                 RuneDefinition rune = definitions[node.Id];
@@ -226,37 +229,115 @@ namespace RuneCode
                         warnings.Add(new CompileIssue("W3", node.Id));
                 }
             }
-            List<SpellAction> root = BuildBranch(graph, cores[0].Id, "exec", nodes, definitions, warnings, errors, runes, limits, context, slotModifiers);
-            if (errors.Any(issue => issue.Code == "E11" || issue.Code == "E12" || issue.Code == "E14" || issue.Code == "E15"))
-                return new CompileResult(errors, warnings, null);
-            ResourceCostSet resourceCosts = Cost(root,
-                allowBeamHold: cores[0].GetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK) == SpellGrammar.TRIGGER_ON_ATTACK);
+            List<CompiledSpell> entries = new List<CompiledSpell>();
+            long actionCeiling = limits.MaxCompiledActions;
+            foreach (GraphNode start in startNodes)
+            {
+                List<SpellAction> root = BuildBranch(graph, start.Id, "exec", nodes, definitions, warnings, errors, runes, limits, context, slotModifiers);
+                if (errors.Any(issue => issue.Code == "E11" || issue.Code == "E12" || issue.Code == "E14" || issue.Code == "E15"))
+                    return new CompileResult(errors, warnings, null);
+                entries.Add(BuildEntry(graph, runes, limits, context, definitions, start, root, ramUsed, chainRam, actionCeiling, warnings));
+            }
+            return new CompileResult(errors, warnings, entries[0], entries);
+        }
+
+        /// <summary>
+        /// 시작 노드 배치 규칙을 검사한다. core.cast는 정확히 1개여야 하고(어긋나면 E1), 나머지 시작 노드 룬은
+        /// 종류별 최대 1개다(넘는 노드에 E27). 시작 노드 총수가 MAX_START_NODES를 넘으면 E9를 낸다.
+        /// </summary>
+        private static void ValidateStartNodes(List<GraphNode> cores, List<CompileIssue> errors)
+        {
+            if (cores.Count > SpellGrammar.MAX_START_NODES) errors.Add(new CompileIssue("E9"));
+            bool hasCast = false;
+            var seenStartIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (GraphNode node in cores)
+            {
+                if (node.RuneId == SpellGrammar.CORE_RUNE)
+                {
+                    if (hasCast) errors.Add(new CompileIssue("E1"));
+                    hasCast = true;
+                    continue;
+                }
+                if (!seenStartIds.Add(node.RuneId)) errors.Add(new CompileIssue("E27", node.Id));
+            }
+            if (!hasCast) errors.Add(new CompileIssue("E1"));
+        }
+
+        /// <summary>
+        /// 시작 노드를 Entry 순서로 정렬해 반환한다. core.cast가 항상 첫 번째이고 나머지는 룬 카탈로그(runes.json) 순서이며,
+        /// 같은 순서면 노드 ID 순으로 정렬해 결과를 결정적으로 유지한다.
+        /// </summary>
+        private static List<GraphNode> OrderStartNodes(RuneCatalog runes, List<GraphNode> cores)
+        {
+            return cores.OrderBy(node => node.RuneId == SpellGrammar.CORE_RUNE ? -1 : CatalogOrder(runes, node.RuneId))
+                .ThenBy(node => node.Id, StringComparer.Ordinal).ToList();
+        }
+
+        /// <summary>룬 ID의 카탈로그 등장 순서를 반환한다. 카탈로그에 없는 룬은 끝으로 밀어낸다.</summary>
+        private static int CatalogOrder(RuneCatalog runes, string runeId)
+        {
+            for (int index = 0; index < runes.All.Count; index++)
+                if (runes.All[index].Id == runeId) return index;
+            return int.MaxValue;
+        }
+
+        /// <summary>시작 노드의 실행 트리거를 반환한다. core.cast는 trigger 파라미터 값을, 나머지 시작 노드는 룬별 고정 트리거를 쓴다.</summary>
+        private static string StartNodeTrigger(GraphNode start)
+        {
+            switch (start.RuneId)
+            {
+                case SpellGrammar.DASH_END_CORE_RUNE: return SpellGrammar.TRIGGER_ON_DASH_END;
+                case SpellGrammar.STATUS_STACK_CORE_RUNE: return SpellGrammar.TRIGGER_ON_STATUS_STACK;
+                case SpellGrammar.RIGHT_CLICK_CORE_RUNE: return SpellGrammar.TRIGGER_ON_RIGHT_CLICK;
+                default: return start.GetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK);
+            }
+        }
+
+        /// <summary>
+        /// 시작 노드 하나의 실행 트리를 최악 비용·실행 비용·개체 수·태그와 함께 CompiledSpell로 만든다.
+        /// RamUsed는 그래프 전체 사용량을 넣고, 쿨다운은 chainRam에 그 시작 노드에서 도달한 노드의 RAM 합을 더해 계산한다.
+        /// 빔 유지 비용 무한 표시는 트리거가 onAttack인 Entry에만 적용하며, 최대 예상 비용(W8·W7)·실행 수(W11)·
+        /// 동시 개체 수(W10) 경고를 같은 코드·상세값이 중복되지 않게 검사한다.
+        /// </summary>
+        private static CompiledSpell BuildEntry(SpellGraph graph, RuneCatalog runes, GrammarLimits limits, CompileContext context,
+            Dictionary<string, RuneDefinition> definitions, GraphNode start, List<SpellAction> root,
+            int ramUsed, int chainRam, long actionCeiling, List<CompileIssue> warnings)
+        {
+            string trigger = StartNodeTrigger(start);
+            ResourceCostSet resourceCosts = Cost(root, allowBeamHold: trigger == SpellGrammar.TRIGGER_ON_ATTACK);
             ResourceCostSet castCosts = Cost(root, includeEvents: false);
             int entities = EntityCount(root);
-            long actionCeiling = limits.MaxCompiledActions;
             long expandedActions = AddBounded(1L, ActionCount(root, actionCeiling + 1L), actionCeiling + 1L);
             // 최대 예상 비용·실행 수·동시 개체 수는 최악 분기 추정이라 시전을 막지 않고 경고만 낸다(백서 7.2).
             // 실제 실행은 런타임의 틱당 실행 상한·예약 실행 상한·동시 개체 상한이 안전을 맡는다.
-            if (expandedActions > actionCeiling) warnings.Add(new CompileIssue("W11"));
+            if (expandedActions > actionCeiling) AddWarningOnce(warnings, new CompileIssue("W11"));
             foreach (ResourceAmount cost in resourceCosts.Amounts)
             {
                 if (double.IsInfinity(cost.Amount) || double.IsNaN(cost.Amount))
                 {
-                    warnings.Add(new CompileIssue("W8", null, cost.Resource));
+                    AddWarningOnce(warnings, new CompileIssue("W8", null, cost.Resource));
                 }
                 else if (context.TryGetMaxResource(cost.Resource, limits, out float maximum) && cost.Amount > maximum)
                 {
-                    warnings.Add(new CompileIssue("W7", null, cost.Resource + "="
+                    AddWarningOnce(warnings, new CompileIssue("W7", null, cost.Resource + "="
                         + cost.Amount.ToString("0.#", CultureInfo.InvariantCulture) + "/" + maximum.ToString("0.#", CultureInfo.InvariantCulture)));
                 }
             }
-            if (entities > limits.MaxLiveSpellEntities) warnings.Add(new CompileIssue("W10"));
+            if (entities > limits.MaxLiveSpellEntities) AddWarningOnce(warnings, new CompileIssue("W10"));
             SortedSet<string> tags = new SortedSet<string>(StringComparer.Ordinal);
             GatherTags(root, tags);
-            string trigger = cores[0].GetText(SpellGrammar.TRIGGER_PARAM, SpellGrammar.TRIGGER_ON_ATTACK);
-            CompiledSpell compiled = new CompiledSpell(graph.Name, Signature(graph, root), cores[0].Id, ramUsed, resourceCosts,
-                limits.CooldownBase + limits.CooldownPerRam * ramUsed, entities, tags.ToList(), root, graph.Id, trigger, castCosts);
-            return new CompileResult(errors, warnings, compiled);
+            int entryRam = chainRam;
+            foreach (string nodeId in graph.GetExecutableNodeIds(runes, start.Id)) entryRam += definitions[nodeId].Ram;
+            return new CompiledSpell(graph.Name, Signature(graph, root), start.Id, ramUsed, resourceCosts,
+                limits.CooldownBase + limits.CooldownPerRam * entryRam, entities, tags.ToList(), root, graph.Id, trigger, castCosts);
+        }
+
+        /// <summary>같은 코드·상세값의 경고가 이미 있으면 무시하고 없으면 추가한다. 시작 노드별 검사에서 중복 경고를 막는다.</summary>
+        private static void AddWarningOnce(List<CompileIssue> warnings, CompileIssue issue)
+        {
+            foreach (CompileIssue existing in warnings)
+                if (existing.Code == issue.Code && existing.Detail == issue.Detail) return;
+            warnings.Add(issue);
         }
 
         /// <summary>연결 후보가 포트 존재·exec 종류·비활성 룬·중복·입력 수·순환 규칙을 지키는지 반환한다.</summary>

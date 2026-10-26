@@ -18,13 +18,14 @@ namespace RuneCode
             _session = session;
         }
 
-        /// <summary>현재 해금 룬, 해금 검사가 필요 없는 모디·속성·행동 룬, 성장 값, 통합 소지량으로 컴파일 문맥을 만든다.</summary>
+        /// <summary>현재 해금 룬, 해금 검사가 필요 없는 모디·속성·행동 룬, 성장 값, 통합 소지량으로 컴파일 문맥을 만든다. 미구매 시작 노드 룬은 해금 목록에서 뺀다.</summary>
         public SpellCompileContext GetCompileContext()
         {
             IEnumerable<string> unlockedRunes = _session.Save.UnlockedRunes.Concat(GameData.Runes.StartRunes)
                 .Concat(GameData.Runes.All.Where(rune => !rune.IsDisabled
                     && (rune.Category == SpellGrammar.CATEGORY_MODIFIER || rune.Category == SpellGrammar.CATEGORY_ELEMENT
-                        || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)).Select(rune => rune.Id));
+                        || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)).Select(rune => rune.Id))
+                .Where(IsCoreRuneUnlocked);
             return new SpellCompileContext(unlockedRunes, _session.Capacity, _session.MaxEnergy, _session.Save.Library,
                 _session.Save.CreateStockMap());
         }
@@ -34,10 +35,21 @@ namespace RuneCode
         {
             if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return false;
             if (rune.IsDisabled) return false;
-            if (rune.Category == SpellGrammar.CATEGORY_CORE || rune.Category == SpellGrammar.CATEGORY_INTERNAL
+            if (rune.Category == SpellGrammar.CATEGORY_CORE) return IsCoreRuneUnlocked(runeId);
+            if (rune.Category == SpellGrammar.CATEGORY_INTERNAL
                 || rune.Category == SpellGrammar.CATEGORY_MODIFIER || rune.Category == SpellGrammar.CATEGORY_ELEMENT
                 || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR) return true;
             return _session.Save.UnlockedRunes.Contains(runeId);
+        }
+
+        /// <summary>추가 시작 노드 룬은 대응 강화 트리 효과를 구매한 경우에만 true이고, core.cast와 다른 룬은 true를 반환한다.</summary>
+        private bool IsCoreRuneUnlocked(string runeId)
+        {
+            if (runeId == SpellGrammar.CORE_RUNE) return true;
+            if (runeId == SpellGrammar.DASH_END_CORE_RUNE) return _session.HasUpgradeEffect(UpgradeEffectType.DashEndStart);
+            if (runeId == SpellGrammar.STATUS_STACK_CORE_RUNE) return _session.HasUpgradeEffect(UpgradeEffectType.StatusStackStart);
+            if (runeId == SpellGrammar.RIGHT_CLICK_CORE_RUNE) return _session.HasUpgradeEffect(UpgradeEffectType.RightClickStart);
+            return true;
         }
 
         /// <summary>후보 그래프를 장착 슬롯에 반영했을 때 공유·비공유 RAM 규칙을 지키는지 반환한다.</summary>

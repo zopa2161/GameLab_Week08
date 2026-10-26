@@ -29,7 +29,7 @@ namespace RuneCode
         /// <summary>시작 노드는 이름만, 그 외 비행동 노드는 이름·RAM·핵심 설정 요약을 라벨 문구로 반환한다.</summary>
         internal static string BuildLegacyText(GraphNode node, IEnumerable<SpellGraph> library)
         {
-            if (node.RuneId == SpellGrammar.CORE_RUNE) return BuildNameText(node);
+            if (GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune) && rune.Category == SpellGrammar.CATEGORY_CORE) return BuildNameText(node);
             var builder = new StringBuilder();
             builder.Append(BuildNameText(node)).Append("  ")
                 .Append(GameData.Runes.NodeRam(node)).Append(" ").Append(GameData.L("ui.ram"));
@@ -38,11 +38,11 @@ namespace RuneCode
             return builder.ToString();
         }
 
-        /// <summary>행동 노드의 컴파일된 사용 전력과 핵심 설정 요약을 왼쪽 지표 라벨로 반환한다.</summary>
-        internal static string BuildBehaviorDetailsText(GraphNode node, IEnumerable<SpellGraph> library, CompiledSpell compiledSpell)
+        /// <summary>행동 노드의 컴파일된 사용 전력과 핵심 설정 요약을 왼쪽 지표 라벨로 반환한다. 시작 노드별 Entry 중 노드가 속한 Entry의 명령을 쓴다.</summary>
+        internal static string BuildBehaviorDetailsText(GraphNode node, IEnumerable<SpellGraph> library, IReadOnlyList<CompiledSpell> entries)
         {
             var builder = new StringBuilder();
-            SpellAction action = compiledSpell?.FindAction(node.Id);
+            SpellAction action = FindAction(entries, node.Id);
             string energy = action == null ? "—" : action.NodeEnergy.ToString("0.#");
             builder.Append("<b><color=#").Append(_behaviorColorHex).Append(">")
                 .Append(energy).Append(" ").Append(GameData.L("ui.energy")).Append("</color></b>");
@@ -88,6 +88,18 @@ namespace RuneCode
             return SpellGrammar.TryParseStockKey(value, out string modifierId, out string grade)
                 && GameData.Runes.TryGet(modifierId, out RuneDefinition modifierRune)
                 ? ModifierGradeText.FormatName(modifierRune.Name, grade) : value;
+        }
+
+        /// <summary>시작 노드별 Entry에서 지정 노드의 실행 명령을 찾아 반환하고 없으면 null을 반환한다.</summary>
+        private static SpellAction FindAction(IReadOnlyList<CompiledSpell> entries, string nodeId)
+        {
+            if (entries == null) return null;
+            foreach (CompiledSpell entry in entries)
+            {
+                SpellAction action = entry?.FindAction(nodeId);
+                if (action != null) return action;
+            }
+            return null;
         }
 
         /// <summary>Trigger 노드의 시작 조건 값을 반환하며 해당 없으면 null을 반환한다.</summary>

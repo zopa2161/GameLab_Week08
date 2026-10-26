@@ -204,7 +204,7 @@ namespace RuneCode
 
         /// <summary>
         /// 행동 노드를 지정 등급(비면 기본 등급)으로 지정 좌표에 배치한다. 형태는 행동 정의의 고정 형태를 쓴다. 행동 외 룬, 등급표에 없는 등급,
-        /// 행동 소지량 초과는 배치하지 않는다. RAM은 연결될 때 검사한다.
+        /// 행동 소지량 초과는 배치하지 않는다. core.cast 외 시작 노드 룬은 등급 없이 배치하며 같은 룬이 이미 있으면 배치하지 않는다. RAM은 연결될 때 검사한다.
         /// </summary>
         public void AddRune(string runeId, float x, float y, string grade = null)
         {
@@ -213,14 +213,20 @@ namespace RuneCode
                 RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "not_editable_or_unlocked", ["rune_id"] = runeId });
                 return;
             }
-            if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.IsDisabled
-                || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)
+            bool isRuneFound = GameData.Runes.TryGet(runeId, out RuneDefinition rune);
+            bool isStartRune = isRuneFound && rune.Category == SpellGrammar.CATEGORY_CORE && runeId != SpellGrammar.CORE_RUNE;
+            if (!isRuneFound || rune.IsDisabled || (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR && !isStartRune))
             {
                 RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_behavior", ["rune_id"] = runeId });
                 return;
             }
+            if (isStartRune && _editingGraph.Nodes.Any(existing => existing.RuneId == runeId))
+            {
+                RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "duplicate_start", ["rune_id"] = runeId });
+                return;
+            }
             grade = string.IsNullOrEmpty(grade) ? SpellGrammar.DEFAULT_BEHAVIOR_GRADE : grade;
-            if (!GameData.Runes.BehaviorGradeOrder.Contains(grade))
+            if (!isStartRune && !GameData.Runes.BehaviorGradeOrder.Contains(grade))
             {
                 RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_grade", ["rune_id"] = runeId, ["grade"] = grade });
                 return;
@@ -233,7 +239,7 @@ namespace RuneCode
             }
             var candidate = _editingGraph.Clone();
             var node = new GraphNode(NewId("node"), runeId, x, y);
-            node.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, grade);
+            if (!isStartRune) node.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, grade);
             candidate.AddNode(node);
             if (!_policy.IsWithinModifierStock(_editingGraph, candidate))
             {
@@ -811,7 +817,8 @@ namespace RuneCode
             var selected = _editingGraph.GetBlockGroup(nodeIds, GameData.Runes);
             var snapshot = _editingGraph.Clone();
             _copiedNodes.Clear(); _copiedEdges.Clear();
-            _copiedNodes.AddRange(snapshot.Nodes.Where(node => selected.Contains(node.Id) && node.RuneId != "core.cast"));
+            _copiedNodes.AddRange(snapshot.Nodes.Where(node => selected.Contains(node.Id)
+                && (!GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_CORE)));
             _copiedEdges.AddRange(snapshot.Edges.Where(edge => _copiedNodes.Any(node => node.Id == edge.FromNode) && _copiedNodes.Any(node => node.Id == edge.ToNode)));
         }
 

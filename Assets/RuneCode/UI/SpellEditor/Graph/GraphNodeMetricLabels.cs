@@ -34,7 +34,7 @@ namespace RuneCode
         }
 
         /// <summary>행동 노드의 전력·RAM 문구를 갱신하고 사라지거나 바뀐 노드의 라벨을 제거한다.</summary>
-        public void Refresh(SpellGraph graph, IEnumerable<SpellGraph> library, CompiledSpell compiledSpell)
+        public void Refresh(SpellGraph graph, IEnumerable<SpellGraph> library, IReadOnlyList<CompiledSpell> entries)
         {
             _activeBehaviors.Clear();
             foreach (GraphNode node in graph.Nodes)
@@ -44,7 +44,7 @@ namespace RuneCode
                 TextMeshProUGUI details = GetOrCreate(_details, node.Id, DETAILS_FONT_SIZE);
                 TextMeshProUGUI ram = GetOrCreate(_ram, node.Id, RAM_FONT_SIZE);
                 details.characterSpacing = DETAILS_CHARACTER_SPACING;
-                string detailsText = GraphNodeLabelText.BuildBehaviorDetailsText(node, library, compiledSpell);
+                string detailsText = GraphNodeLabelText.BuildBehaviorDetailsText(node, library, entries);
                 if (details.text != detailsText) details.text = detailsText;
                 string ramText = GraphNodeLabelText.BuildRamText(node);
                 if (ram.text != ramText) ram.text = ramText;

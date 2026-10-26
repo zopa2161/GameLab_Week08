@@ -299,10 +299,14 @@ namespace RuneCode
         [Header("라운드 편성")]
         [SerializeField] private WaveDefinition[] _waves;
         [SerializeField] private string _rewardDropTable;
+        [SerializeField] private int _upgradePoints;
         public IReadOnlyList<WaveDefinition> Waves => _waves ?? Array.Empty<WaveDefinition>();
 
         /// <summary>라운드 종료 시 3개 중 1개 선택 보상을 추첨할 drops.json 테이블 ID다. 마지막 라운드에서는 스테이지 종료 보상 테이블이다.</summary>
         public string RewardDropTable => _rewardDropTable;
+
+        /// <summary>라운드 보상 확정 시 지급할 강화 포인트 수다. 데이터에 기재하지 않은 라운드는 0이다.</summary>
+        public int UpgradePoints => _upgradePoints;
     }
 
     [Serializable]
@@ -403,6 +407,12 @@ namespace RuneCode
         {
             if (stage < 1 || stage > _progressionStages.Length) throw new ArgumentOutOfRangeException(nameof(stage));
             return _progressionStages[stage - 1];
+        }
+
+        /// <summary>지정 스테이지·라운드의 보상 확정 시 지급할 강화 포인트를 반환한다.</summary>
+        public int GetRoundUpgradePoints(int stage, int round)
+        {
+            return GetProgressionStage(stage).Rounds[round - 1].UpgradePoints;
         }
 
         /// <summary>지정 스테이지·라운드가 연결한 선택 보상 테이블의 단일 행동·모드 분류를 반환한다. 혼합 분류는 데이터 오류다.</summary>

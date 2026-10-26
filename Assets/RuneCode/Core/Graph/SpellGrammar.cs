@@ -52,6 +52,11 @@ namespace RuneCode
         public const string INLINE_RUNE = "magic.inline";
         public const string CALL_RUNE = "spell.call";
         public const string CORE_RUNE = "core.cast";
+        public const string DASH_END_CORE_RUNE = "core.dashEnd";
+        public const string STATUS_STACK_CORE_RUNE = "core.statusStack";
+        public const string RIGHT_CLICK_CORE_RUNE = "core.rightClick";
+        // core.cast와 추가 시작 노드 3종을 합한 시작 노드 최대 수이며, 시전 슬롯 배열 크기로도 쓴다.
+        public const int MAX_START_NODES = 4;
         public const string APPLY_RUNE = "behavior.apply";
         public const string FORM_VALUE_REMAIN = "remain";
 
@@ -83,6 +88,8 @@ namespace RuneCode
         public const string TRIGGER_ON_DASH_START = "onDashStart";
         public const string TRIGGER_ON_DASH_END = "onDashEnd";
         public const string TRIGGER_ON_HIT_TAKEN = "onHitTaken";
+        public const string TRIGGER_ON_STATUS_STACK = "onStatusStack";
+        public const string TRIGGER_ON_RIGHT_CLICK = "onRightClick";
 
         public const string ELEMENT_NEUTRAL = "neutral";
         public const string ELEMENT_CATEGORY_ELEMENTAL = "elemental";
