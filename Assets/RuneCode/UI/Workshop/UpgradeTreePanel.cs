@@ -60,6 +60,7 @@ namespace RuneCode
 
         /// <summary>노드를 눌렀을 때 노드 ID와 함께 알린다.</summary>
         public event Action<string> NodeClicked;
+        public event Action<string> NodeRefundRequested;
 
         /// <summary>포인터가 노드에 들어오거나(true) 나갈 때(false) 노드 ID와 함께 알린다.</summary>
         public event Action<string, bool> NodeHovered;
@@ -294,6 +295,7 @@ namespace RuneCode
                 return;
             }
             view.SetPurchaseAction(() => NodeClicked?.Invoke(nodeId));
+            view.SetRefundAction(() => NodeRefundRequested?.Invoke(nodeId));
             view.SetHoverAction(isHovered => NodeHovered?.Invoke(nodeId, isHovered));
             _nodeViews.Add(nodeId, view);
         }

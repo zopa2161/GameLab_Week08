@@ -61,10 +61,10 @@
         "S": 5
       },
       "_launchSpreadAngles": {
-        "C": 12,
+        "C": 6,
         "B": 12,
-        "A": 40,
-        "S": 85
+        "A": 30,
+        "S": 50
       },
       "_waveGradeValues": { "C": 2, "B": 2, "A": 3, "S": 4 }
     },

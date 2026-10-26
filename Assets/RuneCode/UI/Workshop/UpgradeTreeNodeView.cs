@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 namespace RuneCode
 {
-    public sealed class UpgradeTreeNodeView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    public sealed class UpgradeTreeNodeView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
     {
         [Header("정사각형 노드")]
         [SerializeField] private Image _background;
@@ -31,6 +31,7 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _costText;
 
         private Action _purchaseAction;
+        private Action _refundAction;
         private Action<bool> _hoverAction;
         private string _nodeId;
 
@@ -49,6 +50,19 @@ namespace RuneCode
             _button.onClick.RemoveAllListeners();
             UiFactory.BindClickSound(_button);
             if (_purchaseAction != null) _button.onClick.AddListener(() => _purchaseAction());
+        }
+
+        /// <summary>우클릭으로 현재 강화 1단계를 반환할 동작을 연결한다. 구매 버튼의 활성 여부와 별개로 처리한다.</summary>
+        public void SetRefundAction(Action action)
+        {
+            _refundAction = action;
+        }
+
+        /// <summary>드래그가 아닌 우클릭일 때 강화 반환을 요청한다. 좌클릭 구매는 기존 버튼이 처리한다.</summary>
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (eventData.button == PointerEventData.InputButton.Right && !eventData.dragging)
+                _refundAction?.Invoke();
         }
 
         /// <summary>포인터 진입·이탈을 상위 트리의 노드 이름·설명 표시로 전달한다.</summary>

@@ -9,6 +9,8 @@ namespace RuneCode
     [Serializable]
     public sealed class PlayerSave : ISerializationCallbackReceiver
     {
+        private const int ONBOARDING_CHAPTER_COUNT = 7;
+
         private static readonly string[] STARTER_RUNE_IDS = { "shape.sphere", "element.neutral" };
 
         [Header("저장 버전")]
@@ -18,6 +20,7 @@ namespace RuneCode
         [SerializeField] private int _currency;
         [SerializeField] private int _upgradePoints;
         [SerializeField] private bool _hasPendingElementPick;
+        [SerializeField] private string _treeElementRewardRuneId;
         [SerializeField] private int _slotCount = 1;
         [SerializeField] private int _highestClearedStage;
         [SerializeField] private int _selectedStage = 1;
@@ -60,12 +63,19 @@ namespace RuneCode
         [SerializeField] private bool _screenShake = true;
         [SerializeField] private bool _hitStop = true;
 
+        [Header("온보딩 진행")]
+        [SerializeField] private int _onboardingChapter;
+        [SerializeField] private bool _hasCompletedOnboardingEditorVisit;
+
         private List<SpellGraph> _graphs = new List<SpellGraph>();
 
         public int Version => _version;
+        public int OnboardingChapter => _onboardingChapter;
+        public bool HasCompletedOnboardingEditorVisit => _hasCompletedOnboardingEditorVisit;
         public int Currency => _currency;
         public int UpgradePoints => _upgradePoints;
         public bool HasPendingElementPick => _hasPendingElementPick;
+        public string TreeElementRewardRuneId => _treeElementRewardRuneId;
         public int SlotCount => _slotCount;
         public int HighestClearedStage => _highestClearedStage;
         public bool HasClearedProgression => _hasClearedProgression;
@@ -316,6 +326,20 @@ namespace RuneCode
             }
         }
 
+        /// <summary>chapter가 바로 다음 온보딩이면 저장 진행을 한 단계 올리고 true를 반환한다.</summary>
+        public bool TryAdvanceOnboarding(int chapter)
+        {
+            if (chapter != _onboardingChapter + 1 || chapter > ONBOARDING_CHAPTER_COUNT) return false;
+            _onboardingChapter = chapter;
+            return true;
+        }
+
+        /// <summary>온보딩 편집창 방문과 복귀의 완료 여부를 저장한다.</summary>
+        public void SetOnboardingEditorVisitCompleted(bool isCompleted)
+        {
+            _hasCompletedOnboardingEditorVisit = isCompleted;
+        }
+
         /// <summary>시작 룬과 계속 강화할 첫 마법(에너지 볼트)을 가진 새 진행 데이터를 반환한다.</summary>
         public static PlayerSave CreateNew()
         {
@@ -515,6 +539,13 @@ namespace RuneCode
         public bool Validate(out string error)
         {
             error = null;
+            if (!string.IsNullOrEmpty(_treeElementRewardRuneId)
+                && (!GameData.Runes.TryGetRuneElement(_treeElementRewardRuneId, out ElementDefinition treeReward)
+                    || treeReward.Category != SpellGrammar.ELEMENT_CATEGORY_ELEMENTAL))
+            {
+                error = "save.invalidValues";
+                return false;
+            }
             var economy = GameData.Balance.Economy;
             if (_usesFixedRewardGrades
                 && (!IsValidRewardGrades(_modifierRewardGrades, _modifierRewardIndex, economy.ModifierRewardGrades)
@@ -523,7 +554,8 @@ namespace RuneCode
                 error = "save.invalidValues";
                 return false;
             }
-            if (_version != 5 || _currency < 0 || _currency > 100000000 || _upgradePoints < 0 ||
+            if (_version != 5 || _onboardingChapter < 0 || _onboardingChapter > ONBOARDING_CHAPTER_COUNT
+                || _currency < 0 || _currency > 100000000 || _upgradePoints < 0 ||
                 _highestClearedStage < 0 || _highestClearedStage >= 1000000 ||
                 _selectedStage < 1 || _selectedStage > _highestClearedStage + 1 ||
                 _slotCount != 1)
@@ -704,7 +736,7 @@ namespace RuneCode
             _version = 4;
         }
 
-        /// <summary>버전 4 저장을 버전 5로 이전한다. 온보딩 단계 데이터는 더 이상 저장하지 않으므로 다른 값 변경은 없다.</summary>
+        /// <summary>버전 4 저장을 버전 5로 이전한다. 새 온보딩 기록이 없는 저장은 첫 안내부터 진행한다.</summary>
         public void MigrateToOnboarding()
         {
             if (_version != 4) return;
@@ -864,6 +896,54 @@ namespace RuneCode
 
         /// <summary>속성 선택 보상을 지급한 뒤 대기 상태를 해제한다.</summary>
         public void ClearElementPickPending() => _hasPendingElementPick = false;
+
+        /// <summary>트리에서 지급한 속성 보상 또는 이를 재료로 사용한 합성 결과의 룬 ID를 기록한다.</summary>
+        public void RecordTreeElementReward(string runeId)
+        {
+            _treeElementRewardRuneId = runeId;
+        }
+
+        /// <summary>트리 속성 보상 1개를 회수하고 남은 보유량을 초과하는 장착을 모든 마법에서 해제한다. 구형 저장의 보상 종류가 모호하면 변경 없이 false를 반환한다.</summary>
+        public bool TryRevokeTreeElementReward()
+        {
+            string runeId = _treeElementRewardRuneId;
+            if (string.IsNullOrEmpty(runeId) && !_hasPendingElementPick)
+            {
+                foreach (ModifierStock stock in _elementStock)
+                {
+                    if (stock.Count <= 0) continue;
+                    if (!string.IsNullOrEmpty(runeId) && runeId != stock.RuneId) return false;
+                    runeId = stock.RuneId;
+                }
+            }
+            if (!string.IsNullOrEmpty(runeId))
+            {
+                if (!GameData.Runes.TryGetRuneElement(runeId, out ElementDefinition element)) return false;
+                foreach (ModifierStock stock in _elementStock)
+                {
+                    if (stock.RuneId != runeId || stock.Count <= 0) continue;
+                    stock.Remove(1);
+                    break;
+                }
+                foreach (SpellGraph graph in _graphs)
+                {
+                    int remaining = GetStock(runeId, string.Empty);
+                    foreach (GraphNode node in graph.Nodes)
+                    {
+                        for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
+                        {
+                            string key = SpellGrammar.ElementSlotKey(index);
+                            if (node.GetText(key) != element.Id) continue;
+                            if (remaining > 0) remaining--;
+                            else node.RemoveParameter(key);
+                        }
+                    }
+                }
+            }
+            _treeElementRewardRuneId = null;
+            _hasPendingElementPick = false;
+            return true;
+        }
 
         /// <summary>유효한 노드 ID의 구매 단계를 저장하고 0단계가 되면 저장 항목을 제거한다.</summary>
         public void SetUpgradeNodeLevel(string nodeId, int level)

@@ -153,7 +153,7 @@ stateDiagram-v2
 
 | 화면 | View(MonoBehaviour) | Presenter | 내부 구성 |
 |---|---|---|---|
-| 타이틀 | `TitleScreen` | `TitlePresenter` | 저장 슬롯 팝업, 설정 팝업 |
+| 타이틀 | `TitleScreen` | `TitlePresenter` | 단일 진행 새로 하기·이어 하기, 설정 팝업 |
 | 작업실 | `WorkshopScreen` | `WorkshopPresenter` | 마법 편집 패널 + 시험 도크(에디터 탭), 강화 트리 탭, 출격(스테이지 선택) 영역 |
 | 미션 | `MissionScreen` | `MissionPresenter` | 월드 표시(`MissionWorldView`), HUD, 결과 패널 |
 

@@ -150,7 +150,13 @@ namespace RuneCode
             MissionWorldSpace.Place(_ring, Vector2.zero, RING_RADIUS * 2, RingColor);
             MissionWorldSpace.PlaceLine(_aimLine, Vector2.zero, new Vector2(AIM_LENGTH, 0), AIM_WIDTH, AimColor);
             MissionWorldSpace.SetVisible(_dashTrail, isDashing);
-            if (isDashing) MissionWorldSpace.PlaceLine(_dashTrail, new Vector2(-DASH_TRAIL_LENGTH, 0), Vector2.zero, DASH_TRAIL_WIDTH, DashTrailColor);
+            if (isDashing)
+            {
+                float dashAngle = (MissionWorldSpace.ToWorldAngle(player.DashDirection)
+                    - MissionWorldSpace.ToWorldAngle(player.AimDirection)) * Mathf.Deg2Rad;
+                Vector2 dashDirection = new Vector2(Mathf.Cos(dashAngle), Mathf.Sin(dashAngle));
+                MissionWorldSpace.PlaceLine(_dashTrail, -dashDirection * DASH_TRAIL_LENGTH, Vector2.zero, DASH_TRAIL_WIDTH, DashTrailColor);
+            }
             MissionWorldSpace.SetVisible(_shieldRing, player.Shield > 0);
             if (player.Shield > 0) MissionWorldSpace.Place(_shieldRing, Vector2.zero, SHIELD_RADIUS * 2, ShieldColor);
             ApplyAura(hasAura, time);

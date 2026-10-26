@@ -31,6 +31,8 @@ namespace RuneCode
         private float _compileAt;
         private bool _isBlockEditing;
         private bool _hasBlockChanges;
+        private bool _isSingleBehavior;
+        private int _elementSlotBonus;
 
         public string SpellId => _editingGraph.Id;
         public string SpellName => _editingGraph.Name;
@@ -83,10 +85,10 @@ namespace RuneCode
         }
 
         /// <summary>현재 컴파일 문맥의 행동 하나 고정 강화 여부를 반환한다.</summary>
-        public bool IsSingleBehavior => _policy.GetCompileContext().IsSingleBehavior;
+        public bool IsSingleBehavior => _isSingleBehavior;
 
         /// <summary>현재 컴파일 문맥의 속성 슬롯 확장 보너스를 반환한다.</summary>
-        public int ElementSlotBonus => _policy.GetCompileContext().ElementSlotBonus;
+        public int ElementSlotBonus => _elementSlotBonus;
 
         /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다. 다른 마법 배치는 세지 않는다.</summary>
         public bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned)
@@ -104,6 +106,8 @@ namespace RuneCode
         public void Recompile()
         {
             var context = _policy.GetCompileContext();
+            _isSingleBehavior = context.IsSingleBehavior;
+            _elementSlotBonus = context.ElementSlotBonus;
             _compileResult = GraphCompiler.Compile(_editingGraph, GameData.Runes, GameData.Balance.Grammar,
                 context.UnlockedRunes, context.MaxEnergy, context.Library, context.ModifierStock,
                 context.MaxResourceCosts, context.IsSingleBehavior, context.ElementCostReduction,
