@@ -27,6 +27,9 @@ namespace RuneCode
 
         private readonly GraphPointerState _state = new GraphPointerState();
         private readonly List<string> _expiredHighlights = new List<string>();
+        private readonly HashSet<string> _snapMovingNodeIds = new HashSet<string>();
+        private readonly Dictionary<(string From, string Port, string To, string PreviewRune, string PreviewGrade), bool> _dockPreviewResults
+            = new Dictionary<(string, string, string, string, string), bool>();
 
         private ISpellEditor _editor;
         private TMP_FontAsset _font;
@@ -128,6 +131,7 @@ namespace RuneCode
         public void RefreshGraph()
         {
             if (!HasGraph) return;
+            _dockPreviewResults.Clear();
             _layout.RebuildGhosts(_editor.IsSingleBehavior);
             if (!_hasDetachedDrag && _editor.IsEditable && _layout.ArrangeBlockGroups()) _editor.MarkBlockLayoutChanged();
             HashSet<string> existing = _labels.Refresh(_editor.Graph, _editor.Library, _editor.CompileResult.Entries);
@@ -273,6 +277,7 @@ namespace RuneCode
         /// <summary>팔레트 드래그 종료 시 연결 후보와 테두리 표시를 제거한다.</summary>
         internal void ClearPaletteSnap()
         {
+            _dockPreviewResults.Clear();
             _state.ClearSnap();
             if (HasGraph) RefreshMeshes();
         }
@@ -601,7 +606,7 @@ namespace RuneCode
             _state.Pointer = Local(eventData);
             if (_state.IsPanning) _viewport.SetPan(_state.PanStart + _state.Pointer - _state.DragStart);
             if (_state.IsNodeDragging) MoveDraggedNodes();
-            if (_state.IsPanning || _state.IsNodeDragging) LayoutLabels();
+            if (_state.IsPanning || _state.IsNodeDragging) LayoutLabels(onlyDraggedNodes: _state.IsNodeDragging && _hasDetachedDrag);
             else RefreshMeshes();
         }
 
@@ -735,13 +740,13 @@ namespace RuneCode
             _hoverChanged?.Invoke(null, null);
         }
 
-        /// <summary>화면 이동·확대에 맞춰 라벨을 배치하고 메시 재구성을 예약한다.</summary>
-        private void LayoutLabels()
+        /// <summary>화면 이동·확대에 맞춰 라벨을 배치한다. onlyDraggedNodes이면 위치가 바뀐 드래그 묶음만 배치하고 메시를 갱신한다.</summary>
+        private void LayoutLabels(bool onlyDraggedNodes = false)
         {
             if (!HasGraph) return;
             UpdateBlockDragLayer();
             _layout.PlaceGhosts();
-            _labels.Layout(_editor.Graph);
+            _labels.Layout(_editor.Graph, onlyDraggedNodes ? _state.DragOrigins.Keys : null);
             _overlayLayer.transform.SetAsLastSibling();
             RefreshMeshes();
         }
@@ -787,6 +792,7 @@ namespace RuneCode
         /// <summary>클릭한 노드로 선택을 갱신하고 선택된 노드들의 드래그 시작 좌표를 저장한다.</summary>
         private void BeginNodeDrag(GraphNode clicked, bool isShift)
         {
+            _dockPreviewResults.Clear();
             HashSet<string> selected = _state.Selected;
             HashSet<string> group = _editor.Graph.GetBlockGroup(new[] { clicked.Id }, GameData.Runes);
             if (!isShift) selected.Clear();
@@ -829,6 +835,8 @@ namespace RuneCode
         {
             _state.ClearSnap();
             if (!_editor.IsEditable) return;
+            _snapMovingNodeIds.Clear();
+            _snapMovingNodeIds.UnionWith(movingIds);
             float closest = _puzzleSnapDistance * _viewport.Zoom;
             closest *= closest;
             for (int pass = 0; pass < 2; pass++)
@@ -837,13 +845,17 @@ namespace RuneCode
                 {
                     GraphNode moving = _editor.Graph.FindNode(id);
                     if (moving == null) continue;
-                    foreach (GraphNode stationary in _editor.Graph.Nodes)
+                    if (pass == 0)
                     {
-                        if (movingIds.Contains(stationary.Id)) continue;
                         bool isHead = true;
                         foreach (GraphEdge edge in _editor.Graph.Edges)
-                            if (edge.ToNode == moving.Id && movingIds.Contains(edge.FromNode) && _layout.IsBlockEdge(edge)) { isHead = false; break; }
-                        if (pass == 0 && isHead) ConsiderPuzzleSnap(stationary, moving, false, ref closest);
+                            if (edge.ToNode == moving.Id && _snapMovingNodeIds.Contains(edge.FromNode) && _layout.IsBlockEdge(edge)) { isHead = false; break; }
+                        if (!isHead) continue;
+                    }
+                    foreach (GraphNode stationary in _editor.Graph.Nodes)
+                    {
+                        if (_snapMovingNodeIds.Contains(stationary.Id)) continue;
+                        if (pass == 0) ConsiderPuzzleSnap(stationary, moving, false, ref closest);
                         if (pass == 1) ConsiderPuzzleSnap(moving, stationary, true, ref closest);
                     }
                 }
@@ -877,7 +889,7 @@ namespace RuneCode
                     else if (isOutputMoving && (isSameOutput || isSameInput)) isOccupied = true;
                     if (isSameOutput && !isSameInput) insertNode = edge.ToNode;
                 }
-                if (isOccupied || (!isConnected && !_editor.CanDockBlocks(from.Id, output.Id, to.Id, previewNode)))
+                if (isOccupied || (!isConnected && !CanPreviewDock(from.Id, output.Id, to.Id, previewNode)))
                 {
                     if (distance < _state.RejectedSnapDistance)
                     {
@@ -895,6 +907,17 @@ namespace RuneCode
                 _state.SnapOffset = (isOutputMoving ? -offset : offset) / _viewport.Zoom;
                 _state.IsSnapConnected = isConnected;
             }
+        }
+
+        /// <summary>구조가 바뀌지 않은 드래그 동안 같은 포트 조합의 연결 검사 결과를 재사용한다. 그래프 갱신과 드래그 종료 시 캐시를 비운다.</summary>
+        private bool CanPreviewDock(string fromId, string portId, string toId, GraphNode previewNode)
+        {
+            var key = (fromId, portId, toId, previewNode?.RuneId,
+                previewNode?.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE));
+            if (_dockPreviewResults.TryGetValue(key, out bool canDock)) return canDock;
+            canDock = _editor.CanDockBlocks(fromId, portId, toId, previewNode);
+            _dockPreviewResults.Add(key, canDock);
+            return canDock;
         }
 
         /// <summary>선택 후보의 포트가 맞닿도록 이동 집합을 정렬하고 기존 연결 규칙으로 연결한다. 거부되면 보정 이동만 복구한다.</summary>

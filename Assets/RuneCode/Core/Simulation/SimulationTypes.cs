@@ -124,6 +124,7 @@ namespace RuneCode
         public double DashCooldown => _dashCooldown;
         public double DashCooldownDuration => _dashCooldownDuration;
         public double DashRemaining => _dashRemaining;
+        public SimVector DashDirection => _dashDirection;
         /// <summary>실제로 시작한 대시 횟수를 반환한다.</summary>
         public int DashesStarted => _dashesStarted;
 

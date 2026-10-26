@@ -669,7 +669,8 @@ namespace RuneCode
             bool isDashing = player.DashRemaining > 0;
             Vector2 point = Point(player.Position);
             Vector2 aim = ScreenDirection(player.AimDirection);
-            if (isDashing) RuneMesh.Line(mesh, point - aim * 44 * _scale, point, 14 * _scale, PLAYER_DASH_TRAIL_COLOR);
+            if (isDashing) RuneMesh.Line(mesh, point - ScreenDirection(player.DashDirection) * 44 * _scale,
+                point, 14 * _scale, PLAYER_DASH_TRAIL_COLOR);
 
             float radius = isBench ? Mathf.Max(4.5f, 12 * _scale) : 12 * _scale;
             RuneMesh.Polygon(mesh, point, radius, isDashing ? PLAYER_DASH_COLOR : PLAYER_COLOR, 3, Mathf.Atan2(aim.y, aim.x));
