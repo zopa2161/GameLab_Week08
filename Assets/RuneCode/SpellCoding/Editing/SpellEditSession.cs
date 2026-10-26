@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -507,12 +507,24 @@ namespace RuneCode
             return candidate;
         }
 
-        /// <summary>Core 이외의 지정 노드와 관련 엣지를 제거한다.</summary>
-        public void RemoveNode(string nodeId)
+        /// <summary>Core 이외의 지정 노드와 관련 엣지를 제거하고 반환 사유·작업 ID·노드 종류를 기록한다.</summary>
+        public void RemoveNode(string nodeId) => RemoveNode(nodeId, "delete", null);
+
+        /// <summary>지정 반환 사유와 작업 ID로 노드를 제거하고 성공한 노드만 반환 로그에 기록한다.</summary>
+        public void RemoveNode(string nodeId, string reason, string operationId)
         {
             if (!_isEditable) return;
+            GraphNode returned = _editingGraph.FindNode(nodeId);
             _editingGraph.RemoveNode(nodeId);
             MarkChanged(); RaiseGraphChanged();
+            if (returned != null && _editingGraph.FindNode(nodeId) == null)
+                LocalTelemetry.RecordUsabilityEvent("node_return", "editor", new Dictionary<string, object>
+                {
+                    ["node_id"] = nodeId, ["rune_id"] = returned.RuneId,
+                    ["grade"] = returned.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, null),
+                    ["result"] = "success", ["count"] = 1, ["node_count_after"] = _editingGraph.Nodes.Count,
+                    ["reason"] = reason, ["operation_id"] = operationId ?? Guid.NewGuid().ToString("N"),
+                });
         }
 
         /// <summary>지정한 엣지를 삭제하고 검증을 갱신한다.</summary>

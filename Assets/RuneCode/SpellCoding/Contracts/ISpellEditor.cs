@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace RuneCode
@@ -70,6 +70,9 @@ namespace RuneCode
 
         /// <summary>Core가 아닌 노드와 연결된 엣지를 제거한다.</summary>
         void RemoveNode(string nodeId);
+
+        /// <summary>노드를 제거하며 반환 사유와 묶음 작업 ID를 로그에 전달한다.</summary>
+        void RemoveNode(string nodeId, string reason, string operationId);
 
         /// <summary>엣지를 제거한다.</summary>
         void RemoveEdge(string edgeId);

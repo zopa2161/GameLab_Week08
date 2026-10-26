@@ -247,3 +247,16 @@ Player.log에서 Unknown combat column: enemy_stats 예외를 확인했다. 적 
 ### 보스 패턴 분석 연결 (2026-10-23)
 
 후속 요청으로 신규 분석기 enemy_analysis.py에 보스 패턴별 최신 누계 복원과 전체·스테이지·라운드별 집계를 추가하고 신규 웹의 보스 패턴 분석 탭에 게시했다. 참가자·날짜·세션 필터 및 보스·스테이지 선택을 적용한다. 실제 수신 10세션 중 패턴 기록 6세션의 70개 누계 행을 복원했고 최신 플레이의 패턴 사용 140회를 확인했다. 반복 입력에서도 사용·피해·피격 누계가 중복 합산되지 않으며 웹에서 라운드별 HP 피해 표시를 확인했다. 과거 리포트 사이트는 변경하지 않는다.
+
+
+## 15. 실험실·스킬트리·노드 반환 중심 로그 보강 (2026-10-26)
+
+기존 editor_enter / editor_exit를 실험실 방문 경계로 재사용한다. editor_enter.initial_tab에 실제 진입 탭을 남기며 재사용 화면의 이전 탭을 잘못 전환 기록으로 남기지 않는다. editor_exit에는 laboratory_seconds(방문 전체 실시간 초), tab_seconds.editor(빌드 편집 탭), tab_seconds.tree(강화 트리 탭), final_tab, action_counts를 추가한다. Stopwatch의 단조 시계를 사용하며 프로그램 포커스 상실·도움말 팝업도 화면 체류에 포함한다. 활성 조작 시간과 다르다. 정상 종료는 기존 세션 마감이 열린 방문도 닫는다. 충돌 시 미종료 방문의 최종 체류는 보장하지 않는다.
+
+action_counts는 해당 방문의 upgrade_purchase(성공 강화 구매), upgrade_refund(성공 강화 반환), skill_tree_element_selected(트리 속성 결정), node_return(성공 제거된 빌드 노드 개수), node_return_operations(반환 조작 횟수)를 제공한다. 반환 조작 한 번으로 여러 노드가 제거되면 node_return은 노드마다, operation_id는 같은 값으로 남긴다. 실패·취소·되돌리기는 성공 반환 수에 포함하지 않으며 되돌리기로 복원되더라도 이미 실행한 반환 조작 횟수는 유지한다.
+
+upgrade_purchase / upgrade_refund에는 result, effect_type, stage, round를 보강한다. 기존 node_id, level_before/after, 비용·환급 및 포인트는 유지하며 같은 구매·반환을 중복 이벤트로 만들지 않는다. skill_tree_element_selected에 실제 선택한 rune_id를 기록한다. node_return은 노드가 실제 제거된 경우에만 node_id, rune_id, grade, count, node_count_after, reason, operation_id를 남긴다. reason은 delete_selection 또는 palette_return이고 다른 호출은 delete다. 슬롯 룬 장착 해제는 기존 editor_action_result.clear_slot로 구분하며 빌드 노드 수에 포함하지 않는다.
+
+보스 boss_patterns의 기존 use_count·damage_hp·shield_absorbed·hit_count에 first_use_seconds, last_use_seconds, last_hit_seconds를 추가한다. 시뮬레이션의 전투 초이므로 실험실·일시정지 체류가 들어가지 않는다. 접촉 피해처럼 패턴 사용을 정의하지 않는 행의 first/last_use는 null이며 실제 피격이 없는 패턴의 last_hit도 null이다. round_break_start / combat_end의 기존 enemy_stats 전달 경로와 누계 최신값 집계 계약은 유지한다.
+
+검증: 현재 소스와 Unity 참조로 Core·게임 C# 직접 컴파일 통과, 변경 공백 검사 통과. 테스트 파일·자산은 추가하지 않았다. Unity 실제 플레이, Player 빌드, 새 로그 업로드는 미검증이다. Inspector 연결 작업은 없다. 분석기·웹 게시 코드는 이번 범위에서 변경하지 않았다. 새 Player 빌드부터 새 필드를 수집한다.

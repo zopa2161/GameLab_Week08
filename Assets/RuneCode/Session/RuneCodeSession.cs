@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -481,6 +481,7 @@ namespace RuneCode
                 ["stage"] = _isRunSuspended ? _workshopStage : SelectedStage,
                 ["round"] = _isRunSuspended ? (object)_workshopRound : null,
                 ["entry_reason"] = _isRunSuspended ? "round_break" : "workshop",
+                ["screen"] = "laboratory",
                 ["inventory"] = GetInventoryLogSnapshot(),
                 ["skill_tree"] = GetSkillTreeLogSnapshot(),
                 ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(_spells.Graph),
@@ -553,6 +554,9 @@ namespace RuneCode
             {
                 ["node_id"] = nodeId, ["level_before"] = currentLevel, ["level_after"] = currentLevel + 1,
                 ["cost"] = cost, ["points_before"] = pointsBefore, ["points_after"] = _save.UpgradePoints,
+                ["result"] = "success", ["effect_type"] = node.EffectType.ToString(),
+                ["stage"] = _isRunSuspended ? _workshopStage : SelectedStage,
+                ["round"] = _isRunSuspended ? (object)_workshopRound : null,
                 ["skill_tree"] = GetSkillTreeLogSnapshot(),
             });
             LocalTelemetry.Record(0, "upgradeTree.purchase", nodeId + ":" + (currentLevel + 1) + ":" + cost);
@@ -610,6 +614,9 @@ namespace RuneCode
             {
                 ["node_id"] = nodeId, ["level_before"] = level, ["level_after"] = level - 1,
                 ["refund"] = refund, ["points_after"] = _save.UpgradePoints,
+                ["result"] = "success", ["count"] = 1, ["effect_type"] = node.EffectType.ToString(),
+                ["stage"] = _isRunSuspended ? _workshopStage : SelectedStage,
+                ["round"] = _isRunSuspended ? (object)_workshopRound : null,
             });
             return true;
         }
@@ -882,6 +889,12 @@ namespace RuneCode
             GrantRune(runeId, "", 1, "tree_element_pick", persist: false);
             _save.RecordTreeElementReward(runeId);
             _save.ClearElementPickPending();
+            LocalTelemetry.RecordUsabilityEvent("skill_tree_element_selected", "workshop", new Dictionary<string, object>
+            {
+                ["rune_id"] = runeId, ["result"] = "success",
+                ["stage"] = _isRunSuspended ? _workshopStage : SelectedStage,
+                ["round"] = _isRunSuspended ? (object)_workshopRound : null,
+            });
             PersistProgress();
             _spells.Recompile();
         }

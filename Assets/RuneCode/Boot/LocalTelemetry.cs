@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -18,6 +18,12 @@ namespace RuneCode
         private static UsabilityLogWriter _usabilityLogWriter;
         private static readonly Dictionary<string, int> _usabilityEventCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         private static readonly HashSet<string> _completedUsabilitySignatures = new HashSet<string>(StringComparer.Ordinal);
+        private static readonly System.Diagnostics.Stopwatch _laboratoryClock = new System.Diagnostics.Stopwatch();
+        private static readonly Dictionary<string, double> _laboratoryTabSeconds = new Dictionary<string, double>(StringComparer.Ordinal);
+        private static readonly Dictionary<string, int> _laboratoryActions = new Dictionary<string, int>(StringComparer.Ordinal);
+        private static readonly HashSet<string> _laboratoryReturnOperations = new HashSet<string>(StringComparer.Ordinal);
+        private static string _laboratoryTab;
+        private static double _laboratoryTabStartedAt;
         private static string _editingEpisodeId;
         private static Func<Dictionary<string, object>> _editingSnapshot;
         private static string _graphRevisionId;
@@ -54,24 +60,55 @@ namespace RuneCode
             if (!eventData.ContainsKey("graph_revision_id")) eventData["graph_revision_id"] = _graphRevisionId;
             if (!eventData.ContainsKey("spell_build_id")) eventData["spell_build_id"] = _spellBuildId;
             if (!eventData.ContainsKey("combat_id")) eventData["combat_id"] = _combatId;
+            if (_editingEpisodeId != null)
+            {
+                if (eventName == "workshop_tab_switch" && eventData.TryGetValue("to_tab", out object tab) && tab is string nextTab)
+                {
+                    AccumulateLaboratoryTab();
+                    _laboratoryTab = nextTab;
+                }
+                if (eventName == "upgrade_purchase" || eventName == "upgrade_refund" || eventName == "node_return" || eventName == "skill_tree_element_selected")
+                {
+                    string action = eventName;
+                    if (eventData.TryGetValue("result", out object result) && !string.Equals(result as string, "success", StringComparison.Ordinal)) action += "_rejected";
+                    _laboratoryActions.TryGetValue(action, out int count);
+                    _laboratoryActions[action] = count + 1;
+                    if (eventName == "node_return" && eventData.TryGetValue("operation_id", out object operation)
+                        && operation is string operationId && _laboratoryReturnOperations.Add(operationId))
+                    {
+                        _laboratoryActions.TryGetValue("node_return_operations", out int operations);
+                        _laboratoryActions["node_return_operations"] = operations + 1;
+                    }
+                }
+            }
             _usabilityLogWriter.AppendEvent(eventName, context, eventData);
             IncrementUsabilityEventCount(eventName, eventData);
             if (eventName == "test_start" || eventName == "test_end" || eventName == "stage_enter"
                 || eventName == "combat_start" || eventName == "combat_end" || eventName == "spell_complete"
                 || eventName == "clear_reward_selected" || eventName == "round_break_end"
                 || eventName == "editor_enter" || eventName == "editor_exit"
-                || eventName == "upgrade_purchase" || eventName == "rune_synthesis"
+                || eventName == "upgrade_purchase" || eventName == "upgrade_refund" || eventName == "node_return"
+                || eventName == "skill_tree_element_selected" || eventName == "rune_synthesis"
                 || eventName == "pause_start" || eventName == "pause_end")
                 _usabilityLogWriter.Flush();
         }
 
         /// <summary>Starts an editor interval and assigns its ID to following events.</summary>
-        public static void BeginUsabilityEditingEpisode(Func<Dictionary<string, object>> snapshot = null)
+        public static void BeginUsabilityEditingEpisode(Func<Dictionary<string, object>> snapshot = null, string initialTab = "editor")
         {
             if (_usabilityLogWriter == null) return;
+            if (_editingEpisodeId != null) EndUsabilityEditingEpisode("reentered");
             _editingEpisodeId = Guid.NewGuid().ToString("N");
             _editingSnapshot = snapshot;
-            RecordUsabilityEvent("editor_enter", "editor", snapshot?.Invoke());
+            _laboratoryClock.Restart();
+            _laboratoryTabSeconds.Clear();
+            _laboratoryActions.Clear();
+            _laboratoryReturnOperations.Clear();
+            _laboratoryTab = initialTab;
+            _laboratoryTabStartedAt = 0;
+            Dictionary<string, object> data = snapshot?.Invoke() ?? new Dictionary<string, object>();
+            data["initial_tab"] = initialTab;
+            RecordUsabilityEvent("editor_enter", "editor", data);
         }
 
         /// <summary>Closes the active editor interval and clears its event linkage.</summary>
@@ -79,10 +116,28 @@ namespace RuneCode
         {
             if (_usabilityLogWriter == null || _editingEpisodeId == null) return;
             Dictionary<string, object> data = _editingSnapshot?.Invoke() ?? new Dictionary<string, object>();
+            _laboratoryClock.Stop();
+            AccumulateLaboratoryTab();
             data["reason"] = reason;
+            data["laboratory_seconds"] = _laboratoryClock.Elapsed.TotalSeconds;
+            data["tab_seconds"] = new Dictionary<string, double>(_laboratoryTabSeconds);
+            data["action_counts"] = new Dictionary<string, int>(_laboratoryActions);
+            data["final_tab"] = _laboratoryTab;
             RecordUsabilityEvent("editor_exit", "editor", data);
             _editingEpisodeId = null;
             _editingSnapshot = null;
+        }
+
+        /// <summary>현재 실험실 탭의 마지막 관측 이후 체류 초를 누적하고 시간 기준을 갱신한다.</summary>
+        private static void AccumulateLaboratoryTab()
+        {
+            double now = _laboratoryClock.Elapsed.TotalSeconds;
+            if (!string.IsNullOrEmpty(_laboratoryTab))
+            {
+                _laboratoryTabSeconds.TryGetValue(_laboratoryTab, out double seconds);
+                _laboratoryTabSeconds[_laboratoryTab] = seconds + Math.Max(0, now - _laboratoryTabStartedAt);
+            }
+            _laboratoryTabStartedAt = now;
         }
 
         /// <summary>Creates a fresh graph revision ID after a successful editing operation.</summary>

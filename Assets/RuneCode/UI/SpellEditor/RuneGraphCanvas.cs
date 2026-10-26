@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using UnityEngine;
@@ -164,7 +164,8 @@ namespace RuneCode
         {
             HashSet<string> group = _editor.Graph.GetBlockGroup(_state.Selected, GameData.Runes);
             _editor.BeginBlockEdit();
-            foreach (string id in group) _editor.RemoveNode(id);
+            string operationId = Guid.NewGuid().ToString("N");
+            foreach (string id in group) _editor.RemoveNode(id, "delete_selection", operationId);
             _editor.EndBlockEdit();
             _state.Selected.Clear();
             _selectionChanged(null);
@@ -651,7 +652,8 @@ namespace RuneCode
                 if (_isBehaviorDrag && IsPointerOverPalette(eventData.position))
                 {
                     HashSet<string> group = _editor.Graph.GetBlockGroup(_state.DragOrigins.Keys, GameData.Runes);
-                    foreach (string id in group) _editor.RemoveNode(id);
+                    string operationId = Guid.NewGuid().ToString("N");
+                    foreach (string id in group) _editor.RemoveNode(id, "palette_return", operationId);
                     _state.Selected.Clear();
                     _selectionChanged(null);
                     _editor.EndBlockEdit();

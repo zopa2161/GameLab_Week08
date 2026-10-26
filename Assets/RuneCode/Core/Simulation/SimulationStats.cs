@@ -124,6 +124,7 @@ namespace RuneCode
                     patternRow["damage_hp"] = (double)patternRow["damage_hp"] + hp;
                     patternRow["shield_absorbed"] = (double)patternRow["shield_absorbed"] + shield;
                     patternRow["hit_count"] = (int)patternRow["hit_count"] + 1;
+                    patternRow["last_hit_seconds"] = world.Time;
                 }
             }
             int key = sourceId;
@@ -157,6 +158,7 @@ namespace RuneCode
                     ["enemy_id"] = enemyId, ["stage"] = world.StageNumber, ["round"] = world.RoundNumber,
                     ["pattern"] = pattern, ["use_count"] = 0, ["damage_hp"] = 0d,
                     ["shield_absorbed"] = 0d, ["hit_count"] = 0,
+                    ["first_use_seconds"] = null, ["last_use_seconds"] = null, ["last_hit_seconds"] = null,
                 };
                 _bossPatternRows.Add(key, row);
             }
@@ -170,6 +172,8 @@ namespace RuneCode
             if (!world.IsMission) return;
             Dictionary<string, object> row = GetBossPatternRow(world, enemy.Id, pattern);
             row["use_count"] = (int)row["use_count"] + 1;
+            if (row["first_use_seconds"] == null) row["first_use_seconds"] = world.Time;
+            row["last_use_seconds"] = world.Time;
         }
 
         /// <summary>변경된 적 누계와 생존 중인 적의 관측 상태를 복사한다. 확정하지 못한 생존시간은 null로 유지한다.</summary>

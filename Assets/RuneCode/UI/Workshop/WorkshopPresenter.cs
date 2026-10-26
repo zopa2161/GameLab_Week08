@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using UnityEngine;
@@ -46,7 +46,8 @@ namespace RuneCode
         /// <summary>작업실에 들어올 때 요청한 탭을 갱신하고 일반 진행의 작업실 온보딩 차례면 띄운다.</summary>
         public void Enter(string tab = WorkshopScreen.TAB_EDITOR)
         {
-            LocalTelemetry.BeginUsabilityEditingEpisode(_session.GetWorkshopLogSnapshot);
+            _selectedTab = tab;
+            LocalTelemetry.BeginUsabilityEditingEpisode(_session.GetWorkshopLogSnapshot, tab);
             SetTab(tab);
         }
 
