@@ -515,7 +515,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -599,7 +599,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 10, y: -82}
+  m_AnchoredPosition: {x: 10, y: -125}
   m_SizeDelta: {x: 185.5, y: 20}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &177505097938791119
@@ -652,7 +652,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -680,13 +680,13 @@ MonoBehaviour:
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
-  m_ActiveFontFeatures: 00000000
+  m_ActiveFontFeatures: 
   m_enableExtraPadding: 0
   checkPaddingRequired: 0
   m_isRichText: 1
   m_EmojiFallbackSupport: 1
   m_parseCtrlCharacters: 1
-  m_isOrthographic: 0
+  m_isOrthographic: 1
   m_isCullingEnabled: 0
   m_horizontalMapping: 0
   m_verticalMapping: 0
@@ -1152,7 +1152,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 200.5, y: -82}
+  m_AnchoredPosition: {x: 200.5, y: -125}
   m_SizeDelta: {x: 185.5, y: 20}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &3655151264325268623
@@ -1205,7 +1205,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -1233,13 +1233,13 @@ MonoBehaviour:
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
-  m_ActiveFontFeatures: 00000000
+  m_ActiveFontFeatures: 
   m_enableExtraPadding: 0
   checkPaddingRequired: 0
   m_isRichText: 1
   m_EmojiFallbackSupport: 1
   m_parseCtrlCharacters: 1
-  m_isOrthographic: 0
+  m_isOrthographic: 1
   m_isCullingEnabled: 0
   m_horizontalMapping: 0
   m_verticalMapping: 0
@@ -2140,7 +2140,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &5638619975720861793
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2191,6 +2191,9 @@ MonoBehaviour:
   _mouseWheelIcon: {fileID: -532697093, guid: 005c4867f12b9eb4c9381c343bb7e0a5, type: 3}
   _mouseLeftIcon: {fileID: -22115288, guid: 005c4867f12b9eb4c9381c343bb7e0a5, type: 3}
   _mouseRightIcon: {fileID: -1333527551, guid: 005c4867f12b9eb4c9381c343bb7e0a5, type: 3}
+  _exclusiveGroupColor: {r: 0.45, g: 0.75, b: 1, a: 0.12}
+  _exclusiveGroupOutlineColor: {r: 0.45, g: 0.75, b: 1, a: 0.55}
+  _exclusiveGroupPadding: 14
 --- !u!1 &4774036508987419527
 GameObject:
   m_ObjectHideFlags: 0
@@ -2354,7 +2357,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -2382,13 +2385,13 @@ MonoBehaviour:
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0
-  m_ActiveFontFeatures: 00000000
+  m_ActiveFontFeatures: 
   m_enableExtraPadding: 0
   checkPaddingRequired: 0
   m_isRichText: 1
   m_EmojiFallbackSupport: 1
   m_parseCtrlCharacters: 1
-  m_isOrthographic: 0
+  m_isOrthographic: 1
   m_isCullingEnabled: 0
   m_horizontalMapping: 0
   m_verticalMapping: 0
@@ -3678,7 +3681,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
   m_AnchoredPosition: {x: 10, y: -39}
-  m_SizeDelta: {x: 376, y: 38}
+  m_SizeDelta: {x: 376, y: 80}
   m_Pivot: {x: 0, y: 1}
 --- !u!222 &2863548493115940803
 CanvasRenderer:
@@ -3708,7 +3711,10 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 
+  m_text: "\uD14C\uC2A4\uD2B8\uBB38\uAD6C\uC5D0\uC694\n\uC6B0\uB9AC\uC758 \uCD5C\uC7A5
+    \uC124\uBA85\uC740\n\uC544\uB9C8\uB3C4 5\uC904\uB85C \uAE30\uC5B5\uD569\uB2C8\uB2E4.\n\uC9C0\uD6C4\uB294
+    \uC790\uC720\uC5D0\uC694\n\uAC11\uC790\uAE30 <color=#ffffff>\uD770\uC0C9</color>\uC774\uBA74
+    \uC5B4\uB5A4\uB290\uB08C?"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 6e22b7e028833a74aaf22c6466fb8f2f, type: 2}
   m_sharedMaterial: {fileID: -5937850424648672293, guid: 6e22b7e028833a74aaf22c6466fb8f2f, type: 2}
@@ -3717,7 +3723,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4291079050
   m_fontColor: {r: 0.54, g: 0.67, b: 0.77, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -3730,7 +3736,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -3748,7 +3754,7 @@ MonoBehaviour:
   m_characterSpacing: 0
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
-  m_lineSpacing: 0
+  m_lineSpacing: 12
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
@@ -6375,7 +6381,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1589036622568036755, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 1656388761840003713, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
       propertyPath: m_Sprite
@@ -6411,7 +6417,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7184848222494748046, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
       propertyPath: m_SizeDelta.y
-      value: 112
+      value: 150
       objectReference: {fileID: 0}
     - target: {fileID: 7184848222494748046, guid: a54aead6086afbf409fa3e4c84b3f427, type: 3}
       propertyPath: m_LocalPosition.x
