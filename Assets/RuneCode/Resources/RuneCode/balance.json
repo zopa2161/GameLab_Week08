@@ -38,7 +38,7 @@
   },
   "_combat": {
     "_burnDps": 3,
-    "_burnDamageRatio": 0.1,
+    "_burnDamageRatio": 0.15,
     "_burnInterval": 0.5,
     "_burnSeconds": 3,
     "_chillSlow": 0.3,
@@ -56,6 +56,7 @@
     "_separationStrength": 0.5,
     "_separationMaxStep": 4,
     "_burnMaxStacks": 3,
+    "_burnBurstMultiplier": 6,
     "_auraRadius": 100,
     "_auraTickInterval": 0.5,
     "_auraTickDamage": 1,

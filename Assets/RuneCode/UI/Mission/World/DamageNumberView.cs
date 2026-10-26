@@ -23,7 +23,7 @@ namespace RuneCode
                 + new Vector2(0, (START_OFFSET + elapsedTicks * RISE_PER_TICK) / MissionWorldSpace.PIXELS_PER_UNIT);
             Color tint = RuneMesh.ElementColor(number.Element); tint.a = 1 - elapsedTicks / FADE_TICKS;
             _label.color = tint;
-            if (number.Amount != _shownAmount) { _shownAmount = number.Amount; _label.text = number.Amount.ToString("0.#"); }
+            if (number.Amount != _shownAmount) { _shownAmount = number.Amount; _label.text = number.Amount.ToString("0.0"); }
         }
     }
 }

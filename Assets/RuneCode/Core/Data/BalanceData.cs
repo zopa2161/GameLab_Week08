@@ -123,6 +123,7 @@ namespace RuneCode
 
         [Header("강화 트리 전투")]
         [SerializeField] private int _burnMaxStacks = 3;
+        [SerializeField] private float _burnBurstMultiplier = 6f;
         [SerializeField] private float _auraRadius = 100f;
         [SerializeField] private float _auraTickInterval = 0.5f;
         [SerializeField] private float _auraTickDamage = 1f;
@@ -155,6 +156,9 @@ namespace RuneCode
 
         /// <summary>화염 강화에서 폭발이 일어나는 화상 중첩 수다.</summary>
         public int BurnMaxStacks => _burnMaxStacks;
+
+        /// <summary>화염 강화 폭발에서 중첩에 저장된 화상 틱 피해 합에 곱하는 배율이다.</summary>
+        public float BurnBurstMultiplier => _burnBurstMultiplier;
 
         /// <summary>플레이어 주위 장판의 반경이다.</summary>
         public float AuraRadius => _auraRadius;
@@ -369,7 +373,8 @@ namespace RuneCode
                     || data.Limits.MaxScheduledExecutions <= 0 || data.Limits.MaxActionsPerTick <= 0)
                     throw new FormatException("밸런스 범위가 유효하지 않습니다.");
             if (data.Player.PostDashBuffSeconds < 0f || data.Player.DashEndCostMultiplier <= 0f || data.Player.DashEndCostMultiplier > 1f
-                || data.Player.DashGuardInvulnerability < 0f || data.Combat.BurnMaxStacks < 2 || data.Combat.AuraRadius <= 0f
+                || data.Player.DashGuardInvulnerability < 0f || data.Combat.BurnMaxStacks < 2
+                || data.Combat.BurnBurstMultiplier <= 0f || data.Combat.AuraRadius <= 0f
                 || data.Combat.AuraTickInterval <= 0f || data.Combat.AuraTickDamage < 0f
                 || data.Combat.SteamSeconds <= 0f || data.Combat.SteamInterval <= 0f || data.Combat.SteamRadius <= 0f
                 || data.Combat.SteamDamageRatio < 0f)

@@ -1088,7 +1088,7 @@
     },
     {
       "_key": "ui.tree.fireEnhanceDescription",
-      "_value": "화상이 3번 쌓이면 적의 상태 이상을 모두 지우고 쌓인 공격 피해를 곱한 큰 피해를 줍니다"
+      "_value": "화상이 3번 쌓이면 적의 상태 이상을 모두 지우고 쌓인 화상 피해를 합산한 큰 피해를 줍니다"
     },
     {
       "_key": "ui.tree.statusStackStart",
