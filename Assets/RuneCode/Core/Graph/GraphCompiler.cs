@@ -15,14 +15,15 @@ namespace RuneCode
         /// modifierStock이 있으면 현재 프리셋의 모디파이어·속성·행동 배치 수가 소지량을 넘을 때 E21 오류로 낸다. null이면 검사하지 않는다.
         /// isSingleBehavior가 true면 시작 노드마다 루트 행동을 하나로 제한(E26)하고 통과한 루트 행동의 OnHit 맨 앞에 자기 복제를 넣는다.
         /// elementCostReduction은 전투 속성(fire·ice·arc)이 붙은 노드 비용에서 뺄 감소량이다.
+        /// elementSlotBonus는 속성 슬롯 확장 강화로 모든 행동 등급에 더할 속성 슬롯 수다.
         /// </summary>
         public static CompileResult Compile(SpellGraph graph, RuneCatalog runes, GrammarLimits limits,
             IEnumerable<string> unlocked, float maxEnergy = -1f, IEnumerable<SpellGraph> library = null,
             IReadOnlyDictionary<string, int> modifierStock = null, IReadOnlyDictionary<string, float> maxResourceCosts = null,
-            bool isSingleBehavior = false, float elementCostReduction = 0f)
+            bool isSingleBehavior = false, float elementCostReduction = 0f, int elementSlotBonus = 0)
         {
             CompileContext context = new CompileContext(unlocked ?? runes.StartRunes, library, graph, maxEnergy,
-                maxResourceCosts, isSingleBehavior, elementCostReduction);
+                maxResourceCosts, isSingleBehavior, elementCostReduction, elementSlotBonus);
             List<CompileIssue> dependencyErrors = new List<CompileIssue>();
             ValidateSpellDependencies(graph, context.Library, new HashSet<string>(StringComparer.Ordinal),
                 new List<string>(), dependencyErrors);
@@ -991,6 +992,7 @@ namespace RuneCode
             private readonly IReadOnlyDictionary<string, float> _maxResourceCosts;
             private readonly bool _isSingleBehavior;
             private readonly float _elementCostReduction;
+            private readonly int _elementSlotBonus;
             public HashSet<string> UnlockedIds => _unlockedIds;
             public Dictionary<string, SpellGraph> Library => _library;
             public Dictionary<string, CompiledSpell> Compiled => _compiled;
@@ -998,11 +1000,12 @@ namespace RuneCode
             public float MaxEnergy => _maxEnergy;
             public bool IsSingleBehavior => _isSingleBehavior;
             public float ElementCostReduction => _elementCostReduction;
+            public int ElementSlotBonus => _elementSlotBonus;
 
-            /// <summary>라이브러리·해금·컴파일 캐시, 자원 한도와 행동 하나 고정·속성 비용 감소 값을 컴파일 작업에 보관한다.</summary>
+            /// <summary>라이브러리·해금·컴파일 캐시, 자원 한도와 행동 하나 고정·속성 비용 감소·속성 슬롯 확장 값을 컴파일 작업에 보관한다.</summary>
             public CompileContext(IEnumerable<string> unlocked, IEnumerable<SpellGraph> library, SpellGraph current,
                 float maxEnergy, IReadOnlyDictionary<string, float> maxResourceCosts, bool isSingleBehavior,
-                float elementCostReduction)
+                float elementCostReduction, int elementSlotBonus)
             {
                 _unlockedIds = new HashSet<string>(unlocked ?? Array.Empty<string>(), StringComparer.Ordinal);
                 _unlockedIds.Add(SpellGrammar.INLINE_RUNE);
@@ -1015,6 +1018,7 @@ namespace RuneCode
                 _maxResourceCosts = maxResourceCosts;
                 _isSingleBehavior = isSingleBehavior;
                 _elementCostReduction = elementCostReduction;
+                _elementSlotBonus = elementSlotBonus;
             }
 
             /// <summary>자원별 최대 비용 한도를 반환하고 등록되지 않은 자원에는 false를 반환한다.</summary>
