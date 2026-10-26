@@ -261,7 +261,6 @@ namespace RuneCode
         private readonly string _category;
         private readonly bool _isDisabled;
         private readonly bool _isHiddenFromRewards;
-        private readonly int _ram;
         private readonly float _energy;
         private readonly float _executionSeconds;
         private readonly float _executionSecondsPerArea;
@@ -286,7 +285,6 @@ namespace RuneCode
         /// <summary>기존 장착·합성 동작을 유지하면서 보상 추첨에서만 제외할 룬인지 반환한다.</summary>
         public bool IsHiddenFromRewards => _isHiddenFromRewards;
 
-        public int Ram => _ram;
         public float Energy => _energy;
         public float ExecutionSeconds => _executionSeconds;
         public float ExecutionSecondsPerArea => _executionSecondsPerArea;
@@ -312,7 +310,6 @@ namespace RuneCode
             _category = row._category ?? "";
             _isDisabled = row._disabled;
             _isHiddenFromRewards = row._hiddenFromRewards;
-            _ram = row._ram;
             _costs = costs;
             _energy = (float)costs.GetAmount("mana");
             _executionSeconds = row._executionSeconds;
@@ -349,7 +346,7 @@ namespace RuneCode
 
     /// <summary>
     /// 속성(Element) 정의다. 속성은 그래프 노드가 아니라 Shape·Apply 노드의 드롭다운 값이며,
-    /// RAM·해금은 같은 ID의 속성 룬(runes.json의 element 카테고리 항목)이 가진다.
+    /// 해금은 같은 ID의 속성 룬(runes.json의 element 카테고리 항목)이 가진다.
     /// </summary>
     public sealed class ElementDefinition
     {
@@ -548,36 +545,6 @@ namespace RuneCode
         {
             rune = null;
             return !string.IsNullOrEmpty(id) && _byId.TryGetValue(id, out rune);
-        }
-
-        /// <summary>
-        /// 그래프 노드 하나가 차지하는 RAM을 반환한다. behavior 노드는 행동·장착 속성·장착 모디 룬 RAM의 합이며
-        /// 슬롯 값이 잘못됐으면 해당 항목만 0으로 뺀다. 다른 노드는 룬 자체 RAM에 속성 드롭다운을 가진 노드(Shape·Apply)는
-        /// 선택한 속성 룬의 RAM을 더한다. 알 수 없는 룬이면 0을 반환한다.
-        /// </summary>
-        public int NodeRam(GraphNode node)
-        {
-            if (!TryGet(node.RuneId, out RuneDefinition rune)) return 0;
-            if (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)
-            {
-                int baseRam = rune.Ram;
-                if (TryGetNodeElement(node, out ElementDefinition element) && TryGet(element.RuneId, out RuneDefinition elementRune)) baseRam += elementRune.Ram;
-                return baseRam;
-            }
-            int ram = rune.Ram;
-            for (int index = 0; index < SpellGrammar.MAX_ELEMENT_SLOTS; index++)
-            {
-                string value = node.GetText(SpellGrammar.ElementSlotKey(index), null);
-                if (!string.IsNullOrEmpty(value) && TryGetElement(value, out ElementDefinition attached)
-                    && TryGet(attached.RuneId, out RuneDefinition attachedRune)) ram += attachedRune.Ram;
-            }
-            for (int index = 0; index < SpellGrammar.MAX_MODIFIER_SLOTS; index++)
-            {
-                string value = node.GetText(SpellGrammar.ModifierSlotKey(index), null);
-                if (!string.IsNullOrEmpty(value) && SpellGrammar.TryParseStockKey(value, out string modifierId, out _)
-                    && TryGet(modifierId, out RuneDefinition modifierRune)) ram += modifierRune.Ram;
-            }
-            return ram;
         }
 
         /// <summary>노드의 element 파라미터(없으면 룬 기본값)에 해당하는 속성을 반환한다. 속성 드롭다운이 없는 노드이거나 값이 없으면 false를 반환한다.</summary>
@@ -893,23 +860,23 @@ namespace RuneCode
             if (string.IsNullOrEmpty(row._unlockType)) log.Add(rune.Id, "unlockType", "값이 비어 있습니다.");
         }
 
-        /// <summary>룬의 카테고리·해금 방식·RAM·에너지 값 규칙을 검증하고 위반을 오류 로그에 기록한다.</summary>
+        /// <summary>룬의 카테고리·해금 방식·에너지 값 규칙을 검증하고 위반을 오류 로그에 기록한다.</summary>
         private static void ValidateRune(RuneDefinition rune, TableErrorLog log)
         {
             if (!CATEGORIES.Contains(rune.Category)) log.Add(rune.Id, "category", "알 수 없는 카테고리입니다: " + rune.Category);
             if (!UNLOCK_TYPES.Contains(rune.UnlockType)) log.Add(rune.Id, "unlockType", "알 수 없는 해금 방식입니다: " + rune.UnlockType);
-            if (rune.Ram < 0) log.Add(rune.Id, "ram", "음수일 수 없습니다.");
             if (rune.Energy < 0f) log.Add(rune.Id, "energy", "음수일 수 없습니다.");
             if (rune.UnlockCost < 0) log.Add(rune.Id, "unlockCost", "음수일 수 없습니다.");
             foreach (ResourceAmount cost in rune.Costs.Amounts)
                 if (cost.Amount < 0) log.Add(rune.Id, "resourceCosts:" + cost.Resource, "음수일 수 없습니다.");
             bool isImplementationRune = rune.Category == SpellGrammar.CATEGORY_CORE || rune.Category == SpellGrammar.CATEGORY_INTERNAL;
             bool isStarterRune = STARTER_RUNE_IDS.Contains(rune.Id);
+            // 강화 트리 개편으로 룬 해금 노드를 쓰지 않으므로 그 외 플레이어 룬도 start를 허용한다.
             bool hasValidUnlockType = isImplementationRune || isStarterRune
                 ? rune.UnlockType == "start"
-                : rune.UnlockType == "tree" || rune.UnlockType == "bench";
+                : UNLOCK_TYPES.Contains(rune.UnlockType);
             if (!hasValidUnlockType)
-                log.Add(rune.Id, "unlockType", "시작 룬은 start, 그 외 플레이어 룬은 tree 또는 bench로 설정해야 합니다.");
+                log.Add(rune.Id, "unlockType", "시작 룬은 start, 그 외 플레이어 룬은 start·tree·bench 중 하나로 설정해야 합니다.");
         }
 
         /// <summary>룬의 자원별 기본 비용을 만들고 빈 ID·음수·중복을 검증한다. 기존 energy는 mana 비용으로 읽는다.</summary>

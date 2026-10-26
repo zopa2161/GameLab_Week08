@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using UnityEngine.InputSystem;
 
@@ -11,8 +12,6 @@ namespace RuneCode
     /// </summary>
     public sealed class SpellEditorPresenter : IDisposable
     {
-        private const string RAM_HIGHLIGHT_OPEN = "<b><color=#FFD54A>";
-        private const string RAM_HIGHLIGHT_CLOSE = "</color></b>";
         private const string COST_EXCEED_OPEN = "<b><color=#FF5A5A>";
         private const string COST_EXCEED_CLOSE = "</color></b>";
 
@@ -148,20 +147,13 @@ namespace RuneCode
             RefreshAll();
         }
 
-        /// <summary>장착 RAM·그래프 RAM, 시전 비용, 전력 회복량과 쿨다운을 표시하고, 시전 비용이 최대 전력을 넘으면 비용 구간을 붉게 강조한다.</summary>
+        /// <summary>시전 비용, 전력 회복량과 쿨다운을 표시하고, 시전 비용이 최대 전력을 넘으면 비용 구간을 붉게 강조한다.</summary>
         private void RefreshMetrics()
         {
             CompiledSpell spell = _editor.CompileResult.Spell;
-            int ram = 0;
-            var executableNodes = _editor.Graph.GetExecutableNodeIds(GameData.Runes);
-            foreach (GraphNode node in _editor.Graph.Nodes)
-                if (executableNodes.Contains(node.Id)) ram += GameData.Runes.NodeRam(node);
-            // RAM 구간만 노란색 굵게 강조한다.
-            string text = RAM_HIGHLIGHT_OPEN + GameData.L("ui.ram") + " " + _host.EquippedRam + " / " + _host.Capacity
-                + RAM_HIGHLIGHT_CLOSE;
             if (spell == null)
             {
-                _view.SetMetrics(text + "  ·  " + GameData.L("ui.warning"));
+                _view.SetMetrics(GameData.L("ui.warning"));
                 return;
             }
 
@@ -171,10 +163,21 @@ namespace RuneCode
             // 시전 비용이 최대 전력을 넘어 시전할 수 없으면 비용 구간만 붉게 강조한다.
             if (SpellCostText.ExceedsMaxEnergy(castCosts, _host.MaxEnergy))
                 castCostText = COST_EXCEED_OPEN + castCostText + COST_EXCEED_CLOSE;
-            text += "  ·  " + castCostText
+            string text = castCostText
                 + "  ·  " + GameData.L("ui.energy") + " 회복 " + _host.EnergyRegen.ToString("0.#") + " /s"
                 + "  ·  " + GameData.L("ui.cooldown") + " "
                 + spell.GetCooldownSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s";
+            // 시작 노드가 여러 개면 나머지 Entry의 트리거·시전 비용·쿨다운을 이어서 표시한다.
+            IReadOnlyList<CompiledSpell> entries = _editor.CompileResult.Entries;
+            for (int index = 1; index < entries.Count; index++)
+            {
+                CompiledSpell entry = entries[index];
+                string triggerName = GameData.TryL("trigger." + entry.Trigger, out string triggerText) ? triggerText : entry.Trigger;
+                text += "  ·  " + triggerName + " "
+                    + SpellCostText.FormatWithMaxEnergy(entry.GetCastCosts(GameData.Balance.Sim.ExecutionTimeScale), _host.MaxEnergy)
+                    + " / " + GameData.L("ui.cooldown") + " "
+                    + entry.GetCooldownSeconds(GameData.Balance.Sim.ExecutionTimeScale).ToString("0.00") + "s";
+            }
             _view.SetMetrics(text);
         }
 
@@ -231,7 +234,7 @@ namespace RuneCode
                 RuneDefinition rune = GameData.Runes.Get(node.RuneId);
                 if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
                 {
-                    SpellAction action = _editor.CompileResult.Spell?.FindNodeAction(_editor.Graph, node.Id);
+                    SpellAction action = FindCompiledNodeAction(node.Id);
                     PreviewRuneDescription(rune, node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE),
                         action?.Stats == null ? (float?)null : action.Stats.Damage,
                         action?.Stats == null ? (float?)null : action.Stats.Lifetime,
@@ -241,6 +244,17 @@ namespace RuneCode
             }
             _inspector.PreviewNode(node);
             _view.ShowHoverDescription(node == null ? null : _view.Inspector.Description);
+        }
+
+        /// <summary>시작 노드별 Entry에서 지정 노드가 속한 컴파일 명령을 찾는다. 없으면 null을 반환한다.</summary>
+        private SpellAction FindCompiledNodeAction(string nodeId)
+        {
+            foreach (CompiledSpell entry in _editor.CompileResult.Entries)
+            {
+                SpellAction action = entry?.FindNodeAction(_editor.Graph, nodeId);
+                if (action != null) return action;
+            }
+            return null;
         }
     }
 }

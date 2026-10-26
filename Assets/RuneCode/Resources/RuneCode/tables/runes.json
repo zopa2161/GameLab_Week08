@@ -26,7 +26,6 @@
       "_id": "form.slash",
       "_name": "참격 수치",
       "_category": "internal",
-      "_ram": 1,
       "_energy": 10,
       "_energyMult": 1,
       "_unlockType": "start",
@@ -75,7 +74,6 @@
       "_id": "mod.knockback",
       "_name": "밀어내기",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
       "_unlockType": "start",
@@ -100,7 +98,6 @@
       "_id": "core.cast",
       "_name": "시작 조건",
       "_category": "core",
-      "_ram": 0,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0,
@@ -144,10 +141,6 @@
             },
             {
               "_order": 3,
-              "_option": "onDashEnd"
-            },
-            {
-              "_order": 4,
               "_option": "onHitTaken"
             }
           ]
@@ -156,10 +149,78 @@
 
     },
     {
+      "_id": "core.dashEnd",
+      "_name": "대시 종료",
+      "_category": "core",
+      "_energy": 0,
+      "_energyMult": 1,
+      "_executionSeconds": 0,
+      "_unlockType": "start",
+      "_stats": {
+        "_damageMultiplier": 1,
+        "_radiusMultiplier": 1,
+        "_learningMultiplier": 1
+      },
+      "_ports": [
+        {
+          "_order": 0,
+          "_portId": "exec",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        }
+      ]
+    },
+    {
+      "_id": "core.statusStack",
+      "_name": "상태 이상 중첩",
+      "_category": "core",
+      "_energy": 0,
+      "_energyMult": 1,
+      "_executionSeconds": 0,
+      "_unlockType": "start",
+      "_stats": {
+        "_damageMultiplier": 1,
+        "_radiusMultiplier": 1,
+        "_learningMultiplier": 1
+      },
+      "_ports": [
+        {
+          "_order": 0,
+          "_portId": "exec",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        }
+      ]
+    },
+    {
+      "_id": "core.rightClick",
+      "_name": "우클릭",
+      "_category": "core",
+      "_energy": 0,
+      "_energyMult": 1,
+      "_executionSeconds": 0,
+      "_unlockType": "start",
+      "_stats": {
+        "_damageMultiplier": 1,
+        "_radiusMultiplier": 1,
+        "_learningMultiplier": 1
+      },
+      "_ports": [
+        {
+          "_order": 0,
+          "_portId": "exec",
+          "_kind": "exec",
+          "_direction": "out",
+          "_max": 0
+        }
+      ]
+    },
+    {
       "_id": "form.bolt",
       "_name": "볼트",
       "_category": "internal",
-      "_ram": 1,
       "_energy": 6,
       "_energyMult": 1,
       "_unlockType": "start",
@@ -221,7 +282,6 @@
       "_id": "form.burst",
       "_name": "폭발 수치",
       "_category": "internal",
-      "_ram": 2,
       "_energy": 12,
       "_energyMult": 1,
       "_unlockType": "start",
@@ -285,7 +345,6 @@
       "_id": "form.zone",
       "_name": "존",
       "_category": "internal",
-      "_ram": 2,
       "_energy": 10,
       "_energyMult": 1,
       "_unlockType": "start",
@@ -350,7 +409,6 @@
       "_id": "form.beam",
       "_name": "빔 수치",
       "_category": "internal",
-      "_ram": 2,
       "_energy": 5,
       "_energyMult": 1,
       "_unlockType": "start",
@@ -415,7 +473,6 @@
       "_id": "elem.fire",
       "_name": "화염",
       "_category": "internal",
-      "_ram": 1,
       "_energy": 2,
       "_energyMult": 1,
       "_unlockType": "start",
@@ -444,7 +501,6 @@
       "_id": "elem.ice",
       "_name": "냉기",
       "_category": "internal",
-      "_ram": 1,
       "_energy": 2,
       "_energyMult": 1,
       "_unlockType": "start",
@@ -473,7 +529,6 @@
       "_id": "elem.arc",
       "_name": "전격",
       "_category": "internal",
-      "_ram": 1,
       "_energy": 2,
       "_energyMult": 1,
       "_unlockType": "start",
@@ -505,7 +560,6 @@
       "_id": "mod.saving",
       "_name": "절약",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
       "_unlockType": "bench",
@@ -536,10 +590,9 @@
       "_id": "mod.amplify",
       "_name": "효과 증폭",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 0,
       "_stats": {
         "_damageMultiplier": 1.5,
@@ -567,10 +620,9 @@
       "_id": "mod.multi",
       "_name": "다중",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 0,
       "_stats": {
         "_count": 3,
@@ -602,7 +654,6 @@
       "_hiddenFromRewards": true,
       "_name": "과충전",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
       "_unlockType": "bench",
@@ -617,7 +668,6 @@
       "_id": "mod.pierce",
       "_name": "관통",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
       "_unlockType": "bench",
@@ -646,7 +696,6 @@
       "_id": "mod.homing",
       "_name": "유도",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
       "_unlockType": "bench",
@@ -697,7 +746,6 @@
       "_id": "mod.orbit",
       "_name": "공전",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
       "_unlockType": "bench",
@@ -731,7 +779,6 @@
       "_id": "mod.expand",
       "_name": "확장",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
       "_unlockType": "bench",
@@ -763,7 +810,6 @@
       "_hiddenFromRewards": true,
       "_name": "속도",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
       "_unlockType": "bench",
@@ -794,7 +840,6 @@
       "_id": "magic.inline",
       "_name": "직접 마법",
       "_category": "internal",
-      "_ram": 0,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0,
@@ -976,10 +1021,9 @@
       "_id": "mod.duration",
       "_name": "지속시간",
       "_category": "modifier",
-      "_ram": 1,
       "_energy": 0,
       "_executionSeconds": 0,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 0,
       "_stats": {
         "_damageMultiplier": 1,
@@ -1012,7 +1056,6 @@
       "_id": "shape.sphere",
       "_name": "구형",
       "_category": "shape",
-      "_ram": 0,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,
@@ -1035,7 +1078,6 @@
       "_id": "shape.box",
       "_name": "빔",
       "_category": "shape",
-      "_ram": 0,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,
@@ -1046,7 +1088,7 @@
           "_rate": 0
         }
       ],
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 300,
       "_stats": {
         "_beamWidth": 48,
@@ -1061,7 +1103,6 @@
       "_id": "shape.cone",
       "_name": "부채꼴",
       "_category": "shape",
-      "_ram": 0,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,
@@ -1072,7 +1113,7 @@
           "_rate": 0
         }
       ],
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 200,
       "_stats": {
         "_damageMultiplier": 1,
@@ -1086,7 +1127,6 @@
       "_id": "element.neutral",
       "_name": "일반",
       "_category": "element",
-      "_ram": 0,
       "_energy": 0,
       "_energyMult": 1,
       "_unlockType": "start",
@@ -1106,10 +1146,9 @@
       "_id": "element.fire",
       "_name": "화염",
       "_category": "element",
-      "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_stats": {
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
@@ -1126,10 +1165,9 @@
       "_id": "element.lightning",
       "_name": "전격",
       "_category": "element",
-      "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_stats": {
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
@@ -1146,10 +1184,9 @@
       "_id": "element.ice",
       "_name": "얼음",
       "_category": "element",
-      "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_stats": {
         "_damageMultiplier": 1,
         "_radiusMultiplier": 1,
@@ -1167,7 +1204,6 @@
       "_name": "발사",
       "_category": "behavior",
       "_shape": "sphere",
-      "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,
@@ -1310,7 +1346,6 @@
       "_name": "폭발",
       "_category": "behavior",
       "_shape": "cone",
-      "_ram": 2,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,
@@ -1452,11 +1487,10 @@
       "_name": "잔류",
       "_category": "behavior",
       "_shape": "sphere",
-      "_ram": 2,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,
-      "_unlockType": "tree",
+      "_unlockType": "start",
       "_unlockCost": 35,
       "_stats": {
         "_damageMultiplier": 1,
@@ -1596,7 +1630,6 @@
       "_name": "빔",
       "_category": "behavior",
       "_shape": "box",
-      "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,
@@ -1708,7 +1741,6 @@
       "_name": "참격",
       "_category": "behavior",
       "_shape": "cone",
-      "_ram": 1,
       "_energy": 0,
       "_energyMult": 1,
       "_executionSeconds": 0.05,

@@ -8,12 +8,6 @@ namespace RuneCode
     /// </summary>
     public interface ISpellEditorHost
     {
-        /// <summary>장착 마법 전체의 RAM 사용량이다.</summary>
-        int EquippedRam { get; }
-
-        /// <summary>현재 RAM 용량이다.</summary>
-        int Capacity { get; }
-
         /// <summary>성장 효과까지 반영한 현재 최대 전력값이다. 편집 지표의 시전 비용 nn/max 표기에 쓴다.</summary>
         float MaxEnergy { get; }
 

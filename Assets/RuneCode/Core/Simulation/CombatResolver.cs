@@ -68,7 +68,7 @@ namespace RuneCode
         internal void Hit(SimulationSpellEntity entity, SimulationEnemy enemy, double damage, bool isDot, SimVector pushDirection)
         {
             double minimumDamage = entity.Behavior.TracksDirectHit && entity.Stats.Pierce > 0 && !isDot ? 1d : 0d;
-            double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true, minimumDamage, entity.Action);
+            double actual = ApplyDamage(enemy, damage, entity.Element, entity.Kind, entity.Action.Noise, isDot, entity.Direction, true, minimumDamage, entity.Action, castDamageMultiplier: entity.CastDamageMultiplier);
             if (_enemy.IsSeparationFixed(enemy)) enemy.CancelDisplacement();
             else if (actual > 0 && enemy.IsAlive && entity.Stats.KnockbackDistance > 0)
             {
@@ -89,7 +89,7 @@ namespace RuneCode
                 });
                 for (int i = 0; i < Math.Min(arc.ArcTargets, chain.Count); i++)
                 {
-                    actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action, damageStatus: "arc_chain");
+                    actual += ApplyDamage(chain[i], damage * arc.ArcMultiplier, "arc", entity.Kind, entity.Action.Noise, isDot, (chain[i].Position - enemy.Position).Normalized(), true, sourceAction: entity.Action, damageStatus: "arc_chain", castDamageMultiplier: entity.CastDamageMultiplier);
                     _feedback.AddArcLink(enemy.Position, chain[i].Position);
                 }
                 if (actual > 0) _stats.ArcDamageEventCount++;
@@ -107,7 +107,8 @@ namespace RuneCode
             bool tracksDirectHit = entity.Behavior.TracksDirectHit;
             if (tracksDirectHit) entity.HasDirectHit = true;
             SpellContext context = new SpellContext(position, GetEventDirection(entity, position, target), target, true,
-                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action);
+                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id, onHitSource: entity.Action,
+                castDamageMultiplier: entity.CastDamageMultiplier);
             bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             _executor.Execute(entity.Action.OnHit, context.WithManaPrepaid(true));
             if (isFirstEvent) _executor.Execute(entity.Action.OnFirstHitOrExpire, context);
@@ -122,7 +123,8 @@ namespace RuneCode
             double damage = entity.Stats.Damage;
             bool isConsumed = true;
             entity.ApplyHitModifiers(_runtime, shieldOwner, ref damage, ref isConsumed);
-            shieldOwner.HurtShield(damage * _world.DamageMultiplier * _world.Adaptation.GetMultiplier(entity.Element, entity.Kind));
+            shieldOwner.HurtShield(damage * _world.DamageMultiplier * _world.Adaptation.GetMultiplier(entity.Element, entity.Kind)
+                * GetElementDamageMultiplier(entity.Element) * GetRangeDamageMultiplier(shieldOwner, isDot: false) * entity.CastDamageMultiplier);
             RaiseHitEvent(entity, contact, shieldOwner);
             RaiseExpireEvent(entity);
         }
@@ -138,13 +140,30 @@ namespace RuneCode
             return offset.Length > 0.000001 ? offset.Normalized() : entity.Direction;
         }
 
-        /// <summary>피해에 적응·이지스 방패와 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
+        /// <summary>속성 피해 배율을 반환한다. fire·ice·arc 속성은 강화의 속성 피해 보너스를 더하고 그 외 태그는 1이다.</summary>
+        private double GetElementDamageMultiplier(string element)
+        {
+            return element == "fire" || element == "ice" || element == "arc" ? 1 + _world.Upgrades.ElementDamageBonus : 1d;
+        }
+
+        /// <summary>적중 거리 피해 배율을 반환한다. 지속 피해는 1이며, 그 외에는 적중 시점 플레이어와 적 위치 거리가 장판 배치 거리 이하면 근거리, 초과면 원거리 보너스를 더한다.</summary>
+        private double GetRangeDamageMultiplier(SimulationEnemy enemy, bool isDot)
+        {
+            if (isDot) return 1d;
+            double distance = SimVector.Distance(_world.Player.Position, enemy.Position);
+            return distance <= _world.Balance.Sim.AreaPlacementRange ? 1 + _world.Upgrades.NearDamageBonus : 1 + _world.Upgrades.FarDamageBonus;
+        }
+
+        /// <summary>피해에 적응·이지스 방패·속성·적중 거리·시전 배율과 minimumDamage 하한을 반영하고 보스 무적은 유지하며 실제 피해와 학습을 기록한다.</summary>
         internal double ApplyDamage(SimulationEnemy enemy, double damage, string element, string form, bool noise, bool isDot, SimVector direction, bool applyStatus,
-            double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null)
+            double minimumDamage = 0d, SpellAction sourceAction = null, string damageStatus = null, double castDamageMultiplier = 1d)
         {
             if (!enemy.IsAlive || enemy.IsPatching) return 0;
             double actual = damage * _world.DamageMultiplier;
             if (enemy.Hydra == null) actual *= _world.Adaptation.GetMultiplier(element, form);
+            actual *= GetElementDamageMultiplier(element);
+            actual *= GetRangeDamageMultiplier(enemy, isDot);
+            actual *= castDamageMultiplier;
             if (enemy.Definition.HasTrait(EnemyDefinition.TRAIT_AEGIS_SHIELD) && !_statuses.HasEnemyStatus(enemy, EnemyStatusType.Emp) && form == "bolt" && !isDot && SimVector.Dot(enemy.Facing, direction * -1) >= Math.Cos(_world.Balance.Combat.AegisAngle * 0.5 * RuneSimulation.DEGREES_TO_RADIANS)) actual *= 1 - _world.Balance.Combat.AegisReduction;
             bool relayAlive = false;
             foreach (SimulationEnemy relay in _world.Enemies)
@@ -180,7 +199,8 @@ namespace RuneCode
         internal void RaiseExpireEvent(SimulationSpellEntity entity)
         {
             SpellContext context = new SpellContext(entity.Position, entity.Direction, null, true,
-                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id);
+                entity.CastNoiseElement, entity.Modifiers, entity.CostMultiplier, entity.Caster, entity.Id,
+                castDamageMultiplier: entity.CastDamageMultiplier);
             bool isFirstEvent = entity.Behavior.TracksFirstEvent && entity.TryMarkFirstEvent();
             _executor.Execute(entity.Action.OnExpire, context);
             if (isFirstEvent) _executor.Execute(entity.Action.OnFirstHitOrExpire, context);

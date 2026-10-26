@@ -4,7 +4,7 @@ using System.Linq;
 namespace RuneCode
 {
     /// <summary>
-    /// 세션의 세이브와 성장 값으로 마법 편집 규칙(보관함 한도, 해금, RAM 용량, 룬 소지량, 튜토리얼, 상태 문구)을 적용한다.
+    /// 세션의 세이브와 성장 값으로 마법 편집 규칙(보관함 한도, 해금, 룬 소지량, 튜토리얼, 상태 문구)을 적용한다.
     /// </summary>
     public sealed class SessionSpellPolicy : ISpellEditPolicy
     {
@@ -18,15 +18,17 @@ namespace RuneCode
             _session = session;
         }
 
-        /// <summary>현재 해금 룬, 해금 검사가 필요 없는 모디·속성·행동 룬, 성장 값, 통합 소지량으로 컴파일 문맥을 만든다.</summary>
+        /// <summary>현재 해금 룬, 해금 검사가 필요 없는 모디·속성·행동 룬, 통합 소지량과 행동 하나 고정·속성 비용 감소 강화 효과로 컴파일 문맥을 만든다. 미구매 시작 노드 룬은 해금 목록에서 뺀다.</summary>
         public SpellCompileContext GetCompileContext()
         {
             IEnumerable<string> unlockedRunes = _session.Save.UnlockedRunes.Concat(GameData.Runes.StartRunes)
                 .Concat(GameData.Runes.All.Where(rune => !rune.IsDisabled
                     && (rune.Category == SpellGrammar.CATEGORY_MODIFIER || rune.Category == SpellGrammar.CATEGORY_ELEMENT
-                        || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)).Select(rune => rune.Id));
-            return new SpellCompileContext(unlockedRunes, _session.Capacity, _session.MaxEnergy, _session.Save.Library,
-                _session.Save.CreateStockMap());
+                        || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)).Select(rune => rune.Id))
+                .Where(IsCoreRuneUnlocked);
+            return new SpellCompileContext(unlockedRunes, _session.MaxEnergy, _session.Save.Library,
+                _session.Save.CreateStockMap(), isSingleBehavior: _session.HasUpgradeEffect(UpgradeEffectType.SingleBehavior),
+                elementCostReduction: _session.GetUpgradeTreeEffectTotal(UpgradeEffectType.ElementCostReduction));
         }
 
         /// <summary>룬의 해금 여부를 반환한다. 비활성 룬은 false이고, 모디·속성·행동은 소지량 검사로 배치를 제한하므로 true다.</summary>
@@ -34,23 +36,21 @@ namespace RuneCode
         {
             if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune)) return false;
             if (rune.IsDisabled) return false;
-            if (rune.Category == SpellGrammar.CATEGORY_CORE || rune.Category == SpellGrammar.CATEGORY_INTERNAL
+            if (rune.Category == SpellGrammar.CATEGORY_CORE) return IsCoreRuneUnlocked(runeId);
+            if (rune.Category == SpellGrammar.CATEGORY_INTERNAL
                 || rune.Category == SpellGrammar.CATEGORY_MODIFIER || rune.Category == SpellGrammar.CATEGORY_ELEMENT
                 || rune.Category == SpellGrammar.CATEGORY_BEHAVIOR) return true;
             return _session.Save.UnlockedRunes.Contains(runeId);
         }
 
-        /// <summary>후보 그래프를 장착 슬롯에 반영했을 때 공유·비공유 RAM 규칙을 지키는지 반환한다.</summary>
-        public bool IsWithinRam(SpellGraph candidate)
+        /// <summary>추가 시작 노드 룬은 대응 강화 트리 효과를 구매한 경우에만 true이고, core.cast와 다른 룬은 true를 반환한다.</summary>
+        private bool IsCoreRuneUnlocked(string runeId)
         {
-            if (candidate == null) return false;
-            PlayerSave save = _session.Save;
-            var equippedCopies = 0;
-            for (var slot = 0; slot < save.SlotCount; slot++)
-                if (save.Loadout[slot] == candidate.Id) equippedCopies++;
-            if (equippedCopies == 0) return true;
-            if (GameData.Balance.Ram.Mode == "shared") return CalculateEquippedRam(candidate) <= _session.Capacity;
-            return GetGraphRam(candidate) <= _session.Capacity;
+            if (runeId == SpellGrammar.CORE_RUNE) return true;
+            if (runeId == SpellGrammar.DASH_END_CORE_RUNE) return _session.HasUpgradeEffect(UpgradeEffectType.DashEndStart);
+            if (runeId == SpellGrammar.STATUS_STACK_CORE_RUNE) return _session.HasUpgradeEffect(UpgradeEffectType.StatusStackStart);
+            if (runeId == SpellGrammar.RIGHT_CLICK_CORE_RUNE) return _session.HasUpgradeEffect(UpgradeEffectType.RightClickStart);
+            return true;
         }
 
         /// <summary>
@@ -144,30 +144,6 @@ namespace RuneCode
         {
             _session.SetStatusText(text);
             SoundManager.Instance.PlayDisable();
-        }
-
-        /// <summary>시작 노드에서 실행 가능한 룬과 장착 슬롯의 RAM만 합산한다.</summary>
-        private int GetGraphRam(SpellGraph graph)
-        {
-            if (graph == null) return 0;
-            var ram = 0;
-            var executableNodes = graph.GetExecutableNodeIds(GameData.Runes);
-            foreach (var node in graph.Nodes)
-                if (executableNodes.Contains(node.Id)) ram += GameData.Runes.NodeRam(node);
-            return ram;
-        }
-
-        /// <summary>후보 그래프를 자신을 참조하는 장착 슬롯에 반영한 전체 RAM 사용량을 반환한다.</summary>
-        private int CalculateEquippedRam(SpellGraph candidate)
-        {
-            var ram = 0;
-            PlayerSave save = _session.Save;
-            for (var slot = 0; slot < save.SlotCount; slot++)
-            {
-                var id = save.Loadout[slot];
-                ram += GetGraphRam(candidate != null && id == candidate.Id ? candidate : save.FindGraph(id));
-            }
-            return ram;
         }
     }
 }

@@ -53,17 +53,15 @@ namespace RuneCode
                 if (resource == null) throw new ArgumentException("마법 파일이나 Resources 템플릿이 없습니다.", nameof(spellPath));
                 graph = ShareCodec.Deserialize(resource.text);
             }
-            var economy = GameData.Balance.Economy;
             if (stage < 1 || stage > 1000000)
                 throw new ArgumentOutOfRangeException(nameof(stage), "스테이지가 유효하지 않습니다.");
             var isMission = scenario == "incremental";
             if (isMission && stage != 1) UnityEngine.Debug.LogWarning("--stage는 미션 시나리오에서 쓰이지 않습니다. 연속 미션은 항상 1스테이지 1라운드부터 시작합니다.");
-            var capacity = economy.BaseCapacity;
             var maxEnergy = GameData.Balance.Player.MaxEnergy;
-            var compiled = GraphCompiler.Compile(graph, GameData.Runes, GameData.Balance.Grammar, GameData.Runes.All.Select(rune => rune.Id), capacity, maxEnergy);
+            var compiled = GraphCompiler.Compile(graph, GameData.Runes, GameData.Balance.Grammar, GameData.Runes.All.Select(rune => rune.Id), maxEnergy);
             if (!compiled.Ok) throw new ArgumentException(string.Join("\n", compiled.Errors.Select(CompileIssueText.Format)));
-            var simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, isMission, GameData.Balance.Player.MaxHp, maxEnergy, stage,
-                GameData.Balance.Player.EnergyRegen, isProgressionMission: isMission));
+            var upgrades = new PlayerUpgradeStats(GameData.Balance.Player.MaxHp, maxEnergy, GameData.Balance.Player.EnergyRegen);
+            var simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, isMission, stage, upgrades, isProgressionMission: isMission));
             if (!isMission) { simulation.ResetBench(scenario); simulation.SetAdaptationEnabled(scenario == "adapt_loop"); }
             simulation.SetUnlockedElements(new[] { "raw", "fire", "ice", "arc" });
             simulation.SetLoadout(new[] { compiled.Spell });
@@ -132,8 +130,8 @@ namespace RuneCode
         [SerializeField] private int _targetKills;
         [SerializeField] private string _result;
         [SerializeField] private int _kills;
-        [SerializeField] private int _earnedRam;
-        [SerializeField] private int _settledRam;
+        [SerializeField] private int _earnedFragments;
+        [SerializeField] private int _settledFragments;
         [SerializeField] private int _spawnedEnemies;
         [SerializeField] private int _droppedExecutions;
         [SerializeField] private double _energyRegen;
@@ -149,8 +147,8 @@ namespace RuneCode
             _stateHash = simulation.StateHash();
             _stage = simulation.StageNumber;
             _targetKills = simulation.TargetKills;
-            _result = simulation.Stage.ToString(); _kills = simulation.KillCount; _earnedRam = simulation.EarnedFragments;
-            _settledRam = simulation.Completed || simulation.IsFailed ? simulation.SettlementFragments : 0;
+            _result = simulation.Stage.ToString(); _kills = simulation.KillCount; _earnedFragments = simulation.EarnedFragments;
+            _settledFragments = simulation.Completed || simulation.IsFailed ? simulation.SettlementFragments : 0;
             _spawnedEnemies = simulation.SpawnedEnemies; _droppedExecutions = simulation.DroppedExecutions; _energyRegen = simulation.EnergyRegen;
         }
     }

@@ -22,6 +22,7 @@ namespace RuneCode
         private const float PORT_LABEL_HEIGHT = 16f;
         private const float SLOT_FONT_SIZE = 10f;
         private const float LABEL_WIDTH = GraphNodeLayout.NODE_WIDTH - LABEL_PADDING_X - LABEL_PADDING_RIGHT;
+        private const float GHOST_ALPHA = 0.35f;
 
         private static readonly Color SLOT_LOCKED_COLOR = new Color(0.05f, 0.05f, 0.06f);
 
@@ -58,71 +59,90 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 그래프 노드마다 현재 컴파일 결과를 반영한 라벨을 갱신하고 사라진 노드의 라벨을 지운다.
-        /// 남아 있는 노드 ID 집합을 반환한다(선택 정리용).
+        /// 그래프 노드와 배치의 표시 전용 복제 노드마다 현재 컴파일 결과를 반영한 라벨을 갱신하고 사라진 노드의 라벨을 지운다.
+        /// 복제 노드는 본체와 라벨을 반투명으로 표시한다. 남아 있는 노드 ID 집합을 반환한다(선택 정리용).
         /// </summary>
-        public HashSet<string> Refresh(SpellGraph graph, IEnumerable<SpellGraph> library, CompiledSpell compiledSpell)
+        public HashSet<string> Refresh(SpellGraph graph, IEnumerable<SpellGraph> library, IReadOnlyList<CompiledSpell> entries)
         {
             _existingNodes.Clear();
-            _metricLabels.Refresh(graph, library, compiledSpell);
-            foreach (GraphNode node in graph.Nodes)
-            {
-                _existingNodes.Add(node.Id);
-                _nodes[node.Id] = node;
-                TextMeshProUGUI label = GetOrCreate(node.Id);
-                _nodeLayers[node.Id].Initialize(_painter, node);
-                RuneDefinition rune = GameData.Runes.Get(node.RuneId);
-                string nameText = rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
-                    ? GraphNodeLabelText.BuildNameText(node) : GraphNodeLabelText.BuildLegacyText(node, library);
-                if (label.text != nameText) label.text = nameText;
-                RefreshPortLabels(node);
-                RefreshSlotViews(node);
-                RefreshSlotLabels(node);
-            }
+            _metricLabels.Refresh(graph, library, entries);
+            foreach (GraphNode node in graph.Nodes) RefreshNode(node, library, 1f);
+            foreach (GraphNode ghost in _layout.Ghosts) RefreshNode(ghost, library, GHOST_ALPHA);
             RemoveStale();
             return _existingNodes;
         }
 
-        /// <summary>화면 이동·확대 배율에 맞춰 이름·지표·포트와 슬롯 라벨을 배치한다.</summary>
+        /// <summary>노드 하나의 본체 레이어와 이름·포트 라벨, 슬롯 이미지·라벨을 갱신하고 본체와 라벨·슬롯의 불투명도를 alpha로 지정한다.</summary>
+        private void RefreshNode(GraphNode node, IEnumerable<SpellGraph> library, float alpha)
+        {
+            _existingNodes.Add(node.Id);
+            _nodes[node.Id] = node;
+            TextMeshProUGUI label = GetOrCreate(node.Id);
+            _nodeLayers[node.Id].Initialize(_painter, node);
+            _nodeLayers[node.Id].canvasRenderer.SetAlpha(alpha);
+            RuneDefinition rune = GameData.Runes.Get(node.RuneId);
+            string nameText = rune.Category == SpellGrammar.CATEGORY_BEHAVIOR
+                ? GraphNodeLabelText.BuildNameText(node) : GraphNodeLabelText.BuildLegacyText(node, library);
+            if (label.text != nameText) label.text = nameText;
+            label.alpha = alpha;
+            RefreshPortLabels(node);
+            RefreshSlotViews(node);
+            RefreshSlotLabels(node);
+            foreach (TextMeshProUGUI portLabel in _portLabels[node.Id]) portLabel.alpha = alpha;
+            foreach (TextMeshProUGUI slotLabel in _slotLabels[node.Id]) slotLabel.alpha = alpha;
+            // 슬롯 이미지는 노드 레이어의 자식이지만 CanvasRenderer 알파는 상속되지 않아 따로 지정한다.
+            foreach (SlotView view in _slotViews[node.Id])
+            {
+                if (view == null) continue;
+                view.Image.canvasRenderer.SetAlpha(alpha);
+                if (view.OutlineImage != null) view.OutlineImage.canvasRenderer.SetAlpha(alpha);
+            }
+        }
+
+        /// <summary>화면 이동·확대 배율에 맞춰 이름·지표·포트와 슬롯 라벨을 배치한다. 표시 전용 복제 노드는 실제 노드 뒤에 배치하고 지표 라벨은 두지 않는다.</summary>
         public void Layout(SpellGraph graph)
         {
             float zoom = _viewport.Zoom;
             Vector3 scale = new Vector3(zoom, zoom, 1);
-            for (int nodeIndex = 0; nodeIndex < graph.Nodes.Count; nodeIndex++)
-            {
-                GraphNode node = graph.Nodes[nodeIndex];
-                if (!_labels.TryGetValue(node.Id, out TextMeshProUGUI label)) continue;
-                RuneDefinition rune = GameData.Runes.Get(node.RuneId);
-                Rect rect = _layout.NodeRect(node, rune);
-                _nodeLayers[node.Id].transform.SetAsLastSibling();
-                label.gameObject.SetActive(true);
-                label.transform.SetAsLastSibling();
-                RectTransform titleRect = label.rectTransform;
-                titleRect.anchoredPosition = new Vector2(rect.x + LABEL_PADDING_X * zoom,
-                    rect.yMax - _parent.rect.yMax - LABEL_PADDING_TOP * zoom);
-                titleRect.sizeDelta = new Vector2(LABEL_WIDTH, HEADER_HEIGHT);
-                titleRect.localScale = scale;
-                if (GraphNodeLayout.HasSlots(rune)) _metricLabels.LayoutNode(node.Id, rect);
-                List<TextMeshProUGUI> ports = _portLabels[node.Id];
-                int rows = _layout.PortRowCount(node, rune);
-                for (int index = 0; index < rows * 2; index++)
-                {
-                    bool isOutput = index % 2 != 0;
-                    PortDefinition port = _layout.PortAt(node, rune,
-                        isOutput ? SpellGrammar.DIRECTION_OUT : SpellGrammar.DIRECTION_IN, index / 2);
-                    RectTransform portRect = ports[index].rectTransform;
-                    portRect.gameObject.SetActive(port != null);
-                    if (port == null) continue;
-                    Vector2 point = _layout.PortPosition(rect, node, rune, port.Id);
-                    portRect.anchoredPosition = new Vector2(rect.x + LABEL_PADDING_X * zoom, point.y - _parent.rect.yMax);
-                    portRect.sizeDelta = new Vector2(LABEL_WIDTH, PORT_LABEL_HEIGHT);
-                    portRect.localScale = scale;
-                    portRect.SetAsLastSibling();
-                }
-                LayoutSlotViews(node, rune, scale);
-                LayoutSlotLabels(node, rune, scale);
-            }
+            for (int nodeIndex = 0; nodeIndex < graph.Nodes.Count; nodeIndex++) LayoutNode(graph.Nodes[nodeIndex], scale, true);
+            foreach (GraphNode ghost in _layout.Ghosts) LayoutNode(ghost, scale, false);
             BringFrontNodeToTop();
+        }
+
+        /// <summary>노드 하나의 본체 레이어와 이름·지표·포트 라벨, 슬롯 이미지·라벨을 배율에 맞춰 배치한다. hasMetrics가 false면 지표 라벨을 건너뛴다.</summary>
+        private void LayoutNode(GraphNode node, Vector3 scale, bool hasMetrics)
+        {
+            if (!_labels.TryGetValue(node.Id, out TextMeshProUGUI label)) return;
+            float zoom = _viewport.Zoom;
+            RuneDefinition rune = GameData.Runes.Get(node.RuneId);
+            Rect rect = _layout.NodeRect(node, rune);
+            _nodeLayers[node.Id].transform.SetAsLastSibling();
+            label.gameObject.SetActive(true);
+            label.transform.SetAsLastSibling();
+            RectTransform titleRect = label.rectTransform;
+            titleRect.anchoredPosition = new Vector2(rect.x + LABEL_PADDING_X * zoom,
+                rect.yMax - _parent.rect.yMax - LABEL_PADDING_TOP * zoom);
+            titleRect.sizeDelta = new Vector2(LABEL_WIDTH, HEADER_HEIGHT);
+            titleRect.localScale = scale;
+            if (hasMetrics && GraphNodeLayout.HasSlots(rune)) _metricLabels.LayoutNode(node.Id, rect);
+            List<TextMeshProUGUI> ports = _portLabels[node.Id];
+            int rows = _layout.PortRowCount(node, rune);
+            for (int index = 0; index < rows * 2; index++)
+            {
+                bool isOutput = index % 2 != 0;
+                PortDefinition port = _layout.PortAt(node, rune,
+                    isOutput ? SpellGrammar.DIRECTION_OUT : SpellGrammar.DIRECTION_IN, index / 2);
+                RectTransform portRect = ports[index].rectTransform;
+                portRect.gameObject.SetActive(port != null);
+                if (port == null) continue;
+                Vector2 point = _layout.PortPosition(rect, node, rune, port.Id);
+                portRect.anchoredPosition = new Vector2(rect.x + LABEL_PADDING_X * zoom, point.y - _parent.rect.yMax);
+                portRect.sizeDelta = new Vector2(LABEL_WIDTH, PORT_LABEL_HEIGHT);
+                portRect.localScale = scale;
+                portRect.SetAsLastSibling();
+            }
+            LayoutSlotViews(node, rune, scale);
+            LayoutSlotLabels(node, rune, scale);
         }
 
         /// <summary>드래그 중인 노드 ID를 저장해 다음 레이아웃에서도 해당 노드를 가장 앞에 배치한다.</summary>

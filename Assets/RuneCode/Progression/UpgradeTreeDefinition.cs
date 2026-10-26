@@ -9,6 +9,7 @@ namespace RuneCode
     {
         EnergyRegen,
         MaxEnergy,
+        // 삭제된 RAM 용량 강화. 기존 에셋의 정수 값을 유지하려고 자리만 남긴다.
         RamCapacity,
         CastSpeed,
         Damage,
@@ -18,7 +19,31 @@ namespace RuneCode
         RuneUnlock,
         ScrapPickupRange,
         KillEnergy,
-        ScrapHeal
+        ScrapHeal,
+        None,
+        ElementDamage,
+        ElementCostReduction,
+        StatusDuration,
+        DashCooldownReduction,
+        DashInvulnerability,
+        Evasion,
+        NearDamage,
+        FarDamage,
+        FullManaDamage,
+        PostDashDamage,
+        StationaryRegen,
+        DashTeleport,
+        DashCollisionGuard,
+        PlayerAura,
+        ArcEnhance,
+        IceEnhance,
+        FireEnhance,
+        ElementPick,
+        StatusStackStart,
+        DashEndStart,
+        RightClickStart,
+        SingleBehavior,
+        ElementSlot
     }
 
     [Serializable]
@@ -152,18 +177,20 @@ namespace RuneCode
                 }
 
             UpgradeTreeNodeDefinition mainboard = FindNode(MAINBOARD_NODE_ID);
-            if (mainboard == null || mainboard.EffectType != UpgradeEffectType.EnergyRegen || mainboard.Prerequisites.Count != 0)
+            if (mainboard == null || (mainboard.EffectType != UpgradeEffectType.EnergyRegen && mainboard.EffectType != UpgradeEffectType.None)
+                || mainboard.Prerequisites.Count != 0)
             {
-                error = "메인보드 전력 회복 노드가 유일한 시작 노드여야 합니다.";
+                error = "메인보드(효과 없음 또는 전력 회복) 노드가 유일한 시작 노드여야 합니다.";
                 return false;
             }
 
+            // 룬 해금 노드를 폐지해 트리 밖에서 쓰는 플레이어 룬은 start도 허용한다.
             foreach (RuneDefinition rune in GameData.Runes.All)
             {
                 bool isPlayerRune = IsPlayerRune(rune);
                 bool isStarterRune = _starterRuneIds.Contains(rune.Id);
                 if ((isPlayerRune && isStarterRune && rune.UnlockType != "start") ||
-                    (isPlayerRune && !isStarterRune && rune.UnlockType != "tree" && rune.UnlockType != "bench") ||
+                    (isPlayerRune && !isStarterRune && rune.UnlockType != "start" && rune.UnlockType != "tree" && rune.UnlockType != "bench") ||
                     (!isPlayerRune && rune.UnlockType != "start"))
                 {
                     error = "룬 시작·트리·작업대 해금 분류가 지정된 시작 룬과 일치하지 않습니다: " + rune.Id;
@@ -279,13 +306,6 @@ namespace RuneCode
                     error = "업그레이드 노드의 비용 또는 효과량이 유효하지 않습니다: " + node.Id;
                     return false;
                 }
-            if (node.EffectType == UpgradeEffectType.RamCapacity)
-                foreach (UpgradeTreeLevel level in node.Levels)
-                    if (Mathf.Abs(level.Amount - Mathf.Round(level.Amount)) > 0.001f)
-                    {
-                        error = "RAM 용량 강화량은 정수여야 합니다: " + node.Id;
-                        return false;
-                    }
             if (node.EffectType == UpgradeEffectType.RuneUnlock &&
                 (node.Levels.Count != 1 || !GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune) ||
                     !IsPlayerRune(rune) || (rune.UnlockType != "tree" && rune.UnlockType != "bench") || !runeIds.Add(node.RuneId)))

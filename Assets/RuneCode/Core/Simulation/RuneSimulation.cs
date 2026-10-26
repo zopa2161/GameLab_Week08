@@ -28,12 +28,20 @@ namespace RuneCode
         private readonly EnemySystem _enemy;
         private readonly CombatResolver _combat;
         private readonly SpellEntitySystem _entities;
+        private readonly PlayerAuraSystem _aura;
         private readonly BattleRules _rules;
         private readonly BenchScenario _bench;
         private bool _isRoundBreakArenaReady;
         public int Tick => _world.Tick;
         public double Time => _world.Time;
         public SimulationPlayer Player => _world.Player;
+
+        /// <summary>강화 트리의 플레이어 주위 지속 장판이 켜져 있는지 반환한다.</summary>
+        public bool HasPlayerAura => _world.Upgrades.HasPlayerAura;
+
+        /// <summary>장판 배치 거리를 기준으로 나뉘는 근거리·원거리 피해 강화 중 하나라도 있는지 반환한다.</summary>
+        public bool HasRangeDamageBonus => _world.Upgrades.NearDamageBonus > 0 || _world.Upgrades.FarDamageBonus > 0;
+
         public IReadOnlyList<SimulationEnemy> Enemies => _world.Enemies;
         public IReadOnlyList<SimulationSpellEntity> SpellEntities => _world.SpellEntities;
 
@@ -47,6 +55,14 @@ namespace RuneCode
         /// <summary>지면 범위 명령 중 공전 모듈이 없는 경우에만 미리보기를 표시할 수 있는지 반환한다.</summary>
         public static bool CanShowAreaPreview(SpellAction action)
             => AreaTargeting.CanShowAreaPreview(action);
+
+        /// <summary>
+        /// 범위 미리보기를 표시할 장착 마법인지 반환한다. 기본 시작 노드(core.cast)의 마법만 true이고,
+        /// 대시 종료·상태 이상 중첩·우클릭 시작 노드의 마법은 false다.
+        /// </summary>
+        public static bool CanShowAreaPreview(CompiledSpell spell)
+            => spell != null && spell.Trigger != SpellGrammar.TRIGGER_ON_DASH_END
+                && spell.Trigger != SpellGrammar.TRIGGER_ON_STATUS_STACK && spell.Trigger != SpellGrammar.TRIGGER_ON_RIGHT_CLICK;
 
         /// <summary>폭발·잔류가 함께 사용하는 플레이어 중심 최대 배치 반경을 반환한다.</summary>
         public double GetAreaPlacementRange() => _world.Balance.Sim.AreaPlacementRange;
@@ -185,44 +201,47 @@ namespace RuneCode
         public RuneSimulation(SimulationSetup setup)
         {
             _world = new SimulationWorld(setup.Balance, setup.Enemies, setup.Sector, setup.Bosses, setup.Formations, setup.Drops,
-                new ModifierGradeDropSource(setup.ModifierGrades), setup.Stages, setup.IsMission, setup.MaxHp, setup.MaxEnergy, setup.StageNumber, setup.EnergyRegen,
-                setup.DamageMultiplier, setup.MoveSpeedMultiplier, new SimRandom(setup.Seed), new AdaptationNet(setup.Balance), setup.IsProgressionMission);
+                new ModifierGradeDropSource(setup.ModifierGrades), setup.Stages, setup.IsMission, setup.StageNumber, setup.UpgradeStats,
+                new SimRandom(setup.Seed), new AdaptationNet(setup.Balance), setup.IsProgressionMission);
             _feedback = new SimulationFeedback(_world);
             _runtime = new SpellRuntimeContext(_world, _feedback);
             _stats = new SimulationStats();
             _beam = new BeamChannelController(_world, _stats);
             _executor = new SpellExecutor(_world, _feedback, _stats, _beam, _runtime);
             _statuses = new EnemyStatusSystem(_world, _stats, this);
+            _statuses.SetStatusStackedHandler(CastStatusStackTrigger);
             _rules = new BattleRules(_world);
             _spawn = new SpawnSystem(_world, _feedback, _stats);
             _bench = new BenchScenario(_world, _spawn);
             _enemy = new EnemySystem(_world, _feedback, _stats, _spawn, _statuses, _executor, this);
+            PlayerUpgradeStats upgrades = _world.Upgrades;
             _loot = new LootSystem(_world, _stats, _statuses, _rules, _spawn, _enemy,
-                setup.ScrapGainMultiplier, setup.ScrapPickupRangeMultiplier, setup.ScrapHealRatio, setup.KillEnergyBonus);
+                upgrades.ScrapGainMultiplier, upgrades.ScrapPickupRangeMultiplier, upgrades.ScrapHealRatio, upgrades.KillEnergyBonus);
             _combat = new CombatResolver(_world, _feedback, _stats, _statuses, _enemy, _executor, setup.Runes, _runtime);
             _entities = new SpellEntitySystem(_world, _combat, _runtime);
+            _aura = new PlayerAuraSystem(_world, this);
             _runtime.Connect(_combat, _entities);
             if (setup.IsMission) BeginTimedBattle(setup.Runes, setup.ProgressionStage, setup.ProgressionRound, setup.ProgressionHp);
             else ResetBench("dummy_single");
         }
 
-        /// <summary>전투에서는 하나의 마법, 시험 도크에서는 최대 3슬롯의 컴파일 마법을 다음 시전부터 사용한다.</summary>
+        /// <summary>받은 컴파일 마법 목록을 슬롯 0부터 순서대로 장착하고 남는 슬롯은 비운다. 미션은 시작 노드별 목록을, 시험 도크는 기존 슬롯 목록을 받는다.</summary>
         public void SetLoadout(IReadOnlyList<CompiledSpell> spells) => _executor.SetLoadout(spells);
 
         /// <summary>해금한 속성 태그를 노이즈의 무작위 후보로 설정하고 기본 화염 후보를 보존한다.</summary>
         public void SetUnlockedElements(IReadOnlyList<string> elements) => _executor.SetUnlockedElements(elements);
 
         /// <summary>
-        /// 라운드 대기 중에만 강화 능력치(최대 체력·전력, 재생, 피해·이동 속도, 스크랩 획득·줍기·회복, 처치 전력)를 월드·플레이어·전리품에 반영한다.
+        /// 라운드 대기 중에만 강화 능력치 묶음(최대 체력·전력, 재생, 피해·이동 속도, 스크랩 획득·줍기·회복, 처치 전력, 효과 플래그)을 월드·플레이어·전리품에 반영한다.
         /// 최대 체력·전력이 늘면 현재 값도 증가분만큼 오른다. 적용하면 true를 반환한다.
         /// </summary>
-        public bool TryApplyUpgradeStats(double maxHp, double maxEnergy, double energyRegen, double damageMultiplier, double moveSpeedMultiplier,
-            double scrapGainMultiplier, double scrapPickupRangeMultiplier, double scrapHealRatio, double killEnergyBonus)
+        public bool TryApplyUpgradeStats(PlayerUpgradeStats upgrades)
         {
             if (!IsWaitingForNextRound) return false;
-            _world.SetPlayerStats(maxHp, maxEnergy, energyRegen, damageMultiplier, moveSpeedMultiplier);
+            _world.SetPlayerStats(upgrades);
             _world.Player.SetMaxStats(_world.MaxHp, _world.MaxEnergy);
-            _loot.SetUpgradeStats(scrapGainMultiplier, scrapPickupRangeMultiplier, scrapHealRatio, killEnergyBonus);
+            PlayerUpgradeStats applied = _world.Upgrades;
+            _loot.SetUpgradeStats(applied.ScrapGainMultiplier, applied.ScrapPickupRangeMultiplier, applied.ScrapHealRatio, applied.KillEnergyBonus);
             return true;
         }
 
@@ -434,6 +453,17 @@ namespace RuneCode
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         public bool TryCast(CompiledSpell spell, SimVector aimDirection, int slot = 0) { _world.Player.Aim(aimDirection); return TryCast(spell, slot); }
 
+        /// <summary>
+        /// 다른 종류 상태 이상 위에 새 상태 이상이 걸린 적을 원점·대상으로 onStatusStack 시작 노드 슬롯을 시전한다.
+        /// 시전할 수 있는 슬롯이 있을 때만 그 적의 상태 이상을 모두 지운 뒤 시전하고, 없으면 상태 이상을 그대로 둔다.
+        /// </summary>
+        private void CastStatusStackTrigger(SimulationEnemy enemy)
+        {
+            if (!enemy.IsAlive || !_executor.IsTriggerReady(SpellGrammar.TRIGGER_ON_STATUS_STACK)) return;
+            _statuses.RemoveEnemyStatuses(enemy.Id);
+            _executor.TryCastTriggerAtEnemy(SpellGrammar.TRIGGER_ON_STATUS_STACK, enemy);
+        }
+
         /// <summary>입력, 예약된 적 스폰, 전투, 적응 및 전투 종료(전부 처치·사망·보스 제한시간)를 정확히 한 60Hz 틱만큼 갱신한다. 라운드 대기 중에도 플레이어·마법 틱은 진행하며 적 스폰은 전투 중에만 진행한다.</summary>
         public void Step(SimulationInput input)
         {
@@ -442,11 +472,14 @@ namespace RuneCode
             _beam.ReadBeamInput(input, _executor.Loadout);
             bool wasDashing = _world.Player.DashRemaining > 0.000001;
             _world.Player.Aim(input.AimDirection);
-            _world.Player.Advance(STEP_SECONDS, Time, _world.EnergyRegen);
+            double regen = _world.EnergyRegen;
+            if (input.Movement.LengthSquared <= 0.000001 && !wasDashing) regen *= 1 + _world.Upgrades.StationaryRegenBonus;
+            _world.Player.Advance(STEP_SECONDS, Time, regen);
             bool startedDash = MovePlayer(input);
             if (startedDash) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_START);
             else if (wasDashing && _world.Player.DashRemaining <= 0.000001) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_END);
             if (input.Movement.LengthSquared > 0.000001) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_MOVE);
+            if (input.IsRightClickPressed) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_RIGHT_CLICK);
             if (_world.IsMission && _world.Stage == MissionStage.Combat) { _spawn.AdvancePendingSpawns(); _spawn.AdvanceSpawns(); _spawn.AdvanceSplits(); _spawn.RefreshSpawnWarnings(); }
             _executor.RunScheduled();
             _executor.TryCastAttackSlots(input);
@@ -456,6 +489,7 @@ namespace RuneCode
             if (_world.IsMission) _enemy.ApplySeparation();
             _enemy.RunEnemyShots();
             _entities.AdvanceSpellEntities();
+            _aura.Advance();
             _beam.RemoveStoppedChannels();
             _enemy.AdvanceHostileProjectiles();
             _loot.CleanupEnemies();
@@ -480,6 +514,7 @@ namespace RuneCode
             _world.ResetForBench();
             _world.Enemies.Clear(); _loot.ClearForBench(); _feedback.ClearForBench(); CancelCombat();
             _statuses.ClearAll();
+            _aura.ResetForBench();
             _stats.ResetForBench(); _loot.ResetForBench(); _spawn.ResetForBench();
             _executor.ResetForBench();
             SimulationBalance bench = _world.Balance.Sim;
@@ -530,6 +565,7 @@ namespace RuneCode
             SimHash.AppendNumber(state, _world.DamageMultiplier); SimHash.AppendNumber(state, _world.MoveSpeedMultiplier);
             SimHash.AppendNumber(state, _loot.ScrapGainMultiplier); SimHash.AppendNumber(state, _loot.ScrapPickupRangeMultiplier); SimHash.AppendNumber(state, _loot.ScrapHealRatio); SimHash.AppendNumber(state, _loot.ScrapRemainder);
             _world.Player.WriteState(state);
+            _aura.WriteState(state);
             foreach (SimulationEnemy enemy in _world.Enemies) enemy.WriteState(state);
             foreach (EnemyStatusEffect status in _statuses.Statuses) status.WriteState(state);
             foreach (SimulationSpellEntity entity in _world.SpellEntities) entity.WriteState(state);
@@ -566,14 +602,21 @@ namespace RuneCode
             return hash.ToString("x8", CultureInfo.InvariantCulture);
         }
 
-        /// <summary>대시와 일반 이동을 처리하고 이번 입력으로 대시가 시작됐는지 반환한다.</summary>
+        /// <summary>대시와 일반 이동을 처리하고 이번 입력으로 대시가 시작됐는지 반환한다. 강화에 따라 대시 쿨다운과 무적을 줄이고 늘이며, 대시 텔레포트가 켜져 있으면 시작 틱에 대시 거리 전체를 벽 충돌 이동으로 옮기고 대시 잔여 시간에는 추가 이동을 하지 않는다.</summary>
         private bool MovePlayer(SimulationInput input)
         {
             SimVector move = input.Movement.Length > 1 ? input.Movement.Normalized() : input.Movement;
             if (move.LengthSquared > 0.000001) { _world.MoveDirection = move.Normalized(); _world.HasMoveDirection = true; }
+            PlayerUpgradeStats upgrades = _world.Upgrades;
+            double dashCooldown = Math.Max(0, _world.Balance.Player.DashCooldown * (1 - upgrades.DashCooldownReduction));
             bool startedDash = input.Dash
-                && _world.Player.StartDash(move.LengthSquared > 0.000001 ? move : _world.Player.AimDirection, _world.Balance.Player.DashSeconds, _world.Balance.Player.DashCooldown, Time);
-            SimVector displacement = _world.Player.DashRemaining > 0 ? _world.Player.GetDashDirection() * (_world.Balance.Player.DashDistance / _world.Balance.Player.DashSeconds * Math.Min(STEP_SECONDS, _world.Player.DashRemaining)) : move * (_world.Balance.Player.Speed * _world.MoveSpeedMultiplier * STEP_SECONDS);
+                && _world.Player.StartDash(move.LengthSquared > 0.000001 ? move : _world.Player.AimDirection, _world.Balance.Player.DashSeconds, dashCooldown, Time, upgrades.DashInvulnerabilityBonus);
+            if (startedDash && upgrades.HasDashTeleport)
+                _world.Player.Move(_world.Map.Move(_world.Player.Position, _world.Player.GetDashDirection() * _world.Balance.Player.DashDistance, _world.Sector.PlayerRadius));
+            SimVector displacement;
+            if (_world.Player.DashRemaining > 0)
+                displacement = upgrades.HasDashTeleport ? SimVector.Zero : _world.Player.GetDashDirection() * (_world.Balance.Player.DashDistance / _world.Balance.Player.DashSeconds * Math.Min(STEP_SECONDS, _world.Player.DashRemaining));
+            else displacement = move * (_world.Balance.Player.Speed * _world.MoveSpeedMultiplier * STEP_SECONDS);
             _world.Player.Move(_world.Map.Move(_world.Player.Position, displacement, _world.Sector.PlayerRadius));
             return startedDash;
         }

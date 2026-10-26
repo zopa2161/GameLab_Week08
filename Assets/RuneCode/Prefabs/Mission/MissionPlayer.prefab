@@ -509,3 +509,5 @@ MonoBehaviour:
   _aimLine: {fileID: 1263287949755104666}
   _dashTrail: {fileID: 5752245820147579296}
   _shieldRing: {fileID: 8449837331732178031}
+  _auraFillSprite: {fileID: 21300000, guid: 61a3b8c8c0a882f448bce80ad9fdec03, type: 3}
+  _auraEdgeSprite: {fileID: 21300000, guid: 94a08cd39b0a67140ab001e7ebd7784a, type: 3}

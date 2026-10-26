@@ -34,7 +34,6 @@ namespace RuneCode
         private static readonly Dictionary<string, string> _compileEventFieldAliases = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["is_valid"] = "ok",
-            ["ram_used"] = "ram",
             ["node_count"] = "nodes",
             ["edge_count"] = "edges",
         };

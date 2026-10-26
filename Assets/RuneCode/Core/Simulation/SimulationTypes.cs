@@ -55,6 +55,7 @@ namespace RuneCode
         private readonly bool _castPressed;
         private readonly bool _castReleased;
         private readonly bool _isAutomatic;
+        private readonly bool _isRightClickPressed;
         public SimVector Movement => _movement;
         public SimVector AimDirection => _aimDirection;
         public SimVector? AimPoint => _aimPoint;
@@ -66,14 +67,16 @@ namespace RuneCode
         public bool CastPressed => _castPressed;
         public bool CastReleased => _castReleased;
         public bool IsAutomatic => _isAutomatic;
+        public bool IsRightClickPressed => _isRightClickPressed;
 
-        /// <summary>한 고정 틱의 이동, 조준 방향·선택적 포인터 위치, 슬롯 시전, 대시, 상호작용 입력을 보관한다.</summary>
+        /// <summary>한 고정 틱의 이동, 조준 방향·선택적 포인터 위치, 슬롯 시전, 대시, 상호작용, 우클릭 입력을 보관한다.</summary>
         public SimulationInput(SimVector movement, SimVector aimDirection, bool castA = false, bool castB = false, bool castC = false, bool dash = false, bool interact = false,
-            bool castPressed = false, bool castReleased = false, bool isAutomatic = false, SimVector? aimPoint = null)
+            bool castPressed = false, bool castReleased = false, bool isAutomatic = false, SimVector? aimPoint = null, bool isRightClickPressed = false)
         {
             _movement = movement; _aimDirection = aimDirection; _castA = castA; _castB = castB; _castC = castC;
             _aimPoint = aimPoint;
             _dash = dash; _interact = interact; _castPressed = castPressed; _castReleased = castReleased; _isAutomatic = isAutomatic;
+            _isRightClickPressed = isRightClickPressed;
         }
     }
 
@@ -81,10 +84,10 @@ namespace RuneCode
 
     public sealed class SimulationPlayer
     {
-        private readonly double[] _cooldowns = new double[3];
-        private readonly double[] _cooldownDurations = new double[3];
-        private readonly bool[] _isSpellRunning = new bool[3];
-        private readonly double[] _executionRemaining = new double[3];
+        private readonly double[] _cooldowns = new double[SpellGrammar.MAX_START_NODES];
+        private readonly double[] _cooldownDurations = new double[SpellGrammar.MAX_START_NODES];
+        private readonly bool[] _isSpellRunning = new bool[SpellGrammar.MAX_START_NODES];
+        private readonly double[] _executionRemaining = new double[SpellGrammar.MAX_START_NODES];
         private readonly Dictionary<string, double> _otherResources = new Dictionary<string, double>(StringComparer.Ordinal);
         private readonly Dictionary<string, double> _otherResourceCaps = new Dictionary<string, double>(StringComparer.Ordinal);
         private SimVector _position;
@@ -102,6 +105,8 @@ namespace RuneCode
         private double _dashCooldownDuration;
         private double _dashRemaining;
         private int _dashesStarted;
+        private double _lastDashStartTime = double.NegativeInfinity;
+        private bool _isDashGuardUsed;
         private double _invulnerableUntil;
         private double _burnUntil;
         private double _burnNextTick;
@@ -121,6 +126,12 @@ namespace RuneCode
         public double DashRemaining => _dashRemaining;
         /// <summary>실제로 시작한 대시 횟수를 반환한다.</summary>
         public int DashesStarted => _dashesStarted;
+
+        /// <summary>마지막으로 대시를 시작한 시각이다. 대시한 적이 없으면 음의 무한대다.</summary>
+        public double LastDashStartTime => _lastDashStartTime;
+
+        /// <summary>현재 대시에서 대시 충돌 보호를 이미 사용했는지 반환한다. 대시를 시작할 때 초기화된다.</summary>
+        public bool IsDashGuardUsed => _isDashGuardUsed;
         public IReadOnlyList<double> Cooldowns => _cooldowns;
         public IReadOnlyList<double> CooldownDurations => _cooldownDurations;
 
@@ -235,9 +246,15 @@ namespace RuneCode
         /// <summary>에너지를 지정량만큼 회복하고 최대 에너지를 넘지 않게 한다.</summary>
         internal void RestoreEnergy(double amount) { _energy = Math.Min(_maxEnergy, _energy + Math.Max(0, amount)); }
 
-        /// <summary>대시가 가능한 경우 방향, 지속 시간, 무적 및 쿨다운을 설정한다.</summary>
-        internal bool StartDash(SimVector direction, double seconds, double cooldown, double time)
-        { if (_dashCooldown > 0.000001) return false; _dashesStarted++; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds); return true; }
+        /// <summary>대시가 가능한 경우 방향, 지속 시간, 강화 보너스가 더해진 무적 및 쿨다운을 설정하고 대시 시작 시각과 충돌 보호 사용 여부를 갱신한다.</summary>
+        internal bool StartDash(SimVector direction, double seconds, double cooldown, double time, double invulnerabilityBonus)
+        { if (_dashCooldown > 0.000001) return false; _dashesStarted++; _lastDashStartTime = time; _isDashGuardUsed = false; _dashDirection = direction.Normalized(); _dashRemaining = seconds; _dashCooldown = cooldown; _dashCooldownDuration = cooldown; _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds + invulnerabilityBonus); return true; }
+
+        /// <summary>현재 대시에서 대시 충돌 보호를 사용한 것으로 표시한다.</summary>
+        internal void MarkDashGuardUsed() => _isDashGuardUsed = true;
+
+        /// <summary>무적 종료 시각을 현재 값과 지정 시각 뒤 지속시간 중 더 늦는 값으로 늘린다. 대시 충돌 보호가 쓴다.</summary>
+        internal void ExtendInvulnerability(double time, double seconds) { _invulnerableUntil = Math.Max(_invulnerableUntil, time + seconds); }
 
         /// <summary>진행 중인 대시의 이동 방향을 반환한다.</summary>
         internal SimVector GetDashDirection() => _dashDirection;
@@ -290,7 +307,7 @@ namespace RuneCode
         /// <summary>위치, 능력치, 보호막, 대시 및 무적의 현재와 예정 상태를 결정성 해시 버퍼에 기록한다.</summary>
         internal void WriteState(StringBuilder state)
         {
-            state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_aimDirection.X:R}|{_aimDirection.Y:R}|{_dashDirection.X:R}|{_dashDirection.Y:R}|{_hp:R}|{_maxHp:R}|{_energy:R}|{_maxEnergy:R}|{_shield:R}|{_shieldUntil:R}|{_dashCooldown:R}|{_dashRemaining:R}|{_invulnerableUntil:R}|{_burnUntil:R}|{_burnNextTick:R}"));
+            state.Append(FormattableString.Invariant($"|{_position.X:R}|{_position.Y:R}|{_aimDirection.X:R}|{_aimDirection.Y:R}|{_dashDirection.X:R}|{_dashDirection.Y:R}|{_hp:R}|{_maxHp:R}|{_energy:R}|{_maxEnergy:R}|{_shield:R}|{_shieldUntil:R}|{_dashCooldown:R}|{_dashRemaining:R}|{_invulnerableUntil:R}|{_lastDashStartTime:R}|{_isDashGuardUsed}|{_burnUntil:R}|{_burnNextTick:R}"));
             for (int slot = 0; slot < _isSpellRunning.Length; slot++)
                 if (_isSpellRunning[slot]) state.Append(FormattableString.Invariant($"|running:{slot}:{_executionRemaining[slot]:R}"));
             var resources = new List<string>(_otherResources.Keys);
@@ -568,6 +585,7 @@ namespace RuneCode
         private readonly double _angle;
         private readonly SpellModifierValues _modifiers;
         private readonly double _costMultiplier;
+        private readonly double _castDamageMultiplier;
         private readonly SimulationPlayer _caster;
         private readonly SpellBehaviorRuntime _behavior;
         private readonly object _behaviorState;
@@ -706,6 +724,9 @@ namespace RuneCode
         /// <summary>이 개체의 이벤트 분기 노드 비용에 곱하는 배율(개체를 만든 문맥의 배율)이다.</summary>
         internal double CostMultiplier => _costMultiplier;
 
+        /// <summary>생성한 시전 문맥의 시전 시점 피해 배율이다. 이벤트 분기 문맥에 그대로 넘긴다.</summary>
+        internal double CastDamageMultiplier => _castDamageMultiplier;
+
         /// <summary>이 개체를 만든 시전자다. 개체 이벤트로 시작한 후속 실행에 전달한다.</summary>
         internal SimulationPlayer Caster => _caster;
         internal SimVector Anchor => _anchor;
@@ -727,10 +748,12 @@ namespace RuneCode
         /// </summary>
         internal SimulationSpellEntity(int id, SpellAction action, SpellStats stats, string element, SimVector position,
             SimVector direction, bool fromEvent, SimVector anchor, double angle, string castNoiseElement,
-            double visualSeconds, double warmupSeconds, SpellModifierValues modifiers, double costMultiplier, SimulationPlayer caster)
+            double visualSeconds, double warmupSeconds, SpellModifierValues modifiers, double costMultiplier, SimulationPlayer caster,
+            double castDamageMultiplier = 1d)
         {
             _warmupSeconds = warmupSeconds;
             _costMultiplier = costMultiplier;
+            _castDamageMultiplier = castDamageMultiplier;
             _caster = caster;
             _id = id;
             _action = action;
@@ -860,7 +883,7 @@ namespace RuneCode
         internal void WriteState(StringBuilder state)
         {
             state.Append(_id).Append('|').Append(_action.NodeId).Append('|').Append(_element).Append('|').Append(_castNoiseElement).Append('|').Append(_fromEvent);
-            state.Append(FormattableString.Invariant($"|{_anchor.X:R}|{_anchor.Y:R}|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_age:R}|{_angle:R}|{_hits}|{_hasExpired}|{_hasFiredFirstEvent}|{_hasDirectHit}|{_costMultiplier:R}"));
+            state.Append(FormattableString.Invariant($"|{_anchor.X:R}|{_anchor.Y:R}|{_position.X:R}|{_position.Y:R}|{_direction.X:R}|{_direction.Y:R}|{_age:R}|{_angle:R}|{_hits}|{_hasExpired}|{_hasFiredFirstEvent}|{_hasDirectHit}|{_costMultiplier:R}|{_castDamageMultiplier:R}"));
             state.Append(FormattableString.Invariant($"|{_stats.Damage:R}|{_stats.Speed:R}|{_stats.Radius:R}|{_stats.Lifetime:R}|{_stats.Pierce}|{_stats.HomingTurn:R}|{_stats.HomingRange:R}|{_stats.OrbitTargetCount}"));
             if (_stats.KnockbackDistance > 0)
                 state.Append(FormattableString.Invariant($"|knockback:{_stats.KnockbackDistance:R}:{_stats.KnockbackSeconds:R}"));

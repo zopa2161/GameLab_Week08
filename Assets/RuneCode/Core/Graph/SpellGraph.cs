@@ -232,17 +232,29 @@ namespace RuneCode
             return result;
         }
 
-        /// <summary>시작 노드에서 활성 실행 포트로 도달하는 노드 ID를 반환한다. 분리된 묶음과 순환 중복은 제외한다.</summary>
+        /// <summary>모든 시작 노드에서 활성 실행 포트로 도달하는 노드 ID를 반환한다. 분리된 묶음과 순환 중복은 제외한다.</summary>
         public HashSet<string> GetExecutableNodeIds(RuneCatalog runes)
         {
             var reachable = new HashSet<string>();
-            var pending = new Queue<GraphNode>();
             foreach (GraphNode node in _nodes)
             {
                 if (node == null || !runes.TryGet(node.RuneId, out RuneDefinition rune)
                     || rune.IsDisabled || rune.Category != SpellGrammar.CATEGORY_CORE) continue;
-                if (reachable.Add(node.Id)) pending.Enqueue(node);
+                reachable.UnionWith(GetExecutableNodeIds(runes, node.Id));
             }
+            return reachable;
+        }
+
+        /// <summary>지정한 시작 노드 하나에서 활성 실행 포트로 도달하는 노드 ID를 반환한다. core 시작 노드가 아니면 빈 집합이다.</summary>
+        public HashSet<string> GetExecutableNodeIds(RuneCatalog runes, string startNodeId)
+        {
+            var reachable = new HashSet<string>();
+            var pending = new Queue<GraphNode>();
+            GraphNode start = FindNode(startNodeId);
+            if (start == null || !runes.TryGet(start.RuneId, out RuneDefinition startRune)
+                || startRune.IsDisabled || startRune.Category != SpellGrammar.CATEGORY_CORE) return reachable;
+            reachable.Add(start.Id);
+            pending.Enqueue(start);
             while (pending.Count > 0)
             {
                 GraphNode source = pending.Dequeue();
@@ -279,7 +291,7 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>Core를 제외한 노드와 연결된 엣지를 제거하고 제거 성공 여부를 반환한다.</summary>
+        /// <summary>core.cast 시작 노드를 제외한 노드와 연결된 엣지를 제거하고 제거 성공 여부를 반환한다. 다른 시작 노드는 삭제할 수 있다.</summary>
         public bool RemoveNode(string id)
         {
             GraphNode node = FindNode(id);

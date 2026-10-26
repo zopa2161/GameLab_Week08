@@ -89,7 +89,7 @@ namespace RuneCode
             if (_hoveredNode != null) ShowNode(_hoveredNode);
         }
 
-        /// <summary>시작 노드는 공격 시 실행 안내만 표시하고, 다른 노드는 룬 이름·RAM과 슬롯·효과 설명을 쌓는다.</summary>
+        /// <summary>시작 노드는 공격 시 실행 안내만 표시하고, 다른 노드는 룬 이름과 슬롯·효과 설명을 쌓는다.</summary>
         private void ShowNode(GraphNode node)
         {
             RuneDefinition rune = GameData.Runes.Get(node.RuneId);
@@ -108,7 +108,7 @@ namespace RuneCode
             {
                 title = ModifierGradeText.FormatName(title, node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE));
             }
-            _view.AddTitle(title + " / " + GameData.Runes.NodeRam(node) + " RAM");
+            _view.AddTitle(title);
             if (GraphNodeLayout.HasSlots(rune)) ShowSlots(node);
             if (rune.Category == SpellGrammar.CATEGORY_MODIFIER)
             {

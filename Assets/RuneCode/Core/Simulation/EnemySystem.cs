@@ -284,15 +284,37 @@ namespace RuneCode
         /// <summary>현재 진행 중인 보스 ID와 공격 생성 때 정해진 패턴으로 피해를 전달한다.</summary>
         private void HurtBossPlayer(double damage, string pattern) => HurtPlayer(damage, _bossSourceEnemyId, pattern);
 
-        /// <summary>피해량과 공격한 적 ID로 피격을 처리하고 실제 HP 피해·보호막 흡수를 해당 적에게 귀속한다.</summary>
+        /// <summary>피해량과 공격한 적 ID로 피격을 처리하고 실제 HP 피해·보호막 흡수를 해당 적에게 귀속한다. 대시 충돌 보호와 회피는 피해 대신 이 경로에서 처리한다.</summary>
         private void HurtPlayer(double damage, int sourceEnemyId, string pattern = null)
         {
             if (_world.DebugInvulnerable || !_world.IsMission) return;
+            if (TryApplyDashCollisionGuard()) return;
+            if (TryEvade()) return;
             double shieldBefore = _world.Player.Shield;
             double actual = _world.Player.Hurt(damage, _world.Time, _world.Balance.Player.HurtInvulnerability);
             if (actual > 0) _feedback.AddDamageNumber(_world.Player.Position, actual, "player");
             _stats.RecordPlayerDamage(_world, sourceEnemyId, actual, Math.Max(0, shieldBefore - _world.Player.Shield), pattern);
             if (actual > 0 || _world.Player.Shield < shieldBefore) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_HIT_TAKEN);
+        }
+
+        /// <summary>
+        /// 대시 충돌 보호가 발동 조건(강화 플래그, 대시 중, 이번 대시에서 미사용)을 만족하면 무적을 보호 시간만큼 늘리고 전력을 최대까지 회복한 뒤 true를 반환한다.
+        /// 이번 대시에서 한 번만 발동하며 피해와 피격 무적 부여는 하지 않는다.
+        /// </summary>
+        private bool TryApplyDashCollisionGuard()
+        {
+            if (!_world.Upgrades.HasDashCollisionGuard || _world.Player.DashRemaining <= 0 || _world.Player.IsDashGuardUsed) return false;
+            _world.Player.MarkDashGuardUsed();
+            _world.Player.ExtendInvulnerability(_world.Time, _world.Balance.Player.DashGuardInvulnerability);
+            _world.Player.RestoreEnergy(_world.Player.MaxEnergy);
+            return true;
+        }
+
+        /// <summary>회피 확률이 0보다 크고 플레이어가 무적이 아닐 때만 결정적 난수로 회피 성공 여부를 판정한다. 회피는 피해만 막고 무적을 부여하지 않는다.</summary>
+        private bool TryEvade()
+        {
+            if (_world.Upgrades.EvasionChance <= 0 || _world.Player.IsInvulnerable(_world.Time)) return false;
+            return _world.Random.Next() < _world.Upgrades.EvasionChance;
         }
 
         /// <summary>

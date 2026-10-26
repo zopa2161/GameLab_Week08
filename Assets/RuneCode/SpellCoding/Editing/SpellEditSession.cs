@@ -82,6 +82,9 @@ namespace RuneCode
             return _policy.IsRuneUnlocked(runeId);
         }
 
+        /// <summary>현재 컴파일 문맥의 행동 하나 고정 강화 여부를 반환한다.</summary>
+        public bool IsSingleBehavior => _policy.GetCompileContext().IsSingleBehavior;
+
         /// <summary>편집 중인 프리셋에서 지정 (룬 ID, 등급)의 행동·속성·모디 배치 수와 소지량을 구한다. 다른 마법 배치는 세지 않는다.</summary>
         public bool TryGetModifierUsage(string runeId, string grade, out int used, out int owned)
         {
@@ -99,8 +102,8 @@ namespace RuneCode
         {
             var context = _policy.GetCompileContext();
             _compileResult = GraphCompiler.Compile(_editingGraph, GameData.Runes, GameData.Balance.Grammar,
-                context.UnlockedRunes, context.Capacity, context.MaxEnergy, context.Library, context.ModifierStock,
-                context.MaxResourceCosts);
+                context.UnlockedRunes, context.MaxEnergy, context.Library, context.ModifierStock,
+                context.MaxResourceCosts, context.IsSingleBehavior, context.ElementCostReduction);
             RaiseCompiled();
         }
 
@@ -204,7 +207,7 @@ namespace RuneCode
 
         /// <summary>
         /// 행동 노드를 지정 등급(비면 기본 등급)으로 지정 좌표에 배치한다. 형태는 행동 정의의 고정 형태를 쓴다. 행동 외 룬, 등급표에 없는 등급,
-        /// 행동 소지량 초과는 배치하지 않는다. RAM은 연결될 때 검사한다.
+        /// 행동 소지량 초과는 배치하지 않는다. core.cast 외 시작 노드 룬은 등급 없이 배치하며 같은 룬이 이미 있으면 배치하지 않는다.
         /// </summary>
         public void AddRune(string runeId, float x, float y, string grade = null)
         {
@@ -213,14 +216,20 @@ namespace RuneCode
                 RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "not_editable_or_unlocked", ["rune_id"] = runeId });
                 return;
             }
-            if (!GameData.Runes.TryGet(runeId, out RuneDefinition rune) || rune.IsDisabled
-                || rune.Category != SpellGrammar.CATEGORY_BEHAVIOR)
+            bool isRuneFound = GameData.Runes.TryGet(runeId, out RuneDefinition rune);
+            bool isStartRune = isRuneFound && rune.Category == SpellGrammar.CATEGORY_CORE && runeId != SpellGrammar.CORE_RUNE;
+            if (!isRuneFound || rune.IsDisabled || (rune.Category != SpellGrammar.CATEGORY_BEHAVIOR && !isStartRune))
             {
                 RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_behavior", ["rune_id"] = runeId });
                 return;
             }
+            if (isStartRune && _editingGraph.Nodes.Any(existing => existing.RuneId == runeId))
+            {
+                RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "duplicate_start", ["rune_id"] = runeId });
+                return;
+            }
             grade = string.IsNullOrEmpty(grade) ? SpellGrammar.DEFAULT_BEHAVIOR_GRADE : grade;
-            if (!GameData.Runes.BehaviorGradeOrder.Contains(grade))
+            if (!isStartRune && !GameData.Runes.BehaviorGradeOrder.Contains(grade))
             {
                 RecordUsabilityAction("place_node", "rejected", new Dictionary<string, object> { ["reason"] = "invalid_grade", ["rune_id"] = runeId, ["grade"] = grade });
                 return;
@@ -233,7 +242,7 @@ namespace RuneCode
             }
             var candidate = _editingGraph.Clone();
             var node = new GraphNode(NewId("node"), runeId, x, y);
-            node.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, grade);
+            if (!isStartRune) node.SetText(SpellGrammar.MODIFIER_GRADE_PARAM, grade);
             candidate.AddNode(node);
             if (!_policy.IsWithinModifierStock(_editingGraph, candidate))
             {
@@ -287,7 +296,7 @@ namespace RuneCode
 
         /// <summary>
         /// 행동 노드의 슬롯에 속성(속성 ID로 저장)·모디(룬ID#등급으로 저장)를 장착한다. 이미 장착된 슬롯이면 교체한다.
-        /// 슬롯 종류·등급 한도·속성 종류·모디 호환과 중복·소지량·RAM을 검사하고 실패하면 상태 문구를 표시한다.
+        /// 슬롯 종류·등급 한도·속성 종류·모디 호환과 중복·소지량을 검사하고 실패하면 상태 문구를 표시한다.
         /// </summary>
         public bool Equip(string nodeId, string slotKey, string runeId, string grade)
         {
@@ -322,10 +331,10 @@ namespace RuneCode
                 RecordUsabilityAction("equip_slot", "rejected", new Dictionary<string, object> { ["reason"] = "stock_blocked", ["node_id"] = nodeId, ["slot_key"] = slotKey, ["rune_id"] = runeId, ["grade"] = grade });
                 return false;
             }
-            bool isCommitted = CommitSlotCandidate(candidate, nodeId);
-            RecordUsabilityAction("equip_slot", isCommitted ? "success" : "rejected",
-                new Dictionary<string, object> { ["reason"] = isCommitted ? null : "ram_blocked", ["node_id"] = nodeId, ["slot_key"] = slotKey, ["rune_id"] = runeId, ["grade"] = grade });
-            return isCommitted;
+            CommitCandidate(candidate);
+            RecordUsabilityAction("equip_slot", "success",
+                new Dictionary<string, object> { ["node_id"] = nodeId, ["slot_key"] = slotKey, ["rune_id"] = runeId, ["grade"] = grade });
+            return true;
         }
 
         /// <summary>행동 노드의 지정 슬롯 값을 비운다. 비어 있거나 슬롯 키가 아니면 false를 반환한다.</summary>
@@ -405,16 +414,14 @@ namespace RuneCode
                 && rune.Category == SpellGrammar.CATEGORY_BEHAVIOR;
         }
 
-        /// <summary>슬롯·형태를 바꾼 노드가 시작에서 실행 가능하면 장착 RAM을 검사하고 통과하면 편집 그래프로 확정한다.</summary>
-        private bool CommitSlotCandidate(SpellGraph candidate, string nodeId)
+        /// <summary>슬롯·등급을 바꾼 후보를 편집 그래프로 확정하고 변경을 알린다.</summary>
+        private void CommitCandidate(SpellGraph candidate)
         {
-            if (candidate.GetExecutableNodeIds(GameData.Runes).Contains(nodeId) && !_policy.IsWithinRam(candidate)) { _policy.ReportStatus("editor.ramBlocked"); return false; }
             _editingGraph = candidate;
             MarkChanged(); RaiseGraphChanged();
-            return true;
         }
 
-        /// <summary>필요하면 단일 포트의 기존 연결을 교체한 후보의 RAM·문법을 검사하고 성공할 때만 저장한다.</summary>
+        /// <summary>필요하면 단일 포트의 기존 연결을 교체한 후보의 문법을 검사하고 성공할 때만 저장한다.</summary>
         public bool Connect(string fromNode, string fromPort, string toNode, string toPort, bool replaceExisting = false)
         {
             if (!_isEditable)
@@ -438,16 +445,10 @@ namespace RuneCode
                 return false;
             }
             candidate.AddEdge(edge);
-            if (!_policy.IsWithinRam(candidate))
-            {
-                _policy.ReportStatus("editor.ramBlocked");
-                RecordUsabilityAction("connect_edge", "rejected", new Dictionary<string, object> { ["reason"] = "ram_blocked", ["from_node"] = fromNode, ["from_port"] = fromPort, ["to_node"] = toNode, ["to_port"] = toPort });
-                return false;
-            }
             var context = _policy.GetCompileContext();
             CompileResult result = GraphCompiler.Compile(candidate, GameData.Runes, GameData.Balance.Grammar,
-                context.UnlockedRunes, context.Capacity, context.MaxEnergy, context.Library, context.ModifierStock,
-                context.MaxResourceCosts);
+                context.UnlockedRunes, context.MaxEnergy, context.Library, context.ModifierStock,
+                context.MaxResourceCosts, context.IsSingleBehavior, context.ElementCostReduction);
             if (result.Errors.Any(issue => issue.Code == "E2" || issue.Code == "E3" || issue.Code == "E4" || issue.Code == "E5" || issue.Code == "E6"))
             {
                 _policy.ReportStatus("editor.invalidConnection");
@@ -603,7 +604,7 @@ namespace RuneCode
             RaiseGraphChanged();
         }
 
-        /// <summary>기존 후속을 잃지 않는 삽입 사본을 만들어 연결·순환·RAM 제한을 통과하는지 반환한다.</summary>
+        /// <summary>기존 후속을 잃지 않는 삽입 사본을 만들어 연결·순환 제한을 통과하는지 반환한다.</summary>
         public bool CanDockBlocks(string fromNode, string fromPort, string rootNode, GraphNode previewNode = null)
         {
             return _isEditable && CreateDockCandidate(fromNode, fromPort, rootNode, true, previewNode) != null;
@@ -621,7 +622,7 @@ namespace RuneCode
             return true;
         }
 
-        /// <summary>출력의 기존 후속을 새 묶음 끝으로 옮긴 삽입 사본을 반환한다. 분기 모호성·순환·RAM·개수 제한이 있으면 null이다.</summary>
+        /// <summary>출력의 기존 후속을 새 묶음 끝으로 옮긴 삽입 사본을 반환한다. 분기 모호성·순환·개수 제한이 있으면 null이다.</summary>
         private SpellGraph CreateDockCandidate(string fromId, string portId, string rootId, bool isPreview, GraphNode previewNode = null)
         {
             SpellGraph candidate = _editingGraph.Clone();
@@ -676,8 +677,7 @@ namespace RuneCode
                 if (!GraphCompiler.CanConnect(candidate, last, GameData.Runes, out _)) return null;
                 candidate.AddEdge(last);
             }
-            return candidate.Edges.Count <= GameData.Balance.Limits.MaxGraphEdges && _policy.IsWithinRam(candidate)
-                ? candidate : null;
+            return candidate.Edges.Count <= GameData.Balance.Limits.MaxGraphEdges ? candidate : null;
         }
 
         /// <summary>기존 의미를 유지하는 기본 후속 포트를 일반 후속·명중 시·반복 완료 순으로 선택해 반환한다.</summary>
@@ -744,12 +744,13 @@ namespace RuneCode
             var selected = _editingGraph.GetBlockGroup(nodeIds, GameData.Runes);
             var snapshot = _editingGraph.Clone();
             _copiedNodes.Clear(); _copiedEdges.Clear();
-            _copiedNodes.AddRange(snapshot.Nodes.Where(node => selected.Contains(node.Id) && node.RuneId != "core.cast"));
+            _copiedNodes.AddRange(snapshot.Nodes.Where(node => selected.Contains(node.Id)
+                && (!GameData.Runes.TryGet(node.RuneId, out RuneDefinition rune) || rune.Category != SpellGrammar.CATEGORY_CORE)));
             _copiedEdges.AddRange(snapshot.Edges.Where(edge => _copiedNodes.Any(node => node.Id == edge.FromNode) && _copiedNodes.Any(node => node.Id == edge.ToNode)));
         }
 
         /// <summary>
-        /// 복사 노드에 새 ID와 좌표 오프셋을 부여하고 내부 연결이 있으면 장착 RAM, 행동·속성·모디 소지량을 검증해 붙여넣는다.
+        /// 복사 노드에 새 ID와 좌표 오프셋을 부여하고 행동·속성·모디 소지량을 검증해 붙여넣는다.
         /// 내부 연결의 실행 순서(Order)는 복사 원본 값을 유지한다.
         /// </summary>
         public void PasteNodes()
@@ -766,7 +767,6 @@ namespace RuneCode
             }
             foreach (var edge in _copiedEdges)
                 candidate.AddEdge(new GraphEdge(NewId("edge"), map[edge.FromNode], edge.FromPort, map[edge.ToNode], edge.ToPort, edge.Order));
-            if (_copiedEdges.Count > 0 && !_policy.IsWithinRam(candidate)) { _policy.ReportStatus("editor.ramBlocked"); return; }
             if (!_policy.IsWithinModifierStock(_editingGraph, candidate)) { _policy.ReportStatus("editor.stockBlocked"); return; }
             _editingGraph = candidate; MarkChanged(); RaiseGraphChanged();
         }

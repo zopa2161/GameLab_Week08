@@ -116,7 +116,7 @@ namespace RuneCode
             };
             foreach (SpellGraph graph in spells)
             {
-                CompileResult result = GraphCompiler.Compile(graph, runes, balance.Grammar, allRuneIds, int.MaxValue);
+                CompileResult result = GraphCompiler.Compile(graph, runes, balance.Grammar, allRuneIds);
                 if (!result.Ok) throw new FormatException("시작 마법이 유효하지 않습니다: " + graph.Name);
             }
             EnemyCatalog enemies = EnemyCatalog.FromJson(ReadResource("enemies"));

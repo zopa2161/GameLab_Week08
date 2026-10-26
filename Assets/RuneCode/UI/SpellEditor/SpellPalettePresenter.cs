@@ -100,7 +100,7 @@ namespace RuneCode
             Refresh();
         }
 
-        /// <summary>현재 분류·검색어에 맞는 보유 행동(등급별)·속성·모디(등급별)를 이름·등급과 남은 수로 표시한다. 일반 편집에서 남은 수가 0인 항목은 숨기고, 합성 재료 선택 중에는 예약으로 0이 된 항목도 소지량 부족 상태로 표시한다.</summary>
+        /// <summary>현재 분류·검색어에 맞는 보유 행동(등급별)·속성·모디(등급별)와 배치 가능한 시작 노드 룬을 이름·등급과 남은 수로 표시한다. 일반 편집에서 남은 수가 0인 항목은 숨기고, 합성 재료 선택 중에는 예약으로 0이 된 항목도 소지량 부족 상태로 표시한다.</summary>
         public void Refresh()
         {
             _view.SetSynthesisFilters(_selectMaterial != null, _lockedCategory, _lockedGrade, _category == SpellGrammar.CATEGORY_ELEMENT);
@@ -112,6 +112,11 @@ namespace RuneCode
             {
                 if (!IsPaletteRune(rune) || !_editor.IsRuneUnlocked(rune.Id)
                     || (_category != "all" && rune.Category != _category) || !MatchesSearch(rune, query)) continue;
+                if (rune.Category == SpellGrammar.CATEGORY_CORE)
+                {
+                    if (_selectMaterial == null) AddStartNodeRune(rune);
+                    continue;
+                }
                 foreach (string grade in StockGrades(rune))
                 {
                     if (_selectMaterial != null && !RuneSynthesisRules.IsEligible(rune, grade)) continue;
@@ -221,10 +226,25 @@ namespace RuneCode
             return ModifierGradeText.Colorize(label, grade);
         }
 
-        /// <summary>팔레트에 놓을 수 있는 룬인지 반환한다. 행동·전투 속성·모디만 표시하고 비활성 룬과 기본 중립 속성은 제외한다.</summary>
+        /// <summary>
+        /// 시작 노드 룬의 팔레트 행을 룬 이름만 표시해 클릭·드래그로 제안 위치에 배치하게 한다.
+        /// 재고 검사를 하지 않으며 같은 룬의 시작 노드가 그래프에 이미 있으면 행을 만들지 않는다.
+        /// </summary>
+        private void AddStartNodeRune(RuneDefinition rune)
+        {
+            foreach (GraphNode node in _editor.Graph.Nodes)
+                if (node != null && node.RuneId == rune.Id) return;
+            string runeId = rune.Id;
+            _view.AddPaletteRow(rune.Name, ROW_HEIGHT,
+                _ => _view.GraphCanvas.PlaceRune(runeId, _view.GraphCanvas.SuggestPlacement(runeId), null),
+                runeId, null, true);
+        }
+
+        /// <summary>팔레트에 놓을 수 있는 룬인지 반환한다. 행동·전투 속성·모디와 시작 노드 룬(core.cast 제외)을 표시하고 비활성 룬과 기본 중립 속성은 제외한다.</summary>
         private static bool IsPaletteRune(RuneDefinition rune)
         {
             if (rune.IsDisabled || rune.Id == SpellGrammar.ElementRune(SpellGrammar.ELEMENT_NEUTRAL)) return false;
+            if (rune.Category == SpellGrammar.CATEGORY_CORE) return rune.Id != SpellGrammar.CORE_RUNE;
             return rune.Category == SpellGrammar.CATEGORY_BEHAVIOR || rune.Category == SpellGrammar.CATEGORY_ELEMENT
                 || rune.Category == SpellGrammar.CATEGORY_MODIFIER;
         }

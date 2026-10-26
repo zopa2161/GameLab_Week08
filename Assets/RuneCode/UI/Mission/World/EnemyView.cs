@@ -114,7 +114,7 @@ namespace RuneCode
 
             ApplyIcon(_burnIcon, sim.HasEnemyStatus(enemy, EnemyStatusType.Burn), new Vector2(-radius, radius + ICON_GAP), "fire");
             ApplyIcon(_chillIcon, sim.GetChillStacks(enemy) > 0 || sim.HasEnemyStatus(enemy, EnemyStatusType.Freeze), new Vector2(0, radius + ICON_GAP), "ice");
-            ApplyIcon(_empIcon, sim.HasEnemyStatus(enemy, EnemyStatusType.Emp), new Vector2(radius, radius + ICON_GAP), "arc");
+            ApplyIcon(_empIcon, sim.HasEnemyStatus(enemy, EnemyStatusType.Emp) || sim.HasEnemyStatus(enemy, EnemyStatusType.Shock), new Vector2(radius, radius + ICON_GAP), "arc");
             double threshold = GameData.Balance.Adaptation.ResistanceThreshold;
             bool isResistant = enemy.Hydra == null && sim.Adaptation.Enabled && (sim.Adaptation.GetValue(enemy.LastDamageElement) >= threshold || sim.Adaptation.GetValue(enemy.LastDamageForm) >= threshold);
             MissionWorldSpace.SetVisible(_resistRing, isResistant);

@@ -17,6 +17,11 @@ namespace RuneCode
         [SerializeField] private float _dashDuration;
         [SerializeField] private float _dashCooldown;
         [SerializeField] private float _hitInvulnerability;
+
+        [Header("강화 트리 대시")]
+        [SerializeField] private float _postDashBuffSeconds = 1f;
+        [SerializeField] private float _dashEndCostMultiplier = 0.9f;
+        [SerializeField] private float _dashGuardInvulnerability = 1f;
         public float MaxHp => _maxHp;
         public float MoveSpeed => _moveSpeed;
         public float MaxEnergy => _maxEnergy;
@@ -28,6 +33,15 @@ namespace RuneCode
         public float Energy => _maxEnergy;
         public float DashSeconds => _dashDuration;
         public float HurtInvulnerability => _hitInvulnerability;
+
+        /// <summary>대시 시작 후 이 시간 안에 시전한 주문에 대시 후 피해 강화를 적용한다.</summary>
+        public float PostDashBuffSeconds => _postDashBuffSeconds;
+
+        /// <summary>대시 종료 시작 노드 주문의 마나 비용 배율이다.</summary>
+        public float DashEndCostMultiplier => _dashEndCostMultiplier;
+
+        /// <summary>대시 충돌 보호가 발동할 때 주는 무적 시간이다.</summary>
+        public float DashGuardInvulnerability => _dashGuardInvulnerability;
     }
 
     [Serializable]
@@ -42,6 +56,7 @@ namespace RuneCode
         [SerializeField] private int _maxCompiledActions = 2048;
         [SerializeField] private int _maxScheduledExecutions = 2048;
         [SerializeField] private int _maxActionsPerTick = 512;
+        [SerializeField] private float _cooldownBase = 0.25f;
         public int MaxLiveSpellEntities => _maxLiveSpellEntities;
         public int MaxFrameSteps => _maxFrameSteps;
         public int MaxGraphNodes => _maxGraphNodes;
@@ -50,6 +65,9 @@ namespace RuneCode
         public int MaxCompiledActions => _maxCompiledActions;
         public int MaxScheduledExecutions => _maxScheduledExecutions;
         public int MaxActionsPerTick => _maxActionsPerTick;
+
+        /// <summary>모든 마법 Entry에 공통으로 적용되는 기본 쿨다운(초)이다. 실행 시간은 시전 시점에 더한다.</summary>
+        public float CooldownBase => _cooldownBase;
     }
 
     [Serializable]
@@ -100,6 +118,12 @@ namespace RuneCode
         [SerializeField] private float _separationAllowance;
         [SerializeField] private float _separationStrength;
         [SerializeField] private float _separationMaxStep;
+
+        [Header("강화 트리 전투")]
+        [SerializeField] private int _burnMaxStacks = 3;
+        [SerializeField] private float _auraRadius = 100f;
+        [SerializeField] private float _auraTickInterval = 0.5f;
+        [SerializeField] private float _auraTickDamage = 1f;
         public float BurnDps => _burnDps;
         public float BurnDamageRatio => _burnDamageRatio;
         public float BurnInterval => _burnInterval;
@@ -122,6 +146,18 @@ namespace RuneCode
         public float SeparationAllowance => _separationAllowance;
         public float SeparationStrength => _separationStrength;
         public float SeparationMaxStep => _separationMaxStep;
+
+        /// <summary>화염 강화에서 폭발이 일어나는 화상 중첩 수다.</summary>
+        public int BurnMaxStacks => _burnMaxStacks;
+
+        /// <summary>플레이어 주위 장판의 반경이다.</summary>
+        public float AuraRadius => _auraRadius;
+
+        /// <summary>플레이어 주위 장판의 피해 간격(초)이다.</summary>
+        public float AuraTickInterval => _auraTickInterval;
+
+        /// <summary>플레이어 주위 장판의 틱당 피해다.</summary>
+        public float AuraTickDamage => _auraTickDamage;
     }
 
     [Serializable]
@@ -130,7 +166,6 @@ namespace RuneCode
         [Header("성장")]
         [SerializeField] private int _slotCost;
         [SerializeField] private float _deathRetention;
-        [SerializeField] private int _baseCapacity;
         [SerializeField] private int _maxLibrary;
         [SerializeField] private int _modifierStartStock;
         [SerializeField] private int _behaviorStartStock;
@@ -146,7 +181,6 @@ namespace RuneCode
 
         public int SlotCost => _slotCost;
         public float DeathRetention => _deathRetention;
-        public int BaseCapacity => _baseCapacity;
         public int MaxLibrary => _maxLibrary;
 
         /// <summary>새 세이브(또는 소지량 기록이 없는 세이브)에서 Modifier 종류마다 주는 시작 소지량이다.</summary>
@@ -161,18 +195,6 @@ namespace RuneCode
 
         /// <summary>적을 처치했을 때 떨어뜨린 크레딧에서 회복하는 에너지 비율이다.</summary>
         public float KillEnergyCreditRatio => _killEnergyCreditRatio;
-    }
-
-    [Serializable]
-    public sealed class RamBalance
-    {
-        [Header("RAM")]
-        [SerializeField] private string _mode;
-        [SerializeField] private float _cooldownBase;
-        [SerializeField] private float _cooldownPerRam;
-        public string Mode => _mode;
-        public float CooldownBase => _cooldownBase;
-        public float CooldownPerRam => _cooldownPerRam;
     }
 
     [Serializable]
@@ -258,33 +280,28 @@ namespace RuneCode
         [SerializeField] private AdaptationBalance _adaptation;
         [SerializeField] private CombatBalance _combat;
         [SerializeField] private EconomyBalance _economy;
-        [SerializeField] private RamBalance _ram;
         [SerializeField] private SimulationBalance _sim;
         public PlayerBalance Player => _player;
         public LimitBalance Limits => _limits;
         public AdaptationBalance Adaptation => _adaptation;
         public CombatBalance Combat => _combat;
         public EconomyBalance Economy => _economy;
-        public RamBalance Ram => _ram;
         public SimulationBalance Sim => _sim;
 
         private GrammarLimits _grammar;
 
         /// <summary>문법 엔진(컴파일러)에 전달할 한도·기본값을 이 밸런스 값으로 만들어 반환한다. 처음 요청할 때 한 번 만든다.</summary>
         public GrammarLimits Grammar => _grammar ??= new GrammarLimits(_limits.MaxGraphNodes, _limits.MaxGraphEdges,
-            _limits.MaxCompiledActions, _limits.MaxLiveSpellEntities, _economy.BaseCapacity,
-            _player.MaxEnergy, _ram.CooldownBase, _ram.CooldownPerRam);
+            _limits.MaxCompiledActions, _limits.MaxLiveSpellEntities, _player.MaxEnergy, _limits.CooldownBase);
 
         /// <summary>밸런스 JSON을 읽고 필수 설정과 양수 제한값을 검증하여 반환한다.</summary>
         public static BalanceData FromJson(string json)
         {
             BalanceData data = JsonUtility.FromJson<BalanceData>(json);
             if (data == null || data.Player == null || data.Limits == null || data.Adaptation == null
-                || data.Combat == null || data.Economy == null || data.Ram == null || data.Sim == null
+                || data.Combat == null || data.Economy == null || data.Sim == null
                 || data.Player.MaxHp <= 0f || data.Player.MaxEnergy <= 0f || data.Sim.TickRate != 60
-                || data.Limits.MaxLiveSpellEntities <= 0
-                || data.Economy.BaseCapacity <= 0
-                || (data.Ram.Mode != "shared" && data.Ram.Mode != "perSpell"))
+                || data.Limits.MaxLiveSpellEntities <= 0)
                 throw new FormatException("유효하지 않은 밸런스 데이터입니다.");
             if (float.IsNaN(data.Combat.BurnDamageRatio) || float.IsInfinity(data.Combat.BurnDamageRatio)
                 || data.Combat.BurnDamageRatio < 0f || data.Combat.BurnDamageRatio > 1f)
@@ -300,7 +317,7 @@ namespace RuneCode
                 data.Combat.BurnSeconds, data.Combat.ChillSlow, data.Combat.ChillSeconds, data.Combat.FreezeSeconds,
                 data.Combat.FreezeImmunity, data.Combat.EmpSeconds, data.Combat.AegisAngle, data.Combat.AegisReduction,
                 data.Combat.RelayRadius, data.Combat.RelayRegen, data.Economy.DeathRetention, data.Economy.OrbAbsorbRadius,
-                data.Economy.KillEnergyCreditRatio, data.Economy.PickupAttractSpeed, data.Ram.CooldownBase, data.Ram.CooldownPerRam, data.Sim.MultiOffset,
+                data.Economy.KillEnergyCreditRatio, data.Economy.PickupAttractSpeed, data.Limits.CooldownBase, data.Sim.MultiOffset,
                 data.Sim.BenchPlayerX, data.Sim.BenchPlayerY, data.Sim.BenchDummyX,
                 data.Sim.BenchDummyY, data.Sim.BenchHp, data.Sim.BenchLineStartX, data.Sim.BenchLineGap, data.Sim.BenchSwarmX,
                 data.Sim.BenchSwarmY, data.Sim.BenchSwarmGapX, data.Sim.BenchSwarmGapY,
@@ -333,6 +350,10 @@ namespace RuneCode
                     || data.Limits.MaxEnemies <= 0 || data.Limits.MaxCompiledActions <= 0
                     || data.Limits.MaxScheduledExecutions <= 0 || data.Limits.MaxActionsPerTick <= 0)
                     throw new FormatException("밸런스 범위가 유효하지 않습니다.");
+            if (data.Player.PostDashBuffSeconds < 0f || data.Player.DashEndCostMultiplier <= 0f || data.Player.DashEndCostMultiplier > 1f
+                || data.Player.DashGuardInvulnerability < 0f || data.Combat.BurnMaxStacks < 2 || data.Combat.AuraRadius <= 0f
+                || data.Combat.AuraTickInterval <= 0f || data.Combat.AuraTickDamage < 0f)
+                throw new FormatException("강화 트리 밸런스 범위가 유효하지 않습니다.");
             return data;
         }
 

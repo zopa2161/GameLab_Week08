@@ -7,7 +7,10 @@
     "_dashDistance": 140,
     "_dashDuration": 0.18,
     "_dashCooldown": 1,
-    "_hitInvulnerability": 0.5
+    "_hitInvulnerability": 0.5,
+    "_postDashBuffSeconds": 1,
+    "_dashEndCostMultiplier": 0.9,
+    "_dashGuardInvulnerability": 1
   },
   "_limits": {
     "_maxLiveSpellEntities": 128,
@@ -17,12 +20,8 @@
     "_maxEnemies": 300,
     "_maxCompiledActions": 2048,
     "_maxScheduledExecutions": 2048,
-    "_maxActionsPerTick": 512
-  },
-  "_ram": {
-    "_mode": "shared",
-    "_cooldownBase": 0.25,
-    "_cooldownPerRam": 0.03
+    "_maxActionsPerTick": 512,
+    "_cooldownBase": 0.25
   },
   "_adaptation": {
     "_elementLearning": 0.02,
@@ -54,12 +53,15 @@
     "_relayRegen": 1,
     "_separationAllowance": 0.8,
     "_separationStrength": 0.5,
-    "_separationMaxStep": 4
+    "_separationMaxStep": 4,
+    "_burnMaxStacks": 3,
+    "_auraRadius": 100,
+    "_auraTickInterval": 0.5,
+    "_auraTickDamage": 1
   },
   "_economy": {
     "_slotCost": 120,
     "_deathRetention": 0.7,
-    "_baseCapacity": 6,
     "_maxLibrary": 30,
     "_modifierStartStock": 0,
     "_behaviorStartStock": 1,

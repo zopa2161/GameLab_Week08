@@ -18,6 +18,8 @@ namespace RuneCode
 
         [Header("완드 및 진행")]
         [SerializeField] private int _currency;
+        [SerializeField] private int _upgradePoints;
+        [SerializeField] private bool _hasPendingElementPick;
         [SerializeField] private int _slotCount = 1;
         [SerializeField] private int _highestClearedStage;
         [SerializeField] private int _selectedStage = 1;
@@ -64,6 +66,8 @@ namespace RuneCode
 
         public int Version => _version;
         public int Currency => _currency;
+        public int UpgradePoints => _upgradePoints;
+        public bool HasPendingElementPick => _hasPendingElementPick;
         public int SlotCount => _slotCount;
         public int HighestClearedStage => _highestClearedStage;
         public bool HasClearedProgression => _hasClearedProgression;
@@ -487,6 +491,7 @@ namespace RuneCode
             _graphs.RemoveAll(graph => graph == null || graph.Version != SpellGraph.CURRENT_VERSION);
             RemoveUnknownGraphEntries();
             RemoveLegacyShapeParameters();
+            foreach (SpellGraph graph in _graphs) SpellGraphMigration.ReplaceRemovedDashEndTrigger(graph);
             if (_graphs.Count == 0) _graphs.Add(GameData.Spells[0].Clone());
             var unlocked = new List<string>();
             foreach (var runeId in _unlockedRunes)
@@ -533,7 +538,7 @@ namespace RuneCode
                 error = "save.invalidValues";
                 return false;
             }
-            if (_version != 5 || _currency < 0 || _currency > 100000000 ||
+            if (_version != 5 || _currency < 0 || _currency > 100000000 || _upgradePoints < 0 ||
                 _highestClearedStage < 0 || _highestClearedStage >= 1000000 ||
                 _selectedStage < 1 || _selectedStage > _highestClearedStage + 1 ||
                 _slotCount != 1)
@@ -854,6 +859,27 @@ namespace RuneCode
             return true;
         }
 
+        /// <summary>라운드 보상 확정으로 지급된 강화 포인트를 누적한다. 0 이하 수량은 무시한다.</summary>
+        public void GrantUpgradePoints(int amount)
+        {
+            if (amount <= 0) return;
+            _upgradePoints += amount;
+        }
+
+        /// <summary>강화 포인트가 충분하면 차감하고 성공 여부를 반환한다. 부족하면 상태를 바꾸지 않는다.</summary>
+        public bool TrySpendUpgradePoints(int amount)
+        {
+            if (amount < 0 || _upgradePoints < amount) return false;
+            _upgradePoints -= amount;
+            return true;
+        }
+
+        /// <summary>강화 트리의 속성 선택 노드 구매로 속성 선택 보상 대기를 설정한다.</summary>
+        public void SetElementPickPending() => _hasPendingElementPick = true;
+
+        /// <summary>속성 선택 보상을 지급한 뒤 대기 상태를 해제한다.</summary>
+        public void ClearElementPickPending() => _hasPendingElementPick = false;
+
         /// <summary>유효한 노드 ID의 구매 단계를 저장하고 0단계가 되면 저장 항목을 제거한다.</summary>
         public void SetUpgradeNodeLevel(string nodeId, int level)
         {
@@ -869,7 +895,7 @@ namespace RuneCode
             else progress.SetLevel(level);
         }
 
-        /// <summary>양수 RAM 보상을 누적하고 시간제 전투 완주 기록을 남긴다.</summary>
+        /// <summary>양수 스크랩 보상을 누적하고 시간제 전투 완주 기록을 남긴다.</summary>
         public void Settle(int fragments, bool cleared)
         {
             _currency = (int)Math.Min(100000000L, _currency + (long)Math.Max(0, fragments));

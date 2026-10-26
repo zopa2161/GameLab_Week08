@@ -46,13 +46,6 @@ namespace RuneCode
                     Path(mesh, center, scale, tint, 11,4, 15,4, 15,-4, 11,-4);
                     Path(mesh, center, scale, tint, 2,7, -4,0, 3,0, -3,-7);
                     break;
-                case UpgradeEffectType.RamCapacity:
-                    Path(mesh, center, scale, tint, -15,-8, -15,10, 15,10, 15,-8, -15,-8);
-                    for (int x = -9; x <= 9; x += 9)
-                        Path(mesh, center, scale, tint, x-2,-3, x-2,5, x+2,5, x+2,-3, x-2,-3);
-                    for (int x = -11; x <= 13; x += 6)
-                        Path(mesh, center, scale, tint, x,-8, x,-13);
-                    break;
                 case UpgradeEffectType.CastSpeed:
                     DrawChip(mesh, center, scale, tint);
                     Path(mesh, center, scale, tint, 2,6, -3,0, 3,0, -2,-6);
@@ -101,6 +94,161 @@ namespace RuneCode
                     Path(mesh, center, scale, tint, -4,3, -1,0);
                     Path(mesh, center, scale, tint, -1,3, -4,0);
                     Path(mesh, center, scale, tint, 14,14, 7,3, 14,3, 8,-10);
+                    break;
+                case UpgradeEffectType.None:
+                    // 시작 노드는 메인보드 칩과 중심 심볼로 표시한다.
+                    DrawChip(mesh, center, scale, tint);
+                    Dot(mesh, center, scale, tint, 0, 0, 3);
+                    break;
+                case UpgradeEffectType.NearDamage:
+                    // 중심 대상과 안쪽으로 향하는 화살.
+                    Ring(mesh, center, scale, tint, 0, 0, 12);
+                    Dot(mesh, center, scale, tint, 0, 0, 3);
+                    Path(mesh, center, scale, tint, 16, 0, 6, 0);
+                    Path(mesh, center, scale, tint, 6, 0, 11, 4);
+                    Path(mesh, center, scale, tint, 6, 0, 11, -4);
+                    break;
+                case UpgradeEffectType.FarDamage:
+                    // 중심 대상과 바깥으로 향하는 화살과 거리 호.
+                    Dot(mesh, center, scale, tint, 0, 0, 3);
+                    Path(mesh, center, scale, tint, -4, 0, 12, 0);
+                    Path(mesh, center, scale, tint, 12, 0, 7, 4);
+                    Path(mesh, center, scale, tint, 12, 0, 7, -4);
+                    Arc(mesh, center, scale, tint, 0, 0, 15, -45, 45);
+                    break;
+                case UpgradeEffectType.FullManaDamage:
+                    // 가득 찬 전력 게이지.
+                    Path(mesh, center, scale, tint, -14, -7, -14, 7, 12, 7, 12, -7, -14, -7);
+                    Path(mesh, center, scale, tint, 12, -3, 16, -3, 16, 3, 12, 3);
+                    Path(mesh, center, scale, tint, -10, -3, -10, 3, 8, 3, 8, -3, -10, -3);
+                    break;
+                case UpgradeEffectType.PostDashDamage:
+                    // 대시 잔상 화살과 피해 십자.
+                    Path(mesh, center, scale, tint, -14, 8, -7, 0, -14, -8);
+                    Path(mesh, center, scale, tint, -4, 8, 3, 0, -4, -8);
+                    Plus(mesh, center + new Vector2(10, 0) * scale, scale, tint, 4);
+                    break;
+                case UpgradeEffectType.ElementDamage:
+                    // 속성 룬 삼각형과 피해 십자.
+                    Path(mesh, center, scale, tint, 0, 13, -11, -9, 11, -9, 0, 13);
+                    Plus(mesh, center + new Vector2(9, -4) * scale, scale, tint, 4);
+                    break;
+                case UpgradeEffectType.ElementCostReduction:
+                    // 속성 룬 삼각형과 비용 절감 표식.
+                    Path(mesh, center, scale, tint, -2, 14, -13, -6, 9, -6, -2, 14);
+                    Path(mesh, center, scale, tint, 3, -12, 14, -12);
+                    break;
+                case UpgradeEffectType.StatusDuration:
+                    // 지속시간을 나타내는 시계.
+                    Ring(mesh, center, scale, tint, 0, 0, 12);
+                    Path(mesh, center, scale, tint, 0, 0, 0, 7);
+                    Path(mesh, center, scale, tint, 0, 0, 5, 2);
+                    break;
+                case UpgradeEffectType.ArcEnhance:
+                    // 전격의 번개 모양.
+                    Path(mesh, center, scale, tint, 3, 16, -11, -2, -1, -2, -4, -16, 12, 4, 2, 4, 3, 16);
+                    break;
+                case UpgradeEffectType.IceEnhance:
+                    // 냉기의 여섯 갈 눈송이.
+                    for (int i = 0; i < 6; i++)
+                    {
+                        float a = i * Mathf.PI / 3f;
+                        Vector2 d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                        Vector2 n = new Vector2(-d.y, d.x);
+                        Path(mesh, center, scale, tint, 0, 0, d.x * 14, d.y * 14);
+                        Vector2 p = d * 8;
+                        Vector2 l = d * 4 + n * 4;
+                        Vector2 r = d * 4 - n * 4;
+                        Path(mesh, center, scale, tint, l.x, l.y, p.x, p.y, r.x, r.y);
+                    }
+                    break;
+                case UpgradeEffectType.FireEnhance:
+                    // 화염의 불쏘시개 모양.
+                    Path(mesh, center, scale, tint, 0, 16, -2, 5, -8, 10, -13, 0, -11, -9, -5, -14, 5, -14, 12, -8, 13, 0, 7, 9, 7, 1, 0, 16);
+                    Path(mesh, center, scale, tint, 0, -11, -4, -5, 0, 2, 4, -5, 0, -11);
+                    break;
+                case UpgradeEffectType.ElementPick:
+                    // 세 속성 가운데 하나를 고른 표시.
+                    Ring(mesh, center, scale, tint, 0, 0, 13);
+                    Dot(mesh, center, scale, tint, 0, 7, 3);
+                    Dot(mesh, center, scale, tint, 6, -5, 3);
+                    Dot(mesh, center, scale, tint, -6, -5, 5);
+                    break;
+                case UpgradeEffectType.ElementSlot:
+                    // 두 개의 속성 슬롯이 겹친 모양.
+                    Path(mesh, center, scale, tint, -15, -4, -15, 12, 1, 12, 1, -4, -15, -4);
+                    Path(mesh, center, scale, tint, -1, -12, -1, 4, 15, 4, 15, -12, -1, -12);
+                    break;
+                case UpgradeEffectType.StatusStackStart:
+                    // 상태 이상이 겹쳐 쌓이는 층 모양.
+                    Path(mesh, center, scale, tint, -10, 7, 0, 13, 10, 7, 0, 1, -10, 7);
+                    Path(mesh, center, scale, tint, -10, 0, 0, 6, 10, 0);
+                    Path(mesh, center, scale, tint, -10, -7, 0, -1, 10, -7);
+                    break;
+                case UpgradeEffectType.DashCooldownReduction:
+                    // 쿨타임을 나타내는 시계와 감소 표식.
+                    Ring(mesh, center, scale, tint, -1, 0, 11);
+                    Path(mesh, center, scale, tint, -1, 0, -1, -6);
+                    Path(mesh, center, scale, tint, -1, 0, 3, 0);
+                    Path(mesh, center, scale, tint, 7, 13, 15, 13);
+                    break;
+                case UpgradeEffectType.DashInvulnerability:
+                    // 무적을 나타내는 방패.
+                    Path(mesh, center, scale, tint, 0, 14, -11, 9, -11, -3, 0, -14, 11, -3, 11, 9, 0, 14);
+                    break;
+                case UpgradeEffectType.Evasion:
+                    // 적을 비껴가는 곡선 경로.
+                    Dot(mesh, center, scale, tint, -8, 0, 4);
+                    Arc(mesh, center, scale, tint, -8, 0, 10, -60, 60);
+                    Path(mesh, center, scale, tint, -3, 8.7f, -7.5f, 9.5f);
+                    Path(mesh, center, scale, tint, -3, 8.7f, -1.5f, 13f);
+                    break;
+                case UpgradeEffectType.DashTeleport:
+                    // 점선으로 이어지는 순간이동 화살.
+                    Path(mesh, center, scale, tint, -16, 0, -12, 0);
+                    Path(mesh, center, scale, tint, -9, 0, -5, 0);
+                    Path(mesh, center, scale, tint, -2, 0, 2, 0);
+                    Path(mesh, center, scale, tint, 7, -5, 14, 0, 7, 5);
+                    break;
+                case UpgradeEffectType.DashCollisionGuard:
+                    // 대시 잔상과 방패.
+                    Path(mesh, center, scale, tint, -15, 6, -11, 0, -15, -6);
+                    Path(mesh, center, scale, tint, 2, 12, -6, 8, -6, -1, 2, -11, 10, -1, 10, 8, 2, 12);
+                    break;
+                case UpgradeEffectType.DashEndStart:
+                    // 대시 화살이 시작 삼각형으로 이어지는 모양.
+                    Path(mesh, center, scale, tint, -15, 8, -9, 0, -15, -8);
+                    Path(mesh, center, scale, tint, -6, 8, 0, 0, -6, -8);
+                    Path(mesh, center, scale, tint, 4, -8, 14, 0, 4, 8, 4, -8);
+                    break;
+                case UpgradeEffectType.PlayerAura:
+                    // 캐릭터와 주위 파동 장판.
+                    Dot(mesh, center, scale, tint, 0, 0, 3);
+                    Ring(mesh, center, scale, tint, 0, 0, 8);
+                    Arc(mesh, center, scale, tint, 0, 0, 14, 25, 155);
+                    Arc(mesh, center, scale, tint, 0, 0, 14, 205, 335);
+                    break;
+                case UpgradeEffectType.StationaryRegen:
+                    // 정지 표식 두 줄과 회복 화살.
+                    Path(mesh, center, scale, tint, -8, 10, -8, -10);
+                    Path(mesh, center, scale, tint, -2, 10, -2, -10);
+                    Path(mesh, center, scale, tint, 8, -8, 8, 8);
+                    Path(mesh, center, scale, tint, 8, 8, 4, 3);
+                    Path(mesh, center, scale, tint, 8, 8, 12, 3);
+                    break;
+                case UpgradeEffectType.SingleBehavior:
+                    // 하나의 행동 칸과 자기 반복 화살.
+                    Path(mesh, center, scale, tint, -14, -6, -14, 6, -3, 6, -3, -6, -14, -6);
+                    Ring(mesh, center, scale, tint, 6, 0, 7);
+                    Path(mesh, center, scale, tint, 13, 0, 9, 4);
+                    Path(mesh, center, scale, tint, 13, 0, 9, -4);
+                    break;
+                case UpgradeEffectType.RightClickStart:
+                    // 마우스 오른쪽 버튼 표시.
+                    Path(mesh, center, scale, tint, -6, 13, -6, -6, 0, -13, 6, -6, 6, 13, -6, 13);
+                    Path(mesh, center, scale, tint, 0, -13, 0, 0);
+                    Path(mesh, center, scale, tint, -6, 0, 6, 0);
+                    Dot(mesh, center, scale, tint, 3, -7, 2);
                     break;
                 default:
                     DrawRune(mesh, center, scale, tint);

@@ -100,10 +100,6 @@ namespace RuneCode
             _session.Spells.Compiled -= RecordCompileResult;
         }
 
-        int ISpellEditorHost.EquippedRam => _session.EquippedRam;
-
-        int ISpellEditorHost.Capacity => _session.Capacity;
-
         float ISpellEditorHost.MaxEnergy => _session.MaxEnergy;
 
         float ISpellEditorHost.EnergyRegen => _session.EnergyRegen;
@@ -155,11 +151,9 @@ namespace RuneCode
             RefreshHeader();
         }
 
-        /// <summary>보유 조각과 단일 마법의 RAM 사용량·용량을 헤더에 표시한다.</summary>
+        /// <summary>보유 스크랩을 헤더에 표시한다.</summary>
         private void RefreshHeader()
         {
-            //_view.SetHeader(GameData.L("ui.fragments") + "  " + _session.Save.Currency + "   /   " + GameData.L("ui.capacity") + " "
-            //    + _session.EquippedRam + "/" + _session.Capacity);
             _view.SetHeader(GameData.L("ui.fragments") + "  " + _session.Save.Currency);
         }
 
@@ -177,7 +171,6 @@ namespace RuneCode
                 ["is_valid"] = result.Ok,
                 ["errors"] = errors,
                 ["warnings"] = warnings,
-                ["ram_used"] = result.Ok ? result.Spell.RamUsed : (int?)null,
                 ["node_count"] = _session.Spells.Graph.Nodes.Count,
                 ["edge_count"] = _session.Spells.Graph.Edges.Count,
             });

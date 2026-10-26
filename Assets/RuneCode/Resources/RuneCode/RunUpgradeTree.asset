@@ -1,0 +1,682 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1a2343644682447498979d1eb6777c66, type: 3}
+  m_Name: RunUpgradeTree
+  m_EditorClassIdentifier: Assembly-CSharp::RuneCode.UpgradeTreeDefinition
+  _layoutVersion: 10
+  _nodes:
+  - _id: upgrade.dashEndStart.0
+    _requiredStage: 1
+    _titleKey: ui.tree.dashEndStart
+    _descriptionKey: ui.tree.dashEndStartDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 6, y: 0}
+    _effectType: 32
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.runMoveSpeed.0
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.dashEnd
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.dashGuard.0
+    _requiredStage: 1
+    _titleKey: ui.tree.dashGuard
+    _descriptionKey: ui.tree.dashGuardDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 8, y: 0}
+    _effectType: 25
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.runMoveSpeed.0
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.dashEnd
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.runMoveSpeed.0
+    _requiredStage: 1
+    _titleKey: ui.tree.runMoveSpeed
+    _descriptionKey: ui.tree.runMoveSpeedDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 7, y: 1}
+    _effectType: 7
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.dashInvulnerability.0
+      _requiredLevel: 1
+    - _nodeId: upgrade.evasion.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.05
+  - _id: upgrade.runRegen.0
+    _requiredStage: 1
+    _titleKey: ui.tree.runRegen
+    _descriptionKey: ui.tree.runRegenDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 3, y: 3}
+    _effectType: 0
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.dashInvulnerability.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 3
+  - _id: upgrade.runMaxEnergy.0
+    _requiredStage: 1
+    _titleKey: ui.tree.runMaxEnergy
+    _descriptionKey: ui.tree.runMaxEnergyDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 11, y: 3}
+    _effectType: 1
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.evasion.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 20
+  - _id: upgrade.dashTeleport.0
+    _requiredStage: 1
+    _titleKey: ui.tree.dashTeleport
+    _descriptionKey: ui.tree.dashTeleportDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 6, y: 3}
+    _effectType: 24
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.runMoveSpeed.1
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.dashMove
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.postDashDamage.0
+    _requiredStage: 1
+    _titleKey: ui.tree.postDashDamage
+    _descriptionKey: ui.tree.postDashDamageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 8, y: 3}
+    _effectType: 22
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.runMoveSpeed.1
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.dashMove
+    _levels:
+    - _cost: 1
+      _amount: 0.2
+  - _id: upgrade.dashInvulnerability.0
+    _requiredStage: 1
+    _titleKey: ui.tree.dashInvulnerability
+    _descriptionKey: ui.tree.dashInvulnerabilityDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 4, y: 4}
+    _effectType: 17
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.dashCooldown.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.1
+  - _id: upgrade.runMoveSpeed.1
+    _requiredStage: 1
+    _titleKey: ui.tree.runMoveSpeed
+    _descriptionKey: ui.tree.runMoveSpeedDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 7, y: 4}
+    _effectType: 7
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.dashCooldown.0
+      _requiredLevel: 1
+    - _nodeId: upgrade.evasion.1
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.05
+  - _id: upgrade.evasion.0
+    _requiredStage: 1
+    _titleKey: ui.tree.evasion
+    _descriptionKey: ui.tree.evasionDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 10, y: 4}
+    _effectType: 18
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.evasion.1
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.05
+  - _id: upgrade.dashCooldown.0
+    _requiredStage: 1
+    _titleKey: ui.tree.dashCooldown
+    _descriptionKey: ui.tree.dashCooldownDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 5, y: 5}
+    _effectType: 16
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.runMoveSpeed.2
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.1
+  - _id: upgrade.evasion.1
+    _requiredStage: 1
+    _titleKey: ui.tree.evasion
+    _descriptionKey: ui.tree.evasionDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 9, y: 5}
+    _effectType: 18
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.runMoveSpeed.2
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.05
+  - _id: upgrade.runMoveSpeed.2
+    _requiredStage: 1
+    _titleKey: ui.tree.runMoveSpeed
+    _descriptionKey: ui.tree.runMoveSpeedDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 7, y: 6}
+    _effectType: 7
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.mainboard
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.05
+  - _id: upgrade.mainboard
+    _requiredStage: 1
+    _titleKey: ui.tree.core
+    _descriptionKey: ui.tree.coreDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 7, y: 7}
+    _effectType: 12
+    _runeId: 
+    _initialLevel: 1
+    _prerequisites: []
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 0
+      _amount: 0
+  - _id: upgrade.elementDamage.0
+    _requiredStage: 1
+    _titleKey: ui.tree.elementDamage
+    _descriptionKey: ui.tree.elementDamageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 3, y: 8}
+    _effectType: 13
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.mainboard
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.1
+  - _id: upgrade.damage.0
+    _requiredStage: 1
+    _titleKey: ui.tree.damage
+    _descriptionKey: ui.tree.damageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 11, y: 8}
+    _effectType: 4
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.mainboard
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.05
+  - _id: upgrade.statusDuration.0
+    _requiredStage: 1
+    _titleKey: ui.tree.statusDuration
+    _descriptionKey: ui.tree.statusDurationDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 2, y: 9}
+    _effectType: 15
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.elementDamage.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.2
+  - _id: upgrade.elementCost.0
+    _requiredStage: 1
+    _titleKey: ui.tree.elementCost
+    _descriptionKey: ui.tree.elementCostDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 4, y: 9}
+    _effectType: 14
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.elementDamage.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 5
+  - _id: upgrade.nearDamage.0
+    _requiredStage: 1
+    _titleKey: ui.tree.nearDamage
+    _descriptionKey: ui.tree.nearDamageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 10, y: 9}
+    _effectType: 19
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.damage.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.1
+  - _id: upgrade.farDamage.0
+    _requiredStage: 1
+    _titleKey: ui.tree.farDamage
+    _descriptionKey: ui.tree.farDamageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 12, y: 9}
+    _effectType: 20
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.damage.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.1
+  - _id: upgrade.fullManaDamage.0
+    _requiredStage: 1
+    _titleKey: ui.tree.fullManaDamage
+    _descriptionKey: ui.tree.fullManaDamageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 14, y: 10}
+    _effectType: 21
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.farDamage.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.1
+  - _id: upgrade.runKillEnergy.0
+    _requiredStage: 1
+    _titleKey: ui.tree.runKillEnergy
+    _descriptionKey: ui.tree.runKillEnergyDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 8, y: 10}
+    _effectType: 10
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.nearDamage.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 3
+  - _id: upgrade.damage.1
+    _requiredStage: 1
+    _titleKey: ui.tree.damage
+    _descriptionKey: ui.tree.damageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 11, y: 10}
+    _effectType: 4
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.nearDamage.0
+      _requiredLevel: 1
+    - _nodeId: upgrade.farDamage.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.05
+  - _id: upgrade.statusDuration.1
+    _requiredStage: 1
+    _titleKey: ui.tree.statusDuration
+    _descriptionKey: ui.tree.statusDurationDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 0, y: 10}
+    _effectType: 15
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.statusDuration.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.2
+  - _id: upgrade.elementDamage.1
+    _requiredStage: 1
+    _titleKey: ui.tree.elementDamage
+    _descriptionKey: ui.tree.elementDamageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 3, y: 10}
+    _effectType: 13
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.statusDuration.0
+      _requiredLevel: 1
+    - _nodeId: upgrade.elementCost.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.1
+  - _id: upgrade.elementPick.0
+    _requiredStage: 1
+    _titleKey: ui.tree.elementPick
+    _descriptionKey: ui.tree.elementPickDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 6, y: 10}
+    _effectType: 30
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.elementCost.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.aura.0
+    _requiredStage: 1
+    _titleKey: ui.tree.aura
+    _descriptionKey: ui.tree.auraDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 10, y: 11}
+    _effectType: 26
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.damage.1
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.stance
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.stationaryRegen.0
+    _requiredStage: 1
+    _titleKey: ui.tree.stationaryRegen
+    _descriptionKey: ui.tree.stationaryRegenDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 12, y: 11}
+    _effectType: 23
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.damage.1
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.stance
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.arcEnhance.0
+    _requiredStage: 1
+    _titleKey: ui.tree.arcEnhance
+    _descriptionKey: ui.tree.arcEnhanceDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 2, y: 11}
+    _effectType: 27
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.elementDamage.1
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.elementEnhance
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.fireEnhance.0
+    _requiredStage: 1
+    _titleKey: ui.tree.fireEnhance
+    _descriptionKey: ui.tree.fireEnhanceDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 4, y: 11}
+    _effectType: 29
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.elementDamage.1
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.elementEnhance
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.iceEnhance.0
+    _requiredStage: 1
+    _titleKey: ui.tree.iceEnhance
+    _descriptionKey: ui.tree.iceEnhanceDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 3, y: 11}
+    _effectType: 28
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.elementDamage.1
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.elementEnhance
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.runRegen.1
+    _requiredStage: 1
+    _titleKey: ui.tree.runRegen
+    _descriptionKey: ui.tree.runRegenDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 0, y: 12}
+    _effectType: 0
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.statusDuration.1
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 3
+  - _id: upgrade.runMaxEnergy.1
+    _requiredStage: 1
+    _titleKey: ui.tree.runMaxEnergy
+    _descriptionKey: ui.tree.runMaxEnergyDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 6, y: 12}
+    _effectType: 1
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.elementPick.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 20
+  - _id: upgrade.runMaxEnergy.2
+    _requiredStage: 1
+    _titleKey: ui.tree.runMaxEnergy
+    _descriptionKey: ui.tree.runMaxEnergyDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 8, y: 12}
+    _effectType: 1
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.runKillEnergy.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 20
+  - _id: upgrade.runMaxEnergy.3
+    _requiredStage: 1
+    _titleKey: ui.tree.runMaxEnergy
+    _descriptionKey: ui.tree.runMaxEnergyDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 14, y: 12}
+    _effectType: 1
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.fullManaDamage.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 20
+  - _id: upgrade.elementDamage.2
+    _requiredStage: 1
+    _titleKey: ui.tree.elementDamage
+    _descriptionKey: ui.tree.elementDamageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 3, y: 14}
+    _effectType: 13
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.statusDuration.1
+      _requiredLevel: 1
+    - _nodeId: upgrade.elementPick.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.1
+  - _id: upgrade.damage.2
+    _requiredStage: 1
+    _titleKey: ui.tree.damage
+    _descriptionKey: ui.tree.damageDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 11, y: 14}
+    _effectType: 4
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.runKillEnergy.0
+      _requiredLevel: 1
+    - _nodeId: upgrade.fullManaDamage.0
+      _requiredLevel: 1
+    _exclusiveGroupId: 
+    _levels:
+    - _cost: 1
+      _amount: 0.05
+  - _id: upgrade.statusStackStart.0
+    _requiredStage: 1
+    _titleKey: ui.tree.statusStackStart
+    _descriptionKey: ui.tree.statusStackStartDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 2, y: 15}
+    _effectType: 31
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.elementDamage.2
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.elementCapstone
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.elementSlot.0
+    _requiredStage: 1
+    _titleKey: ui.tree.elementSlot
+    _descriptionKey: ui.tree.elementSlotDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 4, y: 15}
+    _effectType: 35
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.elementDamage.2
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.elementCapstone
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.singleBehavior.0
+    _requiredStage: 1
+    _titleKey: ui.tree.singleBehavior
+    _descriptionKey: ui.tree.singleBehaviorDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 10, y: 15}
+    _effectType: 34
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.damage.2
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.cast
+    _levels:
+    - _cost: 1
+      _amount: 1
+  - _id: upgrade.rightClickStart.0
+    _requiredStage: 1
+    _titleKey: ui.tree.rightClickStart
+    _descriptionKey: ui.tree.rightClickStartDescription
+    _icon: {fileID: 0}
+    _layoutCell: {x: 12, y: 15}
+    _effectType: 33
+    _runeId: 
+    _initialLevel: 0
+    _prerequisites:
+    - _nodeId: upgrade.damage.2
+      _requiredLevel: 1
+    _exclusiveGroupId: exclusive.cast
+    _levels:
+    - _cost: 1
+      _amount: 1

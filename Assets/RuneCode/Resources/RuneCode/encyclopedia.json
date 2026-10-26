@@ -99,16 +99,6 @@
           "_image": "RuneCode/Onboarding/Onboarding_Image_0"
         }
       ]
-    },
-    {
-      "_title": "RAM 제한",
-      "_pages": [
-        {
-          "_body": "마법에 연결 할 수 있는 룬은 RAM 갯수에 제한을 받습니다. RAM 제한량은 업그레이드 트리에서 확장할 수 있습니다.",
-          "_video": "",
-          "_image": ""
-        }
-      ]
     }
   ],
   "_events": [

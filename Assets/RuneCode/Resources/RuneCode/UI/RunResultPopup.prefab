@@ -3284,7 +3284,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8597441649242730954, guid: 964253ca612f3d7418844c5542fbb488, type: 3}
       propertyPath: m_text
-      value: "RAM \u2014  \xB7  \uB178\uB4DC \u2014  \xB7  \uC5F0\uACB0 \u2014"
+      value: "\uB178\uB4DC \u2014  \xB7  \uC5F0\uACB0 \u2014"
       objectReference: {fileID: 0}
     - target: {fileID: 8597441649242730954, guid: 964253ca612f3d7418844c5542fbb488, type: 3}
       propertyPath: m_fontSize

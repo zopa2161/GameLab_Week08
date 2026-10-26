@@ -123,12 +123,13 @@ namespace RuneCode
             RefreshGraph();
         }
 
-        /// <summary>노드 라벨 내용·배치와 메시를 갱신하고 사라진 노드의 선택을 해제한다.</summary>
+        /// <summary>행동 하나 고정 복제 표시 노드, 노드 라벨 내용·배치와 메시를 갱신하고 사라진 노드의 선택을 해제한다.</summary>
         public void RefreshGraph()
         {
             if (!HasGraph) return;
+            _layout.RebuildGhosts(_editor.IsSingleBehavior);
             if (!_hasDetachedDrag && _editor.IsEditable && _layout.ArrangeBlockGroups()) _editor.MarkBlockLayoutChanged();
-            HashSet<string> existing = _labels.Refresh(_editor.Graph, _editor.Library, _editor.CompileResult.Spell);
+            HashSet<string> existing = _labels.Refresh(_editor.Graph, _editor.Library, _editor.CompileResult.Entries);
             _state.Selected.RemoveWhere(id => !existing.Contains(id));
             _isHoverValid = false;
             LayoutLabels();
@@ -734,6 +735,7 @@ namespace RuneCode
         private void LayoutLabels()
         {
             if (!HasGraph) return;
+            _layout.PlaceGhosts();
             _labels.Layout(_editor.Graph);
             _overlayLayer.transform.SetAsLastSibling();
             RefreshMeshes();

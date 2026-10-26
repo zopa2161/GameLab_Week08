@@ -41,6 +41,7 @@ namespace RuneCode
         private const int REROLL_CARD_SEED_FACTOR = 83492791;
         private const double FIXED_STEP = 1.0 / RuneSimulation.TICK_RATE;
         private const string DEBUG_MODIFIER_REWARD_TABLE = "drop.round.modifier";
+        private static readonly string[] ELEMENT_PICK_CHOICES = { "element.fire", "element.ice", "element.lightning" };
 
         private readonly RuneCodeSession _session;
         private readonly RuneSimulation _simulation;
@@ -85,6 +86,14 @@ namespace RuneCode
         private bool _isDebugRewardChoice;
         private int _debugRewardGradeIndex;
         public bool IsDebugRewardChoice => _isDebugRewardChoice;
+
+        private List<string> _savedElementChoiceIds;
+        private List<string> _savedElementChoiceGrades;
+        private bool _wasElementChoiceChosen;
+        private bool _isElementPickChoice;
+
+        /// <summary>트리 속성 선택 임시 후보가 펼쳐져 있는지 반환한다. 작업실·디버그 메뉴 잠금 판정에 쓴다.</summary>
+        public bool IsElementPickChoice => _isElementPickChoice;
 
         /// <summary>현재 전투 시뮬레이션을 반환한다. 경기장 그래픽과 HUD가 읽는다.</summary>
         public RuneSimulation Simulation => _simulation;
@@ -201,12 +210,9 @@ namespace RuneCode
                 else _isClearModifierChosen = true;
                 _roundBreakClock = Stopwatch.StartNew();
             }
-            _simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, true, session.MaxHp, session.MaxEnergy, 1, session.EnergyRegen,
-                session.DamageMultiplier, session.MoveSpeedMultiplier, session.ScrapGainMultiplier,
-                scrapPickupRangeMultiplier: session.ScrapPickupRangeMultiplier,
-                killEnergyBonus: session.KillEnergyBonus, scrapHealRatio: session.ScrapHealRatio, isProgressionMission: true,
+            _simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, true, 1, session.CreateUpgradeStats(), isProgressionMission: true,
                 progressionStage: save.ProgressionStage, progressionRound: save.ProgressionRound, progressionHp: resumeHp));
-            _simulation.SetLoadout(new[] { spell });
+            _simulation.SetLoadout(GetSessionEntries(session, spell));
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
             _coreNodeId = FindCoreNodeId(session.Spells.Graph);
             _spellBuildId = LocalTelemetry.SaveUsabilityBuild(null, session.Spells.Graph, new Dictionary<string, object>
@@ -215,7 +221,6 @@ namespace RuneCode
                 ["signature"] = spell.Signature,
                 ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(session.Spells.Graph),
                 ["stage"] = _simulation.StageNumber,
-                ["ram_used"] = spell.RamUsed,
                 ["is_compile_valid"] = true,
             });
             _testCombatId = LocalTelemetry.BeginUsabilityCombat(_simulation.StageNumber, _spellBuildId, seed, _simulation.TakeEnemyCombatLogSnapshot);
@@ -240,7 +245,7 @@ namespace RuneCode
             _simulation.CancelPlayerSpells();
             _spell = spell;
             _spellName = spellName;
-            _simulation.SetLoadout(new[] { spell });
+            _simulation.SetLoadout(GetSessionEntries(_session, spell));
             ResetRoundInput();
             _coreNodeId = FindCoreNodeId(_session.Spells.Graph);
             _spellBuildId = LocalTelemetry.SaveUsabilityBuild(null, _session.Spells.Graph, new Dictionary<string, object>
@@ -250,7 +255,6 @@ namespace RuneCode
                 ["comparison_key"] = LocalTelemetry.GetUsabilityGraphSignature(_session.Spells.Graph),
                 ["stage"] = _simulation.StageNumber,
                 ["round"] = _simulation.RoundNumber,
-                ["ram_used"] = spell.RamUsed,
                 ["is_compile_valid"] = true,
             });
             return true;
@@ -265,9 +269,7 @@ namespace RuneCode
             if (_settled) return false;
             double maxHpBefore = _simulation.Player.MaxHp;
             double maxEnergyBefore = _simulation.Player.MaxEnergy;
-            if (!_simulation.TryApplyUpgradeStats(_session.MaxHp, _session.MaxEnergy, _session.EnergyRegen,
-                _session.DamageMultiplier, _session.MoveSpeedMultiplier, _session.ScrapGainMultiplier,
-                _session.ScrapPickupRangeMultiplier, _session.ScrapHealRatio, _session.KillEnergyBonus)) return false;
+            if (!_simulation.TryApplyUpgradeStats(_session.CreateUpgradeStats())) return false;
             _simulation.SetUnlockedElements(_session.GetUnlockedElements());
             LocalTelemetry.RecordUsabilityEvent("upgrade_stats_applied", "round_break", new Dictionary<string, object>
             {
@@ -285,6 +287,14 @@ namespace RuneCode
         {
             if (_settled) return false;
             return _simulation.TryPrepareRoundBreakArena();
+        }
+
+        /// <summary>전달받은 마법이 세션의 현재 컴파일 결과와 같은 객체면 시작 노드별 목록(Entries)을, 아니면 마법 하나만 반환한다.</summary>
+        private static IReadOnlyList<CompiledSpell> GetSessionEntries(RuneCodeSession session, CompiledSpell spell)
+        {
+            CompileResult result = session.Spells.CompileResult;
+            if (result == null || !ReferenceEquals(result.Spell, spell) || result.Entries == null || result.Entries.Count == 0) return new[] { spell };
+            return result.Entries;
         }
 
         /// <summary>그래프에서 시작 트리거(core.cast) 노드의 ID를 찾아 반환하고 없으면 null을 반환한다.</summary>
@@ -391,11 +401,11 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 이동·대시·줍기 키, 포인터 조준과 시전 입력(isCasting, 좌클릭 유지)을 모아 MaxFrameSteps 제한 안의 고정 스텝만큼 시뮬레이션을 갱신하고,
+        /// 이동·대시·줍기 키, 포인터 조준과 시전 입력(isCasting, 좌클릭 유지), 우클릭 누름 입력을 모아 MaxFrameSteps 제한 안의 고정 스텝만큼 시뮬레이션을 갱신하고,
         /// 입력·노드 텔레메트리를 기록하고 종료 조건을 확인한다. 라운드 대기 중에도 스텝을 계속 진행하되 보상 선택 전에는 이동·대시·시전 입력을 막는다.
         /// </summary>
         public void Step(bool isTyping, bool hasPointer, SimVector pointer, bool isCasting, float unscaledDeltaTime,
-            bool castPressed = false, bool castReleased = false)
+            bool castPressed = false, bool castReleased = false, bool isRightClickPressed = false)
         {
             if (_settled) return;
             if (_isPaused)
@@ -410,6 +420,7 @@ namespace RuneCode
             if (isInputLocked)
             {
                 isCasting = false; castPressed = false; castReleased = false;
+                isRightClickPressed = false;
                 _hasPendingCastPress = false; _hasPendingCastRelease = false; _hasPendingDash = false;
                 _wasCasting = false;
                 _simulation.CancelBeamInput();
@@ -447,7 +458,7 @@ namespace RuneCode
                 var aim = hasPointer ? pointer - _simulation.Player.Position : _simulation.Player.AimDirection;
                 _simulation.Step(new SimulationInput(movement, aim, isCasting, false, false, _hasPendingDash,
                     castPressed: _hasPendingCastPress, castReleased: _hasPendingCastRelease,
-                    aimPoint: hasPointer ? pointer : (SimVector?)null));
+                    aimPoint: hasPointer ? pointer : (SimVector?)null, isRightClickPressed: isRightClickPressed));
                 _hasPendingCastPress = false;
                 _hasPendingCastRelease = false;
                 _hasPendingDash = false;
@@ -723,6 +734,18 @@ namespace RuneCode
                 _isDebugRewardChoice = false;
                 return true;
             }
+            if (_isElementPickChoice)
+            {
+                // 트리 속성 선택 분기다. 세션에 지급을 맡기고 임시 후보를 원래 라운드 보상 상태로 되돌린다.
+                _session.ChooseElementPick(_clearModifierChoices[index]);
+                _clearModifierChoices = _savedElementChoiceIds;
+                _clearModifierGrades = _savedElementChoiceGrades;
+                _isClearModifierChosen = _wasElementChoiceChosen;
+                _savedElementChoiceIds = null;
+                _savedElementChoiceGrades = null;
+                _isElementPickChoice = false;
+                return true;
+            }
             if (_simulation.IsProgressionMission && _settled && _session.PendingProgressionChoiceIds.Count > 0)
             {
                 if (!_session.ClaimProgressionChoice(index)) return false;
@@ -743,6 +766,24 @@ namespace RuneCode
             });
             _lastResult += "\n" + GameData.L("result.modifierReward") + " "
                 + ModifierGradeText.FormatName(GameData.Runes.Get(_clearModifierChoices[index]).Name, grade) + " +1";
+            return true;
+        }
+
+        /// <summary>
+        /// 트리 속성 선택 대기가 남아 있고 정산 전 라운드 대기 중이면 속성 3개 후보를 임시로 펼치고 true를 반환한다.
+        /// 디버그 보상 선택이 열려 있거나 이미 펼쳄으면 false를 반환하며, 원래 라운드 보상 후보와 선택 상태는 보존된다.
+        /// </summary>
+        public bool TryShowElementPickChoices()
+        {
+            if (_settled || !_simulation.IsWaitingForNextRound || _isDebugRewardChoice || _isElementPickChoice) return false;
+            if (!_session.HasPendingElementPick) return false;
+            _savedElementChoiceIds = _clearModifierChoices;
+            _savedElementChoiceGrades = _clearModifierGrades;
+            _wasElementChoiceChosen = _isClearModifierChosen;
+            _clearModifierChoices = new List<string>(ELEMENT_PICK_CHOICES);
+            _clearModifierGrades = new List<string> { "", "", "" };
+            _isElementPickChoice = true;
+            _isClearModifierChosen = false;
             return true;
         }
 

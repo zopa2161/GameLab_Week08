@@ -22,7 +22,6 @@ namespace RuneCode
         [SerializeField] private List<string> _warnings = new List<string>();
 
         [Header("마법 정보")]
-        [SerializeField] private int _ramUsed;
         [SerializeField] private double _castCost;
         [SerializeField] private double _cooldownSeconds;
         [SerializeField] private double _castRange;
@@ -65,7 +64,6 @@ namespace RuneCode
         public List<string> CompileErrors => _compileErrors;
         public List<string> Warnings => _warnings;
 
-        public int RamUsed { get => _ramUsed; internal set => _ramUsed = value; }
         public double CastCost { get => _castCost; internal set => _castCost = value; }
         public double CooldownSeconds { get => _cooldownSeconds; internal set => _cooldownSeconds = value; }
         public double CastRange { get => _castRange; internal set => _castRange = value; }

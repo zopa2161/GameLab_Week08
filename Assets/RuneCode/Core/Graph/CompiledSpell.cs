@@ -604,11 +604,11 @@ namespace RuneCode
         }
         public IReadOnlyList<string> AttachedNodeIds => _attachedNodeIds;
 
-        /// <summary>원본 노드와 효과·Shape·Behavior 정의, 호출 대상과 연결 수식으로 실행 명령을 초기화한다.</summary>
+        /// <summary>원본 노드와 효과·Shape·Behavior 정의, 호출 대상, 연결 수식과 전투 속성 비용 감소량으로 실행 명령을 초기화한다.</summary>
         public SpellAction(GraphNode node, RuneDefinition rune, RuneDefinition effectForm, RuneDefinition element,
             IReadOnlyList<RuneDefinition> mods, IReadOnlyList<GraphNode> modifierNodes = null, CompiledSpell calledSpell = null,
             RuneDefinition shape = null, float coneAngle = 0f, ModifierGradeTable modifierGrades = null,
-            RuneDefinition behavior = null, float beamWidth = -1f)
+            RuneDefinition behavior = null, float beamWidth = -1f, float elementCostReduction = 0f)
         {
             _nodeId = node.Id;
             _shapeDefinition = shape;
@@ -684,7 +684,7 @@ namespace RuneCode
             ResourceCostSet baseCosts = rune.Costs;
             if (rune.Id == "magic.inline") baseCosts = baseCosts.Add(effectForm.Costs);
             baseCosts = baseCosts.Multiply(energyMultiplier);
-            if (element != null) baseCosts = baseCosts.Add(element.Costs);
+            if (element != null) baseCosts = baseCosts.Add(ReduceElementCosts(element, elementCostReduction));
             _baseNodeCosts = baseCosts;
             ResourceCostSet shapeCosts = _kind == "spawn" && shape != null ? CalculateShapeCosts(shape, _magicType, _stats, _coneAngle) : ResourceCostSet.Empty;
             _nodeCosts = baseCosts.Add(shapeCosts);
@@ -715,6 +715,24 @@ namespace RuneCode
                 reach += (float)(2 * stats.Speed * stats.Lifetime * Math.Sin(angle * Math.PI / 720));
             }
             return reach;
+        }
+
+        /// <summary>전투 속성(fire·ice·arc) 룬의 자원별 비용에서 감소량을 빼고 0 미만으로 내려가지 않게 한다. 전투 속성이 아니면 원본 비용을 그대로 반환한다.</summary>
+        private static ResourceCostSet ReduceElementCosts(RuneDefinition element, float reduction)
+        {
+            if (reduction <= 0f || !IsCombatElement(element)) return element.Costs;
+            var values = new List<ResourceAmount>(element.Costs.Amounts.Count);
+            foreach (ResourceAmount amount in element.Costs.Amounts)
+                values.Add(new ResourceAmount(amount.Resource, Math.Max(0d, amount.Amount - reduction)));
+            return new ResourceCostSet(values);
+        }
+
+        /// <summary>속성 룬이 전투 속성 태그(fire·ice·arc)를 가졌는지 반환한다. 무속성과 기능 속성은 false다.</summary>
+        private static bool IsCombatElement(RuneDefinition element)
+        {
+            foreach (string tag in element.Tags)
+                if (tag == "fire" || tag == "ice" || tag == "arc") return true;
+            return false;
         }
 
         /// <summary>Shape의 effective 넓이에 자원별 단가를 곱해 자원 비용을 소수 첫째 자리로 반올림한다.</summary>
@@ -882,7 +900,6 @@ namespace RuneCode
         private readonly string _signature;
         private readonly string _coreNodeId;
         private readonly string _trigger;
-        private readonly int _ramUsed;
         private readonly ResourceCostSet _resourceCosts;
         private readonly ResourceCostSet _castCosts;
         private readonly float _cooldown;
@@ -896,7 +913,6 @@ namespace RuneCode
         public string Signature => _signature;
         public string CoreNodeId => _coreNodeId;
         public string Trigger => _trigger;
-        public int RamUsed => _ramUsed;
         public ResourceCostSet ResourceCosts => _resourceCosts;
 
         /// <summary>OnHit 선결제를 포함한 원본 구간 비용이다. 슬롯 주기 빔의 실제 시전 비용은 GetCastCosts에서 산정한다.</summary>
@@ -955,14 +971,14 @@ namespace RuneCode
             return ticks / (double)SIMULATION_TICK_RATE;
         }
 
-        /// <summary>Returns the base RAM cooldown plus the estimated execution time at the supplied scale.</summary>
+        /// <summary>Returns the base cooldown plus the estimated execution time at the supplied scale.</summary>
         public double GetCooldownSeconds(float executionTimeScale)
         {
             return _cooldown + GetEstimatedExecutionSeconds(executionTimeScale);
         }
 
         /// <summary>검증된 그래프의 자원별 최대 비용·실행 루트·적응 태그를 읽기 전용 마법으로 저장한다.</summary>
-        public CompiledSpell(string name, string signature, string coreNodeId, int ramUsed, ResourceCostSet resourceCosts,
+        public CompiledSpell(string name, string signature, string coreNodeId, ResourceCostSet resourceCosts,
             float cooldown, int worstCaseEntities, IReadOnlyList<string> tags, IReadOnlyList<SpellAction> root,
             string id = "", string trigger = SpellGrammar.TRIGGER_ON_ATTACK, ResourceCostSet castCosts = null)
         {
@@ -971,7 +987,6 @@ namespace RuneCode
             _signature = signature;
             _coreNodeId = coreNodeId;
             _trigger = trigger;
-            _ramUsed = ramUsed;
             _resourceCosts = resourceCosts ?? ResourceCostSet.Empty;
             _castCosts = castCosts ?? _resourceCosts;
             _cooldown = cooldown;
@@ -1167,17 +1182,28 @@ namespace RuneCode
         private readonly IReadOnlyList<CompileIssue> _errors;
         private readonly IReadOnlyList<CompileIssue> _warnings;
         private readonly CompiledSpell _spell;
+        private readonly IReadOnlyList<CompiledSpell> _entries;
         public bool Ok => _errors.Count == 0 && _spell != null;
         public IReadOnlyList<CompileIssue> Errors => _errors;
         public IReadOnlyList<CompileIssue> Warnings => _warnings;
         public CompiledSpell Spell => _spell;
+        // 시작 노드별 컴파일 결과이며 0번은 core.cast의 결과인 Spell이다. 실패하면 비어 있다.
+        public IReadOnlyList<CompiledSpell> Entries => _entries;
 
-        /// <summary>컴파일의 오류·경고와 성공한 마법을 반환 객체에 저장한다.</summary>
+        /// <summary>컴파일의 오류·경고와 성공한 마법을 반환 객체에 저장한다. 시작 노드 목록은 마법 하나만 담는다.</summary>
         public CompileResult(IReadOnlyList<CompileIssue> errors, IReadOnlyList<CompileIssue> warnings, CompiledSpell spell)
+            : this(errors, warnings, spell, spell == null ? Array.Empty<CompiledSpell>() : new[] { spell })
+        {
+        }
+
+        /// <summary>컴파일의 오류·경고, core.cast 마법, 시작 노드별 마법 목록(0번이 spell)을 반환 객체에 저장한다.</summary>
+        public CompileResult(IReadOnlyList<CompileIssue> errors, IReadOnlyList<CompileIssue> warnings, CompiledSpell spell,
+            IReadOnlyList<CompiledSpell> entries)
         {
             _errors = errors;
             _warnings = warnings;
             _spell = spell;
+            _entries = entries;
         }
     }
 }
