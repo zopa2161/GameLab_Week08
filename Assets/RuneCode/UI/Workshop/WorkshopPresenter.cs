@@ -43,17 +43,17 @@ namespace RuneCode
             _session.Spells.Compiled += RecordCompileResult;
         }
 
-        /// <summary>작업실에 들어올 때 요청한 탭을 갱신하고 테스트 모드의 작업실 온보딩 차례면 띄운다.</summary>
+        /// <summary>작업실에 들어올 때 요청한 탭을 갱신하고 일반 진행의 작업실 온보딩 차례면 띄운다.</summary>
         public void Enter(string tab = WorkshopScreen.TAB_EDITOR)
         {
             LocalTelemetry.BeginUsabilityEditingEpisode(_session.GetWorkshopLogSnapshot);
             SetTab(tab);
         }
 
-        /// <summary>테스트 모드에서 chapter가 다음 순서면 도움말 챕터를 안내 팝업으로 열고 순서를 넘겼으면 true를 반환한다. 챕터가 없으면 경고만 남긴다.</summary>
+        /// <summary>일반 진행에서 chapter가 다음 순서면 도움말 챕터를 안내 팝업으로 열고 순서를 넘겼으면 true를 반환한다. 챕터가 없으면 경고만 남긴다.</summary>
         private bool ShowWorkshopOnboarding(int chapter)
         {
-            if (!_session.TryAdvanceTestOnboarding(chapter)) return false;
+            if (!_session.TryAdvanceOnboarding(chapter)) return false;
             EncyclopediaEntry entry = GameData.Encyclopedia?.FindChapter(chapter);
             if (entry == null)
             {
@@ -134,7 +134,7 @@ namespace RuneCode
             if (tab == WorkshopScreen.TAB_EDITOR && !_ui.IsPopupOpen)
             {
                 if (!ShowWorkshopOnboarding(ONBOARDING_WORKSHOP_ENTER)) ShowWorkshopOnboarding(ONBOARDING_UPGRADE_TREE);
-                if (_session.TestOnboardingChapter >= ONBOARDING_WORKSHOP_ENTER) _session.RecordTestEditorVisit();
+                if (_session.OnboardingChapter >= ONBOARDING_WORKSHOP_ENTER) _session.RecordOnboardingEditorVisit();
             }
         }
 

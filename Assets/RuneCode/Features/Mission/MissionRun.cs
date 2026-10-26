@@ -175,6 +175,7 @@ namespace RuneCode
         /// <summary>
         /// 세션 능력치로 연속 미션을 만들고 출격 그래프 스냅샷·전투 ID와 시작 텔레메트리를 기록한다.
         /// 저장된 라운드 진행이 있으면 그 스테이지·라운드의 라운드 대기 상태로 이어 시작하며 저장된 보상 후보를 복원한다.
+        /// 첫 완료 전 이어 하기는 보상을 지급하지 않는 첫 전투 전 실험실로 복귀한다.
         /// </summary>
         public MissionRun(RuneCodeSession session, CompiledSpell spell, string spellName)
         {
@@ -185,12 +186,14 @@ namespace RuneCode
             int seed = Environment.TickCount;
             _seed = seed;
             PlayerSave save = session.Save;
-            _isResumedRoundBreak = save.HasProgressionRound;
+            _isResumedRoundBreak = save.HasProgressionRound || session.ResumeAtLaboratory;
             double resumeHp = 0;
             if (_isResumedRoundBreak)
             {
                 // 저장 이후 강화로 늘어난 최대 체력 증가분만큼 이어 받은 체력을 올리고 세션 최대치로 제한한다.
-                resumeHp = Math.Min(save.ProgressionHp + Math.Max(0, session.MaxHp - save.ProgressionMaxHp), session.MaxHp);
+                resumeHp = save.HasProgressionRound
+                    ? Math.Min(save.ProgressionHp + Math.Max(0, session.MaxHp - save.ProgressionMaxHp), session.MaxHp)
+                    : session.MaxHp;
                 if (save.PendingRoundChoiceIds.Count > 0)
                 {
                     _clearModifierChoices = new List<string>(save.PendingRoundChoiceIds);
@@ -211,7 +214,8 @@ namespace RuneCode
                 _roundBreakClock = Stopwatch.StartNew();
             }
             _simulation = new RuneSimulation(SimulationSetup.FromGameData(seed, true, 1, session.CreateUpgradeStats(), isProgressionMission: true,
-                progressionStage: save.ProgressionStage, progressionRound: save.ProgressionRound, progressionHp: resumeHp));
+                progressionStage: save.HasProgressionRound ? save.ProgressionStage : _isResumedRoundBreak ? 1 : 0,
+                progressionRound: save.ProgressionRound, progressionHp: resumeHp));
             _simulation.SetLoadout(GetSessionEntries(session, spell));
             _simulation.SetUnlockedElements(session.GetUnlockedElements());
             _coreNodeId = FindCoreNodeId(session.Spells.Graph);
@@ -331,7 +335,7 @@ namespace RuneCode
 
         /// <summary>라운드 대기 중 보상 선택과 테스트 모드의 첫 편집창 방문을 마쳐 다음 라운드로 넘어갈 수 있는지 반환한다. 일시정지 여부는 보지 않는다.</summary>
         public bool IsNextRoundReady => !_settled && _simulation.IsWaitingForNextRound
-            && !_session.IsTestEditorVisitRequired
+            && !_session.IsOnboardingEditorVisitRequired
             && (!HasClearModifierChoices || _isClearModifierChosen);
 
         /// <summary>선택 완료 후 포털 진입으로 다음 라운드 또는 스테이지를 시작하고 라운드 종료부터 포털 진입까지 일시정지를 제외한 경과 초를 기록한다. 후보가 없으면 선택 없이 시작할 수 있다. 시작 성공 여부를 반환한다.</summary>

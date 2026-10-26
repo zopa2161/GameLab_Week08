@@ -42,7 +42,8 @@ namespace RuneCode
         {
             _view.SetSessionMode(_session.IsDebugEnabled && UiTheme.SHOW_DEBUG_BUTTONS, !_session.IsMemorySession, GetResetTitleKey(), _isTitle);
             _view.SetFeedback(_session.ScreenShake, _session.HitStop);
-            _view.SetSaveOptions(_session.IsSaveDirty, !_session.IsMemorySession, !_session.IsMemorySession);
+            _view.SetSaveOptions(_session.IsSaveDirty, !_session.IsMemorySession,
+                !_session.IsMemorySession && SaveStore.HasSlot(SaveStore.ActiveSlot));
         }
 
         /// <summary>설정의 진입 위치를 갱신하고 타이틀에서 사용할 수 있는 항목만 표시한다.</summary>
@@ -71,8 +72,7 @@ namespace RuneCode
         private void ConfirmReset()
         {
             string titleKey = GetResetTitleKey();
-            string messageKey = _session.IsTestMode ? "ui.resetTestSessionMessage"
-                : _session.IsDebugEnabled ? "ui.resetDebugSessionMessage" : "ui.resetSaveMessage";
+            string messageKey = _session.IsDebugEnabled ? "ui.resetDebugSessionMessage" : "ui.resetSaveMessage";
             _ui.Confirm(GameData.L(titleKey), GameData.L(messageKey), GameData.L(titleKey), () =>
             {
                 _session.ResetSave();
@@ -80,11 +80,10 @@ namespace RuneCode
             });
         }
 
-        /// <summary>진행 종류(테스트·디버그·일반)에 맞는 초기화 버튼·확인 팝업 제목 문자열 키를 반환한다.</summary>
+        /// <summary>디버그·일반 진행에 맞는 초기화 버튼·확인 팝업 제목 문자열 키를 반환한다.</summary>
         private string GetResetTitleKey()
         {
-            return _session.IsTestMode ? "ui.resetTestSession"
-                : _session.IsDebugEnabled ? "ui.resetDebugSession" : "ui.resetSave";
+            return _session.IsDebugEnabled ? "ui.resetDebugSession" : "ui.resetSave";
         }
 
         /// <summary>디버그 실행에서만 조각을 지급하고 진행 표시를 갱신한다.</summary>
@@ -116,17 +115,24 @@ namespace RuneCode
             Refresh();
         }
 
-        /// <summary>저장 슬롯 목록을 열어 선택한 저장 진행으로 전환할 수 있게 한다.</summary>
+        /// <summary>미저장 변경을 버리는지 확인한 뒤 단일 저장의 실험실로 복귀한다.</summary>
         private void OpenSaveSlots()
         {
-            _ui.OpenPopup<SaveSlotsPopup>().Configure(_session, _ui, SaveSlotsPopup.Mode.SettingsLoad, SaveSlotChanged);
+            _ui.Confirm(GameData.L("save.load"), GameData.L("save.loadConfirm"), GameData.L("save.load"),
+                LoadSavedProgress, isDestructive: true);
         }
 
-        /// <summary>슬롯 전환 후 작업실 진행 표시와 설정의 활성 슬롯 문구를 갱신한다.</summary>
-        private void SaveSlotChanged()
+        /// <summary>저장 읽기에 성공하면 현재 런과 팝업을 닫고 완료 지점의 실험실에서 다시 시작한다. 실패하면 현재 화면을 유지한다.</summary>
+        private void LoadSavedProgress()
         {
-            _onProgressionChanged();
-            Refresh();
+            if (!_session.LoadActiveSave())
+            {
+                _ui.Alert(GameData.L("save.load"), GameData.L("save.unavailable"));
+                return;
+            }
+            _ui.CloseAllPopups();
+            _ui.CurrentScreen.Hide();
+            _session.StartGame(false, resumeAtLaboratory: true);
         }
 
         /// <summary>세션에 편집 내용 반영과 로그 마감 및 타이틀 화면 전환을 요청한다.</summary>
