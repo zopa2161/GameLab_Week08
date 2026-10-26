@@ -365,7 +365,7 @@ namespace RuneCode
                 Vector2 center = MissionWorldSpace.ToWorld(sim.Player.Position, sim.MapCenter) * MissionWorldSpace.PIXELS_PER_UNIT;
                 foreach (CompiledSpell spell in sim.Loadout)
                 {
-                    if (spell == null) continue;
+                    if (!RuneSimulation.CanShowAreaPreview(spell)) continue;
                     foreach (SpellAction action in spell.Root)
                     {
                         if (!RuneSimulation.CanShowAreaPreview(action)) continue;

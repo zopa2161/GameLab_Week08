@@ -168,7 +168,7 @@ namespace RuneCode
             Vector2 center = Point(sim.Player.Position);
             foreach (CompiledSpell spell in sim.Loadout)
             {
-                if (spell == null) continue;
+                if (!RuneSimulation.CanShowAreaPreview(spell)) continue;
                 foreach (SpellAction action in spell.Root)
                 {
                     if (!RuneSimulation.CanShowAreaPreview(action)) continue;
@@ -602,7 +602,7 @@ namespace RuneCode
                 RuneMesh.Polygon(mesh, point + new Vector2(-radius, iconY), iconSize, RuneMesh.ElementColor("fire"), 3);
             if (sim.GetChillStacks(enemy) > 0 || sim.HasEnemyStatus(enemy, EnemyStatusType.Freeze))
                 RuneMesh.Polygon(mesh, point + new Vector2(0, iconY), iconSize, RuneMesh.ElementColor("ice"), 6);
-            if (sim.HasEnemyStatus(enemy, EnemyStatusType.Emp))
+            if (sim.HasEnemyStatus(enemy, EnemyStatusType.Emp) || sim.HasEnemyStatus(enemy, EnemyStatusType.Shock))
                 RuneMesh.Polygon(mesh, point + new Vector2(radius, iconY), iconSize, RuneMesh.ElementColor("arc"), 4);
 
             float threshold = GameData.Balance.Adaptation.ResistanceThreshold;

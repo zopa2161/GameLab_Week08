@@ -3,10 +3,10 @@ using System.Collections.Generic;
 
 namespace RuneCode
 {
-    /// <summary>적 상태 이상(화염·냉기·빙결·EMP)의 부여, 틱 진행과 만료를 관리한다.</summary>
+    /// <summary>적 상태 이상(화염·냉기·빙결·EMP·감전)의 부여, 틱 진행과 만료를 관리한다.</summary>
     internal sealed class EnemyStatusSystem
     {
-        private const int STATUS_TYPE_COUNT = 4;
+        private const int STATUS_TYPE_COUNT = 5;
         private readonly SimulationWorld _world;
         private readonly SimulationStats _stats;
         private readonly RuneSimulation _simulation;
@@ -75,7 +75,7 @@ namespace RuneCode
         }
 
         /// <summary>
-        /// 피해 속성에 맞는 상태 이상을 부여한다. 전격은 전격 강화가 켜져 있을 때만 EMP를 부여하고,
+        /// 피해 속성에 맞는 상태 이상을 부여한다. 전격은 전격 강화가 켜져 있으면 EMP를, 꺼져 있으면 효과 없는 감전(Shock)을 부여하고,
         /// 새 상태 이상이 다른 속성의 상태 이상 위에 걸리면 부여 후 상태 중첩 콜백을 호출한다.
         /// 화염은 전투 공통 보정 전 공격 피해 sourceDamage를 틱 피해 계산에 전달한다.
         /// </summary>
@@ -87,9 +87,11 @@ namespace RuneCode
             bool isGranted = false;
             if (element == "fire") { ApplyBurn(enemy, form, noise, sourceDamage, sourceAction); isGranted = !isSameElementPresent; }
             else if (element == "ice") { ApplyChill(enemy); isGranted = !isSameElementPresent; }
-            else if (element == "arc" && _world.Upgrades.HasArcEnhance)
+            else if (element == "arc")
             {
-                GetOrAddStatus(enemy.Id, EnemyStatusType.Emp).Until = _world.Time + _world.Balance.Combat.EmpSeconds * StatusDurationMultiplier;
+                // 감전은 EMP와 같은 지속시간을 쓰고 전투 효과는 없다.
+                EnemyStatusType arcStatus = _world.Upgrades.HasArcEnhance ? EnemyStatusType.Emp : EnemyStatusType.Shock;
+                GetOrAddStatus(enemy.Id, arcStatus).Until = _world.Time + _world.Balance.Combat.EmpSeconds * StatusDurationMultiplier;
                 isGranted = !isSameElementPresent;
             }
             if (isGranted && isOtherElementPresent) _statusStacked?.Invoke(enemy);
@@ -159,14 +161,14 @@ namespace RuneCode
         /// <summary>적의 현재 냉기 스택을 반환하며 냉기가 없으면 0을 반환한다.</summary>
         internal int GetChillStacks(SimulationEnemy enemy) => FindStatus(enemy.Id, EnemyStatusType.Chill)?.Stacks ?? 0;
 
-        /// <summary>적에게 해당 속성(fire=Burn, ice=Chill과 Freeze, arc=Emp)의 상태 이상이 활성으로 걸려 있는지 반환한다.</summary>
+        /// <summary>적에게 해당 속성(fire=Burn, ice=Chill과 Freeze, arc=Emp와 Shock)의 상태 이상이 활성으로 걸려 있는지 반환한다.</summary>
         private bool HasElementStatus(SimulationEnemy enemy, string element)
         {
             switch (element)
             {
                 case "fire": return HasEnemyStatus(enemy, EnemyStatusType.Burn);
                 case "ice": return HasEnemyStatus(enemy, EnemyStatusType.Chill) || HasEnemyStatus(enemy, EnemyStatusType.Freeze);
-                default: return HasEnemyStatus(enemy, EnemyStatusType.Emp);
+                default: return HasEnemyStatus(enemy, EnemyStatusType.Emp) || HasEnemyStatus(enemy, EnemyStatusType.Shock);
             }
         }
 

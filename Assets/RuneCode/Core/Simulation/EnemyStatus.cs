@@ -4,7 +4,8 @@ using System.Text;
 
 namespace RuneCode
 {
-    public enum EnemyStatusType { Burn, Chill, Freeze, Emp }
+    // Shock은 전격 강화 없이 전격 피해가 남기는 효과 없는 상태로, 상태 이상 중첩 판정에만 쓰인다.
+    public enum EnemyStatusType { Burn, Chill, Freeze, Emp, Shock }
 
     public sealed class EnemyStatusEffect
     {

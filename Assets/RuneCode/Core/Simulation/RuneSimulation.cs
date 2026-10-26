@@ -49,6 +49,14 @@ namespace RuneCode
         public static bool CanShowAreaPreview(SpellAction action)
             => AreaTargeting.CanShowAreaPreview(action);
 
+        /// <summary>
+        /// 범위 미리보기를 표시할 장착 마법인지 반환한다. 기본 시작 노드(core.cast)의 마법만 true이고,
+        /// 대시 종료·상태 이상 중첩·우클릭 시작 노드의 마법은 false다.
+        /// </summary>
+        public static bool CanShowAreaPreview(CompiledSpell spell)
+            => spell != null && spell.Trigger != SpellGrammar.TRIGGER_ON_DASH_END
+                && spell.Trigger != SpellGrammar.TRIGGER_ON_STATUS_STACK && spell.Trigger != SpellGrammar.TRIGGER_ON_RIGHT_CLICK;
+
         /// <summary>폭발·잔류가 함께 사용하는 플레이어 중심 최대 배치 반경을 반환한다.</summary>
         public double GetAreaPlacementRange() => _world.Balance.Sim.AreaPlacementRange;
 
@@ -433,9 +441,16 @@ namespace RuneCode
         /// <summary>명시한 방향으로 조준을 갱신한 뒤 슬롯 마법을 시전하고 성공 여부를 반환한다.</summary>
         public bool TryCast(CompiledSpell spell, SimVector aimDirection, int slot = 0) { _world.Player.Aim(aimDirection); return TryCast(spell, slot); }
 
-        /// <summary>다른 종류 상태 이상 위에 새 상태 이상이 걸린 적을 원점·대상으로 onStatusStack 시작 노드 슬롯을 시전한다.</summary>
+        /// <summary>
+        /// 다른 종류 상태 이상 위에 새 상태 이상이 걸린 적을 원점·대상으로 onStatusStack 시작 노드 슬롯을 시전한다.
+        /// 시전할 수 있는 슬롯이 있을 때만 그 적의 상태 이상을 모두 지운 뒤 시전하고, 없으면 상태 이상을 그대로 둔다.
+        /// </summary>
         private void CastStatusStackTrigger(SimulationEnemy enemy)
-            => _executor.TryCastTriggerAtEnemy(SpellGrammar.TRIGGER_ON_STATUS_STACK, enemy);
+        {
+            if (!enemy.IsAlive || !_executor.IsTriggerReady(SpellGrammar.TRIGGER_ON_STATUS_STACK)) return;
+            _statuses.RemoveEnemyStatuses(enemy.Id);
+            _executor.TryCastTriggerAtEnemy(SpellGrammar.TRIGGER_ON_STATUS_STACK, enemy);
+        }
 
         /// <summary>입력, 예약된 적 스폰, 전투, 적응 및 전투 종료(전부 처치·사망·보스 제한시간)를 정확히 한 60Hz 틱만큼 갱신한다. 라운드 대기 중에도 플레이어·마법 틱은 진행하며 적 스폰은 전투 중에만 진행한다.</summary>
         public void Step(SimulationInput input)

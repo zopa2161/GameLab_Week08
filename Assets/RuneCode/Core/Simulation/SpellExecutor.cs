@@ -143,6 +143,18 @@ namespace RuneCode
             }
         }
 
+        /// <summary>지정 Trigger를 가진 슬롯 중 지금 시전을 시작할 수 있는(전투 단계, 쿨다운 종료, 실행 중 아님) 슬롯이 있는지 반환한다.</summary>
+        internal bool IsTriggerReady(string trigger)
+        {
+            if (_world.Stage != MissionStage.Bench && _world.Stage != MissionStage.Combat && _world.Stage != MissionStage.RoundBreak) return false;
+            for (int slot = 0; slot < _loadout.Length; slot++)
+            {
+                CompiledSpell spell = _loadout[slot];
+                if (spell != null && spell.Trigger == trigger && _world.Player.Cooldowns[slot] <= 0.000001 && !_world.Player.IsSpellRunning(slot)) return true;
+            }
+            return false;
+        }
+
         /// <summary>루트 시전의 공통 흐름이다. target이 있으면 적을 원점·대상으로 하고 없으면 플레이어 조준으로 시전한다.</summary>
         private bool BeginRootCast(CompiledSpell spell, int slot, SimulationEnemy target)
         {
