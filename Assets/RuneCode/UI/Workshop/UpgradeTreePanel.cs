@@ -71,12 +71,12 @@ namespace RuneCode
             foreach (UpgradeTreeConnectionView connection in _connections) connection.RefreshLayout();
         }
 
-        /// <summary>화면 우측 하단에 강화 트리 마우스 조작 안내를 패널당 한 번만 만들고 이후 재진입에서는 재사용한다.</summary>
+        /// <summary>트리 뷰포트 우측 하단에 강화 트리 마우스 조작 안내를 패널당 한 번만 만들고 이후 재진입에서는 재사용한다.</summary>
         private void EnsureMouseControls()
         {
             if (_mouseControls != null) return;
             TMP_FontAsset font = _summary.font != null ? _summary.font : _statsSummary.font;
-            _mouseControls = UiFactory.CreateMouseControls((RectTransform)transform, font, _mouseWheelIcon, _mouseLeftIcon,
+            _mouseControls = UiFactory.CreateMouseControls(_viewport, font, _mouseWheelIcon, _mouseLeftIcon,
                 _mouseRightIcon, GameData.L("ui.mouseControls.upgrade"));
         }
 

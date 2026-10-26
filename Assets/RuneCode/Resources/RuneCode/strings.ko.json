@@ -116,10 +116,6 @@
       "_value": "보관함"
     },
     {
-      "_key": "ui.executionOrder",
-      "_value": "같은 실행 포트의 분기는 연결한 순서대로 실행됩니다"
-    },
-    {
       "_key": "ui.new",
       "_value": "새 마법"
     },

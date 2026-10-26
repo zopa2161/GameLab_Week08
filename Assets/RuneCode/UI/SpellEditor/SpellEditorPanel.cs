@@ -344,11 +344,11 @@ namespace RuneCode
             }
         }
 
-        /// <summary>화면 우측 하단에 편집창 마우스 조작 안내를 패널당 한 번만 만들고 이후 진입에서는 재사용한다.</summary>
+        /// <summary>GraphViewport 우측 하단에 편집창 마우스 조작 안내를 패널당 한 번만 만들고 이후 진입에서는 재사용한다.</summary>
         private void EnsureMouseControls()
         {
             if (_mouseControls != null) return;
-            _mouseControls = UiFactory.CreateMouseControls((RectTransform)transform, _font, _mouseWheelIcon, _mouseLeftIcon,
+            _mouseControls = UiFactory.CreateMouseControls((RectTransform)_graphCanvas.transform.parent, _font, _mouseWheelIcon, _mouseLeftIcon,
                 _mouseRightIcon, GameData.L("ui.mouseControls.editor"));
         }
     }

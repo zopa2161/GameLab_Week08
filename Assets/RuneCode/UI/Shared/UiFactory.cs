@@ -19,8 +19,7 @@ namespace RuneCode
         private const float MOUSE_HINT_ROW_HEIGHT = 26f;
         private const float MOUSE_HINT_ROW_GAP = 4f;
         private const float MOUSE_HINT_RIGHT_MARGIN = 24f;
-        // 강화 트리 뷰포트의 하단 여백(35)보다 안쪽에 두어 안내가 프레임을 넘지 않게 한다.
-        private const float MOUSE_HINT_BOTTOM_MARGIN = 40f;
+        private const float MOUSE_HINT_BOTTOM_MARGIN = 15f;
         private const float MOUSE_HINT_ICON_SIZE = 22f;
         private const float MOUSE_HINT_ICON_SPACING = 8f;
         private const float MOUSE_HINT_FONT_SIZE = 17f;
