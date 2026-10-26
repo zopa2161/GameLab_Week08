@@ -235,11 +235,12 @@ namespace RuneCode
             if (!isResumed) SoundManager.Instance.PlayRoundClear();
         }
 
-        /// <summary>연속 미션의 지정 스테이지·라운드 보상 선택창이 뜬 직후 테스트 모드의 마법 순서 온보딩을 그 위에 띄운다.</summary>
+        /// <summary>지정 스테이지·라운드 보상 선택창이 뜨면 테스트 모드에서 편집창 재방문을 요구하고 마법 순서 온보딩을 표시한다.</summary>
         private void ShowSpellOrderOnboarding()
         {
             RuneSimulation sim = _run.Simulation;
             if (sim.StageNumber != ONBOARDING_SPELL_ORDER_STAGE || sim.RoundNumber != ONBOARDING_SPELL_ORDER_ROUND) return;
+            _session.RequireTestEditorVisit();
             OpenTestOnboarding(ONBOARDING_SPELL_ORDER);
         }
 
@@ -935,10 +936,9 @@ namespace RuneCode
             _hud.SetStage(GetStageText(sim), remainingEnemyCount);
             _hud.SetWorkshop(CanOpenWorkshop, !_run.IsPaused && !_ui.IsPopupOpen);
             _hud.SetWorkshopShortcuts(CanToggleWorkshop);
-            // 첫 클리어 온보딩 뒤 보상을 고르면 작업실 온보딩 전까지 작업실 버튼을 강조한다.
+            // 테스트 모드의 편집창 방문이 필요한 라운드는 보상 선택 후 작업실을 강조한다.
             _hud.SetWorkshopHighlight(CanOpenWorkshop && _run.IsClearModifierChosen
-                && _session.TestOnboardingChapter >= ONBOARDING_FIRST_CLEAR
-                && _session.TestOnboardingChapter <= ONBOARDING_EDIT_WINDOW);
+                && _session.IsTestEditorVisitRequired);
             if (_run.IsFinished || sim.IsWaitingForNextRound) ResetHexaDebugActions();
             bool isDebugMenuVisible = _session.IsDebugEnabled && UiTheme.SHOW_DEBUG_BUTTONS && CanOpenWorkshop;
             bool isDebugActionsVisible = _session.IsDebugEnabled && UiTheme.SHOW_DEBUG_BUTTONS && _isHexaSummonTestActive
