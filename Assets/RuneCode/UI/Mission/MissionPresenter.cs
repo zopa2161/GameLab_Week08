@@ -412,6 +412,15 @@ namespace RuneCode
                 labels.Add((boss.IsMiniBoss ? "" : "보스 ") + GameData.L(boss.EnemyId)
                     + (isHexaPreview ? " · 기본 모드" : " · 스테이지 " + stage));
             }
+            foreach (EnemyDefinition enemy in GameData.Enemies.Enemies)
+            {
+                if (string.IsNullOrEmpty(enemy.VariantOf) || !GameData.Bosses.TryGet(enemy.PatternSourceId, out BossDefinition pattern)
+                    || enemy.GetRank(pattern) != EnemyDefinition.RANK_MINI_BOSS) continue;
+                int stage = FindBossStage(enemy.Id, StageCatalog.MINI_BOSS_ROUND);
+                if (stage == 0) continue;
+                _debugBossTargets.Add((stage, StageCatalog.MINI_BOSS_ROUND, false, false, false, false));
+                labels.Add(GameData.L(enemy.Id) + " · 스테이지 " + stage);
+            }
             _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, true, false));
             labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 나선 모드");
             _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, false, true));

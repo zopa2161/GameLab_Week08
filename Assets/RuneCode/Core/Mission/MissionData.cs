@@ -27,6 +27,9 @@ namespace RuneCode
         public const string TRAIT_DEATH_EXPLOSION = "deathExplosion";
         public const string TRAIT_CIRCLE_SHIELD = "circleShield";
         public const string TRAIT_CARRIER = "carrier";
+        public const string RANK_NORMAL = "normal";
+        public const string RANK_MINI_BOSS = "miniBoss";
+        public const string RANK_BOSS = "boss";
 
         private static readonly string[] MOVEMENT_TYPES = { MOVEMENT_CHASE, MOVEMENT_TURRET, MOVEMENT_ANCHOR, MOVEMENT_DASH_CHASE, MOVEMENT_KEEP_DISTANCE, MOVEMENT_SNIPER, MOVEMENT_INTERCEPTOR, MOVEMENT_TURN_CHASE };
         private static readonly string[] ATTACK_TYPES = { ATTACK_NONE, ATTACK_CONTACT, ATTACK_BURST, ATTACK_DASH_CONTACT, ATTACK_SNIPER, ATTACK_INTERCEPTOR };
@@ -58,6 +61,37 @@ namespace RuneCode
         [SerializeField] private string _dropTable;
         [SerializeField] private int _sides;
         [SerializeField] private bool _isHidden;
+
+        [Header("변형 적")]
+        [SerializeField] private string _variantOf;
+        [SerializeField] private string _rank;
+        [SerializeField] private bool _hasFixedHp;
+        public string VariantOf => _variantOf;
+        public string PatternSourceId => string.IsNullOrEmpty(_variantOf) ? _id : _variantOf;
+        public bool HasFixedHp => _hasFixedHp;
+
+        /// <summary>명시된 전투 등급을 반환하고, 기존 적은 보스 패턴의 기존 등급 또는 일반 적 등급을 사용한다.</summary>
+        public string GetRank(BossDefinition pattern)
+        {
+            if (!string.IsNullOrEmpty(_rank)) return _rank;
+            return pattern == null ? RANK_NORMAL : pattern.IsMiniBoss ? RANK_MINI_BOSS : RANK_BOSS;
+        }
+
+        /// <summary>원본의 공격·이동 설정을 공유하는 독립 변형 정의를 만들고 ID·체력·보상·전투 등급·고정 체력 여부만 덮어쓴다. 변형의 중첩은 허용하지 않는다.</summary>
+        internal EnemyDefinition CreateVariant(EnemyDefinition source)
+        {
+            if (!string.IsNullOrEmpty(source._variantOf) || source._id == _id || !IsPositive(_hp)
+                || _reward < 0 || string.IsNullOrEmpty(_rank))
+                throw new FormatException("변형 적의 원본 또는 설정이 유효하지 않습니다: " + _id);
+            var variant = (EnemyDefinition)source.MemberwiseClone();
+            variant._id = _id;
+            variant._variantOf = _variantOf;
+            variant._rank = _rank;
+            variant._hp = _hp;
+            variant._reward = _reward;
+            variant._hasFixedHp = _hasFixedHp;
+            return variant;
+        }
 
         [Header("추가 적 행동")]
         [SerializeField] private double _explosionRadius;
@@ -129,6 +163,8 @@ namespace RuneCode
         /// <summary>이동·공격 방식과 특수 능력 값이 정의된 어휘 안에 있는지 검사하고 모르는 값에는 데이터 오류를 발생시킨다.</summary>
         public void Validate()
         {
+            if (!string.IsNullOrEmpty(_rank) && _rank != RANK_NORMAL && _rank != RANK_MINI_BOSS && _rank != RANK_BOSS)
+                throw new FormatException("알 수 없는 적 전투 등급입니다: " + _id + ", " + _rank);
             if (Array.IndexOf(MOVEMENT_TYPES, _movement) < 0) throw new FormatException("알 수 없는 적 이동 방식입니다: " + _id + ", " + _movement);
             if (Array.IndexOf(ATTACK_TYPES, Attack) < 0) throw new FormatException("알 수 없는 적 공격 방식입니다: " + _id + ", " + _attack);
             ValidateAdditionalSettings();
@@ -186,7 +222,15 @@ namespace RuneCode
             if (catalog == null || catalog._enemies == null || catalog._enemies.Length == 0) throw new FormatException("적 설정이 비어 있습니다.");
             var ids = new HashSet<string>();
             foreach (EnemyDefinition enemy in catalog._enemies)
-                if (!ids.Add(enemy.Id) || enemy.Hp <= 0 || enemy.Radius <= 0 || enemy.Reward < 0) throw new FormatException("적 설정 값이 유효하지 않습니다.");
+                if (enemy == null || string.IsNullOrEmpty(enemy.Id) || !ids.Add(enemy.Id)) throw new FormatException("적 ID가 비었거나 중복입니다.");
+            for (int index = 0; index < catalog._enemies.Length; index++)
+            {
+                EnemyDefinition enemy = catalog._enemies[index];
+                if (!string.IsNullOrEmpty(enemy.VariantOf))
+                    catalog._enemies[index] = enemy.CreateVariant(catalog.Get(enemy.VariantOf));
+            }
+            foreach (EnemyDefinition enemy in catalog._enemies)
+                if (enemy.Hp <= 0 || enemy.Radius <= 0 || enemy.Reward < 0) throw new FormatException("적 설정 값이 유효하지 않습니다.");
             foreach (EnemyDefinition enemy in catalog._enemies) enemy.Validate();
             foreach (EnemyDefinition enemy in catalog._enemies)
                 if (enemy.CanSplit && (enemy.SplitInto == enemy.Id || enemy.SplitCount < 0 || enemy.SplitDelay < 0 || !ids.Contains(enemy.SplitInto))) throw new FormatException("적 분열 설정이 유효하지 않습니다: " + enemy.Id);
@@ -419,10 +463,14 @@ namespace RuneCode
                 boss.Validate(enemies, formations);
             }
             foreach (EnemyDefinition enemy in enemies.Enemies)
+            {
+                if (!string.IsNullOrEmpty(enemy.VariantOf) && !catalog.TryGet(enemy.PatternSourceId, out _))
+                    throw new FormatException("변형 적의 공유 보스 패턴이 없습니다: " + enemy.Id);
                 if (enemy.HasTrait(EnemyDefinition.TRAIT_CARRIER))
                     foreach (string target in enemy.CarrierTargets)
                         if (catalog.TryGet(target, out _))
                             throw new FormatException("캐리어는 보스를 생성할 수 없습니다: " + enemy.Id + ", " + target);
+            }
             return catalog;
         }
     }

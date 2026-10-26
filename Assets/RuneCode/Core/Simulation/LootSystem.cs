@@ -132,7 +132,7 @@ namespace RuneCode
                     {
                         // 오브에 실제로 담기는 크레딧을 한 번만 산출해 나머지 누적이 이중 반영되지 않게 한다.
                         droppedCredits = ScaleKillScrap(enemy.Reward);
-                        bool isBigScrap = enemy.IsElite || enemy.Boss != null;
+                        bool isBigScrap = enemy.IsElite || enemy.IsBossOrMiniBoss;
                         _orbs.Add(new FragmentOrb(enemy.Position, droppedCredits, isBigScrap));
                         if (isBigScrap) _bigScrapSpawnEventCount++;
                     }
@@ -223,7 +223,7 @@ namespace RuneCode
                 return elite.DropChancePercent >= 100 || _world.Random.Next() * 100 < elite.DropChancePercent ? elite.DropTable : null;
             }
             NormalEnemyDropDefinition normalDrop = _world.Drops.NormalEnemyDrop;
-            if (enemy.Boss != null || normalDrop == null || !normalDrop.IsEnabled(_world.StageNumber)) return null;
+            if (enemy.IsBossOrMiniBoss || normalDrop == null || !normalDrop.IsEnabled(_world.StageNumber)) return null;
             return _world.Random.Next() * 100 < normalDrop.GetChancePercent(_world.StageNumber) ? normalDrop.DropTable : null;
         }
 

@@ -80,7 +80,7 @@ namespace RuneCode
             _enemyLogRows[enemy.Id] = new Dictionary<string, object>
             {
                 ["enemy_id"] = enemy.Id, ["enemy_kind"] = enemy.Kind,
-                ["is_boss"] = enemy.Boss != null, ["summoner_id"] = enemy.SummonerId,
+                ["is_boss"] = enemy.IsBossOrMiniBoss, ["summoner_id"] = enemy.SummonerId,
                 ["stage"] = world.StageNumber, ["round"] = world.RoundNumber, ["is_elite"] = enemy.IsElite,
                 ["spawn_seconds"] = world.Time, ["observed_seconds"] = world.Time,
                 ["lifetime_seconds"] = null, ["end_reason"] = null,

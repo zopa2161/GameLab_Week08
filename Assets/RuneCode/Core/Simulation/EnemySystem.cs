@@ -269,7 +269,7 @@ namespace RuneCode
         { double slow = Math.Max(0, 1 - _world.Balance.Combat.ChillSlow * _statuses.GetChillStacks(enemy)); enemy.Move(_world.Map.Move(enemy.Position, direction * (speed * enemy.SpeedMultiplier * slow * RuneSimulation.STEP_SECONDS), enemy.Radius), direction); }
 
         /// <summary>적 분리에서 밀리지 않는 고정 대상인지 반환한다. 보스, 빙결 중인 적, 돌진 중인 적은 자리를 지키고 상대만 밀어낸다.</summary>
-        internal bool IsSeparationFixed(SimulationEnemy enemy) => enemy.Boss != null || _statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze) || _world.Time < enemy.DashUntil;
+        internal bool IsSeparationFixed(SimulationEnemy enemy) => enemy.IsBossOrMiniBoss || _statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze) || _world.Time < enemy.DashUntil;
 
         /// <summary>적과 플레이어가 겹치면 피해를 적용하고 접촉 여부를 반환한다.</summary>
         private bool HurtByContact(SimulationEnemy enemy)
@@ -366,7 +366,7 @@ namespace RuneCode
         /// </summary>
         private void AdvanceBoss(SimulationEnemy boss, BossDefinition pattern, SimVector direction)
         {
-            if (pattern.IsMiniBoss) { AdvanceMiniGovernor(boss, pattern, direction); return; }
+            if (pattern.IsMiniGovernorPattern) { AdvanceMiniGovernor(boss, pattern, direction); return; }
             double multiplier = boss.Phase == 3 ? pattern.PhaseThreeMultiplier : 1;
             if (_world.Time + 0.000001 >= boss.AttackAt)
             {
@@ -424,7 +424,7 @@ namespace RuneCode
         internal void CheckBossPatch(SimulationEnemy boss, BossDefinition pattern)
         {
             if (boss.IsPatching) return;
-            if (pattern.IsMiniBoss)
+            if (pattern.IsMiniGovernorPattern)
             {
                 if (boss.Phase != 1 || boss.Hp / boss.MaxHp > pattern.PhaseTwoThreshold) return;
                 boss.Patch(2, _world.Time, pattern.PatchSeconds);

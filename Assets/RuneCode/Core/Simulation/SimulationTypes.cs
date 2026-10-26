@@ -400,6 +400,9 @@ namespace RuneCode
         public string LastDamageForm => _lastDamageForm;
         public EnemyDefinition Definition => _definition;
         public BossDefinition Boss => _boss;
+        public bool IsBoss => _definition.GetRank(_boss) == EnemyDefinition.RANK_BOSS;
+        public bool IsMiniBoss => _definition.GetRank(_boss) == EnemyDefinition.RANK_MINI_BOSS;
+        public bool IsBossOrMiniBoss => IsBoss || IsMiniBoss;
         public HydraBossState Hydra => _hydra;
         public HexaBossState Hexa => _hexa;
         public LegolasBossState Legolas => _legolas;

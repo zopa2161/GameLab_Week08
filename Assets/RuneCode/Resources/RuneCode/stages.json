@@ -1036,6 +1036,11 @@
                                     "_enemyId": "enemy.scout",
                                     "_count": 1,
                                     "_isElite": true
+                                },
+                                {
+                                    "_enemyId": "enemy.mini_governor",
+                                    "_count": 2,
+                                    "_isElite": false
                                 }
                             ]
                         }
@@ -1084,6 +1089,11 @@
                                     "_enemyId": "enemy.sentry",
                                     "_count": 2,
                                     "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.mini_governor",
+                                    "_count": 1,
+                                    "_isElite": false
                                 }
                             ]
                         },
@@ -1110,6 +1120,11 @@
                                     "_enemyId": "enemy.scout",
                                     "_count": 1,
                                     "_isElite": true
+                                },
+                                {
+                                    "_enemyId": "enemy.mini_governor",
+                                    "_count": 2,
+                                    "_isElite": false
                                 }
                             ]
                         }
@@ -1158,6 +1173,16 @@
                                     "_enemyId": "enemy.aegis",
                                     "_count": 2,
                                     "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.mini_governor",
+                                    "_count": 1,
+                                    "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.legolas",
+                                    "_count": 1,
+                                    "_isElite": false
                                 }
                             ]
                         },
@@ -1186,8 +1211,8 @@
                                     "_isElite": true
                                 },
                                 {
-                                    "_enemyId": "boss.mini_governor",
-                                    "_count": 1,
+                                    "_enemyId": "boss.governor_squad",
+                                    "_count": 5,
                                     "_isElite": false
                                 }
                             ]
@@ -1216,6 +1241,11 @@
                                     "_enemyId": "enemy.shield_melee",
                                     "_count": 2,
                                     "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.mini_governor",
+                                    "_count": 1,
+                                    "_isElite": false
                                 }
                             ]
                         },
@@ -1235,6 +1265,16 @@
                                 },
                                 {
                                     "_enemyId": "enemy.clock_sniper",
+                                    "_count": 1,
+                                    "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.mini_governor",
+                                    "_count": 2,
+                                    "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.legolas",
                                     "_count": 1,
                                     "_isElite": false
                                 }
@@ -1258,6 +1298,11 @@
                                     "_enemyId": "enemy.scout",
                                     "_count": 1,
                                     "_isElite": true
+                                },
+                                {
+                                    "_enemyId": "enemy.legolas",
+                                    "_count": 2,
+                                    "_isElite": false
                                 }
                             ]
                         }
@@ -1285,6 +1330,11 @@
                                     "_enemyId": "enemy.carrier",
                                     "_count": 1,
                                     "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.mini_governor",
+                                    "_count": 2,
+                                    "_isElite": false
                                 }
                             ]
                         },
@@ -1304,6 +1354,11 @@
                                 },
                                 {
                                     "_enemyId": "enemy.shield_ranged",
+                                    "_count": 2,
+                                    "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.legolas",
                                     "_count": 2,
                                     "_isElite": false
                                 }
@@ -1332,6 +1387,16 @@
                                     "_enemyId": "enemy.scout",
                                     "_count": 1,
                                     "_isElite": true
+                                },
+                                {
+                                    "_enemyId": "enemy.mini_governor",
+                                    "_count": 1,
+                                    "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.legolas",
+                                    "_count": 2,
+                                    "_isElite": false
                                 }
                             ]
                         }
@@ -1359,6 +1424,11 @@
                                     "_enemyId": "enemy.carrier",
                                     "_count": 1,
                                     "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.mini_governor",
+                                    "_count": 3,
+                                    "_isElite": false
                                 }
                             ]
                         },
@@ -1379,6 +1449,11 @@
                                 {
                                     "_enemyId": "enemy.shield_melee",
                                     "_count": 2,
+                                    "_isElite": false
+                                },
+                                {
+                                    "_enemyId": "enemy.legolas",
+                                    "_count": 3,
                                     "_isElite": false
                                 }
                             ]

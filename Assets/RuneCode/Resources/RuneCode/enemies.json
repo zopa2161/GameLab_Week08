@@ -1,6 +1,30 @@
 {
   "_enemies": [
     {
+      "_id": "enemy.mini_governor",
+      "_variantOf": "boss.mini_governor",
+      "_rank": "normal",
+      "_hasFixedHp": true,
+      "_hp": 300,
+      "_reward": 8
+    },
+    {
+      "_id": "enemy.legolas",
+      "_variantOf": "boss.legolas",
+      "_rank": "normal",
+      "_hasFixedHp": true,
+      "_hp": 300,
+      "_reward": 8
+    },
+    {
+      "_id": "boss.governor_squad",
+      "_variantOf": "boss.governor",
+      "_rank": "miniBoss",
+      "_hasFixedHp": true,
+      "_hp": 600,
+      "_reward": 60
+    },
+    {
       "_dashSeconds": 0,
       "_radius": 13,
       "_projectileSpeed": 0,
