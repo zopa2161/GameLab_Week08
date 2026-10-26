@@ -21,6 +21,9 @@ namespace RuneCode
         private const float ENERGY_SHORTAGE_DURATION = 0.3f;
         private const float WORKSHOP_HIGHLIGHT_PULSE_SPEED = 5f;
         private const float WORKSHOP_HIGHLIGHT_PULSE_SCALE = 0.08f;
+        private const float ROUND_START_LABEL_WIDTH = 480f;
+        private const float ROUND_START_LABEL_HEIGHT = 160f;
+        private const float ROUND_START_LABEL_Y_OFFSET = 150f;
 
         private static readonly float HP_DELAY_NORMALIZER = Mathf.Exp(HP_DELAY_EXPONENT) - 1f;
         private static readonly Color ENERGY_SHORTAGE_COLOR = new Color(1f, 0.3f, 0.25f, 1f);
@@ -44,6 +47,11 @@ namespace RuneCode
         [SerializeField] private TextMeshProUGUI _spellLabel;
         [SerializeField] private TextMeshProUGUI _fragmentToast;
 
+        [Header("라운드 시작 안내")]
+        [SerializeField, Min(1f)] private float _roundStartFontSize = 96f;
+        [SerializeField, Min(0f)] private float _roundStartHoldSeconds = 1f;
+        [SerializeField, Min(0f)] private float _roundStartFadeSeconds = 0.4f;
+
         [Header("Cooldown gauges")]
         [SerializeField] private CooldownRadialView _attackCooldown;
         [SerializeField] private CooldownRadialView _dashCooldown;
@@ -66,6 +74,10 @@ namespace RuneCode
         private readonly List<Button> _debugActionButtons = new List<Button>();
         private Outline _workshopOutline;
         private bool _isWorkshopHighlighted;
+
+        private TextMeshProUGUI _roundStartLabel;
+        private float _roundStartElapsed;
+        private bool _isRoundStartActive;
 
         private double _previousHp;
         private float _hpFraction;
@@ -108,6 +120,66 @@ namespace RuneCode
             if (!_isWorkshopHighlighted) return;
             float scale = 1f + WORKSHOP_HIGHLIGHT_PULSE_SCALE * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * WORKSHOP_HIGHLIGHT_PULSE_SPEED));
             _workshopButton.transform.localScale = new Vector3(scale, scale, 1f);
+        }
+
+        void OnDisable()
+        {
+            HideRoundStart();
+        }
+
+        /// <summary>stage-round 문구를 중앙 표시 대기 상태로 준비한다. 공용 텍스트 Prefab은 최초 요청 때만 생성하고 입력을 가로채지 않는다.</summary>
+        public void ShowRoundStart(int stage, int round)
+        {
+            if (_roundStartLabel == null)
+            {
+                TextMeshProUGUI prefab = Resources.Load<TextMeshProUGUI>("RuneCode/UI/Elements/UiText");
+                _roundStartLabel = Instantiate(prefab, transform, false);
+                _roundStartLabel.name = "RoundStartLabel";
+                _roundStartLabel.font = _stageLabel.font;
+                _roundStartLabel.enableAutoSizing = false;
+                _roundStartLabel.fontStyle = FontStyles.Bold;
+                _roundStartLabel.alignment = TextAlignmentOptions.Midline;
+                _roundStartLabel.textWrappingMode = TextWrappingModes.NoWrap;
+                _roundStartLabel.raycastTarget = false;
+                RectTransform rect = _roundStartLabel.rectTransform;
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.anchoredPosition = new Vector2(0f, ROUND_START_LABEL_Y_OFFSET);
+                rect.sizeDelta = new Vector2(ROUND_START_LABEL_WIDTH, ROUND_START_LABEL_HEIGHT);
+            }
+            _roundStartLabel.fontSize = _roundStartFontSize;
+            _roundStartLabel.text = stage + "-" + round;
+            _roundStartLabel.color = Color.white;
+            _roundStartLabel.transform.SetAsLastSibling();
+            _roundStartElapsed = 0f;
+            _isRoundStartActive = true;
+            _roundStartLabel.gameObject.SetActive(false);
+        }
+
+        /// <summary>입력 가능한 전투 프레임의 deltaTime만 누적해 중앙 문구를 유지한 뒤 페이드한다. 팝업·일시정지 중에는 숨기고 경과 시간을 보존한다.</summary>
+        public void AdvanceRoundStart(float deltaTime, bool canAdvance)
+        {
+            if (!_isRoundStartActive) return;
+            _roundStartLabel.gameObject.SetActive(canAdvance);
+            if (!canAdvance) return;
+            _roundStartElapsed += Mathf.Max(0f, deltaTime);
+            if (_roundStartElapsed >= _roundStartHoldSeconds + _roundStartFadeSeconds)
+            {
+                HideRoundStart();
+                return;
+            }
+            float alpha = _roundStartElapsed <= _roundStartHoldSeconds ? 1f
+                : 1f - (_roundStartElapsed - _roundStartHoldSeconds) / _roundStartFadeSeconds;
+            _roundStartLabel.color = new Color(1f, 1f, 1f, alpha);
+        }
+
+        /// <summary>진행 중인 라운드 안내를 취소하고 문구를 숨긴다. 화면 종료와 라운드 종료 시 이전 표시가 남지 않게 한다.</summary>
+        public void HideRoundStart()
+        {
+            _isRoundStartActive = false;
+            _roundStartElapsed = 0f;
+            if (_roundStartLabel != null) _roundStartLabel.gameObject.SetActive(false);
         }
 
         /// <summary>지연 체력 바를 unscaled 경과 시간에 맞춰 시작 비율에서 목표 비율로 지수 곡선으로 줄이고, 곡선이 끝나면 숨긴다.</summary>
