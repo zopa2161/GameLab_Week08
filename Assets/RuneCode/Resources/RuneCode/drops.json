@@ -167,5 +167,10 @@
         { "_type": "behavior", "_id": "behavior.persist", "_weight": 1 }
       ]
     }
-  ]
+  ],
+  "_roundHealChoice": {
+    "_chancePercent": 20,
+    "_baseRatio": 0.15,
+    "_ratioPerGrade": 0.15
+  }
 }

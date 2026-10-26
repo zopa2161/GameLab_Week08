@@ -85,6 +85,7 @@ namespace RuneCode
 
         /// <summary>
         /// 현재 라운드의 보상 테이블로 서로 다른 룬 후보를 최대 3개 반환한다. 지정한 분류·등급이 없으면 기존 확률표로 추첨한다.
+        /// 최종 클리어 정산이 아닌 라운드에서는 공통 보상 등급이 있을 때 설정 확률로 3장 중 한 장을 체력 회복 카드로 바꾼다.
         /// 후보가 하나도 없으면 false를 반환한다.
         /// </summary>
         internal bool TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades, out string rewardGrade,
@@ -103,6 +104,16 @@ namespace RuneCode
             {
                 candidates.Add(roll.RuneId);
                 grades.Add(roll.Grade);
+            }
+            bool isFinalRound = _world.StageNumber == StageCatalog.PROGRESSION_STAGE_COUNT
+                && _world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT;
+            RoundHealChoiceDefinition heal = !isFinalRound && !string.IsNullOrEmpty(rewardGrade) ? _world.Drops.RoundHealChoice : null;
+            if (candidates.Count > 0 && heal != null && heal.ChancePercent > 0
+                && _world.Random.Next() * DropCatalog.TOTAL_PERCENT < heal.ChancePercent)
+            {
+                int slot = Math.Min(candidates.Count - 1, (int)(_world.Random.Next() * candidates.Count));
+                candidates[slot] = DropCatalog.HEAL_CHOICE_ID;
+                grades[slot] = rewardGrade;
             }
             return candidates.Count > 0;
         }

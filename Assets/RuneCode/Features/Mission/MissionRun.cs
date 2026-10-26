@@ -595,7 +595,8 @@ namespace RuneCode
             _clearChoiceRerolls.Clear();
             for (int index = 0; index < candidates.Count; index++) _clearChoiceRerolls.Add(false);
             _clearChoiceSeenIds.Clear();
-            _clearChoiceSeenIds.AddRange(candidates);
+            foreach (string id in candidates)
+                if (id != DropCatalog.HEAL_CHOICE_ID) _clearChoiceSeenIds.Add(id);
             RecordModifierChoices();
         }
 
@@ -835,6 +836,28 @@ namespace RuneCode
             if (_simulation.IsProgressionMission && _settled && _session.PendingProgressionChoiceIds.Count > 0)
             {
                 if (!_session.ClaimProgressionChoice(index)) return false;
+            }
+            else if (!_settled && _clearModifierChoices[index] == DropCatalog.HEAL_CHOICE_ID)
+            {
+                string category = GameData.Stages.GetRoundRewardCategory(_simulation.StageNumber, _simulation.RoundNumber, GameData.Drops);
+                double healRatio = GameData.Drops.GetRoundHealRatio(category, grade, GameData.Runes, GameData.ModifierGrades);
+                double hpBefore = _simulation.Player.Hp;
+                _simulation.HealPlayer(healRatio);
+                _session.GrantRoundHeal(_simulation.Player.Hp, _simulation.Player.MaxHp);
+                _isClearModifierChosen = true;
+                LocalTelemetry.RecordUsabilityEvent("clear_reward_selected", "round_break", new Dictionary<string, object>
+                {
+                    ["combat_id"] = _testCombatId, ["spell_build_id"] = _spellBuildId,
+                    ["stage"] = _simulation.StageNumber, ["rune_id"] = _clearModifierChoices[index],
+                    ["round"] = _simulation.RoundNumber, ["choice_index"] = index,
+                    ["grade"] = grade, ["count"] = 1,
+                    ["reroll_count"] = GetClearChoiceRerollCount(),
+                    ["rerolled_slots"] = new List<bool>(_clearChoiceRerolls),
+                    ["inventory"] = _session.GetInventoryLogSnapshot(),
+                    ["hp_before"] = hpBefore, ["hp_after"] = _simulation.Player.Hp, ["heal_ratio"] = healRatio,
+                });
+                _lastResult += "\n" + GameData.L("result.healReward");
+                return true;
             }
             else if (!_settled) _session.GrantRoundChoice(_clearModifierChoices[index], grade);
             else _session.GrantRune(_clearModifierChoices[index], grade, 1, "clear_choice");

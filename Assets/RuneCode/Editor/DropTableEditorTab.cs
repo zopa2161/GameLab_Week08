@@ -148,6 +148,7 @@ namespace RuneCode.Editor
             EditorGUILayout.EndScrollView();
             EditorGUILayout.EndVertical();
             EditorGUILayout.EndHorizontal();
+            DrawRoundHealChoice();
             ApplyChanges();
         }
 
@@ -235,6 +236,30 @@ namespace RuneCode.Editor
             }
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.EndVertical();
+        }
+
+        /// <summary>카탈로그 최상위 라운드 회복 선택지의 등장 확률과 기본·등급 단계 회복 비율을 편집한다.</summary>
+        private void DrawRoundHealChoice()
+        {
+            SerializedProperty choice = _serialized.FindProperty("_catalog._roundHealChoice");
+            if (choice == null) return;
+            GUILayout.Label("라운드 회복 선택지", EditorStyles.boldLabel);
+            EditorGUILayout.BeginHorizontal();
+            DrawDoubleField("확률 (%)", choice.FindPropertyRelative("_chancePercent"));
+            DrawDoubleField("기본 비율", choice.FindPropertyRelative("_baseRatio"));
+            DrawDoubleField("등급 단계 비율", choice.FindPropertyRelative("_ratioPerGrade"));
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.HelpBox("라운드 보상 후보 3장 중 1장을 체력 회복 카드로 바꿀 확률입니다. 회복량은 최대 체력 x (기본 비율 + 등급 단계 비율 x 등급 인덱스)이며 등급 순서는 C,B,A,S입니다.", MessageType.Info);
+        }
+
+        /// <summary>라벨이 붙은 double 입력칸을 그리고 값이 바뀌면 반영한다.</summary>
+        private void DrawDoubleField(string label, SerializedProperty property)
+        {
+            if (property == null) return;
+            double next = EditorGUILayout.DoubleField(label, property.doubleValue);
+            if (next == property.doubleValue) return;
+            property.doubleValue = next;
+            ApplyChanges();
         }
 
         /// <summary>선택 테이블의 ID, 분류 확률, 행동·강화 등급 확률과 후보 룬 목록을 그린다.</summary>

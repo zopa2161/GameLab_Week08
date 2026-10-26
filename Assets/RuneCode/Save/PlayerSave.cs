@@ -599,9 +599,21 @@ namespace RuneCode
                     error = "save.invalidValues";
                     return false;
                 }
+                int healChoiceCount = 0;
                 for (int index = 0; index < _pendingRoundChoiceIds.Length; index++)
                 {
                     string runeId = _pendingRoundChoiceIds[index];
+                    if (runeId == DropCatalog.HEAL_CHOICE_ID)
+                    {
+                        // 체력 회복 카드는 룬이 아니므로 공통 보상 등급과 같은 등급으로 최대 1장만 허용한다.
+                        if (++healChoiceCount > 1 || string.IsNullOrEmpty(_pendingRoundRewardGrade)
+                            || _pendingRoundChoiceGrades[index] != _pendingRoundRewardGrade)
+                        {
+                            error = "save.invalidValues";
+                            return false;
+                        }
+                        continue;
+                    }
                     if (!RuneRewardRoller.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades,
                         runeId, _pendingRoundChoiceGrades[index]))
                     {
@@ -620,6 +632,16 @@ namespace RuneCode
                     for (int index = 0; index < _pendingRoundChoiceIds.Length; index++)
                     {
                         string id = _pendingRoundChoiceIds[index];
+                        if (id == DropCatalog.HEAL_CHOICE_ID)
+                        {
+                            // 체력 회복 카드는 룬 후보 목록에 없으므로 중복과 등급만 확인한다.
+                            if (!seenIds.Add(id) || _pendingRoundChoiceGrades[index] != _pendingRoundRewardGrade)
+                            {
+                                error = "save.invalidValues";
+                                return false;
+                            }
+                            continue;
+                        }
                         string expectedGrade = GameData.Runes.Get(id).Category == SpellGrammar.CATEGORY_ELEMENT ? "" : _pendingRoundRewardGrade;
                         if (!seenIds.Add(id) || !available.Exists(candidate => candidate.Key == id)
                             || _pendingRoundChoiceGrades[index] != expectedGrade)
@@ -641,8 +663,9 @@ namespace RuneCode
             {
                 var seenRuneIds = new HashSet<string>(StringComparer.Ordinal);
                 if (_pendingRoundSeenRuneIds.Length > PendingRoundChoiceIds.Count * 2
-                    || _pendingRoundSeenRuneIds.Any(id => string.IsNullOrEmpty(id) || !seenRuneIds.Add(id) || !GameData.Runes.TryGet(id, out _))
-                    || PendingRoundChoiceIds.Any(id => !seenRuneIds.Contains(id)))
+                    || _pendingRoundSeenRuneIds.Any(id => string.IsNullOrEmpty(id) || !seenRuneIds.Add(id)
+                        || (id != DropCatalog.HEAL_CHOICE_ID && !GameData.Runes.TryGet(id, out _)))
+                    || PendingRoundChoiceIds.Any(id => id != DropCatalog.HEAL_CHOICE_ID && !seenRuneIds.Contains(id)))
                 {
                     error = "save.invalidValues";
                     return false;
@@ -785,6 +808,13 @@ namespace RuneCode
             SetPendingRoundChoice(choiceIds, choiceGrades, rewardGrade);
         }
 
+        /// <summary>라운드 보상 체력 회복으로 바뀐 체력을 진행 기록에 저장한다. 라운드 위치와 대기 후보는 유지한다.</summary>
+        public void RecordProgressionHp(double hp, double maxHp)
+        {
+            _progressionHp = hp;
+            _progressionMaxHp = maxHp;
+        }
+
         /// <summary>후보 index 자리의 리롤 사용 여부를 반환한다. 카드별 기록이 없는 이전 저장은 전체 리롤 사용 여부를 각 자리에 적용한다.</summary>
         public bool HasRerolledRoundChoice(int index)
         {
@@ -806,7 +836,10 @@ namespace RuneCode
             _pendingRoundChoiceRerolls = new bool[choiceIds.Count];
             if (rerolls != null)
                 for (int index = 0; index < choiceIds.Count; index++) _pendingRoundChoiceRerolls[index] = rerolls[index];
-            _pendingRoundSeenRuneIds = (seenIds ?? choiceIds).ToArray();
+            // 열람 이력은 룬 ID만 남긴다. 체력 회복 카드 ID는 룬이 아니므로 기록하지 않는다.
+            var nextSeenIds = new List<string>(seenIds ?? choiceIds);
+            nextSeenIds.RemoveAll(id => id == DropCatalog.HEAL_CHOICE_ID);
+            _pendingRoundSeenRuneIds = nextSeenIds.ToArray();
             _pendingRoundChoiceIds = new string[choiceIds.Count];
             _pendingRoundChoiceGrades = new string[choiceGrades.Count];
             for (int index = 0; index < choiceIds.Count; index++) _pendingRoundChoiceIds[index] = choiceIds[index];

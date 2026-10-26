@@ -60,6 +60,9 @@ namespace RuneCode
         [SerializeField] private GameObject[] _clearChoiceModPanels;
         [SerializeField] private GameObject[] _clearChoiceBehaviorPanels;
 
+        [Header("회복 선택지")]
+        [SerializeField] private Color _healChoiceColor = new Color(0.45f, 0.95f, 0.55f);
+
         private bool _isBound;
         private GameObject _resultContent;
         private Image _background;
@@ -475,18 +478,29 @@ namespace RuneCode
             {
                 bool hasChoice = names != null && i < names.Count;
                 _clearChoiceCards[i].SetActive(hasChoice);
-                string category = hasChoice ? GameData.Runes.Get(runeIds[i]).Category : string.Empty;
-                _clearChoiceModPanels[i].SetActive(category == SpellGrammar.CATEGORY_MODIFIER || category == SpellGrammar.CATEGORY_ELEMENT);
+                bool isHeal = hasChoice && runeIds != null && i < runeIds.Count && runeIds[i] == DropCatalog.HEAL_CHOICE_ID;
+                string category = hasChoice && !isHeal ? GameData.Runes.Get(runeIds[i]).Category : string.Empty;
+                _clearChoiceModPanels[i].SetActive(isHeal || category == SpellGrammar.CATEGORY_MODIFIER || category == SpellGrammar.CATEGORY_ELEMENT);
                 _clearChoiceBehaviorPanels[i].SetActive(category == SpellGrammar.CATEGORY_BEHAVIOR);
                 if (!hasChoice) continue;
                 if (firstChoice == null) firstChoice = _clearChoiceButtons[i].gameObject;
                 _clearChoiceButtons[i].interactable = true;
                 string grade = grades != null && i < grades.Count ? grades[i] : string.Empty;
                 bool isElement = category == SpellGrammar.CATEGORY_ELEMENT;
-                _choiceModBackgrounds[i].sprite = isElement ? _elementChoiceBackground.sprite : _choiceModSprites[i];
-                _choiceModBackgrounds[i].color = isElement ? _elementChoiceBackground.color : _choiceModColors[i];
+                if (isHeal)
+                {
+                    // 체력 회복 카드는 룬 이미지 대신 원래 배경 스프라이트에 회복색을 입힌다.
+                    _choiceModBackgrounds[i].sprite = _choiceModSprites[i];
+                    _choiceModBackgrounds[i].color = _healChoiceColor;
+                    _clearChoiceGradeLabels[i].text = grade + "급 회복";
+                }
+                else
+                {
+                    _choiceModBackgrounds[i].sprite = isElement ? _elementChoiceBackground.sprite : _choiceModSprites[i];
+                    _choiceModBackgrounds[i].color = isElement ? _elementChoiceBackground.color : _choiceModColors[i];
+                    _clearChoiceGradeLabels[i].text = isElement ? "속성" : grade + "급";
+                }
                 Color gradeColor = RuneMesh.GradeColor(grade);
-                _clearChoiceGradeLabels[i].text = isElement ? "속성" : grade + "급";
                 _clearChoiceGradeLabels[i].color = gradeColor;
                 _clearChoiceNameLabels[i].richText = true;
                 _clearChoiceDescriptionLabels[i].richText = true;

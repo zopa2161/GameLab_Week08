@@ -14,7 +14,6 @@ namespace RuneCode
         [SerializeField] private float _maxEnergy;
         [SerializeField, Min(0f)] private float _manaPerLevel = 10f;
         [SerializeField] private float _energyRegen;
-        [SerializeField, Range(0f, 1f)] private float _roundClearHealRatio = 0.1f;
         [SerializeField] private float _dashDistance;
         [SerializeField] private float _dashDuration;
         [SerializeField] private float _dashCooldown;
@@ -30,7 +29,6 @@ namespace RuneCode
         public float ManaPerLevel => _manaPerLevel;
 
         public float EnergyRegen => _energyRegen;
-        public float RoundClearHealRatio => _roundClearHealRatio;
         public float DashDistance => _dashDistance;
         public float DashCooldown => _dashCooldown;
         public float Hp => _maxHp;
