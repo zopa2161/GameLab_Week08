@@ -652,6 +652,14 @@ namespace RuneCode
         /// <summary>처치 드롭과 같은 테이블·결정적 난수로 완료 스테이지의 클리어 룬 1개를 추첨한다.</summary>
         public DropRoll DrawClearRuneReward() => _loot.DrawClearRuneReward();
 
+        /// <summary>최대 체력에 비율을 곱한 만큼 플레이어를 회복하고 최대 체력을 넘지 않은 실제 회복량을 반환한다.</summary>
+        public double HealPlayer(double ratio)
+        {
+            double hpBefore = _world.Player.Hp;
+            _world.Player.Heal(_world.Player.MaxHp * ratio);
+            return _world.Player.Hp - hpBefore;
+        }
+
         /// <summary>현재 웨이브가 배출·처치 완료되면 다음 웨이브를 시작하거나 라운드 대기·최종 클리어 상태로 전환한다.</summary>
         private void CheckProgressionWaveEnd()
         {
@@ -674,7 +682,6 @@ namespace RuneCode
             _statuses.ClearAll();
             _world.Player.CancelDash(Time);
             _loot.CollectRemainingDrops();
-            _world.Player.Heal(_world.Player.MaxHp * _world.Balance.Player.RoundClearHealRatio);
             if (_world.StageNumber == StageCatalog.PROGRESSION_STAGE_COUNT && _world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT)
             {
                 _world.Stage = MissionStage.Cleared;

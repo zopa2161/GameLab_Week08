@@ -959,6 +959,19 @@ namespace RuneCode
             });
         }
 
+        /// <summary>라운드 보상에서 체력 회복을 선택했을 때 회복 후 체력을 진행 기록에 반영하고 대기 후보를 비운 뒤 한 번에 저장하고 로그를 남긴다.</summary>
+        public void GrantRoundHeal(double hp, double maxHp)
+        {
+            _save.RecordProgressionHp(hp, maxHp);
+            _save.ClearPendingRoundChoice();
+            PersistProgress();
+            LocalTelemetry.RecordUsabilityEvent("round_heal_selected", "round_break", new Dictionary<string, object>
+            {
+                ["stage"] = _save.ProgressionStage, ["round"] = _save.ProgressionRound,
+                ["hp"] = hp, ["max_hp"] = maxHp,
+            });
+        }
+
         /// <summary>트리 속성 선택 보상으로 고른 속성 룬을 지급하고 대기 상태를 해제한 뒤 한 번에 저장하고 다시 컴파일한다. 대기가 없으면 무시한다.</summary>
         public void ChooseElementPick(string runeId)
         {

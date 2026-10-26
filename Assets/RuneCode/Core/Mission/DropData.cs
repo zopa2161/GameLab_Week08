@@ -159,6 +159,22 @@ namespace RuneCode
         public bool IsEnabled(int stage) => !string.IsNullOrEmpty(_dropTable) && GetChancePercent(stage) > 0;
     }
 
+    /// <summary>라운드 보상에서 체력 회복 카드의 등장 확률과 등급별 회복 비율 설정이다.</summary>
+    [Serializable]
+    public sealed class RoundHealChoiceDefinition
+    {
+        [Header("라운드 회복 선택지")]
+        [SerializeField] private double _chancePercent;
+        [SerializeField] private double _baseRatio;
+        [SerializeField] private double _ratioPerGrade;
+        public double ChancePercent => _chancePercent;
+        public double BaseRatio => _baseRatio;
+        public double RatioPerGrade => _ratioPerGrade;
+
+        /// <summary>등급 인덱스(0이 첫 등급)의 회복 비율을 반환한다. 기본 비율에 단계 비율을 인덱스만큼 더한다.</summary>
+        public double GetRatio(int gradeIndex) => _baseRatio + _ratioPerGrade * Math.Max(0, gradeIndex);
+    }
+
     [Serializable]
     public sealed class DropCatalog
     {
@@ -166,6 +182,9 @@ namespace RuneCode
         public const string TYPE_ELEMENT = "element";
         public const string TYPE_BEHAVIOR = "behavior";
         public const int TOTAL_PERCENT = 100;
+
+        /// <summary>라운드 보상 선택지의 체력 회복 카드 ID다.</summary>
+        public const string HEAL_CHOICE_ID = "reward.heal";
 
         /// <summary>드롭 테이블이 다루는 룬 분류를 행동·강화·속성 순서로 반환한다.</summary>
         public static IReadOnlyList<string> Categories { get; } = Array.AsReadOnly(new[] { TYPE_BEHAVIOR, TYPE_MODIFIER, TYPE_ELEMENT });
@@ -179,6 +198,24 @@ namespace RuneCode
 
         /// <summary>엘리트·보스가 아닌 적이 처치될 때 굴리는 드롭 설정이다. 필드가 없으면 null이다.</summary>
         public NormalEnemyDropDefinition NormalEnemyDrop => _normalEnemyDrop;
+
+        [Header("라운드 회복 선택지")]
+        [SerializeField] private RoundHealChoiceDefinition _roundHealChoice;
+
+        /// <summary>라운드 보상의 체력 회복 카드 설정이다. 필드가 없으면 null이다.</summary>
+        public RoundHealChoiceDefinition RoundHealChoice => _roundHealChoice;
+
+        /// <summary>분류·등급의 라운드 회복 비율을 반환한다. 등급 순서에 없는 등급은 첫 등급 비율을 쓰고 설정이 없으면 0을 반환한다.</summary>
+        public double GetRoundHealRatio(string category, string grade, RuneCatalog runes, ModifierGradeTable modifierGrades)
+        {
+            if (_roundHealChoice == null) return 0;
+            IReadOnlyList<string> order = GetGradeOrder(category, runes, modifierGrades);
+            int index = 0;
+            if (order != null)
+                for (int i = 0; i < order.Count; i++)
+                    if (order[i] == grade) { index = i; break; }
+            return _roundHealChoice.GetRatio(index);
+        }
 
         /// <summary>드롭 테이블 ID의 존재 여부를 반환한다.</summary>
         public bool Has(string id)
@@ -216,6 +253,7 @@ namespace RuneCode
                 ValidateCandidates(table, path, errors, runes, modifierGrades);
             }
             ValidateNormalEnemyDrop(catalog, ids, errors);
+            ValidateRoundHealChoice(catalog, errors, runes, modifierGrades);
             if (errors.Count > 0) throw new FormatException("drops.json 검증 오류:\n" + string.Join("\n", errors));
             return catalog;
         }
@@ -305,6 +343,25 @@ namespace RuneCode
                     if (RuneRewardRoller.CollectCandidates(table, chance.Category, grade, runes, modifierGrades, null).Count == 0)
                         errors.Add(path + " " + chance.Category + " " + grade + " 등급을 지원하는 후보가 없습니다.");
             }
+        }
+
+        /// <summary>라운드 회복 선택지 설정의 확률과 등급별 비율을 검사해 오류를 목록에 모은다. 확률이 0보다 클 때만 비율 값을 요구한다.</summary>
+        private static void ValidateRoundHealChoice(DropCatalog catalog, List<string> errors, RuneCatalog runes, ModifierGradeTable modifierGrades)
+        {
+            RoundHealChoiceDefinition choice = catalog._roundHealChoice;
+            if (choice == null)
+            { errors.Add("drops.json:_roundHealChoice 라운드 회복 선택지 설정이 없습니다."); return; }
+            if (!IsValidPercent(choice.ChancePercent))
+                errors.Add("drops.json:_roundHealChoice._chancePercent 확률은 0 이상 100 이하여야 합니다.");
+            if (choice.ChancePercent <= 0) return;
+            if (double.IsNaN(choice.BaseRatio) || choice.BaseRatio <= 0)
+                errors.Add("drops.json:_roundHealChoice._baseRatio 확률이 0보다 크면 기본 비율은 0보다 커야 합니다.");
+            if (double.IsNaN(choice.RatioPerGrade) || choice.RatioPerGrade < 0)
+                errors.Add("drops.json:_roundHealChoice._ratioPerGrade 단계 비율은 0 이상이어야 합니다.");
+            int behaviorIndex = GetGradeOrder(TYPE_BEHAVIOR, runes, modifierGrades).Count - 1;
+            int modifierIndex = GetGradeOrder(TYPE_MODIFIER, runes, modifierGrades).Count - 1;
+            if (choice.GetRatio(Math.Max(behaviorIndex, modifierIndex)) > 1)
+                errors.Add("drops.json:_roundHealChoice 최대 등급 회복 비율은 1 이하여야 합니다.");
         }
 
         /// <summary>확률 값이 0 이상 100 이하인지 반환한다.</summary>

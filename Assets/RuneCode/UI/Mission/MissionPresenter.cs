@@ -679,8 +679,23 @@ namespace RuneCode
                 var targetTexts = new List<string>();
                 for (int i = 0; i < _run.ClearModifierChoices.Count; i++)
                 {
-                    RuneDefinition rune = GameData.Runes.Get(_run.ClearModifierChoices[i]);
+                    string choiceId = _run.ClearModifierChoices[i];
                     string grade = _run.ClearModifierGrades[i];
+                    if (choiceId == DropCatalog.HEAL_CHOICE_ID)
+                    {
+                        // 체력 회복 카드는 룬이 아니므로 등급색 이름과 등급별 비율·예상 회복량으로 문구를 만든다.
+                        names.Add(ModifierGradeText.Colorize(GameData.L("result.healChoiceName"), grade));
+                        string category = GameData.Stages.GetRoundRewardCategory(_run.Simulation.StageNumber,
+                            _run.Simulation.RoundNumber, GameData.Drops);
+                        double ratio = GameData.Drops.GetRoundHealRatio(category, grade, GameData.Runes, GameData.ModifierGrades);
+                        double expectedHeal = Math.Min(_run.Simulation.Player.MaxHp * ratio,
+                            _run.Simulation.Player.MaxHp - _run.Simulation.Player.Hp);
+                        descriptions.Add(string.Format(GameData.L("result.healChoiceDesc"),
+                            (int)Math.Round(ratio * 100), (int)Math.Floor(Math.Max(0, expectedHeal))));
+                        targetTexts.Add("");
+                        continue;
+                    }
+                    RuneDefinition rune = GameData.Runes.Get(choiceId);
                     names.Add(ModifierGradeText.Colorize(rune.Name, grade));
                     string description = rune.Category == SpellGrammar.CATEGORY_MODIFIER
                         ? string.Join("\n", RuneDescriptionBuilder.GetGradeLines(rune, grade, false, true))
