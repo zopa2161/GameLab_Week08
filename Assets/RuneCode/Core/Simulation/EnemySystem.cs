@@ -90,6 +90,12 @@ namespace RuneCode
                     if (!wasSpin && enemy.Hydra.Attack != HydraAttack.Spin && !enemy.Hydra.IsAirborne) HurtByContact(enemy);
                     continue;
                 }
+                if (enemy.Hexa != null && !enemy.Hexa.IsCancelled)
+                {
+                    _bossSourceEnemyId = enemy.Id;
+                    enemy.Hexa.AdvanceRadiateWaves(enemy, _world, _hurtPlayer);
+                    _bossSourceEnemyId = 0;
+                }
                 if (_statuses.HasEnemyStatus(enemy, EnemyStatusType.Freeze))
                 {
                     if (enemy.Definition.Attack == EnemyDefinition.ATTACK_SNIPER)

@@ -42,6 +42,14 @@ namespace RuneCode
         public const int AUTO_INITIAL_SUMMON_COOLDOWN = 2;
         public const int AUTO_INITIAL_SPIRAL_COOLDOWN = 0;
         public const int AUTO_INTERVAL_TICKS = 3 * RuneSimulation.TICK_RATE;
+        public const double RADIATE_HP_RATIO = 0.5;
+        public const int RADIATE_SECTOR_COUNT = 4;
+        public const double RADIATE_SECTOR_HALF_DEGREES = 45;
+        public const int RADIATE_WARNING_TICKS = RuneSimulation.TICK_RATE;
+        public const double RADIATE_SPEED = 400;
+        public const double RADIATE_WIDTH = 24;
+        public const double RADIATE_DAMAGE = 18;
+        public const int RADIATE_COOLDOWN_TICKS = 10 * RuneSimulation.TICK_RATE;
 
         /// <summary>적 정의가 Hexa의 ID와 고정형 접촉 공격 규칙을 만족하는지 검증한다.</summary>
         internal static void Validate(EnemyDefinition enemy)

@@ -565,6 +565,9 @@ namespace RuneCode
         /// <summary>체력을 회복량만큼 올리고 최대 체력을 넘지 않게 하며 실제 회복량을 반환한다.</summary>
         internal double Heal(double amount) { double actual = Math.Min(_maxHp - _hp, Math.Max(0, amount)); _hp += actual; return actual; }
 
+        /// <summary>디버그 보스 준비에서 체력을 지정값으로 만든다. 0과 최대 체력 사이로 잘라낸다.</summary>
+        internal void SetHp(double hp) { _hp = Math.Min(_maxHp, Math.Max(0, hp)); }
+
         /// <summary>보스 페이즈를 변경하고 패치 무적 만료 시간을 설정한다.</summary>
         internal void Patch(int phase, double time, double duration) { _phase = phase; _patchUntil = time + duration; }
 

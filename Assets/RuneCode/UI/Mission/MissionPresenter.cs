@@ -38,8 +38,8 @@ namespace RuneCode
         private readonly ResultPanel _result;
 
         private readonly Queue<string> _itemToasts = new Queue<string>();
-        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview, bool IsSummonTest)> _debugBossTargets
-            = new List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview, bool IsSummonTest)>();
+        private readonly List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview, bool StartsRadiatePreview, bool IsSummonTest)> _debugBossTargets
+            = new List<(int Stage, int Round, bool IsHexaPreview, bool StartsNormalWave, bool StartsSpiralPreview, bool StartsAutoPreview, bool StartsRadiatePreview, bool IsSummonTest)>();
         private readonly List<(HexaDebugActionKind Kind, int EntityId)> _hexaDebugActions
             = new List<(HexaDebugActionKind Kind, int EntityId)>();
         private readonly List<string> _hexaDebugActionLabels = new List<string>();
@@ -408,7 +408,7 @@ namespace RuneCode
                 bool isHexaPreview = stage == 0 && boss.IsHexaPattern;
                 if (stage == 0 && !isHexaPreview) continue;
                 if (isHexaPreview) stage = 1;
-                _debugBossTargets.Add((stage, round, isHexaPreview, false, false, false, false));
+                _debugBossTargets.Add((stage, round, isHexaPreview, false, false, false, false, false));
                 labels.Add((boss.IsMiniBoss ? "" : "보스 ") + GameData.L(boss.EnemyId)
                     + (isHexaPreview ? " · 기본 모드" : " · 스테이지 " + stage));
             }
@@ -418,18 +418,20 @@ namespace RuneCode
                     || enemy.GetRank(pattern) != EnemyDefinition.RANK_MINI_BOSS) continue;
                 int stage = FindBossStage(enemy.Id, StageCatalog.MINI_BOSS_ROUND);
                 if (stage == 0) continue;
-                _debugBossTargets.Add((stage, StageCatalog.MINI_BOSS_ROUND, false, false, false, false, false));
+                _debugBossTargets.Add((stage, StageCatalog.MINI_BOSS_ROUND, false, false, false, false, false, false));
                 labels.Add(GameData.L(enemy.Id) + " · 스테이지 " + stage);
             }
-            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, true, false, false));
+            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, true, false, false, false));
             labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 나선 모드");
-            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, false, true, false));
+            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, false, true, false, false));
             labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 자동 모드");
-            _debugBossTargets.Add((1, 1, false, true, false, false, true));
+            _debugBossTargets.Add((1, StageCatalog.PROGRESSION_ROUND_COUNT, true, false, false, false, true, false));
+            labels.Add("보스 " + GameData.L(HexaDefinition.ID) + " · 방사 모드");
+            _debugBossTargets.Add((1, 1, false, true, false, false, false, true));
             labels.Add(GameData.L(HexaDefinition.ID) + " 소환 테스트 · 일반 웨이브");
-            _debugBossTargets.Add((3, 1, false, true, false, false, false));
+            _debugBossTargets.Add((3, 1, false, true, false, false, false, false));
             labels.Add("3-1 라운드 바로가기");
-            _debugBossTargets.Add((3, 3, false, true, false, false, false));
+            _debugBossTargets.Add((3, 3, false, true, false, false, false, false));
             labels.Add("3-3 라운드 바로가기");
             labels.Add("모드 보상 선택지 · 속성 포함 (임시)");
             _hud.BuildDebugBosses(labels);
@@ -488,10 +490,12 @@ namespace RuneCode
             bool isStarted = target.StartsNormalWave
                 ? _run.DebugStartNormalWave(target.Stage, target.Round)
                 : _run.DebugStartBoss(target.Stage, target.Round, target.IsHexaPreview,
-                    isHexaSpiralPreview: target.StartsSpiralPreview, isHexaAutoPreview: target.StartsAutoPreview);
+                    isHexaSpiralPreview: target.StartsSpiralPreview, isHexaAutoPreview: target.StartsAutoPreview,
+                    isHexaRadiatePreview: target.StartsRadiatePreview);
             if (!isStarted) return;
             _isHexaSummonTestActive = target.IsSummonTest
-                || (target.IsHexaPreview && !target.StartsSpiralPreview && !target.StartsAutoPreview);
+                || (target.IsHexaPreview && !target.StartsSpiralPreview && !target.StartsAutoPreview
+                    && !target.StartsRadiatePreview);
             _isInitialDebugRoundBreak = false;
             _result.HideClearModifierChoices();
             _result.Hide();

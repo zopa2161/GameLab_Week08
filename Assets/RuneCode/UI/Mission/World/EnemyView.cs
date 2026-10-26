@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 using UnityEngine;
 using UnityEngine.Serialization;
@@ -24,6 +25,11 @@ namespace RuneCode
         private const int SNIPER_BLINK_TICKS = 6;
 
         private const float HEXA_OPPOSITE_ANGLE = 180f;
+        private const int RADIATE_WAVE_SEGMENTS = 24;
+        private const int RADIATE_WARNING_ORDER_OFFSET = -6;
+        private const int RADIATE_WAVE_ORDER_OFFSET = 1;
+        private const float RADIATE_WARNING_MIN_ALPHA = 0.05f;
+        private const float RADIATE_WARNING_MAX_ALPHA = 0.3f;
 
         private static readonly Color CoreColor = new Color(0.04f, 0.09f, 0.13f);
         private static readonly Color DummyColor = new Color(0.52f, 0.69f, 0.74f);
@@ -33,6 +39,7 @@ namespace RuneCode
         private static readonly Color PatchColor = new Color(0.83f, 0.57f, 1f);
         private static readonly Color ResistColor = new Color(0.77f, 0.69f, 1f);
         private static readonly Color HpBackColor = new Color(0.24f, 0.16f, 0.20f);
+        private static readonly Color RadiateWaveColor = new Color(1f, 0.62f, 0.16f);
 
         [Header("Prefab 식별")]
         [SerializeField] private string _enemyId = "enemy.scout";
@@ -74,6 +81,18 @@ namespace RuneCode
         private SpriteRenderer _hexaFirstTriangle;
         private SpriteRenderer _hexaSecondTriangle;
         private SpriteRenderer[] _freezeOutline;
+        private Transform _radiateWarningRoot;
+        private Mesh _radiateWarningMesh;
+        private UnityEngine.UI.VertexHelper _radiateWarningVertices;
+        private readonly List<LineRenderer> _radiateWaveLines = new List<LineRenderer>();
+        private readonly Vector3[] _radiateWavePoints = new Vector3[RADIATE_WAVE_SEGMENTS];
+
+        void OnDestroy()
+        {
+            _radiateWarningVertices?.Dispose();
+            if (_radiateWarningMesh != null) Destroy(_radiateWarningMesh);
+        }
+
         /// <summary>적 상태와 시뮬레이션의 시간·상태 이상·적응 정보로 맵 중앙(origin) 기준 월드 표시와 엘리트 외곽선의 맥동을 갱신한다.</summary>
         public void Apply(SimulationEnemy enemy, RuneSimulation sim, SimVector origin)
         {
@@ -134,6 +153,7 @@ namespace RuneCode
             if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, sim, _body, _rotator);
             if (_legolasView != null && enemy.Legolas != null) _legolasView.Apply(enemy, _body, _rotator);
             ApplyFreezeOutline(isFrozen, radius);
+            ApplyRadiate(enemy, sim);
         }
 
         /// <summary>빙결 중에만 몸체 바깥의 육각 얼음 윤곽을 표시하고, 최초 생성한 선들을 해제·재사용 시 숨기거나 다시 쓴다.</summary>
@@ -190,6 +210,112 @@ namespace RuneCode
             MissionWorldSpace.Place(_hexaFirstTriangle, Vector2.zero, radius * 2, tint);
             MissionWorldSpace.Place(_hexaSecondTriangle, Vector2.zero, radius * 2, tint);
         }
+
+        /// <summary>Hexa의 방사 경고 구역과 발사된 부채꼴 파동을 표시하고 방사 중이 아니면 숨긴다. 런타임 자식 오브젝트를 재사용한다.</summary>
+        private void ApplyRadiate(SimulationEnemy enemy, RuneSimulation sim)
+        {
+            HexaBossState hexa = enemy.Hexa;
+            bool isRadiating = hexa != null && !hexa.IsCancelled && hexa.IsRadiating;
+            if (!isRadiating)
+            {
+                if (_radiateWarningRoot != null) _radiateWarningRoot.gameObject.SetActive(false);
+                HideRadiateWaves(0);
+                return;
+            }
+            RenderRadiateWarning(enemy, sim, hexa);
+            RenderRadiateWaves(enemy, hexa);
+        }
+
+        /// <summary>경고 중인 구역을 Hexa 중심과 맵 경계점 다각형으로 채우고 경고 진행에 따라 알파를 높인다.</summary>
+        private void RenderRadiateWarning(SimulationEnemy enemy, RuneSimulation sim, HexaBossState hexa)
+        {
+            if (_radiateWarningRoot == null) CreateRadiateWarning();
+            _radiateWarningRoot.gameObject.SetActive(true);
+            SimVector[] polygon = HexaRadiateWave.GetSectorPolygon(enemy.Position, hexa.RadiateWarningDirection,
+                sim.Map.Width, sim.Map.Height);
+            Color color = WarningColor;
+            color.a = Mathf.Lerp(RADIATE_WARNING_MIN_ALPHA, RADIATE_WARNING_MAX_ALPHA, (float)hexa.RadiateWarningProgress);
+            _radiateWarningVertices.Clear();
+            for (int index = 0; index < polygon.Length; index++)
+                _radiateWarningVertices.AddVert(RadiateLocalPoint(polygon[index], enemy.Position), color, Vector2.zero);
+            for (int index = 1; index + 1 < polygon.Length; index++)
+                _radiateWarningVertices.AddTriangle(0, index, index + 1);
+            _radiateWarningVertices.FillMesh(_radiateWarningMesh);
+        }
+
+        /// <summary>몸체 재질과 정렬층을 공유하는 경고 구역 메시를 한 번 생성한다. 회전하지 않는 적 루트 아래 몸체 뒤에 깔린다.</summary>
+        private void CreateRadiateWarning()
+        {
+            GameObject warning = new GameObject("HexaRadiateWarning", typeof(MeshFilter), typeof(MeshRenderer));
+            _radiateWarningRoot = warning.transform;
+            _radiateWarningRoot.SetParent(transform, false);
+            _radiateWarningMesh = new Mesh { name = "HexaRadiateWarning" };
+            _radiateWarningMesh.MarkDynamic();
+            _radiateWarningVertices = new UnityEngine.UI.VertexHelper();
+            warning.GetComponent<MeshFilter>().sharedMesh = _radiateWarningMesh;
+            MeshRenderer renderer = warning.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = _body.sharedMaterial;
+            renderer.sortingLayerID = _body.sortingLayerID;
+            renderer.sortingOrder = _body.sortingOrder + RADIATE_WARNING_ORDER_OFFSET;
+            var block = new MaterialPropertyBlock();
+            block.SetTexture("_MainTex", Texture2D.whiteTexture);
+            renderer.SetPropertyBlock(block);
+        }
+
+        /// <summary>발사된 파동을 현재 판정 반경과 두께의 90° 호 선 렌더러로 표시하고 남은 렌더러는 숨긴다.</summary>
+        private void RenderRadiateWaves(SimulationEnemy enemy, HexaBossState hexa)
+        {
+            double halfRadians = HexaDefinition.RADIATE_SECTOR_HALF_DEGREES * Mathf.Deg2Rad;
+            for (int index = 0; index < hexa.RadiateWaves.Count; index++)
+            {
+                HexaRadiateWave wave = hexa.RadiateWaves[index];
+                LineRenderer line = GetRadiateWaveRenderer(index);
+                float radius = (float)wave.GetRadius();
+                double centerAngle = Math.Atan2(wave.Direction.Y, wave.Direction.X);
+                for (int pointIndex = 0; pointIndex < RADIATE_WAVE_SEGMENTS; pointIndex++)
+                {
+                    double angle = centerAngle - halfRadians
+                        + halfRadians * 2 * pointIndex / (RADIATE_WAVE_SEGMENTS - 1);
+                    SimVector point = wave.Center + new SimVector(Math.Cos(angle), Math.Sin(angle)) * radius;
+                    _radiateWavePoints[pointIndex] = RadiateLocalPoint(point, enemy.Position);
+                }
+                line.widthMultiplier = (float)HexaDefinition.RADIATE_WIDTH / MissionWorldSpace.PIXELS_PER_UNIT;
+                line.startColor = line.endColor = RadiateWaveColor;
+                line.SetPositions(_radiateWavePoints);
+            }
+            HideRadiateWaves(hexa.RadiateWaves.Count);
+        }
+
+        /// <summary>몸체 재질과 정렬층을 공유하는 파동 호 선 렌더러를 필요한 수만 생성해 재사용한다.</summary>
+        private LineRenderer GetRadiateWaveRenderer(int index)
+        {
+            while (_radiateWaveLines.Count <= index)
+            {
+                GameObject child = new GameObject("RadiateWave" + _radiateWaveLines.Count);
+                child.transform.SetParent(transform, false);
+                LineRenderer line = child.AddComponent<LineRenderer>();
+                line.sharedMaterial = _body.sharedMaterial;
+                line.sortingLayerID = _body.sortingLayerID;
+                line.sortingOrder = _body.sortingOrder + RADIATE_WAVE_ORDER_OFFSET;
+                line.useWorldSpace = false;
+                line.loop = false;
+                line.positionCount = RADIATE_WAVE_SEGMENTS;
+                _radiateWaveLines.Add(line);
+            }
+            MissionWorldSpace.SetVisible(_radiateWaveLines[index], true);
+            return _radiateWaveLines[index];
+        }
+
+        /// <summary>현재 사용하지 않는 파동 선 렌더러 뒤쪽을 숨긴다.</summary>
+        private void HideRadiateWaves(int count)
+        {
+            for (int index = count; index < _radiateWaveLines.Count; index++)
+                MissionWorldSpace.SetVisible(_radiateWaveLines[index], false);
+        }
+
+        /// <summary>시뮬레이션 위치를 적 기준 표시 단위 좌표(y 반전)로 변환한다.</summary>
+        private static Vector2 RadiateLocalPoint(SimVector point, SimVector origin)
+            => new Vector2((float)(point.X - origin.X), -(float)(point.Y - origin.Y)) / MissionWorldSpace.PIXELS_PER_UNIT;
 
         /// <summary>원형 보호막과 저격 경로를 시뮬레이션의 반경·저장 조준선으로 갱신한다.</summary>
         private void ApplyAdditionalIndicators(SimulationEnemy enemy, RuneSimulation sim)
