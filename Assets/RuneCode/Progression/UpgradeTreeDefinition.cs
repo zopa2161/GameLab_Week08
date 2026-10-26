@@ -43,7 +43,10 @@ namespace RuneCode
         DashEndStart,
         RightClickStart,
         SingleBehavior,
-        ElementSlot
+        ElementSlot,
+        FlyingSlash,
+        ReturningLaunch,
+        ReturningBurst
     }
 
     [Serializable]

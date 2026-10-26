@@ -35,8 +35,13 @@ namespace RuneCode
             {
                 SimulationSpellEntity entity = _world.SpellEntities[i];
                 entity.MarkPreviousPosition();
-                if (!entity.MoveByModifiers(_runtime)) entity.Behavior.MoveAlongPath(_runtime, entity);
+                if (entity.IsSlash && entity.HasBehaviorEvolution && entity.Age >= entity.Stats.Lifetime) entity.BeginReturn();
+                bool isReturningEvolution = entity.HasBehaviorEvolution && (entity.Kind == SpellGrammar.FORM_BOLT || entity.IsExpandingRing);
+                if (isReturningEvolution && entity.Age >= entity.Stats.Lifetime) entity.BeginReturn();
+                if ((isReturningEvolution && (entity.IsReturning || entity.IsExpandingRing)) || !entity.MoveByModifiers(_runtime))
+                    entity.Behavior.MoveAlongPath(_runtime, entity);
                 entity.Behavior.Judge(_runtime, entity);
+                if (isReturningEvolution && !entity.IsReturning && entity.HasExpired) entity.BeginReturn();
                 entity.Advance(RuneSimulation.STEP_SECONDS);
                 entity.Behavior.AfterAdvance(_runtime, entity);
                 if ((entity.Behavior.RemovesWhenExpired && entity.HasExpired) || entity.Age + 0.000001 >= entity.Lifetime)

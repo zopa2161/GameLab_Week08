@@ -1158,7 +1158,9 @@ namespace RuneCode
                 stationaryRegenBonus: GetUpgradeTreeEffectTotal(UpgradeEffectType.StationaryRegen),
                 hasDashTeleport: HasUpgradeEffect(UpgradeEffectType.DashTeleport),
                 hasDashCollisionGuard: HasUpgradeEffect(UpgradeEffectType.DashCollisionGuard),
-                hasPlayerAura: HasUpgradeEffect(UpgradeEffectType.PlayerAura),
+                hasFlyingSlash: HasUpgradeEffect(UpgradeEffectType.FlyingSlash),
+                hasReturningLaunch: HasUpgradeEffect(UpgradeEffectType.ReturningLaunch),
+                hasReturningBurst: HasUpgradeEffect(UpgradeEffectType.ReturningBurst),
                 hasArcEnhance: HasUpgradeEffect(UpgradeEffectType.ArcEnhance),
                 hasIceEnhance: HasUpgradeEffect(UpgradeEffectType.IceEnhance),
                 hasFireEnhance: HasUpgradeEffect(UpgradeEffectType.FireEnhance));

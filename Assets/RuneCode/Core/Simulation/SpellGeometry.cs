@@ -12,15 +12,22 @@ namespace RuneCode
         private const double EPSILON = 0.000001;
         private const int SHAPE_CONTACT_REFINEMENT_STEPS = 16;
 
-        /// <summary>고정 중심에서 확장하는 폭발의 원형 띠와 대상 원이 한 틱 중 처음 접촉하는 비율을 반환한다.</summary>
+        /// <summary>폭발의 확장 또는 진화 수축 구간에서 원형 띠와 대상 원이 처음 접촉하는 틱 내 비율을 반환한다.</summary>
         internal static double BurstContactFraction(SimulationSpellEntity entity, SimVector start,
             SimVector target, double targetRadius)
         {
             double thickness = entity.Radius + targetRadius;
             double radius = entity.ExplosionRadius;
-            SimVector center = start - entity.PreviousDirection * radius;
+            SimVector center = entity.HasBehaviorEvolution ? entity.SpawnPosition : start - entity.PreviousDirection * radius;
             double distance = (target - center).Length;
             double growth = entity.Stats.Speed * RuneSimulation.STEP_SECONDS;
+            if (entity.HasBehaviorEvolution && entity.IsReturning)
+            {
+                double nextRadius = entity.Stats.Speed * entity.GetExplosionTravelTime(entity.Age + RuneSimulation.STEP_SECONDS);
+                if (distance - thickness > radius + EPSILON || distance + thickness < nextRadius - EPSILON)
+                    return double.PositiveInfinity;
+                return growth <= EPSILON ? 0 : Math.Max(0, Math.Min(1, (radius - distance - thickness) / growth));
+            }
             if (distance + thickness < radius - EPSILON || distance - thickness > radius + growth + EPSILON)
                 return double.PositiveInfinity;
             if (growth <= EPSILON) return 0;
