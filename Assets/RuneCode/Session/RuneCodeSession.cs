@@ -743,21 +743,47 @@ namespace RuneCode
         /// 새 런은 라운드 분류의 다음 보상 등급을 소비하므로 속성 후보의 위치와 무관하다. persist이면 후보와 소비 상태를 함께 기록하고 아이템이 늘면 다시 컴파일한다.
         /// </summary>
         public void CommitRoundRewards(int fragments, IReadOnlyList<SimulationItemDrop> drops, int stageNumber, int roundNumber,
-            double hp, double maxHp, IReadOnlyList<string> roundChoiceIds, IReadOnlyList<string> roundChoiceGrades, bool persist = true)
+            double hp, double maxHp, IReadOnlyList<string> roundChoiceIds, IReadOnlyList<string> roundChoiceGrades, bool persist = true,
+            string rewardGrade = null)
         {
             if (_save.UsesFixedRewardGrades && roundChoiceIds != null && roundChoiceIds.Count > 0)
             {
                 string category = GameData.Stages.GetRoundRewardCategory(stageNumber, roundNumber, GameData.Drops);
-                if (!_save.TryGetNextRewardGrade(category, out string rewardGrade))
+                if (!_save.TryGetNextRewardGrade(category, out string nextRewardGrade))
                     throw new InvalidOperationException("라운드 선택 보상 등급 목록이 소진되었습니다.");
-                _save.ConsumeRewardGrade(category, rewardGrade);
+                _save.ConsumeRewardGrade(category, nextRewardGrade);
             }
             _save.Settle(fragments, false);
             foreach (SimulationItemDrop drop in drops)
                 GrantRune(drop.RuneId, drop.Grade, drop.Count, "combat_pickup", persist: false);
             if (drops.Count > 0) _spells.Recompile();
-            _save.RecordProgressionRound(stageNumber, roundNumber, hp, maxHp, roundChoiceIds, roundChoiceGrades);
+            _save.RecordProgressionRound(stageNumber, roundNumber, hp, maxHp, roundChoiceIds, roundChoiceGrades, rewardGrade);
             if (persist) PersistProgress();
+        }
+
+        /// <summary>현재 라운드에 아직 선택하지 않은 보상의 첫 리롤이면 후보·등급과 사용 여부를 함께 저장하고 성공 여부를 반환한다.</summary>
+        public bool TrySaveRerolledRoundChoice(int stage, int round, IReadOnlyList<string> ids,
+            IReadOnlyList<string> grades, string rewardGrade)
+        {
+            if (_save.ProgressionStage != stage || _save.ProgressionRound != round || _save.HasRerolledRoundChoice
+                || _save.PendingRoundChoiceIds.Count == 0 || ids.Count != _save.PendingRoundChoiceIds.Count
+                || ids.Count != grades.Count || string.IsNullOrEmpty(rewardGrade)) return false;
+            for (int index = 0; index < ids.Count; index++)
+                if (!RuneRewardRoller.IsCandidateGradeAvailable(GameData.Runes, GameData.ModifierGrades, ids[index], grades[index]))
+                    return false;
+            IReadOnlyList<string> previousIds = _save.PendingRoundChoiceIds;
+            IReadOnlyList<string> previousGrades = _save.PendingRoundChoiceGrades;
+            string previousRewardGrade = _save.PendingRoundRewardGrade;
+            bool wasSaveDirty = _isSaveDirty;
+            _save.SetPendingRoundChoice(ids, grades, rewardGrade, true);
+            if (!IsMemorySession && !WriteCurrentSave(_save))
+            {
+                _save.SetPendingRoundChoice(previousIds, previousGrades, previousRewardGrade);
+                _isSaveDirty = wasSaveDirty;
+                SetStatusText(SaveStore.LastWarning);
+                return false;
+            }
+            return true;
         }
 
         /// <summary>디버그 진입 라운드 앞의 고정 보상을 지급 없이 소비하고 대기 후보를 지운 뒤 저장 정책에 따라 보관한다.</summary>

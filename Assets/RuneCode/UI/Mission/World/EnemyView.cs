@@ -73,7 +73,7 @@ namespace RuneCode
 
         private SpriteRenderer _hexaFirstTriangle;
         private SpriteRenderer _hexaSecondTriangle;
-
+        private SpriteRenderer[] _freezeOutline;
         /// <summary>적 상태와 시뮬레이션의 시간·상태 이상·적응 정보로 맵 중앙(origin) 기준 월드 표시와 엘리트 외곽선의 맥동을 갱신한다.</summary>
         public void Apply(SimulationEnemy enemy, RuneSimulation sim, SimVector origin)
         {
@@ -84,6 +84,8 @@ namespace RuneCode
             Color tint = appearance != null ? appearance.Tint : _defaultTint;
             if (enemy.IsDummy) tint = DummyColor;
             if (enemy.IsFlashing) tint = Color.white;
+            bool isFrozen = sim.HasEnemyStatus(enemy, EnemyStatusType.Freeze);
+            if (isFrozen) tint = RuneMesh.FrozenBodyColor;
             _body.sprite = _core.sprite = appearance != null ? appearance.Shape : _defaultShape;
             MissionWorldSpace.Place(_body, Vector2.zero, radius * 2, tint);
             MissionWorldSpace.Place(_core, Vector2.zero, radius * 2 * CORE_SCALE, CoreColor);
@@ -127,6 +129,37 @@ namespace RuneCode
             ApplyAdditionalIndicators(enemy, sim);
             if (_hydraView != null && enemy.Hydra != null) _hydraView.Apply(enemy, sim, _body, _rotator);
             if (_legolasView != null && enemy.Legolas != null) _legolasView.Apply(enemy, _body, _rotator);
+            ApplyFreezeOutline(isFrozen, radius);
+        }
+
+        /// <summary>빙결 중에만 몸체 바깥의 육각 얼음 윤곽을 표시하고, 최초 생성한 선들을 해제·재사용 시 숨기거나 다시 쓴다.</summary>
+        private void ApplyFreezeOutline(bool isFrozen, float radius)
+        {
+            if (isFrozen && _freezeOutline == null)
+            {
+                _freezeOutline = new SpriteRenderer[RuneMesh.FREEZE_OUTLINE_SIDES];
+                for (int index = 0; index < _freezeOutline.Length; index++)
+                {
+                    SpriteRenderer edge = Instantiate(_hpBack, transform, false);
+                    edge.name = "FreezeOutline" + index;
+                    edge.sortingLayerID = _body.sortingLayerID;
+                    edge.sortingOrder = _core.sortingOrder + 1;
+                    _freezeOutline[index] = edge;
+                }
+            }
+            if (_freezeOutline == null) return;
+            float outlineRadius = radius * 1.5f + RuneMesh.FREEZE_OUTLINE_PADDING;
+            for (int index = 0; index < _freezeOutline.Length; index++)
+            {
+                SpriteRenderer edge = _freezeOutline[index];
+                MissionWorldSpace.SetVisible(edge, isFrozen);
+                if (!isFrozen) continue;
+                float angle = index * Mathf.PI * 2f / RuneMesh.FREEZE_OUTLINE_SIDES;
+                float nextAngle = (index + 1) * Mathf.PI * 2f / RuneMesh.FREEZE_OUTLINE_SIDES;
+                Vector2 from = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * outlineRadius;
+                Vector2 to = new Vector2(Mathf.Cos(nextAngle), Mathf.Sin(nextAngle)) * outlineRadius;
+                MissionWorldSpace.PlaceLine(edge, from, to, RuneMesh.FREEZE_OUTLINE_WIDTH, RuneMesh.FrozenOutlineColor);
+            }
         }
 
         /// <summary>Hexa일 때 기존 삼각형 두 개로 육각성을 표시하고, 일반 적 재사용 시 기본 몸체와 코어를 복원한다.</summary>

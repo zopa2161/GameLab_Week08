@@ -209,21 +209,36 @@ namespace RuneCode
             {
                 string grade = SpellGrammar.GetModifierGrade(rune, node, GameData.ModifierGrades);
                 PreviewRuneDescription(rune, grade);
+                _view.SetTooltip(GameData.L("ui.costMultiplier") + " ×"
+                    + GameData.ModifierGrades.GetEnergyMultiplier(rune.Id, grade).ToString("0.##"));
                 return;
             }
             PreviewNodeDescription(node);
         }
 
-        /// <summary>호버한 룬과 등급의 인스펙터 설명을 커서 옆에도 표시하며 null이면 호버 안내를 숨긴다.</summary>
-        private void PreviewRuneDescription(RuneDefinition rune, string grade)
+        /// <summary>룬·등급과 선택적 피해량·지속시간·타격 간격의 설명을 커서 옆에 표시하고 룬이 null이면 숨긴다.</summary>
+        private void PreviewRuneDescription(RuneDefinition rune, string grade, float? damage = null, float? lifetime = null, float? tickInterval = null)
         {
-            _inspector.PreviewRune(rune, grade);
+            _inspector.PreviewRune(rune, grade, damage, lifetime, tickInterval);
             _view.ShowHoverDescription(rune == null ? null : _view.Inspector.Description);
         }
 
-        /// <summary>호버한 노드의 현재 인스펙터 설명과 적용 수치를 커서 옆에 표시한다.</summary>
+        /// <summary>행동은 팔레트 설명과 적용 피해량을, 잔류는 지속시간도 표시하며 다른 노드는 기존 정보를 표시한다.</summary>
         private void PreviewNodeDescription(GraphNode node)
         {
+            if (node != null)
+            {
+                RuneDefinition rune = GameData.Runes.Get(node.RuneId);
+                if (rune.Category == SpellGrammar.CATEGORY_BEHAVIOR)
+                {
+                    SpellAction action = _editor.CompileResult.Spell?.FindNodeAction(_editor.Graph, node.Id);
+                    PreviewRuneDescription(rune, node.GetText(SpellGrammar.MODIFIER_GRADE_PARAM, SpellGrammar.DEFAULT_BEHAVIOR_GRADE),
+                        action?.Stats == null ? (float?)null : action.Stats.Damage,
+                        action?.Stats == null ? (float?)null : action.Stats.Lifetime,
+                        action?.Stats == null ? (float?)null : action.Stats.TickInterval);
+                    return;
+                }
+            }
             _inspector.PreviewNode(node);
             _view.ShowHoverDescription(node == null ? null : _view.Inspector.Description);
         }
