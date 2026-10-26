@@ -1662,7 +1662,7 @@
       "_key": "save.loaded",
       "_value": "저장된 진행을 불러왔습니다."
     },
-    {"_key": "rune.behavior.launch.desc", "_value": "마법을 발사합니다."},
+    {"_key": "rune.behavior.launch.desc", "_value": "투사체를 발사합니다."},
     {"_key": "rune.behavior.burst.desc", "_value": "원형 폭발을 일으킵니다."},
     {"_key": "rune.behavior.persist.desc", "_value": "일정 시간 유지되는 장판을 생성합니다."},
     {"_key": "rune.behavior.beam.desc", "_value": "공격하는 동안 길게 뻗는 빔을 유지합니다."},

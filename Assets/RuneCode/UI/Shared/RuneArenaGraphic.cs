@@ -524,6 +524,8 @@ namespace RuneCode
             Vector2 point = Point(enemy.Position);
             float radius = sim.Stage == MissionStage.Bench ? Mathf.Max(5, (float)enemy.Radius * _scale) : (float)enemy.Radius * _scale;
             Color tint = EnemyColor(enemy);
+            bool isFrozen = sim.HasEnemyStatus(enemy, EnemyStatusType.Freeze);
+            if (isFrozen) tint = RuneMesh.FrozenBodyColor;
             int sides = enemy.Definition.Sides;
             float facing = Mathf.Atan2(-(float)enemy.Facing.Y, (float)enemy.Facing.X);
             // 캐리어는 앞뒤로 긴 타원, 요격기는 좌우로 길고 얇은 직사각형으로 그리고 나머지는 변 수대로 그린다.
@@ -553,6 +555,18 @@ namespace RuneCode
             if (enemy.IsAiming)
                 RuneMesh.Line(mesh, Point(enemy.AttackOrigin), Point(sim.GetSniperEnd(enemy)), 2 * _scale,
                     new Color(1, 0.12f, 0.2f, (sim.Tick / SNIPER_BLINK_TICKS) % 2 == 0 ? 0.6f : 0.2f));
+            if (isFrozen)
+            {
+                float outlineRadius = radius * 1.5f + RuneMesh.FREEZE_OUTLINE_PADDING * _scale;
+                for (int index = 0; index < RuneMesh.FREEZE_OUTLINE_SIDES; index++)
+                {
+                    float angle = index * Mathf.PI * 2f / RuneMesh.FREEZE_OUTLINE_SIDES;
+                    float nextAngle = (index + 1) * Mathf.PI * 2f / RuneMesh.FREEZE_OUTLINE_SIDES;
+                    Vector2 from = point + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * outlineRadius;
+                    Vector2 to = point + new Vector2(Mathf.Cos(nextAngle), Mathf.Sin(nextAngle)) * outlineRadius;
+                    RuneMesh.Line(mesh, from, to, RuneMesh.FREEZE_OUTLINE_WIDTH * _scale, RuneMesh.FrozenOutlineColor);
+                }
+            }
             DrawEnemyStatuses(mesh, enemy, sim, point, radius);
             DrawEnemyHp(mesh, enemy, point, radius, tint);
         }

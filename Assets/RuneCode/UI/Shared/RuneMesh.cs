@@ -6,6 +6,9 @@ namespace RuneCode
 {
     internal static class RuneMesh
     {
+        internal const int FREEZE_OUTLINE_SIDES = 6;
+        internal const float FREEZE_OUTLINE_PADDING = 5f;
+        internal const float FREEZE_OUTLINE_WIDTH = 2f;
         private const float EXPLOSION_SEGMENT_ANGLE = 2f;
         private const int SLASH_TRAIL_SEGMENTS = 20;
         private const float SLASH_TRAIL_ALPHA = 0.65f;
@@ -17,6 +20,8 @@ namespace RuneCode
         internal const float BEAM_GLOW_WIDTH = 3f;
         internal const float BEAM_GLOW_PULSE_SPEED = 3f;
 
+        internal static readonly Color FrozenBodyColor = new Color(0.55f, 0.88f, 1f);
+        internal static readonly Color FrozenOutlineColor = new Color(0.8f, 0.97f, 1f);
         /// <summary>현재 칼날과 회전 진행으로 최근 부채꼴 구간의 잔상·직사각형 칼날·밝은 날을 재사용 목록에 채운다. 오래된 잔상과 종료 직전 잔상은 투명해지며 scale로 크기를 변환한다.</summary>
         internal static void BuildSlash(SimulationSpellEntity spell, float scale, List<Vector3> vertices,
             List<Color> colors, List<int> triangles)
