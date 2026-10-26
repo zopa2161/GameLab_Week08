@@ -292,7 +292,12 @@ namespace RuneCode
         /// <summary>현재 라운드 보상 후보를 반환한다. 분류·등급을 지정하면 고정 등급으로, 생략하면 기존 확률표로 추첨하며 후보가 없으면 false다.</summary>
         public bool TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades,
             string category = null, string grade = null)
-            => _loot.TryDrawClearModifierChoices(out candidates, out grades, category, grade);
+            => _loot.TryDrawClearModifierChoices(out candidates, out grades, out _, category, grade);
+
+        /// <summary>현재 라운드 보상 후보와 속성 카드에도 적용된 공통 보상 등급을 반환한다. 후보가 없으면 false다.</summary>
+        public bool TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades, out string rewardGrade,
+            string category = null, string grade = null)
+            => _loot.TryDrawClearModifierChoices(out candidates, out grades, out rewardGrade, category, grade);
 
         /// <summary>지정 슬롯에 아직 종료되지 않은 직접 시전 빔이 있는지 반환한다.</summary>
         public bool HasActiveBeam(int slot) => _beam.HasActiveBeam(slot);

@@ -87,15 +87,17 @@ namespace RuneCode
         /// 현재 라운드의 보상 테이블로 서로 다른 룬 후보를 최대 3개 반환한다. 지정한 분류·등급이 없으면 기존 확률표로 추첨한다.
         /// 후보가 하나도 없으면 false를 반환한다.
         /// </summary>
-        internal bool TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades,
+        internal bool TryDrawClearModifierChoices(out List<string> candidates, out List<string> grades, out string rewardGrade,
             string category = null, string grade = null)
         {
             string tableId = _world.Stages.GetProgressionStage(_world.StageNumber).Rounds[_world.RoundNumber - 1].RewardDropTable;
             candidates = new List<string>();
             grades = new List<string>();
+            rewardGrade = grade;
             DropTableDefinition table = _world.Drops.Get(tableId);
             List<DropRoll> choices = grade == null
-                ? RuneRewardRoller.DrawChoices(table, _world.StageNumber, StageCatalog.ROUND_REWARD_CHOICE_COUNT, _world.EliteDrops, _world.Random.Next)
+                ? RuneRewardRoller.DrawChoices(table, _world.StageNumber, StageCatalog.ROUND_REWARD_CHOICE_COUNT, _world.EliteDrops,
+                    _world.Random.Next, out _, out rewardGrade)
                 : RuneRewardRoller.DrawChoices(table, category, grade, StageCatalog.ROUND_REWARD_CHOICE_COUNT, _world.Random.Next);
             foreach (DropRoll roll in choices)
             {

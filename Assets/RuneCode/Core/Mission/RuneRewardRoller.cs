@@ -22,10 +22,59 @@ namespace RuneCode
         /// <summary>테이블에서 분류·공통 등급을 한 번 추첨하고, 해당 분류·등급의 서로 다른 룬을 최대 count개 반환한다. 남은 후보가 없으면 추첨을 마친다.</summary>
         public static List<DropRoll> DrawChoices(DropTableDefinition table, int stage, int count, IEliteModifierDropSource grades, Func<double> random)
         {
+            return DrawChoices(table, stage, count, grades, random, out _, out _);
+        }
+
+        /// <summary>분류와 공통 등급을 추첨해 반환하고 해당 조건의 서로 다른 보상 후보를 최대 count개 만든다.</summary>
+        public static List<DropRoll> DrawChoices(DropTableDefinition table, int stage, int count, IEliteModifierDropSource grades,
+            Func<double> random, out string category, out string grade)
+        {
+            category = null;
+            grade = null;
             if (count <= 0) return new List<DropRoll>();
-            string category = RollCategory(table.CategoryChances, random);
-            string grade = category == SpellGrammar.CATEGORY_ELEMENT ? "" : RollGrade(GetGradeChances(table, category, stage, grades), random);
+            category = RollCategory(table.CategoryChances, random);
+            grade = category == SpellGrammar.CATEGORY_ELEMENT ? "" : RollGrade(GetGradeChances(table, category, stage, grades), random);
             return DrawChoices(table, category, grade, count, random);
+        }
+
+        /// <summary>같은 분류·등급에서 직전 후보 밖의 룬을 먼저 가중 추첨하고 부족한 자리만 직전 후보로 채운다. 대체 후보가 없으면 빈 목록을 반환한다.</summary>
+        public static List<DropRoll> DrawRerolledChoices(DropTableDefinition table, string category, string grade,
+            IReadOnlyList<string> previousIds, Func<double> random)
+        {
+            var choices = new List<DropRoll>();
+            var excludedIds = new HashSet<string>(previousIds, StringComparer.Ordinal);
+            var chosenIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int slot = 0; slot < previousIds.Count; slot++)
+            {
+                if (!TryDrawCandidate(table, category, grade, excludedIds, random, out DropRoll roll, true)) break;
+                choices.Add(roll);
+                chosenIds.Add(roll.RuneId);
+                excludedIds.Add(roll.RuneId);
+            }
+            if (choices.Count == 0) return choices;
+            while (choices.Count < previousIds.Count)
+            {
+                if (!TryDrawCandidate(table, category, grade, chosenIds, random, out DropRoll roll, true)) break;
+                choices.Add(roll);
+                chosenIds.Add(roll.RuneId);
+            }
+            return choices;
+        }
+
+        /// <summary>이전 저장의 후보 등급 또는 속성 보상 항목에서 공통 보상 등급을 복원한다. 속성 등급이 모호하면 null을 반환한다.</summary>
+        public static string ResolveChoiceGrade(DropTableDefinition table, IReadOnlyList<string> ids, IReadOnlyList<string> grades)
+        {
+            foreach (string grade in grades)
+                if (!string.IsNullOrEmpty(grade)) return grade;
+            string rewardGrade = null;
+            foreach (string id in ids)
+                foreach (DropEntry entry in table.Entries)
+                {
+                    if (entry.Id != id || string.IsNullOrEmpty(entry.RewardGrade)) continue;
+                    if (rewardGrade != null && rewardGrade != entry.RewardGrade) return null;
+                    rewardGrade = entry.RewardGrade;
+                }
+            return rewardGrade;
         }
 
         /// <summary>분류·보상 등급으로 서로 다른 후보를 최대 count개 반환한다. 모드 선택 보상에는 등급 조건이 맞는 무등급 속성도 참여한다.</summary>
