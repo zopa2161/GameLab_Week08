@@ -41,7 +41,8 @@
         {
           "_body": "강화 노드를 업그레이드해 캐릭터를 성장 시키세요.\n레벨업을 통해 노드 강화 포인트를 얻을 수 있습니다.",
           "_video": "",
-          "_image": "RuneCode/Onboarding/Onboarding_Tree"
+          "_image": "RuneCode/Onboarding/Onboarding_Tree",
+          "_secondaryImage": "RuneCode/Onboarding/Onboarding_Upgrad_Point"
         }
       ]
     },

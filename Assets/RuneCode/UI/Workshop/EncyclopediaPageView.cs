@@ -19,6 +19,7 @@ namespace RuneCode
         private const string EMPTY_BODY = "표시할 도움말이 없습니다. 잠시 후 다시 확인해 주세요.";
         private const string NEXT_LABEL = "다음";
         private const string CLOSE_LABEL = "닫기";
+        private const float IMAGE_GAP = 16f;
 
         [Header("본문")]
         [SerializeField] private ScrollRect _bodyScroll;
@@ -49,6 +50,9 @@ namespace RuneCode
         private RenderTexture _videoTexture;
         private string _loadedVideoPath;
         private AspectRatioFitter _mediaAspect;
+        private GameObject _sideBySideRoot;
+        private RawImage _leftImage;
+        private RawImage _rightImage;
 
         void Awake()
         {
@@ -152,6 +156,8 @@ namespace RuneCode
         /// </summary>
         private void ShowMedia(EncyclopediaPage page)
         {
+            if (_sideBySideRoot != null) _sideBySideRoot.SetActive(false);
+            _videoImage.gameObject.SetActive(true);
             string videoPath = page?.Video;
             string imagePath = page?.Image;
             bool hasImage = !string.IsNullOrEmpty(imagePath);
@@ -177,6 +183,50 @@ namespace RuneCode
             _videoImage.texture = texture;
             _mediaAspect.aspectRatio = (float)texture.width / texture.height;
             _videoRoot.SetActive(true);
+            if (!string.IsNullOrEmpty(page.SecondaryImage))
+            {
+                Texture2D secondaryTexture = Resources.Load<Texture2D>(page.SecondaryImage);
+                if (secondaryTexture != null) ShowSideBySideImages(texture, secondaryTexture);
+                else Debug.LogWarning("EncyclopediaPageView: 이미지를 로드할 수 없습니다. path=" + page.SecondaryImage);
+            }
+        }
+
+        /// <summary>두 텍스처를 원본 비율을 유지한 채 왼쪽·오른쪽 영역에 표시하고 단일 미디어 이미지를 숨긴다. 생성한 영역은 재사용한다.</summary>
+        private void ShowSideBySideImages(Texture2D leftTexture, Texture2D rightTexture)
+        {
+            if (_sideBySideRoot == null)
+            {
+                _sideBySideRoot = new GameObject("SideBySideImages", typeof(RectTransform));
+                RectTransform root = (RectTransform)_sideBySideRoot.transform;
+                root.SetParent(_videoRoot.transform, false);
+                root.anchorMin = Vector2.zero;
+                root.anchorMax = Vector2.one;
+                root.sizeDelta = Vector2.zero;
+                _leftImage = CreateSideImage("LeftImage", 0f, 0.5f);
+                _rightImage = CreateSideImage("RightImage", 0.5f, 1f);
+            }
+            _leftImage.texture = leftTexture;
+            _rightImage.texture = rightTexture;
+            _leftImage.GetComponent<AspectRatioFitter>().aspectRatio = (float)leftTexture.width / leftTexture.height;
+            _rightImage.GetComponent<AspectRatioFitter>().aspectRatio = (float)rightTexture.width / rightTexture.height;
+            _videoImage.gameObject.SetActive(false);
+            _sideBySideRoot.SetActive(true);
+        }
+
+        /// <summary>지정한 가로 앵커 구간에 여백을 둔 셀과 비율 유지 이미지를 생성하고 표시용 RawImage를 반환한다.</summary>
+        private RawImage CreateSideImage(string name, float anchorMin, float anchorMax)
+        {
+            RectTransform cell = (RectTransform)new GameObject(name + "Cell", typeof(RectTransform)).transform;
+            cell.SetParent(_sideBySideRoot.transform, false);
+            cell.anchorMin = new Vector2(anchorMin, 0f);
+            cell.anchorMax = new Vector2(anchorMax, 1f);
+            cell.sizeDelta = new Vector2(-IMAGE_GAP, 0f);
+            GameObject imageObject = new GameObject(name, typeof(RectTransform), typeof(RawImage), typeof(AspectRatioFitter));
+            imageObject.transform.SetParent(cell, false);
+            RawImage image = imageObject.GetComponent<RawImage>();
+            image.raycastTarget = false;
+            imageObject.GetComponent<AspectRatioFitter>().aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            return image;
         }
 
         /// <summary>videoPath의 VideoClip을 Resources에서 로드해 재생한다. 로드에 실패하면 미디어 영역을 숨기고, 직전과 같은 경로면 재생을 이어간다.</summary>

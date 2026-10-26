@@ -87,9 +87,11 @@ namespace RuneCode
         [SerializeField] private string _body;
         [SerializeField] private string _video;
         [SerializeField] private string _image;
+        [SerializeField] private string _secondaryImage;
 
         public string Body => _body;
         public string Video => _video;
         public string Image => _image;
+        public string SecondaryImage => _secondaryImage;
     }
 }
