@@ -20,6 +20,12 @@ namespace RuneCode
         [Header("상태 표시: 잠금 / 개방 / 일부 강화 / MAX")]
         [SerializeField] private UiStateVisual _visual;
 
+        [Header("선택 분기 배경 (KeyNodes)")]
+        [SerializeField] private Sprite _intermediateLockedBackground;
+        [SerializeField] private Sprite _intermediateUnlockedBackground;
+        [SerializeField] private Sprite _finalLockedBackground;
+        [SerializeField] private Sprite _finalUnlockedBackground;
+
         [Header("강화 레벨 표시")]
         [SerializeField] private UpgradeTreeNodeFillGraphic _levelFill;
         [SerializeField] private GameObject _levelBadge;
@@ -34,6 +40,8 @@ namespace RuneCode
         private Action _refundAction;
         private Action<bool> _hoverAction;
         private string _nodeId;
+        private bool _isExclusive;
+        private bool _isFinalExclusive;
 
         public string NodeId => _nodeId;
 
@@ -41,6 +49,16 @@ namespace RuneCode
         public void ConfigureNodeId(string nodeId)
         {
             _nodeId = nodeId;
+        }
+
+        /// <summary>배타 세트 노드를 마지막 분기 여부와 함께 지정한다. SetContent에서 상태 표시 대신 KeyNodes 배경을 고른다.</summary>
+        public void ConfigureExclusiveNode(bool isFinal)
+        {
+            _isExclusive = true;
+            _isFinalExclusive = isFinal;
+            _button.transition = Selectable.Transition.None;
+            _icon.rectTransform.anchoredPosition = Vector2.zero;
+            _spriteIcon.rectTransform.anchoredPosition = Vector2.zero;
         }
 
         /// <summary>정사각형 노드의 클릭을 강화 또는 룬 해금 요청에 연결한다.</summary>
@@ -71,12 +89,20 @@ namespace RuneCode
             _hoverAction = action;
         }
 
-        /// <summary>아이콘·구매 상태와 레벨 채움·레벨/MAX 문구를 반영하고 개방·일부 강화 상태에 다음 구매 비용 배지를 표시한다.</summary>
+        /// <summary>아이콘·구매 상태와 레벨 채움·레벨/MAX 문구를 반영하고 개방·일부 강화 상태에 다음 구매 비용 배지를 표시한다. 배타 세트 노드는 상태 이미지 대신 루트 배경에 KeyNodes를 쓰고 레벨 채움을 숨긴다.</summary>
         public void SetContent(UpgradeEffectType effectType, string runeCategory, Sprite sprite, int level, int maxLevel, int nextCost, bool isAvailable, bool isComplete, bool canPurchase, string runeId = null)
         {
             _visual.Show(!isAvailable ? 0 : isComplete ? 3 : level > 0 ? 2 : 1);
-            _levelFill.gameObject.SetActive(isAvailable && level > 0);
-            _levelFill.SetFill(maxLevel > 0 ? (float)level / maxLevel : 0);
+            if (_isExclusive)
+            {
+                ShowExclusiveBackground(isAvailable);
+                _levelFill.gameObject.SetActive(false);
+            }
+            else
+            {
+                _levelFill.gameObject.SetActive(isAvailable && level > 0);
+                _levelFill.SetFill(maxLevel > 0 ? (float)level / maxLevel : 0);
+            }
             _levelBadge.SetActive(isAvailable);
             _levelText.text = isComplete ? "MAX" : level + "/" + maxLevel;
             _costBadge.SetActive(isAvailable && !isComplete && nextCost >= 0);
@@ -92,6 +118,18 @@ namespace RuneCode
                 _spriteIcon.sprite = sprite;
             }
             _button.interactable = canPurchase;
+        }
+
+        /// <summary>Show가 켠 상태 이미지를 끄고 노드 루트 배경에 KeyNodes 그림을 올린다. UiStateVisual이 현재 상태를 버튼 tint 대상으로 지정하므로 targetGraphic으로 그 이미지를 찾고, tint 대상은 배경으로 되돌린다. 잠긴 배타 세트는 왼쪽, 열리거나 배운 노드는 오른쪽 그림을 쓴다.</summary>
+        private void ShowExclusiveBackground(bool isUnlocked)
+        {
+            Sprite background = _isFinalExclusive
+                ? (isUnlocked ? _finalUnlockedBackground : _finalLockedBackground)
+                : (isUnlocked ? _intermediateUnlockedBackground : _intermediateLockedBackground);
+            if (_button.targetGraphic != _background) _button.targetGraphic.enabled = false;
+            _button.targetGraphic = _background;
+            _background.sprite = background;
+            _background.color = Color.white;
         }
 
         /// <summary>노드 이름과 설명을 보여주도록 포인터 진입을 알린다.</summary>

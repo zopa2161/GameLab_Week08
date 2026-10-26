@@ -97,7 +97,7 @@ MonoBehaviour:
   - _id: upgrade.dashInvulnerability.1
     _requiredStage: 1
     _titleKey: ui.tree.dashInvulnerability
-    _descriptionKey: ui.tree.dashInvulnerabilityDescription
+    _descriptionKey: ui.tree.dashInvulnerabilityLongDescription
     _icon: {fileID: 0}
     _layoutCell: {x: 7, y: 13}
     _effectType: 17
@@ -114,11 +114,11 @@ MonoBehaviour:
       _amount: 0.2
   - _id: upgrade.runMoveSpeed.1
     _requiredStage: 1
-    _titleKey: ui.tree.runMoveSpeed
-    _descriptionKey: ui.tree.runMoveSpeedDescription
+    _titleKey: ui.tree.dashInvulnerabilityUnlock
+    _descriptionKey: ui.tree.dashInvulnerabilityUnlockDescription
     _icon: {fileID: 0}
     _layoutCell: {x: 7, y: 8}
-    _effectType: 7
+    _effectType: 39
     _runeId: 
     _initialLevel: 0
     _prerequisites:
@@ -127,7 +127,7 @@ MonoBehaviour:
     _exclusiveGroupId: 
     _levels:
     - _cost: 1
-      _amount: 0.1
+      _amount: 1
   - _id: upgrade.dashCooldown.0
     _requiredStage: 1
     _titleKey: ui.tree.dashCooldown

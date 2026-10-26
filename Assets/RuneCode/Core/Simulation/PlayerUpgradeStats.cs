@@ -69,6 +69,9 @@ namespace RuneCode
         /// <summary>정지 중 전력 재생량에 더하는 비율이다.</summary>
         public double StationaryRegenBonus { get; }
 
+        /// <summary>대시 중 무적이 해금됐는지 나타낸다. 꺼지면 대시가 무적을 주지 않는다.</summary>
+        public bool HasDashInvulnerability { get; }
+
         /// <summary>대시를 순간이동으로 바꾸는지 나타낸다.</summary>
         public bool HasDashTeleport { get; }
 
@@ -100,7 +103,8 @@ namespace RuneCode
             double farDamageBonus = 0, double fullManaDamageBonus = 0, double postDashDamageBonus = 0,
             double stationaryRegenBonus = 0, bool hasDashTeleport = false, bool hasDashCollisionGuard = false,
             bool hasPlayerAura = false, bool hasArcEnhance = false, bool hasIceEnhance = false, bool hasFireEnhance = false,
-            bool hasFlyingSlash = false, bool hasReturningLaunch = false, bool hasReturningBurst = false)
+            bool hasFlyingSlash = false, bool hasReturningLaunch = false, bool hasReturningBurst = false,
+            bool hasDashInvulnerability = false)
         {
             MaxHp = maxHp;
             MaxEnergy = maxEnergy;
@@ -130,6 +134,7 @@ namespace RuneCode
             HasArcEnhance = hasArcEnhance;
             HasIceEnhance = hasIceEnhance;
             HasFireEnhance = hasFireEnhance;
+            HasDashInvulnerability = hasDashInvulnerability;
         }
     }
 }

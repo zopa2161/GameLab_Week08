@@ -629,15 +629,16 @@ namespace RuneCode
             return hash.ToString("x8", CultureInfo.InvariantCulture);
         }
 
-        /// <summary>대시와 일반 이동을 처리하고 이번 입력으로 대시가 시작됐는지 반환한다. 강화에 따라 대시 쿨다운과 무적을 줄이고 늘이며, 대시 텔레포트가 켜져 있으면 시작 틱에 대시 거리 전체를 벽 충돌 이동으로 옮기고 대시 잔여 시간에는 추가 이동을 하지 않는다.</summary>
+        /// <summary>대시와 일반 이동을 처리하고 이번 입력으로 대시가 시작됐는지 반환한다. 대시는 항상 사용하고, 대시 중 무적 강화가 켜진 경우에만 대시 지속시간과 보너스만큼 무적을 더한다. 강화에 따라 대시 쿨다운을 줄이고, 대시 텔레포트가 켜져 있으면 시작 틱에 대시 거리 전체를 벽 충돌 이동으로 옮기고 대시 잔여 시간에는 추가 이동을 하지 않는다.</summary>
         private bool MovePlayer(SimulationInput input)
         {
             SimVector move = input.Movement.Length > 1 ? input.Movement.Normalized() : input.Movement;
             if (move.LengthSquared > 0.000001) { _world.MoveDirection = move.Normalized(); _world.HasMoveDirection = true; }
             PlayerUpgradeStats upgrades = _world.Upgrades;
             double dashCooldown = Math.Max(0, _world.Balance.Player.DashCooldown * (1 - upgrades.DashCooldownReduction));
+            double dashInvulnerabilitySeconds = upgrades.HasDashInvulnerability ? _world.Balance.Player.DashSeconds + upgrades.DashInvulnerabilityBonus : 0;
             bool startedDash = input.Dash
-                && _world.Player.StartDash(move.LengthSquared > 0.000001 ? move : _world.Player.AimDirection, _world.Balance.Player.DashSeconds, dashCooldown, Time, upgrades.DashInvulnerabilityBonus);
+                && _world.Player.StartDash(move.LengthSquared > 0.000001 ? move : _world.Player.AimDirection, _world.Balance.Player.DashSeconds, dashCooldown, Time, dashInvulnerabilitySeconds);
             if (startedDash && upgrades.HasDashTeleport)
                 _world.Player.Move(_world.Map.Move(_world.Player.Position, _world.Player.GetDashDirection() * _world.Balance.Player.DashDistance, _world.Sector.PlayerRadius));
             SimVector displacement;

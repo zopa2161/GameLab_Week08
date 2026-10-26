@@ -1219,12 +1219,12 @@
       "_value": "<color=#EFF1F6><b>우클릭 시작 노드</b></color>를 획득합니다. 우클릭으로 따로 시전하며 마나는 좌클릭과 공유합니다"
     },
     {
-      "_key": "ui.tree.runMoveSpeed",
-      "_value": "이동 속도"
+      "_key": "ui.tree.dashInvulnerabilityUnlock",
+      "_value": "대시 중 무적 해금"
     },
     {
-      "_key": "ui.tree.runMoveSpeedDescription",
-      "_value": "이동 속도가 <color=#EFF1F6><b>10%</b></color> 증가합니다"
+      "_key": "ui.tree.dashInvulnerabilityUnlockDescription",
+      "_value": "대시하는 동안 <color=#EFF1F6><b>무적 상태</b></color>가 됩니다."
     },
     {
       "_key": "ui.tree.runRegen",

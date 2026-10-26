@@ -11,6 +11,8 @@ namespace RuneCode
         private const float MAX_ZOOM = 1.65f;
         private const float ZOOM_STEP = 1.12f;
 
+        public static float MinimumZoom => MIN_ZOOM;
+
         [Header("트리 캔버스")]
         [SerializeField] private RectTransform _viewport;
         [SerializeField] private RectTransform _content;

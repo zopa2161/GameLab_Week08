@@ -203,6 +203,12 @@ namespace RuneCode
                     Path(mesh, center, scale, tint, -3, 8.7f, -7.5f, 9.5f);
                     Path(mesh, center, scale, tint, -3, 8.7f, -1.5f, 13f);
                     break;
+                case UpgradeEffectType.DashInvulnerabilityUnlock:
+                    // 무적 방패에 잠금 해제 구멍을 겹친 표시.
+                    Path(mesh, center, scale, tint, 0, 14, -11, 9, -11, -3, 0, -14, 11, -3, 11, 9, 0, 14);
+                    Dot(mesh, center, scale, tint, 0, 4, 3);
+                    Path(mesh, center, scale, tint, 0, 2, 0, -6);
+                    break;
                 case UpgradeEffectType.DashTeleport:
                     // 점선으로 이어지는 순간이동 화살.
                     Path(mesh, center, scale, tint, -16, 0, -12, 0);

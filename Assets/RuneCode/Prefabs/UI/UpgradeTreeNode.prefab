@@ -890,6 +890,10 @@ MonoBehaviour:
   _spriteIcon: {fileID: 2374660153143706842}
   _button: {fileID: 1914676844215107746}
   _visual: {fileID: 3393161550700266586}
+  _intermediateLockedBackground: {fileID: 1000000001, guid: 6d9facbc8bb4489448e66c03cfdd87fc, type: 3}
+  _intermediateUnlockedBackground: {fileID: 1000000002, guid: 6d9facbc8bb4489448e66c03cfdd87fc, type: 3}
+  _finalLockedBackground: {fileID: 1000000003, guid: 6d9facbc8bb4489448e66c03cfdd87fc, type: 3}
+  _finalUnlockedBackground: {fileID: 1000000004, guid: 6d9facbc8bb4489448e66c03cfdd87fc, type: 3}
   _levelFill: {fileID: 5581797187929711514}
   _levelBadge: {fileID: 6172276082016360184}
   _levelText: {fileID: 1862061065857377389}

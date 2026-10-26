@@ -14,10 +14,10 @@ namespace RuneCode
     /// </summary>
     public sealed class UpgradeTreePanel : MonoBehaviour
     {
-        private const float INITIAL_ZOOM = 0.88f;
         private const float CONTENT_MARGIN = 42;
         private const float CELL_SIZE = 150;
-        private const float EXCLUSIVE_AREA_SCALE = 1.5f;
+        private const float EXCLUSIVE_INTERMEDIATE_SCALE = 1.5f;
+        private const float EXCLUSIVE_FINAL_SCALE = 1.5f;
         private static readonly Vector2 GRID_ORIGIN = new Vector2(400, -50);
 
         [Header("트리 데이터")]
@@ -72,8 +72,9 @@ namespace RuneCode
             _nodeViews.Clear();
             _hoverPanel.gameObject.SetActive(false);
             ClearGeneratedViews();
+            HashSet<string> referencedNodeIds = CollectReferencedNodeIds();
             foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
-                if (node != null) CreateNodeView(node);
+                if (node != null) CreateNodeView(node, referencedNodeIds);
             CreateConnectionViews();
             ResetContent();
             CreateExclusiveGroupPlates();
@@ -102,8 +103,8 @@ namespace RuneCode
             }
         }
 
-        /// <summary>배치 노드 하나의 뷰를 생성하고 데이터 ID와 격자 셀 좌표를 설정한 뒤 바인딩한다.</summary>
-        private void CreateNodeView(UpgradeTreeNodeDefinition node)
+        /// <summary>배치 노드 하나의 뷰를 생성하고 데이터 ID와 격자 셀 좌표를 설정한 뒤 바인딩한다. 배타 세트 노드는 뒤에 선행되는 노드가 있으면 중간·없으면 마지막 분기로 키워드를 구분한다.</summary>
+        private void CreateNodeView(UpgradeTreeNodeDefinition node, HashSet<string> referencedNodeIds)
         {
             UpgradeTreeNodeView view = Instantiate(_nodePrefab, _content);
             view.gameObject.name = node.Id;
@@ -112,12 +113,27 @@ namespace RuneCode
             rect.anchoredPosition = CellToAnchoredPosition(node.LayoutCell);
             if (!string.IsNullOrWhiteSpace(node.ExclusiveGroupId))
             {
-                // 좌상단 기준점이라 커진 만큼 위치를 옮겨 노드 중심을 원래 셀에 둔다.
-                float scale = Mathf.Sqrt(EXCLUSIVE_AREA_SCALE);
+                bool isFinal = !referencedNodeIds.Contains(node.Id);
+                float scale = isFinal ? EXCLUSIVE_FINAL_SCALE : EXCLUSIVE_INTERMEDIATE_SCALE;
+                view.ConfigureExclusiveNode(isFinal);
+                // 좌상단 기준점이라 늘어난 변만큼 위치를 옮겨 노드 중심을 원래 셀에 둔다.
                 rect.localScale = Vector3.one * scale;
                 rect.anchoredPosition += new Vector2(-rect.rect.width, rect.rect.height) * ((scale - 1) * 0.5f);
             }
             BindNode(view);
+        }
+
+        /// <summary>다른 노드의 선행 조건으로 인용된 노드 ID를 모은다. 배타 세트 노드가 뒤에 노드를 두는지 판단하는 데만 쓴다.</summary>
+        private HashSet<string> CollectReferencedNodeIds()
+        {
+            HashSet<string> referencedNodeIds = new HashSet<string>();
+            foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
+            {
+                if (node == null) continue;
+                foreach (UpgradeTreePrerequisite prerequisite in node.Prerequisites)
+                    if (prerequisite != null) referencedNodeIds.Add(prerequisite.NodeId);
+            }
+            return referencedNodeIds;
         }
 
         /// <summary>배타 세트마다 소속 노드 사각형을 여백만큼 감싸는 반투명 배경판을 만들어 연결선 뒤에 둔다. ResetContent 이후 좌상단 기준 콘텐츠 좌표를 사용한다.</summary>
@@ -238,33 +254,29 @@ namespace RuneCode
             _hoverPanel.anchoredPosition = new Vector2(x, Mathf.Max(left.y, right.y) + 8);
         }
 
-        /// <summary>콘텐츠를 좌상단 기준·초기 배율로 되돌려 루트 노드를 화면 중앙에 두고, 모든 노드가 들어가는 크기로 맞춘다.</summary>
+        /// <summary>콘텐츠를 좌상단 기준·최소 줌으로 되돌리고 전체 노드 영역을 화면 중앙에 배치하며, 모든 노드가 들어가는 콘텐츠 크기로 맞춘다.</summary>
         private void ResetContent()
         {
             _content.anchorMin = _content.anchorMax = new Vector2(0, 1);
             _content.pivot = new Vector2(0, 1);
-            UpgradeTreeNodeDefinition root = null;
-            foreach (UpgradeTreeNodeDefinition node in _definition.Nodes)
-                if (node != null && node.Prerequisites.Count == 0) { root = node; break; }
-            if (root != null && _nodeViews.TryGetValue(root.Id, out UpgradeTreeNodeView rootView))
-            {
-                Vector2 rootCenter = GetNodeBounds(rootView).center;
-                _content.anchoredPosition = new Vector2(_viewport.rect.width * 0.5f - rootCenter.x * INITIAL_ZOOM,
-                    -_viewport.rect.height * 0.5f - rootCenter.y * INITIAL_ZOOM);
-            }
-            else
-            {
-                _content.anchoredPosition = Vector2.zero;
-            }
-            _content.localScale = Vector3.one * INITIAL_ZOOM;
+            float initialZoom = UpgradeTreeCanvasInput.MinimumZoom;
+            _content.localScale = Vector3.one * initialZoom;
             float rightEdge = 0;
             float bottomEdge = 0;
+            Vector2 minimum = Vector2.positiveInfinity;
+            Vector2 maximum = Vector2.negativeInfinity;
             foreach (UpgradeTreeNodeView view in _nodeViews.Values)
             {
                 Rect bounds = GetNodeBounds(view);
+                minimum = Vector2.Min(minimum, bounds.min);
+                maximum = Vector2.Max(maximum, bounds.max);
                 rightEdge = Mathf.Max(rightEdge, bounds.xMax);
                 bottomEdge = Mathf.Max(bottomEdge, -bounds.yMin);
             }
+            Vector2 viewportCenter = new Vector2(_viewport.rect.width * 0.5f, -_viewport.rect.height * 0.5f);
+            _content.anchoredPosition = _nodeViews.Count > 0
+                ? viewportCenter - (minimum + maximum) * (0.5f * initialZoom)
+                : Vector2.zero;
             _content.sizeDelta = new Vector2(Mathf.Max(_viewport.rect.width, rightEdge + CONTENT_MARGIN),
                 Mathf.Max(_viewport.rect.height, bottomEdge + CONTENT_MARGIN));
         }
