@@ -108,7 +108,7 @@ namespace RuneCode
             _hud.DebugBossClicked += StartDebugBoss;
             _hud.DebugActionClicked += RunDebugAction;
             BuildDebugBosses();
-            _result.Bind();
+            _result.Bind(_hud.WorkshopButtonHeight, _hud.WorkshopButtonColors);
             _result.RetryClicked += RetryStage;
             _result.ClearModifierChoiceClicked += ChooseClearModifier;
             _result.ClearChoiceRerollClicked += RerollClearChoice;
@@ -674,16 +674,17 @@ namespace RuneCode
                 }
                 _result.ShowClearModifierChoices(GameData.L("result.clearModifierChoice"), names, descriptions, targetTexts,
                     _run.ClearModifierGrades, _run.ClearModifierChoices);
-                _result.SetClearChoiceReroll(_run.CanRerollClearChoice, _run.HasRerolledClearChoice, _run.IsDebugRewardChoice);
+                for (int index = 0; index < _run.ClearModifierChoices.Count; index++)
+                    _result.SetClearChoiceReroll(index, _run.CanRerollClearChoice(index), _run.HasRerolledClearChoice(index), _run.IsDebugRewardChoice);
             }
             else _result.HideClearModifierChoices();
         }
 
-        /// <summary>현재 보상을 한 번 리롤하고 성공 여부와 관계없이 최신 후보·남은 횟수를 다시 표시한다.</summary>
-        private void RerollClearChoice()
+        /// <summary>선택한 카드 index만 리롤하고 성공 여부와 관계없이 최신 후보와 카드별 남은 기회를 다시 표시한다.</summary>
+        private void RerollClearChoice(int index)
         {
             if (_run == null) return;
-            if (!_run.TryRerollClearChoice() && !string.IsNullOrEmpty(_session.StatusMessage))
+            if (!_run.TryRerollClearChoice(index) && !string.IsNullOrEmpty(_session.StatusMessage))
                 _ui.ShowToast(_session.StatusMessage);
             ShowPendingChoices();
         }

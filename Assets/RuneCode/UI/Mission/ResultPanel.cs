@@ -18,10 +18,7 @@ namespace RuneCode
     {
         private const float REWARD_HEIGHT = 72f;
         private const float SCROLL_EPSILON = 0.5f;
-        private const float REROLL_BUTTON_WIDTH = 224f;
-        private const float REROLL_BUTTON_HEIGHT = 42f;
-        private const float REROLL_BUTTON_RIGHT_MARGIN = 24f;
-        private const float REROLL_BUTTON_TOP = 48f;
+        private const float REROLL_CARD_GAP = 8f;
 
         [Header("보상 공개 연출")]
         [SerializeField, Min(0.05f)] private float _rewardRevealInterval = 0.3f;
@@ -84,9 +81,9 @@ namespace RuneCode
         private bool _isWaitingForRelease;
         private bool _isCompletionOnly;
         private bool _hasNextStage;
-        private Button _rerollChoiceButton;
-        private TextMeshProUGUI _rerollChoiceLabel;
-        private bool _canRerollChoice;
+        private Button[] _rerollChoiceButtons;
+        private TextMeshProUGUI[] _rerollChoiceLabels;
+        private bool[] _canRerollChoices;
         private int _choiceInputReadyFrame;
 
         public bool CanContinue => !_isRevealing && !_isWaitingForRelease && Time.frameCount > _revealCompletedFrame;
@@ -103,11 +100,11 @@ namespace RuneCode
         /// <summary>클리어 Modifier 선택 후보 버튼을 눌렀을 때 후보 순번으로 알린다.</summary>
         public event Action<int> ClearModifierChoiceClicked;
 
-        /// <summary>보상 후보 전체의 무료 재추첨을 요청했을 때 알린다.</summary>
-        public event Action ClearChoiceRerollClicked;
+        /// <summary>보상 카드 하나의 무료 재추첨을 요청했을 때 카드 순번으로 알린다.</summary>
+        public event Action<int> ClearChoiceRerollClicked;
 
-        /// <summary>버튼 클릭을 처음 한 번 연결하고 속성 팔레트 배경과 원래 모드 카드 배경을 캐싱한다.</summary>
-        public void Bind()
+        /// <summary>작업실 버튼 높이만큼 보상창을 올리고 같은 색상 전환으로 선택·리롤 버튼을 준비한다. 클릭 연결과 카드 배경 캐싱은 처음 한 번만 수행한다.</summary>
+        public void Bind(float workshopButtonHeight, ColorBlock workshopButtonColors)
         {
             if (_isBound) return;
             _elementChoiceBackground = (Image)Resources.Load<UiRow>("RuneCode/UI/Elements/RunePaletteElementRow").Button.targetGraphic;
@@ -127,7 +124,9 @@ namespace RuneCode
             _resultContent = content.gameObject;
             _rewardCanvas = _rewardScroll.GetComponentInParent<Canvas>().rootCanvas;
             _rewardScroll.onValueChanged.AddListener(HandleRewardScroll);
-            CreateRerollChoiceButton();
+            RectTransform choiceDialog = (RectTransform)_clearChoiceTitleLabel.transform.parent;
+            choiceDialog.anchoredPosition += Vector2.up * workshopButtonHeight;
+            CreateRerollChoiceButtons(workshopButtonColors);
             _nextStageButton.onClick.AddListener(() => { if (CanContinue && _hasNextStage && !_isCompletionOnly) NextStageClicked?.Invoke(); });
             _improveButton.onClick.AddListener(() => { if (CanContinue && !_isCompletionOnly) ImproveClicked?.Invoke(); });
             _retryButton.onClick.AddListener(() => { if (CanContinue && !_isCompletionOnly) RetryClicked?.Invoke(); });
@@ -142,38 +141,64 @@ namespace RuneCode
             _isBound = true;
         }
 
-        /// <summary>기존 결과 버튼 모양을 재사용해 보상 제목 오른쪽에 리롤 버튼을 만들고 전용 클릭 이벤트를 연결한다.</summary>
-        private void CreateRerollChoiceButton()
+        /// <summary>원래 크기의 선택 버튼과 같은 폭으로 카드 아래에 리롤 버튼·문구를 생성한다. 두 버튼의 마우스 강조는 작업실 버튼 색상 전환을 적용한다.</summary>
+        private void CreateRerollChoiceButtons(ColorBlock workshopButtonColors)
         {
-            _rerollChoiceButton = Instantiate(_nextStageButton, _clearChoiceTitleLabel.transform.parent, false);
-            _rerollChoiceButton.name = "RerollChoiceButton";
-            _rerollChoiceButton.onClick = new Button.ButtonClickedEvent();
-            UiFactory.BindClickSound(_rerollChoiceButton);
-            RectTransform rect = (RectTransform)_rerollChoiceButton.transform;
-            rect.anchorMin = new Vector2(1f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(1f, 0.5f);
-            rect.anchoredPosition = new Vector2(-REROLL_BUTTON_RIGHT_MARGIN, -REROLL_BUTTON_TOP);
-            rect.sizeDelta = new Vector2(REROLL_BUTTON_WIDTH, REROLL_BUTTON_HEIGHT);
-            _rerollChoiceLabel = _rerollChoiceButton.GetComponentInChildren<TextMeshProUGUI>(true);
-            _rerollChoiceLabel.fontSize = 16f;
-            _rerollChoiceButton.onClick.AddListener(() =>
+            TextMeshProUGUI labelPrefab = Resources.Load<GameObject>("RuneCode/UI/Elements/UiText").GetComponent<TextMeshProUGUI>();
+            int count = _clearChoiceButtons.Length;
+            _rerollChoiceButtons = new Button[count];
+            _rerollChoiceLabels = new TextMeshProUGUI[count];
+            _canRerollChoices = new bool[count];
+            for (int index = 0; index < count; index++)
             {
-                if (!_canRerollChoice || !CanContinue || Time.frameCount <= _choiceInputReadyFrame) return;
-                _canRerollChoice = false;
-                _rerollChoiceButton.interactable = false;
-                ClearChoiceRerollClicked?.Invoke();
-            });
-            _rerollChoiceButton.gameObject.SetActive(true);
+                int slot = index;
+                Button selectButton = _clearChoiceButtons[index];
+                RectTransform selectRect = (RectTransform)selectButton.transform;
+                selectButton.transition = Selectable.Transition.ColorTint;
+                selectButton.colors = workshopButtonColors;
+                Button rerollButton = Instantiate(selectButton, selectRect.parent, false);
+                rerollButton.name = "RerollChoiceButton" + index;
+                RectTransform rerollRect = (RectTransform)rerollButton.transform;
+                rerollRect.anchorMin = new Vector2(0.5f, 0f);
+                rerollRect.anchorMax = new Vector2(0.5f, 0f);
+                rerollRect.pivot = new Vector2(0.5f, 1f);
+                rerollRect.anchoredPosition = new Vector2(0f, -REROLL_CARD_GAP);
+                rerollRect.sizeDelta = selectRect.sizeDelta;
+                rerollButton.onClick = new Button.ButtonClickedEvent();
+                UiFactory.BindClickSound(rerollButton);
+                _rerollChoiceButtons[index] = rerollButton;
+                TextMeshProUGUI label = Instantiate(labelPrefab, rerollButton.transform, false);
+                label.name = "RerollLabel";
+                label.font = _clearChoiceTitleLabel.font;
+                label.enableAutoSizing = false;
+                label.fontSize = 13f;
+                label.alignment = TextAlignmentOptions.Midline;
+                label.textWrappingMode = TextWrappingModes.NoWrap;
+                label.raycastTarget = false;
+                RectTransform labelRect = label.rectTransform;
+                labelRect.anchorMin = Vector2.zero;
+                labelRect.anchorMax = Vector2.one;
+                labelRect.anchoredPosition = Vector2.zero;
+                labelRect.sizeDelta = new Vector2(-12f, 0f);
+                _rerollChoiceLabels[index] = label;
+                rerollButton.onClick.AddListener(() =>
+                {
+                    if (!_canRerollChoices[slot] || !CanContinue || Time.frameCount <= _choiceInputReadyFrame) return;
+                    _canRerollChoices[slot] = false;
+                    _rerollChoiceButtons[slot].interactable = false;
+                    ClearChoiceRerollClicked?.Invoke(slot);
+                });
+                rerollButton.gameObject.SetActive(false);
+            }
         }
 
-        /// <summary>리롤 가능 여부와 사용 완료·대체 후보 없음 상태를 문구와 버튼에 반영하고 이번 프레임의 카드 입력을 막는다.</summary>
-        public void SetClearChoiceReroll(bool canReroll, bool hasRerolled, bool isPreview)
+        /// <summary>카드 index 아래의 리롤 버튼에 사용 상태를 표시하고 이번 프레임 입력을 막는다. 미리보기에서는 리롤 버튼만 숨긴다.</summary>
+        public void SetClearChoiceReroll(int index, bool canReroll, bool hasRerolled, bool isPreview)
         {
-            _canRerollChoice = canReroll;
-            _rerollChoiceButton.gameObject.SetActive(!isPreview);
-            _rerollChoiceButton.interactable = canReroll;
-            _rerollChoiceLabel.text = GameData.L(hasRerolled ? "result.rerollUsed"
+            _canRerollChoices[index] = canReroll;
+            _rerollChoiceButtons[index].gameObject.SetActive(!isPreview);
+            _rerollChoiceButtons[index].interactable = canReroll;
+            _rerollChoiceLabels[index].text = GameData.L(hasRerolled ? "result.rerollUsed"
                 : canReroll ? "result.rerollAvailable" : "result.rerollUnavailable");
             _choiceInputReadyFrame = Time.frameCount;
         }
@@ -478,7 +503,7 @@ namespace RuneCode
         /// <summary>클리어 Modifier 선택 팝업을 닫고 결과 버튼을 다시 활성화한다.</summary>
         public void HideClearModifierChoices()
         {
-            _canRerollChoice = false;
+            Array.Clear(_canRerollChoices, 0, _canRerollChoices.Length);
             _clearChoicePopup.SetActive(false);
             _rewardTitleLabel.gameObject.SetActive(true);
             for (int i = 0; i < _clearChoiceButtons.Length; i++)
