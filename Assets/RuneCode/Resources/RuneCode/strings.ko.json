@@ -1091,7 +1091,7 @@
     },
     {
       "_key": "ui.tree.fireEnhanceDescription",
-      "_value": "화상이 3번 쌓이면 적의 상태 이상을 모두 지우고 쌓인 공격 피해를 곱한 큰 피해를 줍니다"
+      "_value": "화상이 3번 쌓이면 적의 상태 이상을 모두 지우고 쌓인 화상 피해를 합산한 큰 피해를 줍니다"
     },
     {
       "_key": "ui.tree.statusStackStart",
@@ -1205,13 +1205,19 @@
       "_key": "ui.tree.auraDescription",
       "_value": "캐릭터 주위에 지속 장판이 생겨 0.5초마다 주변 적에게 피해 1을 줍니다. 마법 트리거는 발생하지 않습니다"
     },
+    {"_key": "ui.tree.flyingSlash", "_value": "왕복 참격"},
+    {"_key": "ui.tree.flyingSlashDescription", "_value": "참격이 원래 궤적을 되돌아 베며 다시 타격합니다. 유도·공전은 사용할 수 없으며, 다른 행동 변형과 함께 선택할 수 없습니다."},
+    {"_key": "ui.tree.returningLaunch", "_value": "귀환 발사"},
+    {"_key": "ui.tree.returningLaunchDescription", "_value": "발사가 적·벽에 닿거나 사거리에 도달하면 돌아오며 다시 타격합니다. 다른 행동 변형과 함께 선택할 수 없습니다."},
+    {"_key": "ui.tree.returningBurst", "_value": "수축 폭발"},
+    {"_key": "ui.tree.returningBurstDescription", "_value": "폭발이 퍼진 뒤 범위가 줄어들며 원점으로 돌아와 다시 타격합니다. 다른 행동 변형과 함께 선택할 수 없습니다."},
     {
       "_key": "ui.tree.stationaryRegen",
       "_value": "정지 마나 회복"
     },
     {
       "_key": "ui.tree.stationaryRegenDescription",
-      "_value": "움직이지 않을 때 마나 회복 속도가 2배가 됩니다"
+      "_value": "움직이지 않을 때 마나 회복 속도가 5배가 됩니다"
     },
     {
       "_key": "ui.tree.singleBehavior",

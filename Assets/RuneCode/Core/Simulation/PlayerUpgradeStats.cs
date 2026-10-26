@@ -6,6 +6,9 @@ namespace RuneCode
     /// </summary>
     public sealed class PlayerUpgradeStats
     {
+        /// <summary>'정지 마나 회복' 강화를 보유했을 때 정지 중 마나 회복량에 적용하는 배율이다.</summary>
+        public const double STATIONARY_REGEN_MULTIPLIER = 5;
+
         /// <summary>강화가 없는 기본 묶음이다.</summary>
         public static readonly PlayerUpgradeStats None = new PlayerUpgradeStats();
 
@@ -74,6 +77,10 @@ namespace RuneCode
 
         /// <summary>플레이어 주위 지속 장판을 켜는지 나타낸다.</summary>
         public bool HasPlayerAura { get; }
+        public bool HasFlyingSlash { get; }
+        public bool HasReturningLaunch { get; }
+        public bool HasReturningBurst { get; }
+        public bool HasBehaviorEvolution => HasFlyingSlash || HasReturningLaunch || HasReturningBurst;
 
         /// <summary>전격 강화(EMP 부여)를 켜는지 나타낸다.</summary>
         public bool HasArcEnhance { get; }
@@ -92,7 +99,8 @@ namespace RuneCode
             double dashInvulnerabilityBonus = 0, double evasionChance = 0, double nearDamageBonus = 0,
             double farDamageBonus = 0, double fullManaDamageBonus = 0, double postDashDamageBonus = 0,
             double stationaryRegenBonus = 0, bool hasDashTeleport = false, bool hasDashCollisionGuard = false,
-            bool hasPlayerAura = false, bool hasArcEnhance = false, bool hasIceEnhance = false, bool hasFireEnhance = false)
+            bool hasPlayerAura = false, bool hasArcEnhance = false, bool hasIceEnhance = false, bool hasFireEnhance = false,
+            bool hasFlyingSlash = false, bool hasReturningLaunch = false, bool hasReturningBurst = false)
         {
             MaxHp = maxHp;
             MaxEnergy = maxEnergy;
@@ -116,6 +124,9 @@ namespace RuneCode
             HasDashTeleport = hasDashTeleport;
             HasDashCollisionGuard = hasDashCollisionGuard;
             HasPlayerAura = hasPlayerAura;
+            HasFlyingSlash = hasFlyingSlash;
+            HasReturningLaunch = hasReturningLaunch;
+            HasReturningBurst = hasReturningBurst;
             HasArcEnhance = hasArcEnhance;
             HasIceEnhance = hasIceEnhance;
             HasFireEnhance = hasFireEnhance;

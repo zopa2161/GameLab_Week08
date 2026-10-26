@@ -16,6 +16,10 @@ namespace RuneCode
         /// <summary>개체의 생성 방향과 직접·후속 시전 구분으로 회전 중심 및 재사용 판정 상태를 만든다.</summary>
         public override object CreateState(SimulationSpellEntity entity) => new SlashState(entity);
 
+        /// <summary>왕복 참격은 원래 베기와 되돌아 베기의 시간을 합산하고 일반 참격은 기존 수명을 유지한다.</summary>
+        public override double GetLifetime(SimulationSpellEntity entity)
+            => entity.Stats.Lifetime * (entity.HasBehaviorEvolution ? 2 : 1);
+
         /// <summary>직접 시전이면 다중 퍼짐 방향을 보존하고 위치만 시전자 중심으로 맞춘다.</summary>
         public override void PlaceSpawn(SpellRuntimeContext context, SpellAction action, SpellStats stats, int index,
             bool isFromEvent, SimulationPlayer caster, ref SimVector position, ref SimVector direction)
@@ -30,14 +34,14 @@ namespace RuneCode
             Judge(context, entity);
         }
 
-        /// <summary>기준 방향은 고정하고 플레이어 또는 살아 있는 발생 대상의 중심으로 개체를 이동시킨다.</summary>
+        /// <summary>일반·왕복 참격 모두 시전자 또는 발생 대상을 추종하며 현재 진행률의 칼날 방향을 적용한다.</summary>
         public override void MoveAlongPath(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             var state = (SlashState)entity.BehaviorState;
-            entity.Move(state.GetCenter(entity.Caster), state.GetDirection(state.Progress, entity.Action.ConeAngle));
+            entity.Move(state.GetCenter(entity.Caster), state.GetDirection(state.Progress, entity.SlashSweepAngle));
         }
 
-        /// <summary>이번 틱에 칼날이 지나간 면을 판정하고 실제 피해를 받은 적마다 한 번만 기존 적중 이벤트를 실행한다.</summary>
+        /// <summary>칼날이 지나간 면을 판정해 적마다 편도 한 번 타격하고, 왕복 참격은 귀환 구간에서 한 번 더 타격한다.</summary>
         public override void Judge(SpellRuntimeContext context, SimulationSpellEntity entity)
         {
             var state = (SlashState)entity.BehaviorState;
@@ -45,7 +49,7 @@ namespace RuneCode
             double progress = Math.Min(1, (entity.Age + RuneSimulation.STEP_SECONDS) / entity.Lifetime);
             BuildSweep(context, entity, state, progress);
             state.Commit(entity.Position, progress, context.Tick);
-            SimVector direction = state.GetDirection(progress, entity.Action.ConeAngle);
+            SimVector direction = state.GetDirection(progress, entity.SlashSweepAngle);
             entity.Move(state.Center, direction);
             SimVector pushDirection = new SimVector(direction.Y, -direction.X);
             IReadOnlyList<SimulationEnemy> enemies = context.Enemies;
@@ -64,11 +68,11 @@ namespace RuneCode
             }
         }
 
-        /// <summary>이전 중심과 각도부터 이번 틱 종료까지 칼날을 나누어 샘플링하고 각 방향의 벽 접촉에서 길이를 제한한다.</summary>
+        /// <summary>이전 중심·각도부터 칼날을 샘플링한다. 왕복 참격은 원래 각도를 되짚으며 칼날 끝을 벽에서 제한한다.</summary>
         private static void BuildSweep(SpellRuntimeContext context, SimulationSpellEntity entity, SlashState state, double progress)
         {
             double distance = (entity.Position - state.Center).Length
-                + Math.Abs(progress - state.Progress) * entity.Action.ConeAngle * DEGREES_TO_RADIANS * entity.Radius;
+                + Math.Abs(progress - state.Progress) * (entity.HasBehaviorEvolution ? 2 : 1) * entity.SlashSweepAngle * DEGREES_TO_RADIANS * entity.Radius;
             int segments = Math.Max(1, Math.Min(MAX_SWEEP_SEGMENTS,
                 (int)Math.Ceiling(distance / Math.Max(2, entity.BoxWidth * .5))));
             state.ClearSamples();
@@ -77,11 +81,12 @@ namespace RuneCode
                 double fraction = index / (double)segments;
                 SimVector center = state.Center + (entity.Position - state.Center) * fraction;
                 double sampleProgress = state.Progress + (progress - state.Progress) * fraction;
-                SimVector direction = state.GetDirection(sampleProgress, entity.Action.ConeAngle);
+                SimVector direction = state.GetDirection(sampleProgress, entity.SlashSweepAngle);
+                SimVector start = center;
                 SimVector tip = center + direction * entity.Radius;
                 double wall = context.FirstWallFraction(center, tip, entity.BoxWidth * .5);
                 if (!double.IsPositiveInfinity(wall)) tip = center + (tip - center) * Math.Max(0, wall - RuneSimulation.COLLISION_EPSILON);
-                state.AddSample(center, tip);
+                state.AddSample(start, tip);
             }
         }
 
@@ -158,6 +163,7 @@ namespace RuneCode
         internal sealed class SlashState
         {
             private readonly SimVector _baseDirection;
+            private readonly bool _returns;
             private readonly bool _followsCaster;
             private readonly List<BladeSample> _samples = new List<BladeSample>();
             private readonly List<SimVector> _path = new List<SimVector>(2);
@@ -175,6 +181,7 @@ namespace RuneCode
             public SlashState(SimulationSpellEntity entity)
             {
                 _baseDirection = entity.Direction.Normalized();
+                _returns = entity.HasBehaviorEvolution;
                 _followsCaster = !entity.FromEvent;
                 _center = entity.Position;
             }
@@ -191,9 +198,12 @@ namespace RuneCode
             public SimVector GetCenter(SimulationPlayer caster)
                 => _followsCaster ? caster.Position : _anchorTarget != null && _anchorTarget.IsAlive ? _anchorTarget.Position : _center;
 
-            /// <summary>시작 방향의 오른쪽에서 왼쪽으로 진행하는 칼날 방향을 반환한다.</summary>
+            /// <summary>진행률과 각도로 칼날 방향을 반환한다. 왕복 참격은 수명 후반에 원래 각도를 되짚는다.</summary>
             public SimVector GetDirection(double progress, double angle)
-                => _baseDirection.Rotated((.5 - progress) * angle * DEGREES_TO_RADIANS);
+            {
+                double swing = _returns ? (progress <= .5 ? progress * 2 : (1 - progress) * 2) : progress;
+                return _baseDirection.Rotated((.5 - swing) * angle * DEGREES_TO_RADIANS);
+            }
 
             /// <summary>이전 틱의 임시 판정 샘플을 지워 목록을 재사용한다.</summary>
             public void ClearSamples() => _samples.Clear();
@@ -215,7 +225,7 @@ namespace RuneCode
 
             /// <summary>이후 실행을 결정하는 추종 대상·회전 기준과 마지막 판정 상태를 기록한다.</summary>
             public void WriteState(StringBuilder state)
-                => state.Append(FormattableString.Invariant($"|slash:{_followsCaster}:{_anchorTarget?.Id ?? 0}:{_center.X:R}:{_center.Y:R}:{_baseDirection.X:R}:{_baseDirection.Y:R}:{_progress:R}:{_lastTick}"));
+                => state.Append(FormattableString.Invariant($"|slash:{_followsCaster}:{_anchorTarget?.Id ?? 0}:{_center.X:R}:{_center.Y:R}:{_baseDirection.X:R}:{_baseDirection.Y:R}:{_progress:R}:{_lastTick}:{_returns}"));
         }
     }
 }

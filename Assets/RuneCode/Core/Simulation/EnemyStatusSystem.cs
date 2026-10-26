@@ -115,7 +115,7 @@ namespace RuneCode
         /// <summary>
         /// 공격 피해 sourceDamage의 설정 비율을 화상 틱 피해로 계산하고, 새 화상이거나 기존보다 클 때만 피해·출처를 갱신하며 지속시간은 강화 배율로 갱신한다.
         /// 재점화 때마다 지속시간은 갱신하며 진행 중인 화상의 다음 틱 시각은 유지한다.
-        /// 화염 강화(전역 또는 같은 속성 두 개)가 켜지면 부여 때마다 중첩과 공격 피해를 저장하고 최대 중첩에 도달하면 대상의 상태 이상을 모두 지우고 중첩 피해의 곱을 burn_burst 피해로 한 번 준다.
+        /// 화염 강화(전역 또는 같은 속성 두 개)가 켜지면 부여 때마다 중첩과 화상 틱 피해를 저장하고 최대 중첩에 도달하면 대상의 상태 이상을 모두 지우고 중첩 틱 피해 합에 배율을 곱한 burn_burst 피해를 한 번 준다.
         /// </summary>
         private void ApplyBurn(SimulationEnemy enemy, string form, bool noise, double sourceDamage, SpellAction sourceAction)
         {
@@ -139,9 +139,9 @@ namespace RuneCode
                 burn.IsNoise = noise;
             }
             if (!IsFireEnhanced(sourceAction)) return;
-            burn.AddFireStack(sourceDamage);
+            burn.AddFireStack(tickDamage);
             if (burn.Stacks < combat.BurnMaxStacks) return;
-            double burstDamage = burn.GetFireBurstDamage();
+            double burstDamage = burn.GetFireBurstDamage(combat.BurnBurstMultiplier);
             RemoveEnemyStatuses(enemy.Id);
             _simulation.ApplyDamage(enemy, burstDamage, "fire", form, noise, false, SimVector.Zero, false, sourceAction: sourceAction, damageStatus: "burn_burst");
         }

@@ -473,7 +473,8 @@ namespace RuneCode
             bool wasDashing = _world.Player.DashRemaining > 0.000001;
             _world.Player.Aim(input.AimDirection);
             double regen = _world.EnergyRegen;
-            if (input.Movement.LengthSquared <= 0.000001 && !wasDashing) regen *= 1 + _world.Upgrades.StationaryRegenBonus;
+            if (input.Movement.LengthSquared <= 0.000001 && !wasDashing && _world.Upgrades.StationaryRegenBonus > 0)
+                regen *= PlayerUpgradeStats.STATIONARY_REGEN_MULTIPLIER;
             _world.Player.Advance(STEP_SECONDS, Time, regen);
             bool startedDash = MovePlayer(input);
             if (startedDash) _executor.TryCastTrigger(SpellGrammar.TRIGGER_ON_DASH_START);
@@ -563,6 +564,9 @@ namespace RuneCode
             state.Append('|').Append(_executor.AimPoint.HasValue);
             if (_executor.AimPoint.HasValue) { SimHash.AppendNumber(state, _executor.AimPoint.Value.X); SimHash.AppendNumber(state, _executor.AimPoint.Value.Y); }
             SimHash.AppendNumber(state, _world.DamageMultiplier); SimHash.AppendNumber(state, _world.MoveSpeedMultiplier);
+            if (_world.Upgrades.HasBehaviorEvolution)
+                state.Append("|behaviorEvolution:").Append(_world.Upgrades.HasFlyingSlash).Append(':')
+                    .Append(_world.Upgrades.HasReturningLaunch).Append(':').Append(_world.Upgrades.HasReturningBurst);
             SimHash.AppendNumber(state, _loot.ScrapGainMultiplier); SimHash.AppendNumber(state, _loot.ScrapPickupRangeMultiplier); SimHash.AppendNumber(state, _loot.ScrapHealRatio); SimHash.AppendNumber(state, _loot.ScrapRemainder);
             _world.Player.WriteState(state);
             _aura.WriteState(state);
@@ -663,6 +667,7 @@ namespace RuneCode
             _statuses.ClearAll();
             _world.Player.CancelDash(Time);
             _loot.CollectRemainingDrops();
+            _world.Player.Heal(_world.Player.MaxHp * _world.Balance.Player.RoundClearHealRatio);
             if (_world.StageNumber == StageCatalog.PROGRESSION_STAGE_COUNT && _world.RoundNumber == StageCatalog.PROGRESSION_ROUND_COUNT)
             {
                 _world.Stage = MissionStage.Cleared;

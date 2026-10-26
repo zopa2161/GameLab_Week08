@@ -298,12 +298,14 @@ flowchart LR
 
 | 종류 | 부여 | 효과 | 수치 (`balance.json _combat`) |
 |---|---|---|---|
-| Burn 화상 | 화염 속성 피해 | 0.5초마다 원 공격 피해의 10% 지속 피해. 재점화는 더 큰 피해일 때만 피해·출처 교체, 지속시간은 갱신, 틱 일정 유지 | `_burnDamageRatio`, `_burnInterval`, `_burnSeconds` |
+| Burn 화상 | 화염 속성 피해 | 0.5초마다 원 공격 피해의 15% 지속 피해. 재점화는 더 큰 피해일 때만 피해·출처 교체, 지속시간은 갱신, 틱 일정 유지 | `_burnDamageRatio`, `_burnInterval`, `_burnSeconds` |
 | Chill 냉기 | 냉기 속성 피해 | 스택마다 감속. 최대 스택이면 빙결로 전환 | `_chillSlow`, `_chillSeconds`, `_chillMaxStacks` |
 | Freeze 빙결 | 냉기 최대 스택 | 행동 정지, 이후 면역 시간(면역 중 냉기 스택 상한 2) | `_freezeSeconds`, `_freezeImmunity`, `_chillImmuneMaxStacks` |
 | Emp | 전격 속성 피해(내부 태그 `arc`) | 지속 시간 동안 이지스 방패 감쇠를 무력화 | `_empSeconds` |
 
 속성 문자열은 런타임 태그 기준이다: 화염 `fire`, 냉기 `ice`, 전격 `arc`(`EnemyStatusSystem.ApplyStatus`).
+
+화염 강화 중에는 화상 부여마다 그 틱 피해를 중첩에 저장하고, `_burnMaxStacks`(3)에 도달하면 저장값 합에 `_burnBurstMultiplier`(6)를 곱한 `burn_burst` 피해를 한 번 준 뒤 적의 상태 이상을 모두 지운다.
 
 상태 이상은 적 ID와 종류를 합친 키로 인덱싱되며, 적이 제거되면 함께 지운다.
 

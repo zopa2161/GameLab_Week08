@@ -697,7 +697,7 @@ namespace RuneCode
                 Color tint = RuneMesh.ElementColor(number.Element);
                 tint.a = 1 - elapsed / 42f;
                 label.color = tint;
-                label.text = number.Amount.ToString("0.#");
+                label.text = number.Amount.ToString("0.0");
             }
             for (int i = visible; i < _damageLabels.Count; i++) _damageLabels[i].gameObject.SetActive(false);
         }

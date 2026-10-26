@@ -89,6 +89,8 @@ namespace RuneCode
             if (node.EffectType == UpgradeEffectType.CastSpeed) return GameData.L("ui.tree.pendingEffect");
             if (node.EffectType == UpgradeEffectType.ElementCostReduction)
                 return GameData.L("ui.tree.nextIncrease") + " -" + node.Levels[currentLevel].Amount.ToString("0.##") + " 마나";
+            if (node.EffectType == UpgradeEffectType.StationaryRegen)
+                return GameData.L("ui.tree.nextIncrease") + " ×" + PlayerUpgradeStats.STATIONARY_REGEN_MULTIPLIER.ToString("0.##");
             float amount = node.Levels[currentLevel].Amount;
             string unit;
             switch (node.EffectType)
@@ -111,7 +113,6 @@ namespace RuneCode
                 case UpgradeEffectType.FarDamage:
                 case UpgradeEffectType.FullManaDamage:
                 case UpgradeEffectType.PostDashDamage:
-                case UpgradeEffectType.StationaryRegen:
                     amount *= 100f;
                     unit = "%";
                     break;
@@ -130,6 +131,9 @@ namespace RuneCode
                 case UpgradeEffectType.DashTeleport:
                 case UpgradeEffectType.DashCollisionGuard:
                 case UpgradeEffectType.PlayerAura:
+                case UpgradeEffectType.FlyingSlash:
+                case UpgradeEffectType.ReturningLaunch:
+                case UpgradeEffectType.ReturningBurst:
                 case UpgradeEffectType.ArcEnhance:
                 case UpgradeEffectType.IceEnhance:
                 case UpgradeEffectType.FireEnhance:
